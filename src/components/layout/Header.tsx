@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Search, Bell, User, Menu } from "lucide-react";
+import { Search, Bell, User, Menu, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
@@ -9,6 +9,7 @@ const navLinks = [
   { href: "/businesses", label: "Businesses" },
   { href: "/community", label: "Community" },
   { href: "/rewards", label: "Rewards" },
+  { href: "/dashboard", label: "Dashboard" },
 ];
 
 export function Header() {
