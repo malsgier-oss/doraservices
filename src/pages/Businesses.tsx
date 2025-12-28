@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal, Grid3X3, Map } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { BusinessCard } from "@/components/business/BusinessCard";
+import { BusinessMap } from "@/components/business/BusinessMap";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { businesses, categories } from "@/data/mockData";
@@ -9,6 +10,7 @@ import { businesses, categories } from "@/data/mockData";
 const Businesses = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [viewMode, setViewMode] = useState<"grid" | "map">("grid");
 
   const filteredBusinesses = businesses.filter((business) => {
     const matchesSearch =
@@ -32,7 +34,7 @@ const Businesses = () => {
             Discover and support businesses in your community
           </p>
 
-          {/* Search */}
+          {/* Search and View Toggle */}
           <div className="flex flex-col sm:flex-row gap-3 max-w-2xl">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -43,10 +45,30 @@ const Businesses = () => {
                 className="pl-10 h-12 bg-card border-0 shadow-card"
               />
             </div>
-            <Button variant="outline" className="h-12 px-4">
-              <SlidersHorizontal className="h-5 w-5 mr-2" />
-              Filters
-            </Button>
+            <div className="flex gap-2">
+              <div className="flex bg-card rounded-lg p-1 shadow-card">
+                <Button
+                  variant={viewMode === "grid" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setViewMode("grid")}
+                  className="px-3"
+                >
+                  <Grid3X3 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={viewMode === "map" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setViewMode("map")}
+                  className="px-3"
+                >
+                  <Map className="h-4 w-4" />
+                </Button>
+              </div>
+              <Button variant="outline" className="h-10 px-4">
+                <SlidersHorizontal className="h-5 w-5 mr-2" />
+                Filters
+              </Button>
+            </div>
           </div>
         </div>
       </section>
@@ -74,14 +96,16 @@ const Businesses = () => {
         </div>
       </section>
 
-      {/* Business Grid */}
+      {/* Content */}
       <section className="py-12">
         <div className="container">
           <p className="text-sm text-muted-foreground mb-6">
             Showing {filteredBusinesses.length} businesses
           </p>
 
-          {filteredBusinesses.length > 0 ? (
+          {viewMode === "map" ? (
+            <BusinessMap businesses={filteredBusinesses} />
+          ) : filteredBusinesses.length > 0 ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredBusinesses.map((business, index) => (
                 <div
