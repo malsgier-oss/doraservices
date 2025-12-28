@@ -12,6 +12,7 @@ export const businesses = [
     description: "Family-owned bakery serving fresh bread, pastries, and artisan coffee since 1985.",
     phone: "(555) 123-4567",
     hours: "Mon-Sat: 6AM - 6PM, Sun: 7AM - 2PM",
+    coordinates: { lng: -122.4194, lat: 37.7749 },
   },
   {
     id: "2",
@@ -26,6 +27,7 @@ export const businesses = [
     description: "Your local source for plants, gardening supplies, and expert advice.",
     phone: "(555) 234-5678",
     hours: "Mon-Sun: 8AM - 7PM",
+    coordinates: { lng: -122.4094, lat: 37.7849 },
   },
   {
     id: "3",
@@ -40,6 +42,7 @@ export const businesses = [
     description: "Independent bookstore with a curated selection of new and used books.",
     phone: "(555) 345-6789",
     hours: "Mon-Fri: 9AM - 9PM, Sat-Sun: 10AM - 8PM",
+    coordinates: { lng: -122.4294, lat: 37.7649 },
   },
   {
     id: "4",
@@ -54,6 +57,7 @@ export const businesses = [
     description: "Authentic Italian cuisine made with love and family recipes.",
     phone: "(555) 456-7890",
     hours: "Tue-Sun: 11AM - 10PM",
+    coordinates: { lng: -122.4394, lat: 37.7549 },
   },
   {
     id: "5",
@@ -68,6 +72,7 @@ export const businesses = [
     description: "Everything your furry friends need, from food to toys to grooming.",
     phone: "(555) 567-8901",
     hours: "Mon-Sat: 9AM - 8PM, Sun: 10AM - 6PM",
+    coordinates: { lng: -122.4494, lat: 37.7449 },
   },
   {
     id: "6",
@@ -82,6 +87,7 @@ export const businesses = [
     description: "State-of-the-art equipment and classes for all fitness levels.",
     phone: "(555) 678-9012",
     hours: "24/7 Access",
+    coordinates: { lng: -122.4594, lat: 37.7349 },
   },
 ];
 
