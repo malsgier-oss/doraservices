@@ -10,6 +10,7 @@ import Community from "./pages/Community";
 import Rewards from "./pages/Rewards";
 import Profile from "./pages/Profile";
 import BusinessDashboard from "./pages/BusinessDashboard";
+import Leaderboard from "./pages/Leaderboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/businesses/:id" element={<BusinessDetail />} />
           <Route path="/community" element={<Community />} />
           <Route path="/rewards" element={<Rewards />} />
+          <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/dashboard" element={<BusinessDashboard />} />
           <Route path="*" element={<NotFound />} />
