@@ -14,17 +14,60 @@ import { ReviewCard } from "@/components/reviews/ReviewCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { businesses, reviews } from "@/data/mockData";
+import { reviews } from "@/data/mockData";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 const BusinessDetail = () => {
   const { id } = useParams<{ id: string }>();
-  const business = businesses.find((b) => b.id === id);
-  const businessReviews = reviews.filter((r) => r.businessId === id);
   const [newReview, setNewReview] = useState("");
   const [selectedRating, setSelectedRating] = useState(0);
   const [saved, setSaved] = useState(false);
+
+  // Fetch business from database
+  const { data: business, isLoading } = useQuery({
+    queryKey: ["business", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("businesses")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (error) throw error;
+      
+      // Transform to match expected format
+      return {
+        id: data.id,
+        name: data.name,
+        category: data.category,
+        image: data.image_url || "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=600&h=400&fit=crop",
+        rating: 4.5,
+        reviewCount: 0,
+        address: data.location || "Location not specified",
+        isOpen: true,
+        featured: false,
+        description: data.description || "No description available.",
+        phone: "Contact not available",
+        hours: "Hours not specified",
+      };
+    },
+    enabled: !!id,
+  });
+
+  const businessReviews = reviews.filter((r) => r.businessId === id);
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="container py-16 flex justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </Layout>
+    );
+  }
 
   if (!business) {
     return (
