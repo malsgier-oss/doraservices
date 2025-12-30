@@ -1,17 +1,19 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, Store, Tag, Gift, User } from "lucide-react";
+import { Home, Store, Tag, Gift, User, LogIn } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const navItems = [
-  { href: "/", label: "Home", icon: Home },
-  { href: "/businesses", label: "Explore", icon: Store },
-  { href: "/deals", label: "Deals", icon: Tag },
-  { href: "/rewards", label: "Rewards", icon: Gift },
-  { href: "/profile", label: "Profile", icon: User },
-];
+import { useAuth } from "@/contexts/AuthContext";
 
 export function MobileNav() {
   const location = useLocation();
+  const { user } = useAuth();
+
+  const navItems = [
+    { href: "/", label: "Home", icon: Home },
+    { href: "/businesses", label: "Explore", icon: Store },
+    { href: "/deals", label: "Deals", icon: Tag },
+    { href: "/rewards", label: "Rewards", icon: Gift },
+    { href: user ? "/profile" : "/auth", label: user ? "Profile" : "Log In", icon: user ? User : LogIn },
+  ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-card/95 backdrop-blur-lg border-t border-border safe-area-bottom">
