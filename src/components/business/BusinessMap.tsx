@@ -63,6 +63,9 @@ export function BusinessMap({ businesses }: BusinessMapProps) {
       businesses.forEach((business) => {
         const el = document.createElement('div');
         el.className = 'business-marker';
+        // SECURITY: This innerHTML is safe because it contains only static SVG content.
+        // DO NOT include user-controlled data (business.name, business.description, etc.) in this HTML.
+        // If dynamic content is needed in the future, use proper DOM methods or sanitization.
         el.innerHTML = `
           <div class="w-10 h-10 bg-primary rounded-full flex items-center justify-center shadow-lg cursor-pointer transition-transform hover:scale-110">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
