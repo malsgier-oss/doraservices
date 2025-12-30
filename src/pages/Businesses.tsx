@@ -5,12 +5,52 @@ import { BusinessCard } from "@/components/business/BusinessCard";
 import { BusinessMap } from "@/components/business/BusinessMap";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { businesses, categories } from "@/data/mockData";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
+const categories = [
+  "All",
+  "Restaurants",
+  "Cafes",
+  "Retail",
+  "Services",
+  "Health & Fitness",
+  "Entertainment",
+];
 
 const Businesses = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [viewMode, setViewMode] = useState<"grid" | "map">("grid");
+
+  // Fetch businesses from database
+  const { data: dbBusinesses = [], isLoading } = useQuery({
+    queryKey: ["businesses"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("businesses")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Transform database businesses to match BusinessCard props
+  const businesses = dbBusinesses.map((business) => ({
+    id: business.id,
+    name: business.name,
+    category: business.category,
+    image: business.image_url || "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=600&h=400&fit=crop",
+    rating: 4.5, // Default rating since we don't have reviews yet
+    reviewCount: 0,
+    address: business.location || "Location not specified",
+    isOpen: true,
+    featured: false,
+    description: business.description,
+    coordinates: { lng: -122.4194, lat: 37.7749 }, // Default coordinates
+  }));
 
   const filteredBusinesses = businesses.filter((business) => {
     const matchesSearch =
@@ -99,33 +139,41 @@ const Businesses = () => {
       {/* Content */}
       <section className="py-12">
         <div className="container">
-          <p className="text-sm text-muted-foreground mb-6">
-            Showing {filteredBusinesses.length} businesses
-          </p>
-
-          {viewMode === "map" ? (
-            <BusinessMap businesses={filteredBusinesses} />
-          ) : filteredBusinesses.length > 0 ? (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredBusinesses.map((business, index) => (
-                <div
-                  key={business.id}
-                  className="animate-fade-in"
-                  style={{ animationDelay: `${index * 50}ms` }}
-                >
-                  <BusinessCard {...business} />
-                </div>
-              ))}
+          {isLoading ? (
+            <div className="flex justify-center py-16">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
           ) : (
-            <div className="text-center py-16">
-              <p className="text-muted-foreground mb-4">
-                No businesses found matching your criteria
+            <>
+              <p className="text-sm text-muted-foreground mb-6">
+                Showing {filteredBusinesses.length} businesses
               </p>
-              <Button variant="outline" onClick={() => setSearchQuery("")}>
-                Clear Search
-              </Button>
-            </div>
+
+              {viewMode === "map" ? (
+                <BusinessMap businesses={filteredBusinesses} />
+              ) : filteredBusinesses.length > 0 ? (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredBusinesses.map((business, index) => (
+                    <div
+                      key={business.id}
+                      className="animate-fade-in"
+                      style={{ animationDelay: `${index * 50}ms` }}
+                    >
+                      <BusinessCard {...business} />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-16">
+                  <p className="text-muted-foreground mb-4">
+                    No businesses found matching your criteria
+                  </p>
+                  <Button variant="outline" onClick={() => setSearchQuery("")}>
+                    Clear Search
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </section>

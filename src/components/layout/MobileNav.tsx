@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, Store, Tag, Gift, User, LogIn, Users, LayoutDashboard } from "lucide-react";
+import { Store, Tag, User, Users, LayoutDashboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -18,7 +18,7 @@ export function MobileNav() {
     { href: "/community", label: "Feed", icon: Users },
     { href: "/businesses", label: "Explore", icon: Store },
     { href: "/deals", label: "Deals", icon: Tag },
-    ...(isBusiness ? [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }] : [{ href: "/rewards", label: "Rewards", icon: Gift }]),
+    ...(isBusiness ? [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }] : []),
     { href: "/profile", label: "Profile", icon: User },
   ];
 
