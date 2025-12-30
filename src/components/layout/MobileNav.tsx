@@ -1,12 +1,12 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, Store, Tag, Trophy, User } from "lucide-react";
+import { Home, Store, Tag, Gift, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/", label: "Home", icon: Home },
   { href: "/businesses", label: "Explore", icon: Store },
   { href: "/deals", label: "Deals", icon: Tag },
-  { href: "/leaderboard", label: "Ranks", icon: Trophy },
+  { href: "/rewards", label: "Rewards", icon: Gift },
   { href: "/profile", label: "Profile", icon: User },
 ];
 
