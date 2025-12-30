@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, SlidersHorizontal, Grid3X3, Map } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { BusinessCard } from "@/components/business/BusinessCard";
@@ -7,16 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-
-const categories = [
-  "All",
-  "Restaurants",
-  "Cafes",
-  "Retail",
-  "Services",
-  "Health & Fitness",
-  "Entertainment",
-];
 
 const Businesses = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -42,7 +32,9 @@ const Businesses = () => {
     id: business.id,
     name: business.name,
     category: business.category,
-    image: business.image_url || "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=600&h=400&fit=crop",
+    image:
+      business.image_url ||
+      "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=600&h=400&fit=crop",
     rating: 4.5, // Default rating since we don't have reviews yet
     reviewCount: 0,
     address: business.location || "Location not specified",
@@ -52,13 +44,27 @@ const Businesses = () => {
     coordinates: { lng: -122.4194, lat: 37.7749 }, // Default coordinates
   }));
 
+  const categories = useMemo(() => {
+    const unique = Array.from(
+      new Set(businesses.map((b) => b.category).filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b));
+    return ["All", ...unique];
+  }, [businesses]);
+
+  useEffect(() => {
+    if (!categories.includes(selectedCategory)) {
+      setSelectedCategory("All");
+    }
+  }, [categories, selectedCategory]);
+
   const filteredBusinesses = businesses.filter((business) => {
     const matchesSearch =
       business.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       business.category.toLowerCase().includes(searchQuery.toLowerCase());
+
     const matchesCategory =
-      selectedCategory === "All" ||
-      business.category.toLowerCase().includes(selectedCategory.toLowerCase());
+      selectedCategory === "All" || business.category === selectedCategory;
+
     return matchesSearch && matchesCategory;
   });
 
