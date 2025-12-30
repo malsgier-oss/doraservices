@@ -1,29 +1,33 @@
-import { Heart, MessageCircle, Share2 } from "lucide-react";
+import { Heart, MessageCircle, Share2, Store } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 
 interface CommunityPostProps {
   id: string;
-  author: {
-    name: string;
-    avatar?: string;
-    initials: string;
-  };
+  authorName: string;
+  authorAvatar?: string;
+  authorInitials: string;
   content: string;
   image?: string;
+  timestamp: string;
   likes: number;
   comments: number;
-  timeAgo: string;
+  shares?: number;
+  businessName?: string;
 }
 
 export function CommunityPost({
-  author,
+  authorName,
+  authorAvatar,
+  authorInitials,
   content,
   image,
+  timestamp,
   likes: initialLikes,
   comments,
-  timeAgo,
+  businessName,
 }: CommunityPostProps) {
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState(initialLikes);
@@ -38,14 +42,22 @@ export function CommunityPost({
       {/* Author */}
       <div className="flex items-center gap-3 mb-4">
         <Avatar className="h-10 w-10 ring-2 ring-primary/10">
-          <AvatarImage src={author.avatar} alt={author.name} />
+          <AvatarImage src={authorAvatar} alt={authorName} />
           <AvatarFallback className="bg-warm text-warm-foreground font-medium">
-            {author.initials}
+            {authorInitials}
           </AvatarFallback>
         </Avatar>
-        <div>
-          <p className="font-medium text-foreground">{author.name}</p>
-          <p className="text-xs text-muted-foreground">{timeAgo}</p>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <p className="font-medium text-foreground">{authorName}</p>
+            {businessName && (
+              <Badge variant="secondary" className="text-xs">
+                <Store className="h-3 w-3 mr-1" />
+                {businessName}
+              </Badge>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">{timestamp}</p>
         </div>
       </div>
 

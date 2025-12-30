@@ -8,6 +8,9 @@ import {
   Award,
   MessageSquare,
   Bookmark,
+  Save,
+  X,
+  Loader2,
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -17,23 +20,88 @@ import { ReviewCard } from "@/components/reviews/ReviewCard";
 import { BusinessCard } from "@/components/business/BusinessCard";
 import { reviews, businesses } from "@/data/mockData";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { useProfile } from "@/hooks/useProfile";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/hooks/use-toast";
+import { format } from "date-fns";
 
 const Profile = () => {
   const [activeTab, setActiveTab] = useState("reviews");
+  const [isEditing, setIsEditing] = useState(false);
+  const { user } = useAuth();
+  const { profile, loading, updateProfile } = useProfile();
 
-  const userProfile = {
-    name: "Alex Morgan",
-    initials: "AM",
-    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop",
-    location: "Downtown District",
-    memberSince: "March 2023",
-    points: 125,
-    reviewCount: 15,
-    tier: "Silver",
+  const [formData, setFormData] = useState({
+    full_name: "",
+    bio: "",
+    avatar_url: "",
+  });
+
+  // Update form data when profile loads
+  useState(() => {
+    if (profile) {
+      setFormData({
+        full_name: profile.full_name || "",
+        bio: profile.bio || "",
+        avatar_url: profile.avatar_url || "",
+      });
+    }
+  });
+
+  const handleEdit = () => {
+    if (profile) {
+      setFormData({
+        full_name: profile.full_name || "",
+        bio: profile.bio || "",
+        avatar_url: profile.avatar_url || "",
+      });
+    }
+    setIsEditing(true);
+  };
+
+  const handleSave = async () => {
+    const { error } = await updateProfile({
+      full_name: formData.full_name || null,
+      bio: formData.bio || null,
+      avatar_url: formData.avatar_url || null,
+    });
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update profile",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Profile updated",
+        description: "Your profile has been saved successfully.",
+      });
+      setIsEditing(false);
+    }
   };
 
   const userReviews = reviews.slice(0, 2);
   const savedBusinesses = businesses.slice(0, 3);
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </Layout>
+    );
+  }
+
+  const displayName = profile?.full_name || user?.email?.split("@")[0] || "User";
+  const initials = displayName.slice(0, 2).toUpperCase();
+  const memberSince = profile?.created_at 
+    ? format(new Date(profile.created_at), "MMMM yyyy")
+    : "Recently";
 
   return (
     <Layout>
@@ -42,59 +110,114 @@ const Profile = () => {
         <div className="container">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
             <Avatar className="h-24 w-24 ring-4 ring-card shadow-lg">
-              <AvatarImage src={userProfile.avatar} alt={userProfile.name} />
+              <AvatarImage src={profile?.avatar_url || ""} alt={displayName} />
               <AvatarFallback className="text-2xl font-display font-bold bg-primary text-primary-foreground">
-                {userProfile.initials}
+                {initials}
               </AvatarFallback>
             </Avatar>
 
             <div className="flex-1 text-center sm:text-left">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-2">
-                <h1 className="font-display text-2xl font-bold text-foreground">
-                  {userProfile.name}
-                </h1>
-                <Badge className="w-fit mx-auto sm:mx-0 bg-primary text-primary-foreground">
-                  <Award className="h-3 w-3 mr-1" />
-                  {userProfile.tier} Member
-                </Badge>
-              </div>
-
-              <div className="flex flex-wrap justify-center sm:justify-start gap-4 text-sm text-muted-foreground mb-4">
-                <span className="flex items-center gap-1">
-                  <MapPin className="h-4 w-4" />
-                  {userProfile.location}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Calendar className="h-4 w-4" />
-                  Member since {userProfile.memberSince}
-                </span>
-              </div>
-
-              <div className="flex justify-center sm:justify-start gap-6">
-                <div className="text-center">
-                  <p className="font-display text-xl font-bold text-foreground">
-                    {userProfile.points}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Points</p>
+              {isEditing ? (
+                <div className="space-y-4 max-w-md">
+                  <div className="space-y-2">
+                    <Label htmlFor="full_name">Full Name</Label>
+                    <Input
+                      id="full_name"
+                      value={formData.full_name}
+                      onChange={(e) =>
+                        setFormData({ ...formData, full_name: e.target.value })
+                      }
+                      placeholder="Your name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bio">Bio</Label>
+                    <Textarea
+                      id="bio"
+                      value={formData.bio}
+                      onChange={(e) =>
+                        setFormData({ ...formData, bio: e.target.value })
+                      }
+                      placeholder="Tell us about yourself..."
+                      rows={3}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="avatar_url">Avatar URL</Label>
+                    <Input
+                      id="avatar_url"
+                      value={formData.avatar_url}
+                      onChange={(e) =>
+                        setFormData({ ...formData, avatar_url: e.target.value })
+                      }
+                      placeholder="https://example.com/avatar.jpg"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setIsEditing(false)}>
+                      <X className="h-4 w-4 mr-1" />
+                      Cancel
+                    </Button>
+                    <Button variant="warm" size="sm" onClick={handleSave}>
+                      <Save className="h-4 w-4 mr-1" />
+                      Save
+                    </Button>
+                  </div>
                 </div>
-                <div className="text-center">
-                  <p className="font-display text-xl font-bold text-foreground">
-                    {userProfile.reviewCount}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Reviews</p>
-                </div>
-              </div>
+              ) : (
+                <>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-2">
+                    <h1 className="font-display text-2xl font-bold text-foreground">
+                      {displayName}
+                    </h1>
+                    <Badge className="w-fit mx-auto sm:mx-0 bg-primary text-primary-foreground">
+                      <Award className="h-3 w-3 mr-1" />
+                      {profile?.tier || "Explorer"} Member
+                    </Badge>
+                  </div>
+
+                  {profile?.bio && (
+                    <p className="text-muted-foreground mb-3 max-w-md">
+                      {profile.bio}
+                    </p>
+                  )}
+
+                  <div className="flex flex-wrap justify-center sm:justify-start gap-4 text-sm text-muted-foreground mb-4">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-4 w-4" />
+                      Member since {memberSince}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-center sm:justify-start gap-6">
+                    <div className="text-center">
+                      <p className="font-display text-xl font-bold text-foreground">
+                        {profile?.points || 0}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Points</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="font-display text-xl font-bold text-foreground">
+                        {userReviews.length}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Reviews</p>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm">
-                <Edit2 className="h-4 w-4 mr-1" />
-                Edit Profile
-              </Button>
-              <Button variant="ghost" size="icon">
-                <Settings className="h-5 w-5" />
-              </Button>
-            </div>
+            {!isEditing && (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={handleEdit}>
+                  <Edit2 className="h-4 w-4 mr-1" />
+                  Edit Profile
+                </Button>
+                <Button variant="ghost" size="icon">
+                  <Settings className="h-5 w-5" />
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </section>

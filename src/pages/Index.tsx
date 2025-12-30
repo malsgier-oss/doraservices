@@ -138,7 +138,17 @@ const Index = () => {
                 key={post.id}
                 style={{ animationDelay: `${index * 150}ms` }}
               >
-                <CommunityPost {...post} />
+                <CommunityPost
+                  id={post.id}
+                  authorName={post.author.name}
+                  authorAvatar={post.author.avatar}
+                  authorInitials={post.author.initials}
+                  content={post.content}
+                  image={post.image}
+                  timestamp={post.timeAgo}
+                  likes={post.likes}
+                  comments={post.comments}
+                />
               </div>
             ))}
           </div>
