@@ -10,7 +10,6 @@ import Index from "./pages/Index";
 import Businesses from "./pages/Businesses";
 import BusinessDetail from "./pages/BusinessDetail";
 import Community from "./pages/Community";
-import Rewards from "./pages/Rewards";
 import Deals from "./pages/Deals";
 import Profile from "./pages/Profile";
 import BusinessDashboard from "./pages/BusinessDashboard";
@@ -60,14 +59,6 @@ const AppRoutes = () => {
       />
       <Route path="/deals" element={<Deals />} />
       <Route path="/auth" element={<Auth />} />
-      <Route
-        path="/rewards"
-        element={
-          <ProtectedRoute>
-            <Rewards />
-          </ProtectedRoute>
-        }
-      />
       <Route
         path="/profile"
         element={
