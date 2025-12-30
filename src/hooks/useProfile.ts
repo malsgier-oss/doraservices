@@ -10,7 +10,6 @@ interface Profile {
   bio: string | null;
   points: number;
   tier: string;
-  is_business_owner: boolean;
   created_at: string;
   updated_at: string;
 }

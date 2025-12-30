@@ -1,8 +1,9 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Search, Bell, User, LogOut, LogIn } from "lucide-react";
+import { Search, Bell, User, LogOut, LogIn, LayoutDashboard, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +25,7 @@ export function Header() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const { isBusiness } = useUserRole();
 
   const handleSignOut = async () => {
     await signOut();
@@ -94,6 +96,17 @@ export function Header() {
                   <User className="mr-2 h-4 w-4" />
                   Profile
                 </DropdownMenuItem>
+                {isBusiness ? (
+                  <DropdownMenuItem onClick={() => navigate("/dashboard")}>
+                    <LayoutDashboard className="mr-2 h-4 w-4" />
+                    Dashboard
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onClick={() => navigate("/profile")} className="text-primary">
+                    <Building2 className="mr-2 h-4 w-4" />
+                    Become a Business
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => navigate("/rewards")}>
                   Rewards
                 </DropdownMenuItem>

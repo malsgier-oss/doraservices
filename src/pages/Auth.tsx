@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
-import { MapPin, Mail, Lock, User, Loader2 } from "lucide-react";
+import { MapPin, Mail, Lock, User, Loader2, Building2 } from "lucide-react";
 import { z } from "zod";
 
 const emailSchema = z.string().email("Please enter a valid email address");
@@ -27,7 +29,7 @@ export default function Auth() {
   }, [user, navigate]);
 
   const [loginData, setLoginData] = useState({ email: "", password: "" });
-  const [signupData, setSignupData] = useState({ email: "", password: "", fullName: "" });
+  const [signupData, setSignupData] = useState({ email: "", password: "", fullName: "", isBusiness: false });
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,18 +87,31 @@ export default function Auth() {
 
     setIsLoading(true);
     const { error } = await signUp(signupData.email, signupData.password, signupData.fullName);
-    setIsLoading(false);
 
     if (error) {
+      setIsLoading(false);
       let message = error.message;
       if (message.includes("already registered")) {
         message = "This email is already registered. Please log in instead.";
       }
       toast({ title: "Signup failed", description: message, variant: "destructive" });
-    } else {
-      toast({ title: "Account created!", description: "Welcome to LocalSpot!" });
-      navigate("/");
+      return;
     }
+
+    // If registering as business, add business role
+    if (signupData.isBusiness) {
+      // Wait a moment for the user to be created and trigger to run
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("user_roles").insert({ user_id: user.id, role: "business" });
+      }
+    }
+
+    setIsLoading(false);
+    toast({ title: "Account created!", description: signupData.isBusiness ? "Welcome! Set up your business dashboard." : "Welcome to LocalSpot!" });
+    navigate(signupData.isBusiness ? "/dashboard" : "/");
   };
 
   if (authLoading) {
@@ -235,6 +250,26 @@ export default function Auth() {
                     />
                   </div>
                 </div>
+
+                {/* Business Registration Toggle */}
+                <div className="flex items-center space-x-3 p-4 rounded-lg bg-secondary/50 border border-border">
+                  <Checkbox
+                    id="is-business"
+                    checked={signupData.isBusiness}
+                    onCheckedChange={(checked) => 
+                      setSignupData({ ...signupData, isBusiness: checked === true })
+                    }
+                  />
+                  <div className="flex-1">
+                    <Label htmlFor="is-business" className="flex items-center gap-2 cursor-pointer">
+                      <Building2 className="h-4 w-4 text-primary" />
+                      <span className="font-medium">I'm registering as a business</span>
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Get access to the business dashboard to manage deals & promotions
+                    </p>
+                  </div>
+                </div>
                 
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? (
@@ -243,7 +278,7 @@ export default function Auth() {
                       Creating account...
                     </>
                   ) : (
-                    "Create Account"
+                    signupData.isBusiness ? "Create Business Account" : "Create Account"
                   )}
                 </Button>
               </form>

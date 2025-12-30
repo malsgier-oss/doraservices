@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   MapPin,
   Calendar,
@@ -11,6 +12,7 @@ import {
   Save,
   X,
   Loader2,
+  Building2,
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -25,14 +27,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useProfile } from "@/hooks/useProfile";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
 const Profile = () => {
   const [activeTab, setActiveTab] = useState("reviews");
   const [isEditing, setIsEditing] = useState(false);
+  const [isUpgrading, setIsUpgrading] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { profile, loading, updateProfile } = useProfile();
+  const { isBusiness, loading: roleLoading, upgradeToBusiness } = useUserRole();
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -84,10 +91,30 @@ const Profile = () => {
     }
   };
 
+  const handleUpgradeToBusiness = async () => {
+    setIsUpgrading(true);
+    const { error } = await upgradeToBusiness();
+    setIsUpgrading(false);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to upgrade to business account",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Welcome to Business!",
+        description: "You now have access to the business dashboard.",
+      });
+      navigate("/dashboard");
+    }
+  };
+
   const userReviews = reviews.slice(0, 2);
   const savedBusinesses = businesses.slice(0, 3);
 
-  if (loading) {
+  if (loading || roleLoading) {
     return (
       <Layout>
         <div className="min-h-screen flex items-center justify-center">
@@ -208,14 +235,34 @@ const Profile = () => {
             </div>
 
             {!isEditing && (
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={handleEdit}>
-                  <Edit2 className="h-4 w-4 mr-1" />
-                  Edit Profile
-                </Button>
-                <Button variant="ghost" size="icon">
-                  <Settings className="h-5 w-5" />
-                </Button>
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={handleEdit}>
+                    <Edit2 className="h-4 w-4 mr-1" />
+                    Edit Profile
+                  </Button>
+                  <Button variant="ghost" size="icon">
+                    <Settings className="h-5 w-5" />
+                  </Button>
+                </div>
+                
+                {/* Become a Business CTA */}
+                {!isBusiness && (
+                  <Button 
+                    variant="warm" 
+                    size="sm" 
+                    onClick={handleUpgradeToBusiness}
+                    disabled={isUpgrading}
+                    className="gap-2"
+                  >
+                    {isUpgrading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Building2 className="h-4 w-4" />
+                    )}
+                    Become a Business
+                  </Button>
+                )}
               </div>
             )}
           </div>
