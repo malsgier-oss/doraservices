@@ -8,6 +8,7 @@ import Businesses from "./pages/Businesses";
 import BusinessDetail from "./pages/BusinessDetail";
 import Community from "./pages/Community";
 import Rewards from "./pages/Rewards";
+import Deals from "./pages/Deals";
 import Profile from "./pages/Profile";
 import BusinessDashboard from "./pages/BusinessDashboard";
 import Leaderboard from "./pages/Leaderboard";
@@ -27,6 +28,7 @@ const App = () => (
           <Route path="/businesses/:id" element={<BusinessDetail />} />
           <Route path="/community" element={<Community />} />
           <Route path="/rewards" element={<Rewards />} />
+          <Route path="/deals" element={<Deals />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/dashboard" element={<BusinessDashboard />} />
