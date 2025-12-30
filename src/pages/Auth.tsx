@@ -100,18 +100,34 @@ export default function Auth() {
 
     // If registering as business, add business role
     if (signupData.isBusiness) {
-      // Wait a moment for the user to be created and trigger to run
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait for the user to be created and trigger to run
+      let attempts = 0;
+      let user = null;
       
-      const { data: { user } } = await supabase.auth.getUser();
+      while (attempts < 5 && !user) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        const { data } = await supabase.auth.getUser();
+        user = data.user;
+        attempts++;
+      }
+      
       if (user) {
-        await supabase.from("user_roles").insert({ user_id: user.id, role: "business" });
+        const { error: roleError } = await supabase
+          .from("user_roles")
+          .insert({ user_id: user.id, role: "business" });
+        
+        if (roleError) {
+          console.error("Failed to add business role:", roleError);
+        }
       }
     }
 
     setIsLoading(false);
-    toast({ title: "Account created!", description: signupData.isBusiness ? "Welcome! Set up your business dashboard." : "Welcome to LocalSpot!" });
-    navigate(signupData.isBusiness ? "/dashboard" : "/");
+    toast({ 
+      title: "Account created!", 
+      description: signupData.isBusiness ? "Welcome! Set up your business dashboard." : "Welcome to LocalSpot!" 
+    });
+    navigate(signupData.isBusiness ? "/dashboard" : "/community");
   };
 
   if (authLoading) {
