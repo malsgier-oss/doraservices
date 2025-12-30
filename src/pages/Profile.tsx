@@ -13,6 +13,7 @@ import {
   X,
   Loader2,
   Building2,
+  LogOut,
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -37,7 +38,7 @@ const Profile = () => {
   const [isUpgrading, setIsUpgrading] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { profile, loading, updateProfile } = useProfile();
   const { isBusiness, loading: roleLoading, upgradeToBusiness } = useUserRole();
 
@@ -263,6 +264,20 @@ const Profile = () => {
                     Become a Business
                   </Button>
                 )}
+
+                {/* Sign Out */}
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={async () => {
+                    await signOut();
+                    navigate("/");
+                  }}
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-2"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Sign Out
+                </Button>
               </div>
             )}
           </div>
