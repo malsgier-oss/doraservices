@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { BusinessRoute } from "@/components/auth/BusinessRoute";
 import Index from "./pages/Index";
 import Businesses from "./pages/Businesses";
 import BusinessDetail from "./pages/BusinessDetail";
@@ -78,9 +79,9 @@ const AppRoutes = () => {
       <Route
         path="/dashboard"
         element={
-          <ProtectedRoute>
+          <BusinessRoute>
             <BusinessDashboard />
-          </ProtectedRoute>
+          </BusinessRoute>
         }
       />
       <Route path="*" element={<NotFound />} />
