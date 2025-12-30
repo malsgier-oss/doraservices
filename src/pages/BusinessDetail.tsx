@@ -8,20 +8,24 @@ import {
   Heart,
   ArrowLeft,
   MessageSquare,
+  Loader2,
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { ReviewCard } from "@/components/reviews/ReviewCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { reviews } from "@/data/mockData";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { format } from "date-fns";
 
 const BusinessDetail = () => {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [newReview, setNewReview] = useState("");
   const [selectedRating, setSelectedRating] = useState(0);
   const [saved, setSaved] = useState(false);
@@ -29,7 +33,7 @@ const BusinessDetail = () => {
   // Fetch business from database
   const {
     data: business,
-    isLoading,
+    isLoading: businessLoading,
     isError,
     error,
   } = useQuery({
@@ -44,30 +48,116 @@ const BusinessDetail = () => {
       if (error) throw error;
       if (!data) return null;
 
-      // Transform to match expected format
-      return {
-        id: data.id,
-        name: data.name,
-        category: data.category,
-        image:
-          data.image_url ||
-          "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=600&h=400&fit=crop",
-        rating: 4.5,
-        reviewCount: 0,
-        address: data.location || "Location not specified",
-        isOpen: true,
-        featured: false,
-        description: data.description || "No description available.",
-        phone: "Contact not available",
-        hours: "Hours not specified",
-      };
+      return data;
     },
     enabled: !!id,
   });
 
-  const businessReviews = reviews.filter((r) => r.businessId === id);
+  // Fetch reviews from database
+  const { data: reviews = [], isLoading: reviewsLoading } = useQuery({
+    queryKey: ["reviews", id],
+    queryFn: async () => {
+      // First fetch reviews
+      const { data: reviewsData, error: reviewsError } = await supabase
+        .from("reviews")
+        .select("*")
+        .eq("business_id", id)
+        .order("created_at", { ascending: false });
 
-  if (isLoading) {
+      if (reviewsError) throw reviewsError;
+      if (!reviewsData || reviewsData.length === 0) return [];
+
+      // Then fetch profiles for all review authors
+      const userIds = [...new Set(reviewsData.map(r => r.user_id))];
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, avatar_url")
+        .in("user_id", userIds);
+
+      // Merge profiles into reviews
+      const profileMap = new Map(profilesData?.map(p => [p.user_id, p]) || []);
+      
+      return reviewsData.map(review => ({
+        ...review,
+        profile: profileMap.get(review.user_id) || null,
+      }));
+    },
+    enabled: !!id,
+  });
+
+  // Calculate average rating
+  const avgRating = reviews.length > 0
+    ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+    : 0;
+
+  // Submit review mutation
+  const submitReviewMutation = useMutation({
+    mutationFn: async ({ rating, content }: { rating: number; content: string }) => {
+      if (!user) throw new Error("Must be logged in to submit a review");
+      
+      const { data, error } = await supabase
+        .from("reviews")
+        .insert({
+          user_id: user.id,
+          business_id: id,
+          rating,
+          content,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        if (error.code === "23505") {
+          throw new Error("You have already reviewed this business");
+        }
+        throw error;
+      }
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["reviews", id] });
+      toast({
+        title: "Review submitted!",
+        description: "Thank you for sharing your experience.",
+      });
+      setNewReview("");
+      setSelectedRating(0);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubmitReview = () => {
+    if (!user) {
+      toast({
+        title: "Please sign in",
+        description: "You must be logged in to submit a review.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (selectedRating === 0) {
+      toast({
+        title: "Please add a rating",
+        description: "Select a star rating before submitting.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    submitReviewMutation.mutate({
+      rating: selectedRating,
+      content: newReview,
+    });
+  };
+
+  if (businessLoading) {
     return (
       <Layout>
         <div className="container py-16 flex justify-center">
@@ -82,7 +172,7 @@ const BusinessDetail = () => {
       <Layout>
         <div className="container py-16 text-center">
           <h1 className="font-display text-2xl font-bold mb-4">
-            Couldn’t load this business
+            Couldn't load this business
           </h1>
           <p className="text-muted-foreground mb-6">
             {error instanceof Error ? error.message : "Please try again."}
@@ -116,29 +206,14 @@ const BusinessDetail = () => {
     );
   }
 
-  const handleSubmitReview = () => {
-    if (newReview && selectedRating > 0) {
-      toast({
-        title: "Review submitted!",
-        description: "Thank you for sharing your experience.",
-      });
-      setNewReview("");
-      setSelectedRating(0);
-    } else {
-      toast({
-        title: "Please complete your review",
-        description: "Add a rating and write your review before submitting.",
-        variant: "destructive",
-      });
-    }
-  };
+  const businessImage = business.image_url || "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=600&h=400&fit=crop";
 
   return (
     <Layout>
       {/* Hero Image */}
       <div className="relative h-64 sm:h-80 lg:h-96 overflow-hidden">
         <img
-          src={business.image}
+          src={businessImage}
           alt={business.name}
           className="w-full h-full object-cover"
         />
@@ -188,29 +263,19 @@ const BusinessDetail = () => {
                 <div className="flex items-center gap-2 bg-warm px-3 py-2 rounded-lg">
                   <Star className="h-5 w-5 fill-star text-star" />
                   <span className="font-display font-bold text-foreground">
-                    {business.rating.toFixed(1)}
+                    {avgRating > 0 ? avgRating.toFixed(1) : "New"}
                   </span>
                   <span className="text-sm text-muted-foreground">
-                    ({business.reviewCount})
+                    ({reviews.length})
                   </span>
                 </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Badge
-                  variant={business.isOpen ? "default" : "secondary"}
-                  className={
-                    business.isOpen ? "bg-success text-success-foreground" : ""
-                  }
-                >
+                <Badge className="bg-success text-success-foreground">
                   <Clock className="h-3 w-3 mr-1" />
-                  {business.isOpen ? "Open Now" : "Closed"}
+                  Open Now
                 </Badge>
-                {business.featured && (
-                  <Badge className="bg-primary text-primary-foreground">
-                    Featured
-                  </Badge>
-                )}
               </div>
             </div>
 
@@ -218,7 +283,7 @@ const BusinessDetail = () => {
             <div className="bg-card rounded-2xl p-6 shadow-card">
               <h2 className="font-display text-lg font-semibold mb-3">About</h2>
               <p className="text-muted-foreground leading-relaxed">
-                {business.description}
+                {business.description || "No description available."}
               </p>
             </div>
 
@@ -253,8 +318,16 @@ const BusinessDetail = () => {
                 onChange={(e) => setNewReview(e.target.value)}
                 className="mb-4 min-h-[100px]"
               />
-              <Button onClick={handleSubmitReview} variant="warm">
-                <MessageSquare className="h-4 w-4" />
+              <Button 
+                onClick={handleSubmitReview} 
+                variant="warm"
+                disabled={submitReviewMutation.isPending}
+              >
+                {submitReviewMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                )}
                 Submit Review
               </Button>
             </div>
@@ -262,18 +335,40 @@ const BusinessDetail = () => {
             {/* Reviews */}
             <div>
               <h2 className="font-display text-xl font-semibold mb-4">
-                Reviews ({businessReviews.length})
+                Reviews ({reviews.length})
               </h2>
-              <div className="space-y-4">
-                {businessReviews.map((review) => (
-                  <ReviewCard key={review.id} {...review} />
-                ))}
-                {businessReviews.length === 0 && (
-                  <p className="text-muted-foreground text-center py-8">
-                    No reviews yet. Be the first to review!
-                  </p>
-                )}
-              </div>
+              {reviewsLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {reviews.map((review) => {
+                    const authorName = review.profile?.full_name || "Anonymous";
+                    const initials = authorName.slice(0, 2).toUpperCase();
+                    
+                    return (
+                      <ReviewCard
+                        key={review.id}
+                        author={{
+                          name: authorName,
+                          avatar: review.profile?.avatar_url || undefined,
+                          initials,
+                        }}
+                        rating={review.rating}
+                        content={review.content || ""}
+                        date={format(new Date(review.created_at), "MMM d, yyyy")}
+                        helpful={0}
+                      />
+                    );
+                  })}
+                  {reviews.length === 0 && (
+                    <p className="text-muted-foreground text-center py-8">
+                      No reviews yet. Be the first to review!
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -289,7 +384,7 @@ const BusinessDetail = () => {
                   <div>
                     <p className="font-medium text-foreground">Address</p>
                     <p className="text-sm text-muted-foreground">
-                      {business.address}
+                      {business.location || "Location not specified"}
                     </p>
                   </div>
                 </div>
@@ -298,7 +393,7 @@ const BusinessDetail = () => {
                   <div>
                     <p className="font-medium text-foreground">Phone</p>
                     <p className="text-sm text-muted-foreground">
-                      {business.phone}
+                      Contact not available
                     </p>
                   </div>
                 </div>
@@ -307,7 +402,7 @@ const BusinessDetail = () => {
                   <div>
                     <p className="font-medium text-foreground">Hours</p>
                     <p className="text-sm text-muted-foreground">
-                      {business.hours}
+                      Hours not specified
                     </p>
                   </div>
                 </div>
