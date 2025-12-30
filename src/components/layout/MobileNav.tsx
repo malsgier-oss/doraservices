@@ -7,10 +7,10 @@ import { useUserRole } from "@/hooks/useUserRole";
 export function MobileNav() {
   const location = useLocation();
   const { user } = useAuth();
-  const { isBusiness } = useUserRole();
+  const { isBusiness, loading } = useUserRole();
 
-  // Only show nav for authenticated users
-  if (!user) {
+  // Only show nav for authenticated users, and wait for role to load
+  if (!user || loading) {
     return null;
   }
 
