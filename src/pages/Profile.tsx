@@ -14,6 +14,8 @@ import {
   Loader2,
   Building2,
   LogOut,
+  LayoutDashboard,
+  Tag,
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -198,10 +200,18 @@ const Profile = () => {
                     <h1 className="font-display text-2xl font-bold text-foreground">
                       {displayName}
                     </h1>
-                    <Badge className="w-fit mx-auto sm:mx-0 bg-primary text-primary-foreground">
-                      <Award className="h-3 w-3 mr-1" />
-                      {profile?.tier || "Explorer"} Member
-                    </Badge>
+                    <div className="flex gap-2 justify-center sm:justify-start flex-wrap">
+                      <Badge className="w-fit bg-primary text-primary-foreground">
+                        <Award className="h-3 w-3 mr-1" />
+                        {profile?.tier || "Explorer"} Member
+                      </Badge>
+                      {isBusiness && (
+                        <Badge variant="outline" className="w-fit border-primary text-primary">
+                          <Building2 className="h-3 w-3 mr-1" />
+                          Business Account
+                        </Badge>
+                      )}
+                    </div>
                   </div>
 
                   {profile?.bio && (
@@ -247,7 +257,20 @@ const Profile = () => {
                   </Button>
                 </div>
                 
-                {/* Become a Business CTA */}
+                {/* Business Dashboard Link */}
+                {isBusiness && (
+                  <Button 
+                    variant="warm" 
+                    size="sm" 
+                    onClick={() => navigate("/dashboard")}
+                    className="gap-2"
+                  >
+                    <LayoutDashboard className="h-4 w-4" />
+                    Go to Dashboard
+                  </Button>
+                )}
+
+                {/* Become a Business CTA - only for non-business users */}
                 {!isBusiness && (
                   <Button 
                     variant="warm" 
