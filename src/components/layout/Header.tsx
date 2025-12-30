@@ -7,9 +7,9 @@ const navLinks = [
   { href: "/", label: "Home" },
   { href: "/businesses", label: "Businesses" },
   { href: "/community", label: "Community" },
+  { href: "/deals", label: "Deals" },
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/rewards", label: "Rewards" },
-  { href: "/dashboard", label: "Dashboard" },
 ];
 
 export function Header() {
