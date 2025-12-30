@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
-type AppRole = "user" | "business";
+type AppRole = "user" | "business" | "admin";
 
 interface UserRoleState {
   roles: AppRole[];
   loading: boolean;
   isBusiness: boolean;
   isUser: boolean;
+  isAdmin: boolean;
 }
 
 export function useUserRole() {
@@ -18,11 +19,12 @@ export function useUserRole() {
     loading: true,
     isBusiness: false,
     isUser: false,
+    isAdmin: false,
   });
 
   useEffect(() => {
     if (!user) {
-      setState({ roles: [], loading: false, isBusiness: false, isUser: false });
+      setState({ roles: [], loading: false, isBusiness: false, isUser: false, isAdmin: false });
       return;
     }
 
@@ -34,7 +36,7 @@ export function useUserRole() {
 
       if (error) {
         console.error("Error fetching user roles:", error);
-        setState({ roles: [], loading: false, isBusiness: false, isUser: false });
+        setState({ roles: [], loading: false, isBusiness: false, isUser: false, isAdmin: false });
         return;
       }
 
@@ -44,6 +46,7 @@ export function useUserRole() {
         loading: false,
         isBusiness: roles.includes("business"),
         isUser: roles.includes("user"),
+        isAdmin: roles.includes("admin"),
       });
     };
 
@@ -60,7 +63,7 @@ export function useUserRole() {
     if (!error) {
       setState((prev) => ({
         ...prev,
-        roles: [...prev.roles, "business"],
+        roles: [...prev.roles, "business"] as AppRole[],
         isBusiness: true,
       }));
     }

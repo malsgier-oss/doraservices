@@ -14,37 +14,112 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_audit_log: {
+        Row: {
+          action: string
+          admin_id: string
+          created_at: string
+          details: Json | null
+          id: string
+          target_id: string | null
+          target_type: string
+        }
+        Insert: {
+          action: string
+          admin_id: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          target_id?: string | null
+          target_type: string
+        }
+        Update: {
+          action?: string
+          admin_id?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          target_id?: string | null
+          target_type?: string
+        }
+        Relationships: []
+      }
+      admin_notes: {
+        Row: {
+          admin_id: string
+          created_at: string
+          id: string
+          note: string
+          target_id: string
+          target_type: string
+        }
+        Insert: {
+          admin_id: string
+          created_at?: string
+          id?: string
+          note: string
+          target_id: string
+          target_type: string
+        }
+        Update: {
+          admin_id?: string
+          created_at?: string
+          id?: string
+          note?: string
+          target_id?: string
+          target_type?: string
+        }
+        Relationships: []
+      }
       businesses: {
         Row: {
+          archived_at: string | null
+          authorization_note: string | null
+          authorization_status: string
           category: string
           created_at: string
           description: string | null
+          featured: boolean
           id: string
           image_url: string | null
           location: string | null
           name: string
+          operational_status: string
+          suspended_at: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          archived_at?: string | null
+          authorization_note?: string | null
+          authorization_status?: string
           category: string
           created_at?: string
           description?: string | null
+          featured?: boolean
           id?: string
           image_url?: string | null
           location?: string | null
           name: string
+          operational_status?: string
+          suspended_at?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          archived_at?: string | null
+          authorization_note?: string | null
+          authorization_status?: string
           category?: string
           created_at?: string
           description?: string | null
+          featured?: boolean
           id?: string
           image_url?: string | null
           location?: string | null
           name?: string
+          operational_status?: string
+          suspended_at?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -52,6 +127,7 @@ export type Database = {
       }
       deals: {
         Row: {
+          archived_at: string | null
           business_id: string
           category: string | null
           clicks_count: number | null
@@ -60,6 +136,7 @@ export type Database = {
           discount: string
           discount_type: string | null
           expires_at: string | null
+          featured: boolean
           id: string
           image_url: string | null
           promo_code: string | null
@@ -72,6 +149,7 @@ export type Database = {
           views_count: number | null
         }
         Insert: {
+          archived_at?: string | null
           business_id: string
           category?: string | null
           clicks_count?: number | null
@@ -80,6 +158,7 @@ export type Database = {
           discount: string
           discount_type?: string | null
           expires_at?: string | null
+          featured?: boolean
           id?: string
           image_url?: string | null
           promo_code?: string | null
@@ -92,6 +171,7 @@ export type Database = {
           views_count?: number | null
         }
         Update: {
+          archived_at?: string | null
           business_id?: string
           category?: string | null
           clicks_count?: number | null
@@ -100,6 +180,7 @@ export type Database = {
           discount?: string
           discount_type?: string | null
           expires_at?: string | null
+          featured?: boolean
           id?: string
           image_url?: string | null
           promo_code?: string | null
@@ -120,6 +201,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      platform_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          is_read: boolean
+          sender_id: string
+          target_audience: string
+          title: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          sender_id: string
+          target_audience?: string
+          title: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          sender_id?: string
+          target_audience?: string
+          title?: string
+        }
+        Relationships: []
+      }
+      platform_settings: {
+        Row: {
+          id: string
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          id?: string
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Update: {
+          id?: string
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Relationships: []
       }
       posts: {
         Row: {
@@ -173,6 +308,9 @@ export type Database = {
           full_name: string | null
           id: string
           points: number
+          status: string
+          suspended_at: string | null
+          suspended_reason: string | null
           tier: string
           updated_at: string
           user_id: string
@@ -184,6 +322,9 @@ export type Database = {
           full_name?: string | null
           id?: string
           points?: number
+          status?: string
+          suspended_at?: string | null
+          suspended_reason?: string | null
           tier?: string
           updated_at?: string
           user_id: string
@@ -195,6 +336,9 @@ export type Database = {
           full_name?: string | null
           id?: string
           points?: number
+          status?: string
+          suspended_at?: string | null
+          suspended_reason?: string | null
           tier?: string
           updated_at?: string
           user_id?: string
@@ -260,6 +404,86 @@ export type Database = {
         }
         Relationships: []
       }
+      user_messages: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          message_id: string
+          read_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message_id: string
+          read_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message_id?: string
+          read_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_messages_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "platform_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_reports: {
+        Row: {
+          created_at: string
+          id: string
+          reason: string
+          report_type: string
+          reported_business_id: string | null
+          reported_deal_id: string | null
+          reported_user_id: string | null
+          reporter_id: string
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          reason: string
+          report_type: string
+          reported_business_id?: string | null
+          reported_deal_id?: string | null
+          reported_user_id?: string | null
+          reporter_id: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          reason?: string
+          report_type?: string
+          reported_business_id?: string | null
+          reported_deal_id?: string | null
+          reported_user_id?: string | null
+          reporter_id?: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -293,9 +517,18 @@ export type Database = {
         }
         Returns: boolean
       }
+      log_admin_action: {
+        Args: {
+          p_action: string
+          p_details?: Json
+          p_target_id?: string
+          p_target_type: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
-      app_role: "user" | "business"
+      app_role: "user" | "business" | "admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -423,7 +656,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["user", "business"],
+      app_role: ["user", "business", "admin"],
     },
   },
 } as const
