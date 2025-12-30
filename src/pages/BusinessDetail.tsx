@@ -27,23 +27,31 @@ const BusinessDetail = () => {
   const [saved, setSaved] = useState(false);
 
   // Fetch business from database
-  const { data: business, isLoading } = useQuery({
+  const {
+    data: business,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
     queryKey: ["business", id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("businesses")
         .select("*")
         .eq("id", id)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
-      
+      if (!data) return null;
+
       // Transform to match expected format
       return {
         id: data.id,
         name: data.name,
         category: data.category,
-        image: data.image_url || "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=600&h=400&fit=crop",
+        image:
+          data.image_url ||
+          "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=600&h=400&fit=crop",
         rating: 4.5,
         reviewCount: 0,
         address: data.location || "Location not specified",
@@ -64,6 +72,27 @@ const BusinessDetail = () => {
       <Layout>
         <div className="container py-16 flex justify-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Layout>
+        <div className="container py-16 text-center">
+          <h1 className="font-display text-2xl font-bold mb-4">
+            Couldn’t load this business
+          </h1>
+          <p className="text-muted-foreground mb-6">
+            {error instanceof Error ? error.message : "Please try again."}
+          </p>
+          <Link to="/businesses">
+            <Button variant="outline">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Businesses
+            </Button>
+          </Link>
         </div>
       </Layout>
     );
