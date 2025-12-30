@@ -153,18 +153,31 @@ export default function AdminDeals() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             {deal.status === "active" ? (
-                              <DropdownMenuItem onClick={() => deactivateDeal.mutate(deal.id)}>
+                              <DropdownMenuItem
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  deactivateDeal.mutate(deal.id);
+                                }}
+                              >
                                 <Pause className="h-4 w-4 mr-2" />
                                 Deactivate
                               </DropdownMenuItem>
                             ) : deal.status !== "archived" && deal.status !== "expired" ? (
-                              <DropdownMenuItem onClick={() => activateDeal.mutate(deal.id)}>
+                              <DropdownMenuItem
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  activateDeal.mutate(deal.id);
+                                }}
+                              >
                                 <Play className="h-4 w-4 mr-2" />
                                 Activate
                               </DropdownMenuItem>
                             ) : null}
                             <DropdownMenuItem
-                              onClick={() => toggleFeaturedDeal.mutate({ dealId: deal.id, featured: !deal.featured })}
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                toggleFeaturedDeal.mutate({ dealId: deal.id, featured: !deal.featured });
+                              }}
                             >
                               {deal.featured ? (
                                 <>
@@ -181,7 +194,10 @@ export default function AdminDeals() {
                             <DropdownMenuSeparator />
                             {deal.status !== "archived" && (
                               <DropdownMenuItem
-                                onClick={() => archiveDeal.mutate(deal.id)}
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  archiveDeal.mutate(deal.id);
+                                }}
                                 className="text-destructive"
                               >
                                 <Archive className="h-4 w-4 mr-2" />

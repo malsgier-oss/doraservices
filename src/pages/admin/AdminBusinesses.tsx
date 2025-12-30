@@ -195,14 +195,20 @@ export default function AdminBusinesses() {
                             {business.authorization_status === "pending" && (
                               <>
                                 <DropdownMenuItem
-                                  onClick={() => setActionDialog({ open: true, type: "approve", businessId: business.id })}
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    setActionDialog({ open: true, type: "approve", businessId: business.id });
+                                  }}
                                   className="text-success"
                                 >
                                   <Check className="h-4 w-4 mr-2" />
                                   Approve
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
-                                  onClick={() => setActionDialog({ open: true, type: "reject", businessId: business.id })}
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    setActionDialog({ open: true, type: "reject", businessId: business.id });
+                                  }}
                                   className="text-destructive"
                                 >
                                   <X className="h-4 w-4 mr-2" />
@@ -212,7 +218,10 @@ export default function AdminBusinesses() {
                               </>
                             )}
                             <DropdownMenuItem
-                              onClick={() => toggleFeaturedBusiness.mutate({ businessId: business.id, featured: !business.featured })}
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                toggleFeaturedBusiness.mutate({ businessId: business.id, featured: !business.featured });
+                              }}
                             >
                               {business.featured ? (
                                 <>
@@ -229,14 +238,22 @@ export default function AdminBusinesses() {
                             <DropdownMenuSeparator />
                             {business.operational_status === "active" ? (
                               <DropdownMenuItem
-                                onClick={() => setActionDialog({ open: true, type: "suspend", businessId: business.id })}
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  setActionDialog({ open: true, type: "suspend", businessId: business.id });
+                                }}
                                 className="text-destructive"
                               >
                                 <AlertTriangle className="h-4 w-4 mr-2" />
                                 Suspend
                               </DropdownMenuItem>
                             ) : business.operational_status === "suspended" ? (
-                              <DropdownMenuItem onClick={() => reactivateBusiness.mutate(business.id)}>
+                              <DropdownMenuItem
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  reactivateBusiness.mutate(business.id);
+                                }}
+                              >
                                 Reactivate
                               </DropdownMenuItem>
                             ) : null}

@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Search, MoreHorizontal, Shield, Store, User, AlertTriangle } from "lucide-react";
+import { Search, MoreHorizontal, Shield, Store, User, AlertTriangle, Trash2 } from "lucide-react";
 import { useAdminUsers, useUserMutations } from "@/hooks/useAdmin";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
@@ -44,13 +44,19 @@ export default function AdminUsers() {
   });
   const [suspendReason, setSuspendReason] = useState("");
 
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; userId: string | null }>({
+    open: false,
+    userId: null,
+  });
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+
   const { data: users, isLoading } = useAdminUsers({
     status: statusFilter,
     role: roleFilter,
     search: search,
   });
 
-  const { suspendUser, reactivateUser, archiveUser, changeUserRole } = useUserMutations();
+  const { suspendUser, reactivateUser, archiveUser, deleteUser, changeUserRole } = useUserMutations();
 
   const handleSuspend = () => {
     if (suspendDialog.userId && suspendReason) {
@@ -58,6 +64,13 @@ export default function AdminUsers() {
       setSuspendDialog({ open: false, userId: null });
       setSuspendReason("");
     }
+  };
+
+  const handleDelete = () => {
+    if (!deleteDialog.userId) return;
+    deleteUser.mutate(deleteDialog.userId);
+    setDeleteDialog({ open: false, userId: null });
+    setDeleteConfirm("");
   };
 
   const getRoleBadges = (roles: string[]) => {
@@ -187,21 +200,32 @@ export default function AdminUsers() {
                           <DropdownMenuContent align="end">
                             {user.status === "active" ? (
                               <DropdownMenuItem
-                                onClick={() => setSuspendDialog({ open: true, userId: user.user_id })}
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  setSuspendDialog({ open: true, userId: user.user_id });
+                                }}
                                 className="text-destructive"
                               >
                                 <AlertTriangle className="h-4 w-4 mr-2" />
                                 Suspend User
                               </DropdownMenuItem>
                             ) : user.status === "suspended" ? (
-                              <DropdownMenuItem onClick={() => reactivateUser.mutate(user.user_id)}>
+                              <DropdownMenuItem
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  reactivateUser.mutate(user.user_id);
+                                }}
+                              >
                                 Reactivate User
                               </DropdownMenuItem>
                             ) : null}
                             <DropdownMenuSeparator />
                             {!user.roles.includes("business") && (
                               <DropdownMenuItem
-                                onClick={() => changeUserRole.mutate({ userId: user.user_id, role: "business", action: "add" })}
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  changeUserRole.mutate({ userId: user.user_id, role: "business", action: "add" });
+                                }}
                               >
                                 <Store className="h-4 w-4 mr-2" />
                                 Add Business Role
@@ -209,7 +233,10 @@ export default function AdminUsers() {
                             )}
                             {user.roles.includes("business") && (
                               <DropdownMenuItem
-                                onClick={() => changeUserRole.mutate({ userId: user.user_id, role: "business", action: "remove" })}
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  changeUserRole.mutate({ userId: user.user_id, role: "business", action: "remove" });
+                                }}
                               >
                                 Remove Business Role
                               </DropdownMenuItem>
@@ -217,12 +244,26 @@ export default function AdminUsers() {
                             <DropdownMenuSeparator />
                             {user.status !== "archived" && (
                               <DropdownMenuItem
-                                onClick={() => archiveUser.mutate(user.user_id)}
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  archiveUser.mutate(user.user_id);
+                                }}
                                 className="text-destructive"
                               >
                                 Archive User
                               </DropdownMenuItem>
                             )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                setDeleteDialog({ open: true, userId: user.user_id });
+                              }}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete User
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -261,6 +302,51 @@ export default function AdminUsers() {
             </Button>
             <Button variant="destructive" onClick={handleSuspend} disabled={!suspendReason}>
               Suspend User
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Dialog */}
+      <Dialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => {
+          setDeleteDialog({ open, userId: null });
+          setDeleteConfirm("");
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete User</DialogTitle>
+            <DialogDescription>
+              This permanently deletes the user account and removes their data. Type DELETE to confirm.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="delete-confirm">Confirmation</Label>
+            <Input
+              id="delete-confirm"
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              placeholder="Type DELETE"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteDialog({ open: false, userId: null });
+                setDeleteConfirm("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteConfirm !== "DELETE" || deleteUser.isPending}
+            >
+              Delete User
             </Button>
           </DialogFooter>
         </DialogContent>

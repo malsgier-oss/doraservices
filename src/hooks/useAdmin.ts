@@ -243,6 +243,25 @@ export function useUserMutations() {
     },
   });
 
+  const deleteUser = useMutation({
+    mutationFn: async (userId: string) => {
+      const { data, error } = await supabase.functions.invoke("admin", {
+        body: { action: "deleteUser", userId },
+      });
+      if (error) throw error;
+      if (data && typeof data === "object" && "error" in (data as Record<string, unknown>)) {
+        throw new Error(String((data as Record<string, unknown>).error));
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin"] });
+      toast({ title: "User deleted" });
+    },
+    onError: (error) => {
+      toast({ title: "Error deleting user", description: error.message, variant: "destructive" });
+    },
+  });
+
   const changeUserRole = useMutation({
     mutationFn: async ({ userId, role, action }: { userId: string; role: "user" | "business" | "admin"; action: "add" | "remove" }) => {
       if (action === "add") {
@@ -269,7 +288,7 @@ export function useUserMutations() {
     },
   });
 
-  return { suspendUser, reactivateUser, archiveUser, changeUserRole };
+  return { suspendUser, reactivateUser, archiveUser, deleteUser, changeUserRole };
 }
 
 // Businesses Management
