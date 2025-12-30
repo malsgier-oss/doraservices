@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Store, Tag, User, Users, LayoutDashboard } from "lucide-react";
+import { Store, Tag, User, Users, LayoutDashboard, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -7,14 +7,21 @@ import { useUserRole } from "@/hooks/useUserRole";
 export function MobileNav() {
   const location = useLocation();
   const { user } = useAuth();
-  const { isBusiness, loading } = useUserRole();
+  const { isBusiness, isAdmin, loading } = useUserRole();
 
   // Only show nav for authenticated users, and wait for role to load
   if (!user || loading) {
     return null;
   }
 
-  const navItems = isBusiness
+  const navItems = isAdmin
+    ? [
+        { href: "/community", label: "Feed", icon: Users },
+        { href: "/businesses", label: "Explore", icon: Store },
+        { href: "/deals", label: "Deals", icon: Tag },
+        { href: "/admin", label: "Admin", icon: Shield },
+      ]
+    : isBusiness
     ? [
         { href: "/community", label: "Feed", icon: Users },
         { href: "/businesses", label: "Explore", icon: Store },
