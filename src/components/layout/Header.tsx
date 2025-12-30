@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Search, Bell, User, LogOut, LogIn, LayoutDashboard, Building2 } from "lucide-react";
+import { Search, Bell, User, LogOut, LogIn, LayoutDashboard, Building2, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,7 +24,7 @@ export function Header() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { isBusiness } = useUserRole();
+  const { isBusiness, isAdmin } = useUserRole();
 
   const handleSignOut = async () => {
     await signOut();
@@ -91,6 +91,15 @@ export function Header() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
+                {isAdmin && (
+                  <>
+                    <DropdownMenuItem onClick={() => navigate("/admin")}>
+                      <Shield className="mr-2 h-4 w-4" />
+                      Admin Panel
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 {isBusiness ? (
                   <>
                     <DropdownMenuItem onClick={() => navigate("/dashboard")}>
