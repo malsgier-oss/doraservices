@@ -14,13 +14,19 @@ export function MobileNav() {
     return null;
   }
 
-  const navItems = [
-    { href: "/community", label: "Feed", icon: Users },
-    { href: "/businesses", label: "Explore", icon: Store },
-    { href: "/deals", label: "Deals", icon: Tag },
-    ...(isBusiness ? [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }] : []),
-    { href: "/profile", label: "Profile", icon: User },
-  ];
+  const navItems = isBusiness
+    ? [
+        { href: "/community", label: "Feed", icon: Users },
+        { href: "/businesses", label: "Explore", icon: Store },
+        { href: "/deals", label: "Deals", icon: Tag },
+        { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      ]
+    : [
+        { href: "/community", label: "Feed", icon: Users },
+        { href: "/businesses", label: "Explore", icon: Store },
+        { href: "/deals", label: "Deals", icon: Tag },
+        { href: "/profile", label: "Profile", icon: User },
+      ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-card/95 backdrop-blur-lg border-t border-border safe-area-bottom">

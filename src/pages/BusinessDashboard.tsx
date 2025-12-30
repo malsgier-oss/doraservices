@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  BarChart3,
   Plus,
   Loader2,
   Store,
@@ -8,12 +8,20 @@ import {
   MessageSquare,
   Settings,
   LayoutDashboard,
+  User,
+  LogOut,
+  Save,
+  X,
+  Edit2,
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "@/hooks/use-toast";
 import { AnalyticsChart } from "@/components/dashboard/AnalyticsChart";
 import { DealStatsCards } from "@/components/dashboard/DealStatsCards";
@@ -23,8 +31,14 @@ import { BusinessProfileForm } from "@/components/dashboard/BusinessProfileForm"
 import { useBusiness } from "@/hooks/useBusiness";
 import { useDeals, Deal, DealFormData } from "@/hooks/useDeals";
 import { usePosts } from "@/hooks/usePosts";
+import { useProfile } from "@/hooks/useProfile";
+import { useAuth } from "@/contexts/AuthContext";
+import { format } from "date-fns";
 
 const BusinessDashboard = () => {
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+  const { profile, loading: profileLoading, updateProfile } = useProfile();
   const [activeTab, setActiveTab] = useState("overview");
   const { business, loading: businessLoading, createBusiness, updateBusiness } = useBusiness();
   const { deals, loading: dealsLoading, stats, createDeal, updateDeal, deleteDeal } = useDeals(business?.id);
@@ -34,6 +48,49 @@ const BusinessDashboard = () => {
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [postContent, setPostContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Profile editing state
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileFormData, setProfileFormData] = useState({
+    full_name: "",
+    bio: "",
+    avatar_url: "",
+  });
+
+  const handleEditProfile = () => {
+    if (profile) {
+      setProfileFormData({
+        full_name: profile.full_name || "",
+        bio: profile.bio || "",
+        avatar_url: profile.avatar_url || "",
+      });
+    }
+    setIsEditingProfile(true);
+  };
+
+  const handleSaveProfile = async () => {
+    setIsSubmitting(true);
+    const { error } = await updateProfile({
+      full_name: profileFormData.full_name || null,
+      bio: profileFormData.bio || null,
+      avatar_url: profileFormData.avatar_url || null,
+    });
+    setIsSubmitting(false);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update profile",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Profile updated",
+        description: "Your profile has been saved successfully.",
+      });
+      setIsEditingProfile(false);
+    }
+  };
 
   const handleSaveBusiness = async (formData: {
     name: string;
@@ -120,7 +177,12 @@ const BusinessDashboard = () => {
     setIsSubmitting(false);
   };
 
-  if (businessLoading) {
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/");
+  };
+
+  if (businessLoading || profileLoading) {
     return (
       <Layout>
         <div className="min-h-screen flex items-center justify-center">
@@ -129,6 +191,12 @@ const BusinessDashboard = () => {
       </Layout>
     );
   }
+
+  const displayName = profile?.full_name || user?.email?.split("@")[0] || "User";
+  const initials = displayName.slice(0, 2).toUpperCase();
+  const memberSince = profile?.created_at 
+    ? format(new Date(profile.created_at), "MMMM yyyy")
+    : "Recently";
 
   return (
     <Layout>
@@ -170,7 +238,7 @@ const BusinessDashboard = () => {
       <section className="py-6 sm:py-8">
         <div className="container">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="w-full max-w-xl grid grid-cols-4 mb-6 sm:mb-8">
+            <TabsList className="w-full max-w-2xl grid grid-cols-5 mb-6 sm:mb-8">
               <TabsTrigger value="overview" className="text-xs sm:text-sm">
                 <LayoutDashboard className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">Overview</span>
@@ -185,7 +253,11 @@ const BusinessDashboard = () => {
               </TabsTrigger>
               <TabsTrigger value="settings" className="text-xs sm:text-sm">
                 <Settings className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Settings</span>
+                <span className="hidden sm:inline">Business</span>
+              </TabsTrigger>
+              <TabsTrigger value="profile" className="text-xs sm:text-sm">
+                <User className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Profile</span>
               </TabsTrigger>
             </TabsList>
 
@@ -332,13 +404,124 @@ const BusinessDashboard = () => {
               </div>
             </TabsContent>
 
-            {/* Settings Tab */}
+            {/* Settings Tab - Business Profile */}
             <TabsContent value="settings" className="max-w-2xl">
               <BusinessProfileForm
                 business={business}
                 onSubmit={handleSaveBusiness}
                 isSubmitting={isSubmitting}
               />
+            </TabsContent>
+
+            {/* Profile Tab - User Profile */}
+            <TabsContent value="profile" className="max-w-2xl">
+              <div className="bg-card rounded-2xl shadow-card p-6 space-y-6">
+                <div className="flex items-start gap-4">
+                  <Avatar className="h-16 w-16 ring-4 ring-background shadow-lg">
+                    <AvatarImage src={profile?.avatar_url || ""} alt={displayName} />
+                    <AvatarFallback className="text-xl font-display font-bold bg-primary text-primary-foreground">
+                      {initials}
+                    </AvatarFallback>
+                  </Avatar>
+                  
+                  <div className="flex-1">
+                    {isEditingProfile ? (
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="full_name">Full Name</Label>
+                          <Input
+                            id="full_name"
+                            value={profileFormData.full_name}
+                            onChange={(e) =>
+                              setProfileFormData({ ...profileFormData, full_name: e.target.value })
+                            }
+                            placeholder="Your name"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="bio">Bio</Label>
+                          <Textarea
+                            id="bio"
+                            value={profileFormData.bio}
+                            onChange={(e) =>
+                              setProfileFormData({ ...profileFormData, bio: e.target.value })
+                            }
+                            placeholder="Tell us about yourself..."
+                            rows={3}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="avatar_url">Avatar URL</Label>
+                          <Input
+                            id="avatar_url"
+                            value={profileFormData.avatar_url}
+                            onChange={(e) =>
+                              setProfileFormData({ ...profileFormData, avatar_url: e.target.value })
+                            }
+                            placeholder="https://example.com/avatar.jpg"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => setIsEditingProfile(false)}
+                            disabled={isSubmitting}
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Cancel
+                          </Button>
+                          <Button 
+                            variant="warm" 
+                            size="sm" 
+                            onClick={handleSaveProfile}
+                            disabled={isSubmitting}
+                          >
+                            {isSubmitting ? (
+                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            ) : (
+                              <Save className="h-4 w-4 mr-1" />
+                            )}
+                            Save
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="font-display text-lg font-semibold">{displayName}</h3>
+                            <p className="text-sm text-muted-foreground">{user?.email}</p>
+                          </div>
+                          <Button variant="outline" size="sm" onClick={handleEditProfile}>
+                            <Edit2 className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
+                        </div>
+                        {profile?.bio && (
+                          <p className="text-muted-foreground mt-2">{profile.bio}</p>
+                        )}
+                        <p className="text-sm text-muted-foreground mt-2">
+                          Member since {memberSince}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Account Actions */}
+                <div className="border-t border-border pt-6">
+                  <h4 className="font-medium mb-4">Account</h4>
+                  <Button 
+                    variant="destructive" 
+                    onClick={handleSignOut}
+                    className="gap-2"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sign Out
+                  </Button>
+                </div>
+              </div>
             </TabsContent>
           </Tabs>
         </div>

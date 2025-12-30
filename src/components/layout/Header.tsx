@@ -18,7 +18,6 @@ const navLinks = [
   { href: "/businesses", label: "Businesses" },
   { href: "/community", label: "Community" },
   { href: "/deals", label: "Deals" },
-  { href: "/rewards", label: "Rewards" },
 ];
 
 export function Header() {
@@ -92,24 +91,25 @@ export function Header() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={() => navigate("/profile")}>
-                  <User className="mr-2 h-4 w-4" />
-                  Profile
-                </DropdownMenuItem>
                 {isBusiness ? (
-                  <DropdownMenuItem onClick={() => navigate("/dashboard")}>
-                    <LayoutDashboard className="mr-2 h-4 w-4" />
-                    Dashboard
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem onClick={() => navigate("/dashboard")}>
+                      <LayoutDashboard className="mr-2 h-4 w-4" />
+                      Dashboard
+                    </DropdownMenuItem>
+                  </>
                 ) : (
-                  <DropdownMenuItem onClick={() => navigate("/profile")} className="text-primary">
-                    <Building2 className="mr-2 h-4 w-4" />
-                    Become a Business
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem onClick={() => navigate("/profile")}>
+                      <User className="mr-2 h-4 w-4" />
+                      Profile
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/profile")} className="text-primary">
+                      <Building2 className="mr-2 h-4 w-4" />
+                      Become a Business
+                    </DropdownMenuItem>
+                  </>
                 )}
-                <DropdownMenuItem onClick={() => navigate("/rewards")}>
-                  Rewards
-                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
                   <LogOut className="mr-2 h-4 w-4" />
