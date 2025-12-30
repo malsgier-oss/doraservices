@@ -1,71 +1,57 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   BarChart3,
-  Star,
-  MessageSquare,
-  Eye,
-  TrendingUp,
-  Settings,
-  Edit2,
-  Save,
   Plus,
-  Tag,
-  Trash2,
   Loader2,
   Store,
+  Tag,
+  MessageSquare,
+  Settings,
+  LayoutDashboard,
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { AnalyticsChart } from "@/components/dashboard/AnalyticsChart";
+import { DealStatsCards } from "@/components/dashboard/DealStatsCards";
+import { DealForm } from "@/components/dashboard/DealForm";
+import { DealsList } from "@/components/dashboard/DealsList";
+import { BusinessProfileForm } from "@/components/dashboard/BusinessProfileForm";
 import { useBusiness } from "@/hooks/useBusiness";
-import { useDeals } from "@/hooks/useDeals";
+import { useDeals, Deal, DealFormData } from "@/hooks/useDeals";
 import { usePosts } from "@/hooks/usePosts";
-import { useProfile } from "@/hooks/useProfile";
-import { format } from "date-fns";
 
 const BusinessDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const { business, loading: businessLoading, createBusiness, updateBusiness } = useBusiness();
-  const { deals, loading: dealsLoading, createDeal, deleteDeal } = useDeals(business?.id);
+  const { deals, loading: dealsLoading, stats, createDeal, updateDeal, deleteDeal } = useDeals(business?.id);
   const { createPost } = usePosts();
-  const { profile } = useProfile();
 
-  const [businessForm, setBusinessForm] = useState({
-    name: "",
-    category: "",
-    location: "",
-    description: "",
-    image_url: "",
-  });
-
-  const [dealForm, setDealForm] = useState({
-    title: "",
-    discount: "",
-    description: "",
-    expires_at: "",
-  });
-
+  const [showDealForm, setShowDealForm] = useState(false);
+  const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [postContent, setPostContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSaveBusiness = async () => {
+  const handleSaveBusiness = async (formData: {
+    name: string;
+    category: string;
+    location: string;
+    description: string;
+    image_url: string;
+  }) => {
     setIsSubmitting(true);
     if (business) {
-      const { error } = await updateBusiness(businessForm);
+      const { error } = await updateBusiness(formData);
       if (error) {
         toast({ title: "Error", description: "Failed to update business", variant: "destructive" });
       } else {
         toast({ title: "Success", description: "Business updated successfully" });
       }
     } else {
-      const { error } = await createBusiness(businessForm);
+      const { error } = await createBusiness(formData);
       if (error) {
         toast({ title: "Error", description: "Failed to create business", variant: "destructive" });
       } else {
@@ -75,24 +61,47 @@ const BusinessDashboard = () => {
     setIsSubmitting(false);
   };
 
-  const handleCreateDeal = async () => {
-    if (!business) {
-      toast({ title: "Error", description: "Create a business first", variant: "destructive" });
-      return;
-    }
+  const handleDealSubmit = async (data: DealFormData, isDraft: boolean) => {
     setIsSubmitting(true);
-    const { error } = await createDeal({
-      ...dealForm,
-      business_id: business.id,
-      expires_at: dealForm.expires_at || undefined,
-    });
-    if (error) {
-      toast({ title: "Error", description: "Failed to create deal", variant: "destructive" });
+    
+    if (editingDeal) {
+      const { error } = await updateDeal(editingDeal.id, data);
+      if (error) {
+        toast({ title: "Error", description: "Failed to update deal", variant: "destructive" });
+      } else {
+        toast({ title: "Success", description: isDraft ? "Draft saved" : "Deal updated" });
+        setShowDealForm(false);
+        setEditingDeal(null);
+      }
     } else {
-      toast({ title: "Success", description: "Deal created successfully" });
-      setDealForm({ title: "", discount: "", description: "", expires_at: "" });
+      const { error } = await createDeal(data);
+      if (error) {
+        toast({ title: "Error", description: "Failed to create deal", variant: "destructive" });
+      } else {
+        toast({ title: "Success", description: isDraft ? "Draft saved" : "Deal published" });
+        setShowDealForm(false);
+      }
     }
     setIsSubmitting(false);
+  };
+
+  const handleToggleStatus = async (deal: Deal) => {
+    const newStatus = deal.status === "active" ? "paused" : "active";
+    const { error } = await updateDeal(deal.id, { status: newStatus });
+    if (error) {
+      toast({ title: "Error", description: "Failed to update status", variant: "destructive" });
+    } else {
+      toast({ title: "Success", description: `Deal ${newStatus}` });
+    }
+  };
+
+  const handleDeleteDeal = async (dealId: string) => {
+    const { error } = await deleteDeal(dealId);
+    if (error) {
+      toast({ title: "Error", description: "Failed to delete deal", variant: "destructive" });
+    } else {
+      toast({ title: "Success", description: "Deal deleted" });
+    }
   };
 
   const handleCreatePost = async () => {
@@ -111,19 +120,6 @@ const BusinessDashboard = () => {
     setIsSubmitting(false);
   };
 
-  // Initialize form with existing business data
-  useState(() => {
-    if (business) {
-      setBusinessForm({
-        name: business.name,
-        category: business.category,
-        location: business.location || "",
-        description: business.description || "",
-        image_url: business.image_url || "",
-      });
-    }
-  });
-
   if (businessLoading) {
     return (
       <Layout>
@@ -137,44 +133,72 @@ const BusinessDashboard = () => {
   return (
     <Layout>
       {/* Header */}
-      <section className="bg-gradient-to-r from-primary/10 via-warm to-primary/5 py-8">
+      <section className="bg-gradient-to-r from-primary/10 via-warm to-primary/5 py-6 sm:py-8">
         <div className="container">
-          <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-2xl bg-warm flex items-center justify-center">
-              <Store className="h-8 w-8 text-warm-foreground" />
-            </div>
-            <div>
-              <h1 className="font-display text-2xl font-bold text-foreground">
-                {business?.name || "Business Dashboard"}
-              </h1>
-              <p className="text-muted-foreground">
-                {business ? business.category : "Set up your business profile"}
-              </p>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-4">
+              {business?.image_url ? (
+                <img
+                  src={business.image_url}
+                  alt={business.name}
+                  className="h-14 w-14 sm:h-16 sm:w-16 rounded-2xl object-cover"
+                />
+              ) : (
+                <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-2xl bg-warm flex items-center justify-center">
+                  <Store className="h-7 w-7 sm:h-8 sm:w-8 text-warm-foreground" />
+                </div>
+              )}
+              <div>
+                <h1 className="font-display text-xl sm:text-2xl font-bold text-foreground">
+                  {business?.name || "Business Dashboard"}
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  {business ? business.category : "Set up your business profile"}
+                </p>
+              </div>
             </div>
             {business && (
-              <Badge className="ml-auto bg-success text-success-foreground">Active</Badge>
+              <Badge className="self-start sm:ml-auto bg-success text-success-foreground">
+                Active
+              </Badge>
             )}
           </div>
         </div>
       </section>
 
       {/* Tabs */}
-      <section className="py-8">
+      <section className="py-6 sm:py-8">
         <div className="container">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full max-w-lg grid-cols-4 mb-8">
-              <TabsTrigger value="overview">Analytics</TabsTrigger>
-              <TabsTrigger value="business">Business</TabsTrigger>
-              <TabsTrigger value="deals">Deals</TabsTrigger>
-              <TabsTrigger value="posts">Posts</TabsTrigger>
+            <TabsList className="w-full max-w-xl grid grid-cols-4 mb-6 sm:mb-8">
+              <TabsTrigger value="overview" className="text-xs sm:text-sm">
+                <LayoutDashboard className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Overview</span>
+              </TabsTrigger>
+              <TabsTrigger value="deals" className="text-xs sm:text-sm">
+                <Tag className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Deals</span>
+              </TabsTrigger>
+              <TabsTrigger value="posts" className="text-xs sm:text-sm">
+                <MessageSquare className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Posts</span>
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="text-xs sm:text-sm">
+                <Settings className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Settings</span>
+              </TabsTrigger>
             </TabsList>
 
-            {/* Analytics Tab */}
+            {/* Overview Tab */}
             <TabsContent value="overview" className="space-y-6">
+              {/* Stats Cards */}
+              <DealStatsCards stats={stats} />
+
+              {/* Charts */}
               <div className="grid lg:grid-cols-2 gap-6">
                 <AnalyticsChart
                   title="Views Over Time"
-                  description="Daily page views"
+                  description="Daily deal views"
                   data={[
                     { name: "Mon", value: 320 },
                     { name: "Tue", value: 450 },
@@ -187,151 +211,134 @@ const BusinessDashboard = () => {
                   color="hsl(var(--primary))"
                 />
                 <AnalyticsChart
-                  title="Deals Claimed"
-                  description="Deals redeemed per day"
+                  title="Clicks Over Time"
+                  description="Deal interactions"
                   data={[
-                    { name: "Mon", value: 5 },
-                    { name: "Tue", value: 8 },
-                    { name: "Wed", value: 12 },
-                    { name: "Thu", value: 7 },
-                    { name: "Fri", value: 15 },
-                    { name: "Sat", value: 20 },
-                    { name: "Sun", value: 10 },
+                    { name: "Mon", value: 45 },
+                    { name: "Tue", value: 68 },
+                    { name: "Wed", value: 52 },
+                    { name: "Thu", value: 87 },
+                    { name: "Fri", value: 95 },
+                    { name: "Sat", value: 120 },
+                    { name: "Sun", value: 78 },
                   ]}
                   color="hsl(var(--success))"
                 />
               </div>
-            </TabsContent>
 
-            {/* Business Profile Tab */}
-            <TabsContent value="business" className="max-w-2xl">
-              <div className="bg-card rounded-2xl shadow-card p-6 space-y-6">
-                <h2 className="font-display text-xl font-semibold">
-                  {business ? "Edit Business" : "Create Your Business"}
-                </h2>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Business Name</Label>
-                    <Input
-                      value={businessForm.name}
-                      onChange={(e) => setBusinessForm({ ...businessForm, name: e.target.value })}
-                      placeholder="My Business"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Category</Label>
-                    <Input
-                      value={businessForm.category}
-                      onChange={(e) => setBusinessForm({ ...businessForm, category: e.target.value })}
-                      placeholder="Restaurant, Retail, etc."
-                    />
-                  </div>
+              {/* Quick Actions */}
+              {!business && (
+                <div className="bg-warm rounded-2xl p-6 text-center">
+                  <Store className="h-12 w-12 mx-auto text-warm-foreground mb-4" />
+                  <h3 className="font-display font-semibold text-lg mb-2">Welcome!</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Set up your business profile to start creating deals
+                  </p>
+                  <Button onClick={() => setActiveTab("settings")}>
+                    Get Started
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  <Label>Location</Label>
-                  <Input
-                    value={businessForm.location}
-                    onChange={(e) => setBusinessForm({ ...businessForm, location: e.target.value })}
-                    placeholder="123 Main Street"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Description</Label>
-                  <Textarea
-                    value={businessForm.description}
-                    onChange={(e) => setBusinessForm({ ...businessForm, description: e.target.value })}
-                    placeholder="Tell customers about your business..."
-                    rows={3}
-                  />
-                </div>
-                <Button variant="warm" onClick={handleSaveBusiness} disabled={isSubmitting}>
-                  {isSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                  {business ? "Update Business" : "Create Business"}
-                </Button>
-              </div>
+              )}
             </TabsContent>
 
             {/* Deals Tab */}
             <TabsContent value="deals" className="space-y-6">
-              <div className="bg-card rounded-2xl shadow-card p-6 space-y-4">
-                <h3 className="font-display font-semibold">Create New Deal</h3>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Title</Label>
-                    <Input
-                      value={dealForm.title}
-                      onChange={(e) => setDealForm({ ...dealForm, title: e.target.value })}
-                      placeholder="Summer Sale"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Discount</Label>
-                    <Input
-                      value={dealForm.discount}
-                      onChange={(e) => setDealForm({ ...dealForm, discount: e.target.value })}
-                      placeholder="20% OFF"
-                    />
-                  </div>
+              {!business ? (
+                <div className="bg-card rounded-2xl shadow-card p-8 text-center">
+                  <Store className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="font-display font-semibold text-lg mb-2">No Business Yet</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Create your business profile first to start adding deals
+                  </p>
+                  <Button onClick={() => setActiveTab("settings")}>
+                    Create Business
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  <Label>Description</Label>
-                  <Textarea
-                    value={dealForm.description}
-                    onChange={(e) => setDealForm({ ...dealForm, description: e.target.value })}
-                    placeholder="Deal details..."
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Expires At (optional)</Label>
-                  <Input
-                    type="datetime-local"
-                    value={dealForm.expires_at}
-                    onChange={(e) => setDealForm({ ...dealForm, expires_at: e.target.value })}
-                  />
-                </div>
-                <Button variant="warm" onClick={handleCreateDeal} disabled={isSubmitting || !business}>
-                  {isSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
-                  Create Deal
-                </Button>
-              </div>
-
-              {/* Existing Deals */}
-              <div className="space-y-4">
-                <h3 className="font-display font-semibold">Your Deals</h3>
-                {deals.length > 0 ? (
-                  deals.map((deal) => (
-                    <div key={deal.id} className="bg-card rounded-xl p-4 shadow-card flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">{deal.title}</p>
-                        <p className="text-sm text-muted-foreground">{deal.discount}</p>
-                      </div>
-                      <Button variant="ghost" size="icon" onClick={() => deleteDeal(deal.id)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+              ) : showDealForm || editingDeal ? (
+                <DealForm
+                  deal={editingDeal}
+                  businessId={business.id}
+                  onSubmit={handleDealSubmit}
+                  onCancel={() => {
+                    setShowDealForm(false);
+                    setEditingDeal(null);
+                  }}
+                  isSubmitting={isSubmitting}
+                />
+              ) : (
+                <>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                      <h2 className="font-display text-xl font-semibold">Your Deals</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Manage your promotions and offers
+                      </p>
                     </div>
-                  ))
-                ) : (
-                  <p className="text-muted-foreground text-center py-8">No deals yet</p>
-                )}
-              </div>
+                    <Button onClick={() => setShowDealForm(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Deal
+                    </Button>
+                  </div>
+
+                  {/* Filter Tabs */}
+                  <div className="flex flex-wrap gap-2">
+                    {["all", "active", "scheduled", "paused", "draft", "expired"].map((filter) => (
+                      <Badge
+                        key={filter}
+                        variant="outline"
+                        className="cursor-pointer hover:bg-muted capitalize"
+                      >
+                        {filter}
+                      </Badge>
+                    ))}
+                  </div>
+
+                  <DealsList
+                    deals={deals}
+                    onEdit={(deal) => setEditingDeal(deal)}
+                    onDelete={handleDeleteDeal}
+                    onToggleStatus={handleToggleStatus}
+                  />
+                </>
+              )}
             </TabsContent>
 
             {/* Posts Tab */}
             <TabsContent value="posts" className="max-w-2xl">
               <div className="bg-card rounded-2xl shadow-card p-6 space-y-4">
-                <h3 className="font-display font-semibold">Share to Community</h3>
+                <div>
+                  <h3 className="font-display font-semibold text-lg">Share to Community</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Post updates, news, or announcements
+                  </p>
+                </div>
                 <Textarea
                   value={postContent}
                   onChange={(e) => setPostContent(e.target.value)}
-                  placeholder="Share news, updates, or promotions..."
+                  placeholder="Share news, updates, or promotions with the community..."
                   rows={4}
                 />
-                <Button variant="warm" onClick={handleCreatePost} disabled={isSubmitting || !postContent.trim()}>
-                  {isSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <MessageSquare className="h-4 w-4 mr-2" />}
+                <Button 
+                  onClick={handleCreatePost} 
+                  disabled={isSubmitting || !postContent.trim()}
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                  )}
                   Post to Feed
                 </Button>
               </div>
+            </TabsContent>
+
+            {/* Settings Tab */}
+            <TabsContent value="settings" className="max-w-2xl">
+              <BusinessProfileForm
+                business={business}
+                onSubmit={handleSaveBusiness}
+                isSubmitting={isSubmitting}
+              />
             </TabsContent>
           </Tabs>
         </div>
