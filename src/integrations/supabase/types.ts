@@ -53,36 +53,63 @@ export type Database = {
       deals: {
         Row: {
           business_id: string
+          category: string | null
+          clicks_count: number | null
           created_at: string
           description: string | null
           discount: string
+          discount_type: string | null
           expires_at: string | null
           id: string
+          image_url: string | null
+          promo_code: string | null
+          start_date: string | null
+          status: string | null
+          terms_conditions: string | null
           title: string
           updated_at: string
           user_id: string
+          views_count: number | null
         }
         Insert: {
           business_id: string
+          category?: string | null
+          clicks_count?: number | null
           created_at?: string
           description?: string | null
           discount: string
+          discount_type?: string | null
           expires_at?: string | null
           id?: string
+          image_url?: string | null
+          promo_code?: string | null
+          start_date?: string | null
+          status?: string | null
+          terms_conditions?: string | null
           title: string
           updated_at?: string
           user_id: string
+          views_count?: number | null
         }
         Update: {
           business_id?: string
+          category?: string | null
+          clicks_count?: number | null
           created_at?: string
           description?: string | null
           discount?: string
+          discount_type?: string | null
           expires_at?: string | null
           id?: string
+          image_url?: string | null
+          promo_code?: string | null
+          start_date?: string | null
+          status?: string | null
+          terms_conditions?: string | null
           title?: string
           updated_at?: string
           user_id?: string
+          views_count?: number | null
         }
         Relationships: [
           {
