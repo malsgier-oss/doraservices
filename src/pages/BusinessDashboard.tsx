@@ -42,6 +42,7 @@ const BusinessDashboard = () => {
     category: "",
     location: "",
     description: "",
+    image_url: "",
   });
 
   const [dealForm, setDealForm] = useState({
@@ -118,6 +119,7 @@ const BusinessDashboard = () => {
         category: business.category,
         location: business.location || "",
         description: business.description || "",
+        image_url: business.image_url || "",
       });
     }
   });
