@@ -7,8 +7,10 @@ interface Profile {
   user_id: string;
   full_name: string | null;
   avatar_url: string | null;
+  bio: string | null;
   points: number;
   tier: string;
+  is_business_owner: boolean;
   created_at: string;
   updated_at: string;
 }
