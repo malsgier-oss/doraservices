@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { BusinessRoute } from "@/components/auth/BusinessRoute";
+import { AdminRoute } from "@/components/auth/AdminRoute";
 import Index from "./pages/Index";
 import Businesses from "./pages/Businesses";
 import BusinessDetail from "./pages/BusinessDetail";
@@ -15,6 +16,15 @@ import Profile from "./pages/Profile";
 import BusinessDashboard from "./pages/BusinessDashboard";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import AdminLayout from "./pages/admin/AdminLayout";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminBusinesses from "./pages/admin/AdminBusinesses";
+import AdminDeals from "./pages/admin/AdminDeals";
+import AdminReports from "./pages/admin/AdminReports";
+import AdminSettings from "./pages/admin/AdminSettings";
+import AdminMessages from "./pages/admin/AdminMessages";
+import AdminAuditLog from "./pages/admin/AdminAuditLog";
 
 const queryClient = new QueryClient();
 
@@ -75,6 +85,24 @@ const AppRoutes = () => {
           </BusinessRoute>
         }
       />
+      {/* Admin Routes */}
+      <Route
+        path="/admin"
+        element={
+          <AdminRoute>
+            <AdminLayout />
+          </AdminRoute>
+        }
+      >
+        <Route index element={<AdminDashboard />} />
+        <Route path="users" element={<AdminUsers />} />
+        <Route path="businesses" element={<AdminBusinesses />} />
+        <Route path="deals" element={<AdminDeals />} />
+        <Route path="reports" element={<AdminReports />} />
+        <Route path="settings" element={<AdminSettings />} />
+        <Route path="messages" element={<AdminMessages />} />
+        <Route path="audit-log" element={<AdminAuditLog />} />
+      </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
