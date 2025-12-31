@@ -14,6 +14,7 @@ import {
   Camera,
   AlertCircle,
   Heart,
+  MapPin,
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useProfile } from "@/hooks/useProfile";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -32,6 +40,7 @@ import { useServices } from "@/hooks/useServices";
 import { useAvatarUpload } from "@/hooks/useAvatarUpload";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { LIBYAN_CITIES } from "@/components/search/SearchFilters";
 
 const Profile = () => {
   const [activeTab, setActiveTab] = useState("favorites");
@@ -51,6 +60,7 @@ const Profile = () => {
     bio: "",
     avatar_url: "",
     phone: "",
+    city: "",
   });
 
   // Check if provider is missing phone number
@@ -63,6 +73,7 @@ const Profile = () => {
         bio: profile.bio || "",
         avatar_url: profile.avatar_url || "",
         phone: profile.phone || "",
+        city: profile.city || "",
       });
     }
     setIsEditing(true);
@@ -74,6 +85,7 @@ const Profile = () => {
       bio: formData.bio || null,
       avatar_url: formData.avatar_url || null,
       phone: formData.phone || null,
+      city: formData.city || null,
     });
 
     if (error) {
@@ -278,6 +290,40 @@ const Profile = () => {
                       </p>
                     )}
                   </div>
+                  
+                  {/* City selector for providers */}
+                  {isBusiness && (
+                    <div className="space-y-2">
+                      <Label htmlFor="city" className="flex items-center gap-1">
+                        <MapPin className="h-4 w-4" />
+                        {isRTL ? "المدينة" : "City"}
+                      </Label>
+                      <Select
+                        value={formData.city || "none"}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, city: value === "none" ? "" : value })
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={isRTL ? "اختر مدينتك" : "Select your city"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">
+                            {isRTL ? "-- اختر مدينة --" : "-- Select city --"}
+                          </SelectItem>
+                          {LIBYAN_CITIES.map((city) => (
+                            <SelectItem key={city.id} value={city.id}>
+                              {isRTL ? city.ar : city.en}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        {isRTL ? "يساعد العملاء على إيجادك" : "Helps customers find you"}
+                      </p>
+                    </div>
+                  )}
+                  
                   <div className={`flex gap-2 ${isRTL ? "flex-row-reverse" : ""}`}>
                     <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} className="rounded-full flex-1">
                       <X className="h-4 w-4" />
