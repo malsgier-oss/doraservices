@@ -16,9 +16,11 @@ import {
 } from "@/components/ui/select";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useServices } from "@/hooks/useServices";
+import { useProfile } from "@/hooks/useProfile";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { LIBYAN_CITIES } from "@/components/search/SearchFilters";
 import { 
   Wrench, 
   Car, 
@@ -40,7 +42,8 @@ import {
   Camera,
   UtensilsCrossed,
   Stethoscope,
-  UserCheck
+  UserCheck,
+  MapPin
 } from "lucide-react";
 
 // Subcategories for each main category
@@ -101,14 +104,16 @@ const categoryStructure = {
 export default function ServiceCreator() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { t, isRTL } = useLanguage();
+  const { t, isRTL, language } = useLanguage();
   const { createService } = useServices();
+  const { profile, updateProfile } = useProfile();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     serviceName: "",
     category: "",
     subcategory: "",
     bio: "",
+    city: "",
   });
 
   const mainCategories = Object.entries(categoryStructure).map(([id, data]) => ({
@@ -144,6 +149,11 @@ export default function ServiceCreator() {
 
     setIsSubmitting(true);
     try {
+      // Update profile with city if provided
+      if (formData.city && formData.city !== profile?.city) {
+        await updateProfile({ city: formData.city });
+      }
+
       const { error } = await createService({
         title: formData.serviceName,
         description: formData.bio || undefined,
@@ -264,6 +274,35 @@ export default function ServiceCreator() {
               className={cn("min-h-[120px] rounded-xl resize-none", isRTL ? "text-right" : "text-left")}
               dir={isRTL ? "rtl" : "ltr"}
             />
+          </div>
+
+          {/* City Selection */}
+          <div className="space-y-2">
+            <Label className={cn("flex items-center gap-2", isRTL ? "flex-row-reverse justify-end" : "")}>
+              <MapPin className="h-4 w-4" />
+              {isRTL ? "المدينة" : "City"}
+            </Label>
+            <Select
+              value={formData.city || profile?.city || "none"}
+              onValueChange={(value) => setFormData({ ...formData, city: value === "none" ? "" : value })}
+            >
+              <SelectTrigger className="rounded-xl h-12">
+                <SelectValue placeholder={isRTL ? "اختر مدينتك" : "Select your city"} />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border z-50">
+                <SelectItem value="none">
+                  {isRTL ? "-- اختر مدينة --" : "-- Select city --"}
+                </SelectItem>
+                {LIBYAN_CITIES.map((city) => (
+                  <SelectItem key={city.id} value={city.id}>
+                    {language === "ar" ? city.ar : city.en}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {isRTL ? "يساعد العملاء على إيجادك" : "Helps customers find you"}
+            </p>
           </div>
 
           {/* Submit */}
