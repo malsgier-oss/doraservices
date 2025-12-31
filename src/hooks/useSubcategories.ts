@@ -8,10 +8,10 @@ export interface Subcategory {
   name_ar: string | null;
   icon: string;
   color: string | null;
-  display_order: number;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
+  display_order: number | null;
+  is_active: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 export function useSubcategories(categoryId?: string) {
