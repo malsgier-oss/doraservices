@@ -246,8 +246,8 @@ export default function Hub() {
           </div>
         </div>
 
-        {/* Filter Suggestions */}
-        <div className="mt-3 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+        {/* Filter Suggestions - moved down with more spacing */}
+        <div className="mt-5 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
           <FilterSuggestionChip
             icon={<MapPin className="h-3.5 w-3.5" />}
             label={isRTL ? "طرابلس" : "Tripoli"}
@@ -299,8 +299,8 @@ export default function Hub() {
       </header>
 
       <main className="px-4 pb-8">
-        {/* Category Hero Section */}
-        <section className="mt-4">
+        {/* Category Hero Section - moved down */}
+        <section className="mt-6">
           <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
             {categories.map((cat) => {
               const IconComponent = cat.icon;
@@ -325,9 +325,9 @@ export default function Hub() {
           </div>
         </section>
 
-        {/* Featured Services List */}
-        <section className="mt-4">
-          <div className="flex items-center justify-between mb-3">
+        {/* Featured Services List - moved down with larger cards */}
+        <section className="mt-6">
+          <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-[#333]">
               {searchQuery 
                 ? (isRTL ? "نتائج البحث" : "Search Results")
@@ -347,7 +347,7 @@ export default function Hub() {
 
           {/* Results count */}
           {hasActiveFilters && (
-            <p className="text-sm text-[#777] mb-3">
+            <p className="text-sm text-[#777] mb-4">
               {isRTL 
                 ? `${filteredServices.length} خدمة`
                 : `${filteredServices.length} service${filteredServices.length !== 1 ? 's' : ''} found`
@@ -364,25 +364,25 @@ export default function Hub() {
                     key={service.id}
                     onClick={() => handleServiceClick(service)}
                     className={cn(
-                      "w-full flex items-center gap-4 p-4 text-left transition-colors hover:bg-gray-50 active:bg-gray-100",
+                      "w-full flex items-center gap-4 p-5 text-left transition-colors hover:bg-gray-50 active:bg-gray-100",
                       isRTL && "text-right flex-row-reverse",
                       index < filteredServices.length - 1 && "border-b border-gray-100"
                     )}
                   >
-                    {/* Icon */}
+                    {/* Icon - larger */}
                     <div className={cn(
-                      "h-12 w-12 rounded-full flex items-center justify-center flex-shrink-0",
+                      "h-14 w-14 rounded-full flex items-center justify-center flex-shrink-0",
                       service.color
                     )}>
-                      <IconComponent className="h-6 w-6 text-[#333]" strokeWidth={1.5} />
+                      <IconComponent className="h-7 w-7 text-[#333]" strokeWidth={1.5} />
                     </div>
 
-                    {/* Text */}
+                    {/* Text - larger */}
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-base font-semibold text-[#333]">
+                      <h3 className="text-lg font-semibold text-[#333]">
                         {t.featuredList[service.titleKey as keyof typeof t.featuredList]}
                       </h3>
-                      <p className="text-xs text-[#777] mt-0.5">
+                      <p className="text-sm text-[#777] mt-1">
                         {t.featuredList[service.descKey as keyof typeof t.featuredList]}
                       </p>
                     </div>

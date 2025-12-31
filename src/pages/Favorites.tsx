@@ -1,9 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Heart, Loader2, User, Phone, Trash2 } from "lucide-react";
+import { Heart, Loader2, Phone, Trash2, Filter } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,6 +33,7 @@ export default function Favorites() {
   const { t, isRTL } = useLanguage();
   const [favorites, setFavorites] = useState<FavoriteService[]>([]);
   const [loading, setLoading] = useState(true);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   useEffect(() => {
     if (user) {
@@ -118,10 +126,26 @@ export default function Favorites() {
   };
 
   const handleCall = (phone: string) => {
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
     if (phone) {
       window.location.href = `tel:${phone}`;
     }
   };
+
+  // Get unique categories from favorites
+  const categories = useMemo(() => {
+    const unique = [...new Set(favorites.map(f => f.service_category))];
+    return unique;
+  }, [favorites]);
+
+  // Filter favorites by category
+  const filteredFavorites = useMemo(() => {
+    if (categoryFilter === "all") return favorites;
+    return favorites.filter(f => f.service_category === categoryFilter);
+  }, [favorites, categoryFilter]);
 
   if (loading) {
     return (
@@ -136,18 +160,55 @@ export default function Favorites() {
   return (
     <Layout>
       <div className="container py-6 space-y-6">
-        {/* Header */}
-        <h1 className={cn(
-          "text-2xl font-bold text-foreground",
-          isRTL ? "text-right" : "text-left"
+        {/* Header with Filter */}
+        <div className={cn(
+          "flex items-center justify-between gap-4",
+          isRTL && "flex-row-reverse"
         )}>
-          {t.favorites?.title || (isRTL ? "المفضلة" : "Favorites")}
-        </h1>
+          <h1 className={cn(
+            "text-2xl font-bold text-foreground",
+            isRTL ? "text-right" : "text-left"
+          )}>
+            {t.favorites?.title || (isRTL ? "المفضلة" : "Favorites")}
+          </h1>
+
+          {/* Category Filter */}
+          {favorites.length > 0 && (
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder={isRTL ? "كل الفئات" : "All categories"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    {isRTL ? "كل الفئات" : "All categories"}
+                  </SelectItem>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {t.categories[cat as keyof typeof t.categories] || cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+
+        {/* Results count when filtered */}
+        {categoryFilter !== "all" && (
+          <p className="text-sm text-muted-foreground">
+            {isRTL 
+              ? `${filteredFavorites.length} نتيجة`
+              : `${filteredFavorites.length} result${filteredFavorites.length !== 1 ? 's' : ''}`
+            }
+          </p>
+        )}
 
         {/* Favorites List */}
         <div className="space-y-3">
-          {favorites.length > 0 ? (
-            favorites.map((fav) => (
+          {filteredFavorites.length > 0 ? (
+            filteredFavorites.map((fav) => (
               <div
                 key={fav.id}
                 className={cn(
@@ -196,6 +257,20 @@ export default function Favorites() {
                 </div>
               </div>
             ))
+          ) : favorites.length > 0 && categoryFilter !== "all" ? (
+            // No results for current filter
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">
+                {isRTL ? "لا توجد نتائج لهذه الفئة" : "No results for this category"}
+              </p>
+              <Button 
+                variant="outline"
+                onClick={() => setCategoryFilter("all")}
+                className="mt-4 rounded-full"
+              >
+                {isRTL ? "عرض الكل" : "Show all"}
+              </Button>
+            </div>
           ) : (
             <div className="text-center py-16">
               <div className="w-20 h-20 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">

@@ -10,6 +10,7 @@ interface Profile {
   bio: string | null;
   phone: string | null;
   city: string | null;
+  provider_status: string | null;
   created_at: string;
   updated_at: string;
 }
