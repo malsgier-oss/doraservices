@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Calendar,
@@ -13,6 +13,8 @@ import {
   Plus,
   Trash2,
   Check,
+  Camera,
+  AlertCircle,
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -22,12 +24,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useProfile } from "@/hooks/useProfile";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useServices } from "@/hooks/useServices";
 import { useBookings } from "@/hooks/useBookings";
+import { useAvatarUpload } from "@/hooks/useAvatarUpload";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { ServiceRequestCard } from "@/components/service/ServiceRequestCard";
@@ -36,6 +40,7 @@ const Profile = () => {
   const [activeTab, setActiveTab] = useState("bookings");
   const [isEditing, setIsEditing] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { profile, loading, updateProfile } = useProfile();
@@ -43,6 +48,7 @@ const Profile = () => {
   const { t, isRTL } = useLanguage();
   const { myServices, deleteService } = useServices();
   const { myBookings, incomingBookings, cancelBooking, acceptBooking, completeBooking } = useBookings();
+  const { uploadAvatar, uploading } = useAvatarUpload();
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -50,6 +56,9 @@ const Profile = () => {
     avatar_url: "",
     phone: "",
   });
+
+  // Check if provider is missing phone number
+  const providerMissingPhone = isBusiness && !profile?.phone;
 
   const handleEdit = () => {
     if (profile) {
@@ -83,6 +92,53 @@ const Profile = () => {
         description: t.profile.profileUpdatedDesc,
       });
       setIsEditing(false);
+    }
+  };
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: t.common.error,
+        description: isRTL ? "يرجى اختيار صورة" : "Please select an image file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: t.common.error,
+        description: isRTL ? "حجم الصورة كبير جداً (الحد الأقصى 5MB)" : "Image too large (max 5MB)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { url, error } = await uploadAvatar(file);
+    
+    if (error) {
+      toast({
+        title: t.common.error,
+        description: isRTL ? "فشل رفع الصورة" : "Failed to upload image",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (url) {
+      // Update profile with new avatar URL
+      const { error: updateError } = await updateProfile({ avatar_url: url });
+      if (!updateError) {
+        toast({
+          title: t.profile.profileUpdated,
+          description: isRTL ? "تم تحديث الصورة بنجاح" : "Avatar updated successfully",
+        });
+      }
     }
   };
 
@@ -170,13 +226,33 @@ const Profile = () => {
       <section className="bg-background py-8">
         <div className="container">
           <div className="flex flex-col items-center gap-6">
-            {/* Circular Avatar */}
-            <Avatar className="h-28 w-28 ring-4 ring-primary/20 shadow-lg">
-              <AvatarImage src={profile?.avatar_url || ""} alt={displayName} />
-              <AvatarFallback className="text-3xl font-display font-bold bg-primary text-primary-foreground">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
+            {/* Circular Avatar with Upload */}
+            <div className="relative">
+              <Avatar className="h-28 w-28 ring-4 ring-primary/20 shadow-lg">
+                <AvatarImage src={profile?.avatar_url || ""} alt={displayName} />
+                <AvatarFallback className="text-3xl font-display font-bold bg-primary text-primary-foreground">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarUpload}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="absolute bottom-0 right-0 h-9 w-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {uploading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Camera className="h-4 w-4" />
+                )}
+              </button>
+            </div>
 
             <div className="text-center space-y-3">
               {isEditing ? (
@@ -207,7 +283,10 @@ const Profile = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">{t.profile.phone}</Label>
+                    <Label htmlFor="phone" className="flex items-center gap-1">
+                      {t.profile.phone}
+                      {isBusiness && <span className="text-destructive">*</span>}
+                    </Label>
                     <Input
                       id="phone"
                       value={formData.phone}
@@ -218,18 +297,11 @@ const Profile = () => {
                       className="rounded-full"
                       dir="ltr"
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="avatar_url">{t.profile.avatarUrl}</Label>
-                    <Input
-                      id="avatar_url"
-                      value={formData.avatar_url}
-                      onChange={(e) =>
-                        setFormData({ ...formData, avatar_url: e.target.value })
-                      }
-                      placeholder={t.profile.avatarPlaceholder}
-                      className="rounded-full"
-                    />
+                    {isBusiness && (
+                      <p className="text-xs text-muted-foreground">
+                        {isRTL ? "مطلوب للتواصل مع العملاء" : "Required for customer contact"}
+                      </p>
+                    )}
                   </div>
                   <div className={`flex gap-2 ${isRTL ? "flex-row-reverse" : ""}`}>
                     <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} className="rounded-full flex-1">
@@ -260,6 +332,18 @@ const Profile = () => {
                     <p className="text-muted-foreground text-sm max-w-md mx-auto">
                       {profile.bio}
                     </p>
+                  )}
+
+                  {/* Phone Warning for Providers */}
+                  {providerMissingPhone && (
+                    <Alert variant="destructive" className="max-w-md mx-auto mt-4">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        {isRTL 
+                          ? "يرجى إضافة رقم هاتفك حتى يتمكن العملاء من التواصل معك" 
+                          : "Please add your phone number so customers can contact you"}
+                      </AlertDescription>
+                    </Alert>
                   )}
 
                   <div className="flex justify-center gap-6 text-sm text-muted-foreground">
