@@ -12,7 +12,7 @@ export function Layout({ children, showHeader = true }: LayoutProps) {
   const { t, isRTL } = useLanguage();
 
   return (
-    <div className="min-h-screen flex flex-col touch-manipulation no-tap-highlight bg-[#F9F9F9] pb-16 md:pb-0" dir={isRTL ? "rtl" : "ltr"}>
+    <div className="min-h-screen flex flex-col touch-manipulation no-tap-highlight bg-[#F9F9F9] pb-16" dir={isRTL ? "rtl" : "ltr"}>
       {showHeader && <Header />}
       <main className="flex-1">
         <PageTransition>{children}</PageTransition>
