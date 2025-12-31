@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   Bell, 
@@ -25,8 +25,10 @@ import {
   UtensilsCrossed,
   Stethoscope,
   Activity,
-  X
+  X,
+  Search
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { MobileNav } from "@/components/layout/MobileNav";
@@ -71,9 +73,11 @@ export default function Hub() {
   const { profile } = useProfile();
   const { t, isRTL } = useLanguage();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const handleCategoryClick = (categoryId: string) => {
     setSelectedCategory(prev => prev === categoryId ? null : categoryId);
+    setSearchQuery(""); // Clear search when selecting category
   };
 
   const handleServiceClick = (serviceId: string) => {
@@ -81,13 +85,37 @@ export default function Hub() {
       navigate("/auth");
       return;
     }
-    // Show toast for now - can be expanded to booking flow
     toast.success(isRTL ? "سيتم التواصل معك قريباً" : "We'll connect you with a provider soon!");
   };
 
-  const filteredServices = selectedCategory
-    ? featuredServices.filter(s => s.category === selectedCategory)
-    : featuredServices;
+  const clearFilters = () => {
+    setSelectedCategory(null);
+    setSearchQuery("");
+  };
+
+  // Filter services based on search and category
+  const filteredServices = useMemo(() => {
+    let services = featuredServices;
+
+    // Filter by category
+    if (selectedCategory) {
+      services = services.filter(s => s.category === selectedCategory);
+    }
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      services = services.filter(s => {
+        const title = t.featuredList[s.titleKey as keyof typeof t.featuredList] || "";
+        const desc = t.featuredList[s.descKey as keyof typeof t.featuredList] || "";
+        return title.toLowerCase().includes(query) || desc.toLowerCase().includes(query);
+      });
+    }
+
+    return services;
+  }, [selectedCategory, searchQuery, t.featuredList]);
+
+  const hasActiveFilters = selectedCategory || searchQuery.trim();
 
   const selectedCategoryLabel = selectedCategory
     ? t.categories[selectedCategory as keyof typeof t.categories]
@@ -132,11 +160,42 @@ export default function Hub() {
             </button>
           </div>
         </div>
+
+        {/* Search Bar */}
+        <div className="mt-4 relative">
+          <Search
+            className={cn(
+              "absolute top-1/2 -translate-y-1/2 h-5 w-5 text-[#999]",
+              isRTL ? "right-4" : "left-4"
+            )}
+          />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={isRTL ? "ابحث عن كهربائي، سباك، محامي..." : "Search for electrician, plumber, lawyer..."}
+            className={cn(
+              "h-12 rounded-[20px] bg-white border-0 shadow-sm text-base placeholder:text-[#999]",
+              isRTL ? "pr-12 pl-4" : "pl-12 pr-4"
+            )}
+            dir={isRTL ? "rtl" : "ltr"}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className={cn(
+                "absolute top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-[#EEE] flex items-center justify-center",
+                isRTL ? "left-3" : "right-3"
+              )}
+            >
+              <X className="h-3 w-3 text-[#666]" />
+            </button>
+          )}
+        </div>
       </header>
 
       <main className="px-4 pb-8">
         {/* Category Hero Section */}
-        <section className="mt-6">
+        <section className="mt-4">
           <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
             {categories.map((cat) => {
               const IconComponent = cat.icon;
@@ -146,13 +205,13 @@ export default function Hub() {
                   key={cat.id}
                   onClick={() => handleCategoryClick(cat.id)}
                   className={cn(
-                    "flex-shrink-0 w-[120px] h-[120px] rounded-[20px] flex flex-col items-center justify-center gap-2 transition-all active:scale-95",
+                    "flex-shrink-0 w-[100px] h-[100px] rounded-[20px] flex flex-col items-center justify-center gap-2 transition-all active:scale-95",
                     cat.color,
                     isSelected && "ring-2 ring-[#333] ring-offset-2"
                   )}
                 >
-                  <IconComponent className="h-8 w-8 text-[#333]" strokeWidth={1.5} />
-                  <span className="text-xs font-medium text-[#333] text-center px-2 leading-tight">
+                  <IconComponent className="h-7 w-7 text-[#333]" strokeWidth={1.5} />
+                  <span className="text-[10px] font-medium text-[#333] text-center px-1 leading-tight">
                     {t.categories[cat.labelKey as keyof typeof t.categories]}
                   </span>
                 </button>
@@ -162,21 +221,34 @@ export default function Hub() {
         </section>
 
         {/* Featured Services List */}
-        <section className="mt-6">
-          <div className="flex items-center justify-between mb-4">
+        <section className="mt-4">
+          <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold text-[#333]">
-              {selectedCategoryLabel || t.hub.featuredServices}
+              {searchQuery 
+                ? (isRTL ? "نتائج البحث" : "Search Results")
+                : selectedCategoryLabel || t.hub.featuredServices
+              }
             </h2>
-            {selectedCategory && (
+            {hasActiveFilters && (
               <button
-                onClick={() => setSelectedCategory(null)}
-                className="flex items-center gap-1 text-sm text-[#777] hover:text-[#333]"
+                onClick={clearFilters}
+                className="flex items-center gap-1 text-sm text-[#777] hover:text-[#333] transition-colors"
               >
                 <X className="h-4 w-4" />
-                {isRTL ? "مسح" : "Clear"}
+                {isRTL ? "مسح الكل" : "Clear all"}
               </button>
             )}
           </div>
+
+          {/* Results count */}
+          {hasActiveFilters && (
+            <p className="text-sm text-[#777] mb-3">
+              {isRTL 
+                ? `${filteredServices.length} خدمة`
+                : `${filteredServices.length} service${filteredServices.length !== 1 ? 's' : ''} found`
+              }
+            </p>
+          )}
 
           <div className="bg-white rounded-[20px] shadow-sm overflow-hidden">
             {filteredServices.length > 0 ? (
@@ -220,8 +292,12 @@ export default function Hub() {
               })
             ) : (
               <div className="py-12 text-center">
-                <p className="text-[#777]">
-                  {isRTL ? "لا توجد خدمات في هذه الفئة" : "No services in this category"}
+                <div className="text-4xl mb-3">🔍</div>
+                <p className="text-[#777] font-medium">
+                  {isRTL ? "لم نجد خدمات مطابقة" : "No matching services found"}
+                </p>
+                <p className="text-sm text-[#999] mt-1">
+                  {isRTL ? "جرب البحث بكلمات مختلفة" : "Try different search terms"}
                 </p>
               </div>
             )}
