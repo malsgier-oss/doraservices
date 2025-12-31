@@ -17,7 +17,7 @@ import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
 
-import AdminDeals from "./pages/admin/AdminDeals";
+
 import AdminReports from "./pages/admin/AdminReports";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminMessages from "./pages/admin/AdminMessages";
@@ -103,7 +103,7 @@ const AppRoutes = () => {
         <Route path="users" element={<AdminUsers />} />
         <Route path="providers" element={<AdminProviders />} />
         <Route path="services" element={<AdminServices />} />
-        <Route path="deals" element={<AdminDeals />} />
+        
         <Route path="reviews" element={<AdminReviews />} />
         <Route path="categories" element={<AdminCategories />} />
         <Route path="cities" element={<AdminCities />} />

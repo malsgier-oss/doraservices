@@ -10,7 +10,7 @@ const navItems = [
   { to: "/admin/users", label: "Users", icon: Users },
   { to: "/admin/providers", label: "Providers", icon: Users },
   { to: "/admin/services", label: "Services", icon: Store },
-  { to: "/admin/deals", label: "Deals", icon: Tag },
+  
   { to: "/admin/reviews", label: "Reviews", icon: MessageSquare },
   { to: "/admin/categories", label: "Categories", icon: Tag },
   { to: "/admin/cities", label: "Cities", icon: Flag },
