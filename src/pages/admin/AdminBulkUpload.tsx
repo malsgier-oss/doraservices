@@ -22,8 +22,9 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { Upload, Download, CheckCircle, XCircle, AlertCircle, Phone, Tag } from "lucide-react";
+import { Upload, Download, CheckCircle, XCircle, AlertCircle, Phone, Tag, Layers } from "lucide-react";
 import { useCategories } from "@/hooks/useCategories";
+import { useSubcategories } from "@/hooks/useSubcategories";
 import { useCities } from "@/hooks/useCities";
 
 interface ParsedService {
@@ -49,6 +50,11 @@ export default function AdminBulkUpload() {
   const [uploadComplete, setUploadComplete] = useState(false);
   const [stats, setStats] = useState({ total: 0, success: 0, failed: 0 });
   const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string>("");
+
+  // Get the category ID for the selected category name
+  const selectedCategoryObj = categories?.find(c => c.name === selectedCategory);
+  const { data: subcategories } = useSubcategories(selectedCategoryObj?.id);
 
   const cityNames = cities?.map((c) => c.name.toLowerCase()) || [];
 
@@ -174,6 +180,9 @@ export default function AdminBulkUpload() {
     let successCount = 0;
     let failedCount = parsedData.filter((p) => p.status === "error").length;
 
+    // Use subcategory name if selected, otherwise use category name
+    const categoryToUse = selectedSubcategory || selectedCategory;
+
     for (let i = 0; i < pendingItems.length; i++) {
       const item = pendingItems[i];
       
@@ -186,7 +195,7 @@ export default function AdminBulkUpload() {
         const { error } = await supabase.from("services").insert({
           title: item.title,
           description: item.description || null,
-          category: selectedCategory,
+          category: categoryToUse,
           city: matchingCity?.name || item.city || null,
           provider_phone: item.provider_phone,
           provider_name: item.provider_name || null,
@@ -218,7 +227,13 @@ export default function AdminBulkUpload() {
     await supabase.rpc("log_admin_action", {
       p_action: "bulk_upload",
       p_target_type: "services",
-      p_details: { total: parsedData.length, success: successCount, failed: failedCount, category: selectedCategory },
+      p_details: { 
+        total: parsedData.length, 
+        success: successCount, 
+        failed: failedCount, 
+        category: selectedCategory,
+        subcategory: selectedSubcategory || null,
+      },
     });
 
     queryClient.invalidateQueries({ queryKey: ["admin-services"] });
@@ -236,6 +251,11 @@ export default function AdminBulkUpload() {
     }
   };
 
+  const handleCategoryChange = (value: string) => {
+    setSelectedCategory(value);
+    setSelectedSubcategory(""); // Reset subcategory when category changes
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -247,16 +267,17 @@ export default function AdminBulkUpload() {
         <CardHeader>
           <CardTitle>Upload CSV File</CardTitle>
           <CardDescription>
-            Select a category, download the template, add services with provider phone numbers, then upload.
+            Select a category (and optionally a subcategory like Electrician), download the template, add services, then upload.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Category Selection */}
           <div className="space-y-2">
             <label className="text-sm font-medium flex items-center gap-2">
               <Tag className="h-4 w-4" />
-              Select Category for All Services
+              Main Category
             </label>
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <Select value={selectedCategory} onValueChange={handleCategoryChange}>
               <SelectTrigger className="w-full max-w-xs">
                 <SelectValue placeholder="Choose a category..." />
               </SelectTrigger>
@@ -269,6 +290,34 @@ export default function AdminBulkUpload() {
               </SelectContent>
             </Select>
           </div>
+
+          {/* Subcategory Selection */}
+          {selectedCategory && subcategories && subcategories.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <Layers className="h-4 w-4" />
+                Subcategory (Optional - e.g., Electrician, Plumber)
+              </label>
+              <Select value={selectedSubcategory} onValueChange={setSelectedSubcategory}>
+                <SelectTrigger className="w-full max-w-xs">
+                  <SelectValue placeholder="Select specific service type..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All {selectedCategory}</SelectItem>
+                  {subcategories.map((sub) => (
+                    <SelectItem key={sub.id} value={sub.name}>
+                      {sub.name} {sub.name_ar ? `(${sub.name_ar})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {selectedSubcategory 
+                  ? `Services will be created as "${selectedSubcategory}"` 
+                  : `Services will be created as "${selectedCategory}"`}
+              </p>
+            </div>
+          )}
 
           <div className="flex gap-4">
             <Button variant="outline" onClick={downloadTemplate}>
