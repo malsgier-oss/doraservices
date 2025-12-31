@@ -8,8 +8,7 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AdminRoute } from "@/components/auth/AdminRoute";
 import Hub from "./pages/Hub";
-
-import Activity from "./pages/Activity";
+import Favorites from "./pages/Favorites";
 import ServiceCreator from "./pages/ServiceCreator";
 import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
@@ -56,10 +55,10 @@ const AppRoutes = () => {
         }
       />
       <Route
-        path="/activity"
+        path="/favorites"
         element={
           <ProtectedRoute>
-            <Activity />
+            <Favorites />
           </ProtectedRoute>
         }
       />
