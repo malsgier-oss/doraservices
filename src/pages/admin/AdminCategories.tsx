@@ -237,7 +237,7 @@ export default function AdminCategories() {
       name: sub.name,
       name_ar: sub.name_ar || "",
       icon: sub.icon,
-      is_active: sub.is_active,
+      is_active: sub.is_active ?? true,
     });
     setSubDialogOpen(true);
   };
@@ -258,7 +258,7 @@ export default function AdminCategories() {
       updateSubcategory.mutate({ id: editingSubcategory.id, ...subForm });
     } else if (selectedCategoryId) {
       const categorySubcats = subcategories?.filter(s => s.category_id === selectedCategoryId) || [];
-      const maxOrder = Math.max(...categorySubcats.map(s => s.display_order), 0);
+      const maxOrder = Math.max(...categorySubcats.map(s => s.display_order ?? 0), 0);
       createSubcategory.mutate({
         category_id: selectedCategoryId,
         ...subForm,
@@ -285,7 +285,7 @@ export default function AdminCategories() {
   const getSubcategoriesForCategory = (categoryId: string) => {
     return (subcategories || [])
       .filter(s => s.category_id === categoryId)
-      .sort((a, b) => a.display_order - b.display_order);
+      .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
   };
 
   return (
