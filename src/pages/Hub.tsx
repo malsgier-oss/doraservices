@@ -300,7 +300,7 @@ export default function Hub() {
 
       <main className="px-4 pb-8">
         {/* Category Hero Section - moved down */}
-        <section className="mt-6">
+        <section className="mt-8">
           <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
             {categories.map((cat) => {
               const IconComponent = cat.icon;
