@@ -8,7 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -17,6 +19,84 @@ import { useServices } from "@/hooks/useServices";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { 
+  Wrench, 
+  Car, 
+  Zap, 
+  Scale, 
+  Building, 
+  BookOpen, 
+  Heart, 
+  PartyPopper,
+  Lightbulb,
+  Droplets,
+  Snowflake,
+  Fuel,
+  ClipboardCheck,
+  Sun,
+  BatteryCharging,
+  Gavel,
+  Languages,
+  Camera,
+  UtensilsCrossed,
+  Stethoscope,
+  UserCheck
+} from "lucide-react";
+
+// Subcategories for each main category
+const categoryStructure = {
+  homeMaintenance: {
+    icon: Wrench,
+    subcategories: [
+      { id: "electrician", icon: Lightbulb },
+      { id: "plumbing", icon: Droplets },
+      { id: "acRepair", icon: Snowflake },
+    ]
+  },
+  carCare: {
+    icon: Car,
+    subcategories: [
+      { id: "oilFilter", icon: Fuel },
+      { id: "inspection", icon: ClipboardCheck },
+    ]
+  },
+  powerUtilities: {
+    icon: Zap,
+    subcategories: [
+      { id: "solar", icon: Sun },
+      { id: "generator", icon: BatteryCharging },
+    ]
+  },
+  professionalLegal: {
+    icon: Scale,
+    subcategories: [
+      { id: "legal", icon: Gavel },
+      { id: "translation", icon: Languages },
+    ]
+  },
+  propertyLogistics: {
+    icon: Building,
+    subcategories: []
+  },
+  learningEducation: {
+    icon: BookOpen,
+    subcategories: []
+  },
+  healingWellness: {
+    icon: Heart,
+    subcategories: [
+      { id: "homeDoctor", icon: Stethoscope },
+      { id: "nursing", icon: UserCheck },
+    ]
+  },
+  eventsCatering: {
+    icon: PartyPopper,
+    subcategories: [
+      { id: "photography", icon: Camera },
+      { id: "catering", icon: UtensilsCrossed },
+    ]
+  },
+};
 
 export default function ServiceCreator() {
   const navigate = useNavigate();
@@ -27,21 +107,22 @@ export default function ServiceCreator() {
   const [formData, setFormData] = useState({
     serviceName: "",
     category: "",
-    price: "",
+    subcategory: "",
     bio: "",
   });
 
-  // Categories aligned with Hub.tsx
-  const categories = [
-    { id: "homeMaintenance", label: t.categories.homeMaintenance },
-    { id: "carCare", label: t.categories.carCare },
-    { id: "powerUtilities", label: t.categories.powerUtilities },
-    { id: "professionalLegal", label: t.categories.professionalLegal },
-    { id: "propertyLogistics", label: t.categories.propertyLogistics },
-    { id: "learningEducation", label: t.categories.learningEducation },
-    { id: "healingWellness", label: t.categories.healingWellness },
-    { id: "eventsCatering", label: t.categories.eventsCatering },
-  ];
+  const mainCategories = Object.entries(categoryStructure).map(([id, data]) => ({
+    id,
+    label: t.categories[id as keyof typeof t.categories] || id,
+    icon: data.icon,
+    subcategories: data.subcategories.map(sub => ({
+      id: sub.id,
+      label: t.featuredList[sub.id as keyof typeof t.featuredList] || sub.id,
+      icon: sub.icon,
+    })),
+  }));
+
+  const selectedCategory = mainCategories.find(c => c.id === formData.category);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,10 +141,6 @@ export default function ServiceCreator() {
       toast.error(isRTL ? "يرجى اختيار الفئة" : "Please select a category");
       return;
     }
-    if (!formData.price || isNaN(Number(formData.price))) {
-      toast.error(isRTL ? "يرجى إدخال سعر صحيح" : "Please enter a valid price");
-      return;
-    }
 
     setIsSubmitting(true);
     try {
@@ -71,7 +148,7 @@ export default function ServiceCreator() {
         title: formData.serviceName,
         description: formData.bio || undefined,
         category: formData.category,
-        price: Number(formData.price),
+        price: 0, // Price no longer used but required by DB
       });
 
       if (error) throw error;
@@ -102,9 +179,70 @@ export default function ServiceCreator() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Category Selection */}
+          <div className="space-y-2">
+            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>
+              {t.creator.category}
+            </Label>
+            <Select
+              value={formData.category}
+              onValueChange={(value) => setFormData({ ...formData, category: value, subcategory: "" })}
+            >
+              <SelectTrigger className="rounded-xl h-12">
+                <SelectValue placeholder={t.creator.selectCategory} />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border z-50">
+                {mainCategories.map((cat) => {
+                  const Icon = cat.icon;
+                  return (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      <div className="flex items-center gap-2">
+                        <Icon className="h-4 w-4" />
+                        <span>{cat.label}</span>
+                      </div>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Subcategory Selection (if available) */}
+          {selectedCategory && selectedCategory.subcategories.length > 0 && (
+            <div className="space-y-2">
+              <Label className={cn(isRTL ? "text-right block" : "text-left block")}>
+                {isRTL ? "نوع الخدمة" : "Service Type"}
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                {selectedCategory.subcategories.map((sub) => {
+                  const SubIcon = sub.icon;
+                  const isSelected = formData.subcategory === sub.id;
+                  return (
+                    <button
+                      key={sub.id}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, subcategory: sub.id })}
+                      className={cn(
+                        "flex items-center gap-2 p-3 rounded-xl border transition-colors",
+                        isSelected 
+                          ? "border-primary bg-primary/10 text-primary" 
+                          : "border-border hover:border-primary/50"
+                      )}
+                    >
+                      <SubIcon className="h-5 w-5" />
+                      <span className="text-sm font-medium">{sub.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Service Name */}
           <div className="space-y-2">
-            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{t.creator.serviceName}</Label>
+            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>
+              {t.creator.serviceName}
+            </Label>
             <Input
               value={formData.serviceName}
               onChange={(e) => setFormData({ ...formData, serviceName: e.target.value })}
@@ -114,42 +252,11 @@ export default function ServiceCreator() {
             />
           </div>
 
-          {/* Category */}
-          <div className="space-y-2">
-            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{t.creator.category}</Label>
-            <Select
-              value={formData.category}
-              onValueChange={(value) => setFormData({ ...formData, category: value })}
-            >
-              <SelectTrigger className="rounded-xl h-12">
-                <SelectValue placeholder={t.creator.selectCategory} />
-              </SelectTrigger>
-              <SelectContent className="bg-card border-border z-50">
-                {categories.map((cat) => (
-                  <SelectItem key={cat.id} value={cat.id}>
-                    {cat.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Price */}
-          <div className="space-y-2">
-            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{t.creator.price}</Label>
-            <Input
-              type="number"
-              value={formData.price}
-              onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-              placeholder={t.creator.pricePlaceholder}
-              className={cn("rounded-xl h-12", isRTL ? "text-right" : "text-left")}
-              dir={isRTL ? "rtl" : "ltr"}
-            />
-          </div>
-
           {/* Bio */}
           <div className="space-y-2">
-            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{t.creator.bio}</Label>
+            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>
+              {t.creator.bio}
+            </Label>
             <Textarea
               value={formData.bio}
               onChange={(e) => setFormData({ ...formData, bio: e.target.value })}

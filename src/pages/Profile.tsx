@@ -9,12 +9,11 @@ import {
   Loader2,
   LogOut,
   Briefcase,
-  ClipboardList,
   Plus,
   Trash2,
-  Check,
   Camera,
   AlertCircle,
+  Heart,
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -30,14 +29,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useServices } from "@/hooks/useServices";
-import { useBookings } from "@/hooks/useBookings";
 import { useAvatarUpload } from "@/hooks/useAvatarUpload";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { ServiceRequestCard } from "@/components/service/ServiceRequestCard";
 
 const Profile = () => {
-  const [activeTab, setActiveTab] = useState("bookings");
+  const [activeTab, setActiveTab] = useState("favorites");
   const [isEditing, setIsEditing] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -47,7 +44,6 @@ const Profile = () => {
   const { isBusiness, loading: roleLoading, upgradeToBusiness } = useUserRole();
   const { t, isRTL } = useLanguage();
   const { myServices, deleteService } = useServices();
-  const { myBookings, incomingBookings, cancelBooking, acceptBooking, completeBooking } = useBookings();
   const { uploadAvatar, uploading } = useAvatarUpload();
 
   const [formData, setFormData] = useState({
@@ -180,27 +176,6 @@ const Profile = () => {
         title: t.profile.serviceDeleted,
         description: t.profile.serviceDeletedDesc,
       });
-    }
-  };
-
-  const handleCancelBooking = async (id: string) => {
-    const { error } = await cancelBooking(id);
-    if (error) {
-      toast({ title: t.common.error, variant: "destructive" });
-    }
-  };
-
-  const handleAcceptBooking = async (id: string) => {
-    const { error } = await acceptBooking(id);
-    if (error) {
-      toast({ title: t.common.error, variant: "destructive" });
-    }
-  };
-
-  const handleCompleteBooking = async (id: string) => {
-    const { error } = await completeBooking(id);
-    if (error) {
-      toast({ title: t.common.error, variant: "destructive" });
     }
   };
 
@@ -411,9 +386,9 @@ const Profile = () => {
         <div className="container">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className={`grid w-full max-w-md ${isBusiness ? "grid-cols-3" : "grid-cols-2"} mx-auto mb-6 rounded-full p-1`}>
-              <TabsTrigger value="bookings" className="flex items-center gap-1.5 rounded-full">
-                <ClipboardList className="h-4 w-4" />
-                {t.profile.myBookings}
+              <TabsTrigger value="favorites" className="flex items-center gap-1.5 rounded-full">
+                <Heart className="h-4 w-4" />
+                {t.favorites?.title || (isRTL ? "المفضلة" : "Favorites")}
               </TabsTrigger>
               {isBusiness && (
                 <TabsTrigger value="services" className="flex items-center gap-1.5 rounded-full">
@@ -427,96 +402,26 @@ const Profile = () => {
               </TabsTrigger>
             </TabsList>
 
-            {/* Bookings Tab */}
-            <TabsContent value="bookings" className="animate-fade-in">
-              <div className="max-w-2xl mx-auto space-y-6">
-                {/* My Bookings */}
-                <div className="space-y-4">
-                  <h2 className="font-display text-lg font-semibold">
-                    {t.profile.myBookings}
-                  </h2>
-                  {myBookings.length > 0 ? (
-                    <div className="space-y-4">
-                      {myBookings.map((booking) => (
-                        <ServiceRequestCard
-                          key={booking.id}
-                          id={booking.id}
-                          providerName={booking.provider_name || "Provider"}
-                          providerAvatar={booking.provider_avatar}
-                          serviceTitle={booking.service_title || "Service"}
-                          status={booking.status}
-                          scheduledDate={new Date(booking.scheduled_date)}
-                          requestedDate={new Date(booking.created_at)}
-                          onViewDetails={() => {}}
-                          onCancel={() => handleCancelBooking(booking.id)}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-12 bg-muted/30 rounded-3xl">
-                      <div className="h-16 w-16 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
-                        <ClipboardList className="h-8 w-8 text-muted-foreground" />
-                      </div>
-                      <p className="text-muted-foreground font-medium">
-                        {t.profile.noBookings}
-                      </p>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {t.profile.noBookingsDesc}
-                      </p>
-                      <Button 
-                        className="mt-4 rounded-full" 
-                        onClick={() => navigate("/")}
-                      >
-                        {t.services.bookService}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Incoming Bookings for Providers */}
-                {isBusiness && incomingBookings.length > 0 && (
-                  <div className="space-y-4">
-                    <h2 className="font-display text-lg font-semibold">
-                      {t.booking.incomingRequests}
-                    </h2>
-                    <div className="space-y-4">
-                      {incomingBookings.map((booking) => (
-                        <div key={booking.id} className="bg-card rounded-2xl p-4 shadow-card">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1">
-                              <h3 className="font-semibold">{booking.service_title}</h3>
-                              <p className="text-sm text-muted-foreground">{booking.customer_name}</p>
-                              <p className="text-sm text-muted-foreground mt-1">{booking.description}</p>
-                              <p className="text-xs text-muted-foreground mt-2">
-                                {format(new Date(booking.scheduled_date), "d MMM yyyy")} • {booking.time_slot}
-                              </p>
-                            </div>
-                            <div className="flex gap-2">
-                              {booking.status === "pending" && (
-                                <Button 
-                                  size="sm" 
-                                  className="rounded-full"
-                                  onClick={() => handleAcceptBooking(booking.id)}
-                                >
-                                  <Check className="h-4 w-4" />
-                                </Button>
-                              )}
-                              {booking.status === "in_progress" && (
-                                <Button 
-                                  size="sm" 
-                                  className="rounded-full"
-                                  onClick={() => handleCompleteBooking(booking.id)}
-                                >
-                                  {t.booking.completeBooking}
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+            {/* Favorites Tab */}
+            <TabsContent value="favorites" className="animate-fade-in">
+              <div className="max-w-2xl mx-auto">
+                <div className="text-center py-12 bg-muted/30 rounded-3xl">
+                  <div className="h-16 w-16 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
+                    <Heart className="h-8 w-8 text-muted-foreground" />
                   </div>
-                )}
+                  <p className="text-muted-foreground font-medium">
+                    {t.favorites?.noFavorites || (isRTL ? "لا توجد مفضلات" : "No favorites yet")}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {t.favorites?.noFavoritesDesc || (isRTL ? "أضف خدمات إلى المفضلة" : "Add services to favorites")}
+                  </p>
+                  <Button 
+                    className="mt-4 rounded-full" 
+                    onClick={() => navigate("/favorites")}
+                  >
+                    {isRTL ? "عرض المفضلة" : "View Favorites"}
+                  </Button>
+                </div>
               </div>
             </TabsContent>
 
@@ -546,9 +451,9 @@ const Profile = () => {
                             <div className="flex-1">
                               <h3 className="font-semibold text-foreground">{service.title}</h3>
                               <p className="text-sm text-muted-foreground mt-1">{service.description}</p>
-                              <p className="font-bold text-primary mt-2">
-                                {service.price} {t.common.currency}
-                              </p>
+                              <Badge variant="outline" className="mt-2">
+                                {t.categories[service.category as keyof typeof t.categories] || service.category}
+                              </Badge>
                             </div>
                             <div className="flex gap-2">
                               <Button 

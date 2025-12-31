@@ -113,20 +113,11 @@ export const translations = {
       close: "Close",
     },
     
-    // Activity
-    activity: {
-      title: "My Requests",
-      noRequests: "No requests yet",
-      noRequestsDesc: "Start by booking a service from the home page",
-      pending: "Pending",
-      inProgress: "In Progress",
-      completed: "Completed",
-      viewDetails: "View Details",
-      cancelRequest: "Cancel Request",
-      providerName: "Service Provider",
-      scheduledFor: "Scheduled For",
-      requestedOn: "Requested On",
-      all: "All",
+    // Favorites
+    favorites: {
+      title: "Favorites",
+      noFavorites: "No favorites yet",
+      noFavoritesDesc: "Add services to favorites from the home page",
     },
     
     // Service Creator (Business Onboarding)
@@ -337,20 +328,11 @@ export const translations = {
       close: "إغلاق",
     },
     
-    // Activity
-    activity: {
-      title: "طلباتي",
-      noRequests: "لا توجد طلبات بعد",
-      noRequestsDesc: "ابدأ بحجز خدمة من الصفحة الرئيسية",
-      pending: "قيد الانتظار",
-      inProgress: "قيد التنفيذ",
-      completed: "مكتملة",
-      viewDetails: "عرض التفاصيل",
-      cancelRequest: "إلغاء الطلب",
-      providerName: "مزود الخدمة",
-      scheduledFor: "موعد الخدمة",
-      requestedOn: "تاريخ الطلب",
-      all: "الكل",
+    // Favorites
+    favorites: {
+      title: "المفضلة",
+      noFavorites: "لا توجد مفضلات",
+      noFavoritesDesc: "أضف خدمات إلى المفضلة من الصفحة الرئيسية",
     },
     
     // Service Creator (Business Onboarding)
