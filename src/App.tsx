@@ -8,7 +8,7 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AdminRoute } from "@/components/auth/AdminRoute";
 import Hub from "./pages/Hub";
-import ServiceDirectory from "./pages/ServiceDirectory";
+
 import Activity from "./pages/Activity";
 import ServiceCreator from "./pages/ServiceCreator";
 import Profile from "./pages/Profile";
@@ -52,22 +52,6 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <Hub />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/services"
-        element={
-          <ProtectedRoute>
-            <ServiceDirectory />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/services/:category"
-        element={
-          <ProtectedRoute>
-            <ServiceDirectory />
           </ProtectedRoute>
         }
       />

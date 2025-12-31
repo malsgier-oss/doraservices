@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   Bell, 
@@ -23,7 +24,8 @@ import {
   Camera,
   UtensilsCrossed,
   Stethoscope,
-  Activity
+  Activity,
+  X
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LanguageToggle } from "@/components/LanguageToggle";
@@ -31,6 +33,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 // Category data with colors and icons
 const categories = [
@@ -66,14 +69,28 @@ export default function Hub() {
   const { user } = useAuth();
   const { profile } = useProfile();
   const { t, isRTL } = useLanguage();
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const handleCategoryClick = (categoryId: string) => {
-    navigate(`/services/${categoryId}`);
+    setSelectedCategory(prev => prev === categoryId ? null : categoryId);
   };
 
-  const handleServiceClick = (categoryId: string) => {
-    navigate(`/services/${categoryId}`);
+  const handleServiceClick = (serviceId: string) => {
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
+    // Show toast for now - can be expanded to booking flow
+    toast.success(isRTL ? "سيتم التواصل معك قريباً" : "We'll connect you with a provider soon!");
   };
+
+  const filteredServices = selectedCategory
+    ? featuredServices.filter(s => s.category === selectedCategory)
+    : featuredServices;
+
+  const selectedCategoryLabel = selectedCategory
+    ? t.categories[selectedCategory as keyof typeof t.categories]
+    : null;
 
   const initials = profile?.full_name
     ?.split(" ")
@@ -82,7 +99,7 @@ export default function Hub() {
     .slice(0, 2) || (isRTL ? "م" : "U");
 
   return (
-    <div className="min-h-screen bg-[#F9F9F9]" dir={isRTL ? "rtl" : "ltr"}>
+    <div className="min-h-screen bg-[#F9F9F9] pb-20" dir={isRTL ? "rtl" : "ltr"}>
       {/* Top Bar */}
       <header className="sticky top-0 z-40 bg-[#F9F9F9] px-4 pt-4 pb-2">
         <div className="flex items-center justify-between">
@@ -122,13 +139,15 @@ export default function Hub() {
           <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
             {categories.map((cat) => {
               const IconComponent = cat.icon;
+              const isSelected = selectedCategory === cat.id;
               return (
                 <button
                   key={cat.id}
                   onClick={() => handleCategoryClick(cat.id)}
                   className={cn(
-                    "flex-shrink-0 w-[120px] h-[120px] rounded-[20px] flex flex-col items-center justify-center gap-2 transition-transform active:scale-95",
-                    cat.color
+                    "flex-shrink-0 w-[120px] h-[120px] rounded-[20px] flex flex-col items-center justify-center gap-2 transition-all active:scale-95",
+                    cat.color,
+                    isSelected && "ring-2 ring-[#333] ring-offset-2"
                   )}
                 >
                   <IconComponent className="h-8 w-8 text-[#333]" strokeWidth={1.5} />
@@ -143,49 +162,68 @@ export default function Hub() {
 
         {/* Featured Services List */}
         <section className="mt-6">
-          <h2 className="text-lg font-semibold text-[#333] mb-4">
-            {t.hub.featuredServices}
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-[#333]">
+              {selectedCategoryLabel || t.hub.featuredServices}
+            </h2>
+            {selectedCategory && (
+              <button
+                onClick={() => setSelectedCategory(null)}
+                className="flex items-center gap-1 text-sm text-[#777] hover:text-[#333]"
+              >
+                <X className="h-4 w-4" />
+                {isRTL ? "مسح" : "Clear"}
+              </button>
+            )}
+          </div>
 
           <div className="bg-white rounded-[20px] shadow-sm overflow-hidden">
-            {featuredServices.map((service, index) => {
-              const IconComponent = service.icon;
-              return (
-                <button
-                  key={service.id}
-                  onClick={() => handleServiceClick(service.category)}
-                  className={cn(
-                    "w-full flex items-center gap-4 p-4 text-left transition-colors hover:bg-gray-50 active:bg-gray-100",
-                    isRTL && "text-right flex-row-reverse",
-                    index < featuredServices.length - 1 && "border-b border-gray-100"
-                  )}
-                >
-                  {/* Icon */}
-                  <div className={cn(
-                    "h-12 w-12 rounded-full flex items-center justify-center flex-shrink-0",
-                    service.color
-                  )}>
-                    <IconComponent className="h-6 w-6 text-[#333]" strokeWidth={1.5} />
-                  </div>
+            {filteredServices.length > 0 ? (
+              filteredServices.map((service, index) => {
+                const IconComponent = service.icon;
+                return (
+                  <button
+                    key={service.id}
+                    onClick={() => handleServiceClick(service.id)}
+                    className={cn(
+                      "w-full flex items-center gap-4 p-4 text-left transition-colors hover:bg-gray-50 active:bg-gray-100",
+                      isRTL && "text-right flex-row-reverse",
+                      index < filteredServices.length - 1 && "border-b border-gray-100"
+                    )}
+                  >
+                    {/* Icon */}
+                    <div className={cn(
+                      "h-12 w-12 rounded-full flex items-center justify-center flex-shrink-0",
+                      service.color
+                    )}>
+                      <IconComponent className="h-6 w-6 text-[#333]" strokeWidth={1.5} />
+                    </div>
 
-                  {/* Text */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-base font-semibold text-[#333]">
-                      {t.featuredList[service.titleKey as keyof typeof t.featuredList]}
-                    </h3>
-                    <p className="text-xs text-[#777] mt-0.5">
-                      {t.featuredList[service.descKey as keyof typeof t.featuredList]}
-                    </p>
-                  </div>
+                    {/* Text */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base font-semibold text-[#333]">
+                        {t.featuredList[service.titleKey as keyof typeof t.featuredList]}
+                      </h3>
+                      <p className="text-xs text-[#777] mt-0.5">
+                        {t.featuredList[service.descKey as keyof typeof t.featuredList]}
+                      </p>
+                    </div>
 
-                  {/* Chevron */}
-                  <ChevronRight className={cn(
-                    "h-5 w-5 text-[#CCC] flex-shrink-0",
-                    isRTL && "rotate-180"
-                  )} />
-                </button>
-              );
-            })}
+                    {/* Chevron */}
+                    <ChevronRight className={cn(
+                      "h-5 w-5 text-[#CCC] flex-shrink-0",
+                      isRTL && "rotate-180"
+                    )} />
+                  </button>
+                );
+              })
+            ) : (
+              <div className="py-12 text-center">
+                <p className="text-[#777]">
+                  {isRTL ? "لا توجد خدمات في هذه الفئة" : "No services in this category"}
+                </p>
+              </div>
+            )}
           </div>
         </section>
       </main>
