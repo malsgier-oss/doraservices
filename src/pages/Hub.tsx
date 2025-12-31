@@ -115,7 +115,7 @@ export default function Hub() {
   const serviceItems: ServiceItem[] = useMemo(() => {
     if (!subcategories) return [];
     return subcategories
-      .filter(sub => sub.is_active)
+      .filter(sub => sub.is_active !== false)
       .map(sub => ({
         id: sub.id,
         icon: ICON_MAP[sub.icon] || Wrench,
