@@ -1,6 +1,11 @@
 import { useState } from "react";
-import { Phone, Check } from "lucide-react";
+import { Phone, Check, CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -36,16 +41,34 @@ export function BookingDialog({
   
   const [isBooked, setIsBooked] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>("morning");
+  const [description, setDescription] = useState("");
+
+  const timeSlots = [
+    { id: "morning", label: t.booking.morning },
+    { id: "afternoon", label: t.booking.afternoon },
+    { id: "evening", label: t.booking.evening },
+  ];
 
   const handleBook = async () => {
+    if (!selectedDate) {
+      toast.error(isRTL ? "يرجى اختيار التاريخ" : "Please select a date");
+      return;
+    }
+    if (!description.trim()) {
+      toast.error(isRTL ? "يرجى وصف احتياجاتك" : "Please describe your needs");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const { error } = await createBooking({
         service_id: serviceId,
         provider_id: providerId,
-        description: "Direct booking",
-        scheduled_date: new Date(),
-        time_slot: "flexible",
+        description: description.trim(),
+        scheduled_date: selectedDate,
+        time_slot: selectedTimeSlot,
       });
 
       if (error) throw error;
@@ -63,6 +86,9 @@ export function BookingDialog({
 
   const handleClose = () => {
     setIsBooked(false);
+    setSelectedDate(undefined);
+    setSelectedTimeSlot("morning");
+    setDescription("");
     onOpenChange(false);
   };
 
@@ -74,14 +100,14 @@ export function BookingDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-sm rounded-2xl">
+      <DialogContent className="max-w-sm rounded-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className={cn("text-center", isRTL ? "text-right" : "text-left")}>
             {isBooked ? t.booking.requestSent : t.booking.title}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-5 pt-2">
+        <div className="space-y-5 pt-2" dir={isRTL ? "rtl" : "ltr"}>
           {/* Service Info */}
           <div className={cn("bg-muted rounded-xl p-4 text-center")}>
             <p className="font-semibold text-foreground text-lg">{serviceTitle}</p>
@@ -134,14 +160,76 @@ export function BookingDialog({
             </>
           ) : (
             <>
-              {/* Booking Confirmation */}
-              <div className="flex gap-3">
+              {/* Description */}
+              <div className="space-y-2">
+                <Label>{t.booking.describeNeeds}</Label>
+                <Textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder={t.booking.descriptionPlaceholder}
+                  className="min-h-[80px] rounded-xl resize-none"
+                  dir={isRTL ? "rtl" : "ltr"}
+                />
+              </div>
+
+              {/* Date Picker */}
+              <div className="space-y-2">
+                <Label>{t.booking.selectDate}</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal rounded-xl h-12",
+                        !selectedDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="h-4 w-4 mr-2" />
+                      {selectedDate ? format(selectedDate, "PPP") : (isRTL ? "اختر التاريخ" : "Pick a date")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={setSelectedDate}
+                      disabled={(date) => date < new Date()}
+                      initialFocus
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Time Slot Selection */}
+              <div className="space-y-2">
+                <Label>{t.booking.preferredTime}</Label>
+                <div className="flex gap-2">
+                  {timeSlots.map((slot) => (
+                    <button
+                      key={slot.id}
+                      onClick={() => setSelectedTimeSlot(slot.id)}
+                      className={cn(
+                        "flex-1 py-2 px-3 rounded-full text-sm font-medium transition-colors",
+                        selectedTimeSlot === slot.id
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      )}
+                    >
+                      {slot.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2">
                 <Button
                   onClick={handleBook}
                   disabled={isSubmitting}
                   className="flex-1 rounded-full"
                 >
-                  {isSubmitting ? t.common.loading : t.common.confirm}
+                  {isSubmitting ? t.common.loading : t.booking.submitRequest}
                 </Button>
                 <Button
                   variant="outline"

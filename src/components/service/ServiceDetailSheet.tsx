@@ -186,9 +186,8 @@ export function ServiceDetailSheet({ open, onOpenChange, service }: ServiceDetai
               {/* Rating & Info */}
               <div className="flex items-center justify-center gap-6 text-sm">
                 <div className="flex items-center gap-1">
-                  <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                  <span className="font-medium text-[#333]">4.8</span>
-                  <span className="text-[#999]">(New)</span>
+                  <Star className="h-4 w-4 text-[#999]" />
+                  <span className="font-medium text-[#777]">{isRTL ? "جديد" : "New"}</span>
                 </div>
                 <div className="flex items-center gap-1 text-[#777]">
                   <Clock className="h-4 w-4" />
@@ -326,8 +325,8 @@ export function ServiceDetailSheet({ open, onOpenChange, service }: ServiceDetai
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                    <span className="text-sm font-medium text-[#333]">4.8</span>
+                    <Star className="h-4 w-4 text-[#999]" />
+                    <span className="text-sm text-[#777]">{isRTL ? "جديد" : "New"}</span>
                   </div>
                   <ChevronRight className={cn(
                     "h-5 w-5 text-[#CCC]",

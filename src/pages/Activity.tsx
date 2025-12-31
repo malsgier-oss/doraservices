@@ -1,42 +1,20 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { ServiceRequestCard } from "@/components/service/ServiceRequestCard";
+import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useBookings } from "@/hooks/useBookings";
 import { cn } from "@/lib/utils";
 
-type Status = "pending" | "in_progress" | "completed";
+type Status = "pending" | "in_progress" | "completed" | "cancelled";
 
 export default function Activity() {
+  const navigate = useNavigate();
   const { t, isRTL } = useLanguage();
+  const { myBookings, loading, cancelBooking } = useBookings();
   const [activeTab, setActiveTab] = useState<Status | "all">("all");
-
-  // Mock service requests
-  const mockRequests = [
-    {
-      id: "1",
-      serviceTitle: isRTL ? "صيانة مكيفات احترافية" : "Professional AC Repair",
-      providerName: isRTL ? "أحمد الشمري" : "John Smith",
-      status: "pending" as Status,
-      scheduledDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
-      requestedDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-    },
-    {
-      id: "2",
-      serviceTitle: isRTL ? "تنظيف منازل شامل" : "Full House Cleaning",
-      providerName: isRTL ? "سارة القحطاني" : "Sarah Johnson",
-      status: "in_progress" as Status,
-      scheduledDate: new Date(),
-      requestedDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-    },
-    {
-      id: "3",
-      serviceTitle: isRTL ? "صيانة أجهزة إلكترونية" : "Electronics Repair",
-      providerName: isRTL ? "محمد العتيبي" : "Mike Williams",
-      status: "completed" as Status,
-      scheduledDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-      requestedDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-    },
-  ];
 
   const tabs: { id: Status | "all"; label: string }[] = [
     { id: "all", label: t.activity.all },
@@ -47,8 +25,22 @@ export default function Activity() {
 
   const filteredRequests =
     activeTab === "all"
-      ? mockRequests
-      : mockRequests.filter((r) => r.status === activeTab);
+      ? myBookings
+      : myBookings.filter((r) => r.status === activeTab);
+
+  const handleCancel = async (id: string) => {
+    await cancelBooking(id);
+  };
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -82,12 +74,18 @@ export default function Activity() {
         {/* Requests List */}
         <div className="space-y-3">
           {filteredRequests.length > 0 ? (
-            filteredRequests.map((request) => (
+            filteredRequests.map((booking) => (
               <ServiceRequestCard
-                key={request.id}
-                {...request}
-                onViewDetails={() => console.log("View details:", request.id)}
-                onCancel={() => console.log("Cancel:", request.id)}
+                key={booking.id}
+                id={booking.id}
+                serviceTitle={booking.service_title || "Service"}
+                providerName={booking.provider_name || "Provider"}
+                providerAvatar={booking.provider_avatar}
+                status={booking.status}
+                scheduledDate={new Date(booking.scheduled_date)}
+                requestedDate={new Date(booking.created_at)}
+                onViewDetails={() => {}}
+                onCancel={() => handleCancel(booking.id)}
               />
             ))
           ) : (
@@ -98,9 +96,15 @@ export default function Activity() {
               <h3 className="font-semibold text-foreground mb-1">
                 {t.activity.noRequests}
               </h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground mb-4">
                 {t.activity.noRequestsDesc}
               </p>
+              <Button 
+                onClick={() => navigate("/")}
+                className="rounded-full"
+              >
+                {t.services.bookService}
+              </Button>
             </div>
           )}
         </div>

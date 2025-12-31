@@ -31,15 +31,16 @@ export default function ServiceCreator() {
     bio: "",
   });
 
+  // Categories aligned with Hub.tsx
   const categories = [
     { id: "homeMaintenance", label: t.categories.homeMaintenance },
-    { id: "personalCare", label: t.categories.personalCare },
-    { id: "techSupport", label: t.categories.techSupport },
-    { id: "petServices", label: t.categories.petServices },
-    { id: "cleaning", label: t.categories.cleaning },
-    { id: "automotive", label: t.categories.automotive },
-    { id: "education", label: t.categories.education },
-    { id: "health", label: t.categories.health },
+    { id: "carCare", label: t.categories.carCare },
+    { id: "powerUtilities", label: t.categories.powerUtilities },
+    { id: "professionalLegal", label: t.categories.professionalLegal },
+    { id: "propertyLogistics", label: t.categories.propertyLogistics },
+    { id: "learningEducation", label: t.categories.learningEducation },
+    { id: "healingWellness", label: t.categories.healingWellness },
+    { id: "eventsCatering", label: t.categories.eventsCatering },
   ];
 
   const handleSubmit = async (e: React.FormEvent) => {
