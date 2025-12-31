@@ -437,7 +437,7 @@ export default function Hub() {
           color: selectedService.color,
           titleKey: selectedService.name,
           descKey: "",
-          category: selectedService.category_id,
+          category: selectedService.name,
           categoryName: categories?.find(c => c.id === selectedService.category_id)?.name || "",
           categoryNameAr: categories?.find(c => c.id === selectedService.category_id)?.name_ar || "",
         } : null}
