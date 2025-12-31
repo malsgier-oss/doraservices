@@ -13,6 +13,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useBookings } from "@/hooks/useBookings";
 import { format } from "date-fns";
 import { arSA, enUS } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -21,19 +22,22 @@ import { toast } from "sonner";
 interface BookingDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  serviceId: string;
   serviceTitle: string;
+  providerId: string;
   providerName: string;
-  onSubmit: (data: { description: string; date: Date; timeSlot: string }) => void;
 }
 
 export function BookingDialog({
   open,
   onOpenChange,
+  serviceId,
   serviceTitle,
+  providerId,
   providerName,
-  onSubmit,
 }: BookingDialogProps) {
   const { t, language, isRTL } = useLanguage();
+  const { createBooking } = useBookings();
   const locale = language === "ar" ? arSA : enUS;
   
   const [description, setDescription] = useState("");
@@ -53,7 +57,16 @@ export function BookingDialog({
 
     setIsSubmitting(true);
     try {
-      await onSubmit({ description, date, timeSlot });
+      const { error } = await createBooking({
+        service_id: serviceId,
+        provider_id: providerId,
+        description,
+        scheduled_date: date,
+        time_slot: timeSlot,
+      });
+
+      if (error) throw error;
+
       toast.success(t.booking.requestSent, {
         description: t.booking.requestSentDesc,
       });
@@ -61,6 +74,8 @@ export function BookingDialog({
       setDescription("");
       setDate(undefined);
       setTimeSlot("morning");
+    } catch (error) {
+      toast.error(isRTL ? "حدث خطأ أثناء إرسال الطلب" : "Error submitting request");
     } finally {
       setIsSubmitting(false);
     }

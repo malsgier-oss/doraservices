@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useServices } from "@/hooks/useServices";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -21,11 +22,12 @@ export default function ServiceCreator() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { t, isRTL } = useLanguage();
+  const { createService } = useServices();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     serviceName: "",
     category: "",
-    hourlyRate: "",
+    price: "",
     bio: "",
   });
 
@@ -43,6 +45,12 @@ export default function ServiceCreator() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!user) {
+      toast.error(isRTL ? "يرجى تسجيل الدخول" : "Please log in");
+      navigate("/auth");
+      return;
+    }
+
     if (!formData.serviceName.trim()) {
       toast.error(isRTL ? "يرجى إدخال اسم الخدمة" : "Please enter service name");
       return;
@@ -51,21 +59,27 @@ export default function ServiceCreator() {
       toast.error(isRTL ? "يرجى اختيار الفئة" : "Please select a category");
       return;
     }
-    if (!formData.hourlyRate || isNaN(Number(formData.hourlyRate))) {
-      toast.error(isRTL ? "يرجى إدخال سعر صحيح" : "Please enter a valid rate");
+    if (!formData.price || isNaN(Number(formData.price))) {
+      toast.error(isRTL ? "يرجى إدخال سعر صحيح" : "Please enter a valid price");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // TODO: Save to database
-      console.log("Creating service:", formData);
+      const { error } = await createService({
+        title: formData.serviceName,
+        description: formData.bio || undefined,
+        category: formData.category,
+        price: Number(formData.price),
+      });
+
+      if (error) throw error;
       
       toast.success(t.creator.serviceCreated, {
         description: t.creator.serviceCreatedDesc,
       });
       
-      navigate("/my-services");
+      navigate("/profile");
     } catch (error) {
       toast.error(isRTL ? "حدث خطأ أثناء إنشاء الخدمة" : "Error creating service");
     } finally {
@@ -119,14 +133,14 @@ export default function ServiceCreator() {
             </Select>
           </div>
 
-          {/* Hourly Rate */}
+          {/* Price */}
           <div className="space-y-2">
-            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{t.creator.hourlyRate}</Label>
+            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{t.creator.price}</Label>
             <Input
               type="number"
-              value={formData.hourlyRate}
-              onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value })}
-              placeholder={t.creator.ratePlaceholder}
+              value={formData.price}
+              onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+              placeholder={t.creator.pricePlaceholder}
               className={cn("rounded-xl h-12", isRTL ? "text-right" : "text-left")}
               dir={isRTL ? "rtl" : "ltr"}
             />
