@@ -8,10 +8,18 @@ import { Button } from "@/components/ui/button";
 const navItems = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/admin/users", label: "Users", icon: Users },
+  { to: "/admin/providers", label: "Providers", icon: Users },
+  { to: "/admin/services", label: "Services", icon: Store },
   { to: "/admin/businesses", label: "Businesses", icon: Store },
   { to: "/admin/deals", label: "Deals", icon: Tag },
+  { to: "/admin/reviews", label: "Reviews", icon: MessageSquare },
+  { to: "/admin/categories", label: "Categories", icon: Tag },
+  { to: "/admin/cities", label: "Cities", icon: Flag },
   { to: "/admin/reports", label: "Reports", icon: Flag },
   { to: "/admin/messages", label: "Messages", icon: MessageSquare },
+  { to: "/admin/analytics", label: "Analytics", icon: LayoutDashboard },
+  { to: "/admin/media", label: "Media", icon: Store },
+  { to: "/admin/bulk-upload", label: "Bulk Upload", icon: Settings },
   { to: "/admin/settings", label: "Settings", icon: Settings },
   { to: "/admin/audit-log", label: "Audit Log", icon: History },
 ];
