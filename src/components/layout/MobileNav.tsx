@@ -16,18 +16,11 @@ export function MobileNav() {
     return null;
   }
 
-  const navItems = isBusiness
-    ? [
-        { href: "/", label: t.nav.home, icon: Home },
-        { href: "/activity", label: t.nav.activity, icon: ClipboardList },
-        { href: "/my-services", label: t.nav.services, icon: Briefcase },
-        { href: "/profile", label: t.nav.profile, icon: User },
-      ]
-    : [
-        { href: "/", label: t.nav.home, icon: Home },
-        { href: "/activity", label: t.nav.activity, icon: ClipboardList },
-        { href: "/profile", label: t.nav.profile, icon: User },
-      ];
+  const navItems = [
+    { href: "/", label: t.nav.home, icon: Home },
+    { href: "/activity", label: t.nav.activity, icon: ClipboardList },
+    { href: "/profile", label: t.nav.profile, icon: User },
+  ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-card/95 backdrop-blur-lg border-t border-border safe-area-bottom">
