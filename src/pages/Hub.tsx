@@ -33,6 +33,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
+import { SearchFilters, ActiveFilterChips, SearchFiltersState } from "@/components/search/SearchFilters";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
@@ -86,6 +87,10 @@ export default function Hub() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedService, setSelectedService] = useState<FeaturedService | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [searchFilters, setSearchFilters] = useState<SearchFiltersState>({
+    city: null,
+    minRating: false,
+  });
 
   const handleCategoryClick = (categoryId: string) => {
     setSelectedCategory(prev => prev === categoryId ? null : categoryId);
@@ -100,6 +105,14 @@ export default function Hub() {
   const clearFilters = () => {
     setSelectedCategory(null);
     setSearchQuery("");
+    setSearchFilters({ city: null, minRating: false });
+  };
+
+  const handleRemoveFilter = (key: keyof SearchFiltersState) => {
+    setSearchFilters(prev => ({
+      ...prev,
+      [key]: key === "minRating" ? false : null,
+    }));
   };
 
   // Filter services based on search and category
@@ -124,7 +137,7 @@ export default function Hub() {
     return services;
   }, [selectedCategory, searchQuery, t.featuredList]);
 
-  const hasActiveFilters = selectedCategory || searchQuery.trim();
+  const hasActiveFilters = selectedCategory || searchQuery.trim() || searchFilters.city || searchFilters.minRating;
 
   const selectedCategoryLabel = selectedCategory
     ? t.categories[selectedCategory as keyof typeof t.categories]
@@ -170,36 +183,52 @@ export default function Hub() {
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="mt-4 relative">
-          <Search
-            className={cn(
-              "absolute top-1/2 -translate-y-1/2 h-5 w-5 text-[#999]",
-              isRTL ? "right-4" : "left-4"
-            )}
-          />
-          <Input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={isRTL ? "ابحث عن كهربائي، سباك، محامي..." : "Search for electrician, plumber, lawyer..."}
-            className={cn(
-              "h-12 rounded-[20px] bg-white border-0 shadow-sm text-base placeholder:text-[#999]",
-              isRTL ? "pr-12 pl-4" : "pl-12 pr-4"
-            )}
-            dir={isRTL ? "rtl" : "ltr"}
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
+        {/* Search Bar with Filter */}
+        <div className="mt-4 flex gap-2">
+          <div className="relative flex-1">
+            <Search
               className={cn(
-                "absolute top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-[#EEE] flex items-center justify-center",
-                isRTL ? "left-3" : "right-3"
+                "absolute top-1/2 -translate-y-1/2 h-5 w-5 text-[#999]",
+                isRTL ? "right-4" : "left-4"
               )}
-            >
-              <X className="h-3 w-3 text-[#666]" />
-            </button>
-          )}
+            />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={isRTL ? "ابحث عن كهربائي، سباك، محامي..." : "Search for electrician, plumber, lawyer..."}
+              className={cn(
+                "h-12 rounded-[20px] bg-white border-0 shadow-sm text-base placeholder:text-[#999]",
+                isRTL ? "pr-12 pl-10" : "pl-12 pr-10"
+              )}
+              dir={isRTL ? "rtl" : "ltr"}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className={cn(
+                  "absolute top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-[#EEE] flex items-center justify-center",
+                  isRTL ? "left-3" : "right-3"
+                )}
+              >
+                <X className="h-3 w-3 text-[#666]" />
+              </button>
+            )}
+          </div>
+          <SearchFilters 
+            filters={searchFilters} 
+            onFiltersChange={setSearchFilters} 
+          />
         </div>
+
+        {/* Active Filter Chips */}
+        {(searchFilters.city || searchFilters.minRating) && (
+          <div className="mt-3">
+            <ActiveFilterChips 
+              filters={searchFilters} 
+              onRemoveFilter={handleRemoveFilter} 
+            />
+          </div>
+        )}
       </header>
 
       <main className="px-4 pb-8">
@@ -320,6 +349,7 @@ export default function Hub() {
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         service={selectedService}
+        filters={searchFilters}
       />
     </div>
   );

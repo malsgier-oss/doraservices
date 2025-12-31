@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { X, Phone, Star, Clock, ChevronRight, User, Heart, MessageSquare } from "lucide-react";
+import { X, Phone, Star, Clock, ChevronRight, User, Heart, MessageSquare, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -21,6 +21,7 @@ import { useReviews, useServiceRatings } from "@/hooks/useReviews";
 import { ReviewDialog } from "./ReviewDialog";
 import { ReviewList } from "./ReviewList";
 import { toast } from "sonner";
+import { LIBYAN_CITIES, SearchFiltersState } from "@/components/search/SearchFilters";
 
 interface ServiceProvider {
   id: string;
@@ -32,6 +33,7 @@ interface ServiceProvider {
   provider_name: string;
   provider_avatar: string;
   provider_phone: string;
+  provider_city: string | null;
 }
 
 interface ServiceDetailSheetProps {
@@ -45,12 +47,13 @@ interface ServiceDetailSheetProps {
     color: string;
     icon: LucideIcon;
   } | null;
+  filters?: SearchFiltersState;
 }
 
-export function ServiceDetailSheet({ open, onOpenChange, service }: ServiceDetailSheetProps) {
+export function ServiceDetailSheet({ open, onOpenChange, service, filters }: ServiceDetailSheetProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { t, isRTL } = useLanguage();
+  const { t, isRTL, language } = useLanguage();
   const { toggleFavorite, isFavorite } = useFavorites();
   const [providers, setProviders] = useState<ServiceProvider[]>([]);
   const [loading, setLoading] = useState(false);
@@ -63,6 +66,13 @@ export function ServiceDetailSheet({ open, onOpenChange, service }: ServiceDetai
   
   // Ratings for providers list
   const { ratings: providerRatings } = useServiceRatings(providers.map(p => p.id));
+
+  // Helper to get city label
+  const getCityLabel = (cityId: string | null) => {
+    if (!cityId) return null;
+    const city = LIBYAN_CITIES.find(c => c.id === cityId);
+    return city ? (language === "ar" ? city.ar : city.en) : cityId;
+  };
 
   useEffect(() => {
     if (open && service) {
@@ -98,7 +108,7 @@ export function ServiceDetailSheet({ open, onOpenChange, service }: ServiceDetai
       const userIds = [...new Set(servicesData.map(s => s.user_id))];
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("user_id, full_name, avatar_url, phone")
+        .select("user_id, full_name, avatar_url, phone, city")
         .in("user_id", userIds);
 
       const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
@@ -113,6 +123,7 @@ export function ServiceDetailSheet({ open, onOpenChange, service }: ServiceDetai
         provider_name: profileMap.get(svc.user_id)?.full_name || (isRTL ? "مقدم الخدمة" : "Provider"),
         provider_avatar: profileMap.get(svc.user_id)?.avatar_url || "",
         provider_phone: profileMap.get(svc.user_id)?.phone || "",
+        provider_city: profileMap.get(svc.user_id)?.city || null,
       }));
 
       setProviders(enrichedServices);
@@ -191,10 +202,30 @@ export function ServiceDetailSheet({ open, onOpenChange, service }: ServiceDetai
   const getRatingDisplay = (serviceId: string) => {
     const r = providerRatings.get(serviceId);
     if (!r || r.totalReviews === 0) {
-      return { text: isRTL ? "جديد" : "New", hasRating: false };
+      return { text: isRTL ? "جديد" : "New", hasRating: false, rating: 0 };
     }
-    return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true };
+    return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true, rating: r.averageRating };
   };
+
+  // Filter providers based on city and rating
+  const filteredProviders = useMemo(() => {
+    let result = providers;
+
+    // Filter by city
+    if (filters?.city) {
+      result = result.filter(p => p.provider_city === filters.city);
+    }
+
+    // Filter by minimum rating (4+ stars)
+    if (filters?.minRating) {
+      result = result.filter(p => {
+        const r = providerRatings.get(p.id);
+        return r && r.averageRating >= 4;
+      });
+    }
+
+    return result;
+  }, [providers, filters, providerRatings]);
 
   // Provider detail view
   if (selectedProvider) {
@@ -254,6 +285,12 @@ export function ServiceDetailSheet({ open, onOpenChange, service }: ServiceDetai
                       {hasRating ? `${rating.averageRating} (${rating.totalReviews})` : (isRTL ? "جديد" : "New")}
                     </span>
                   </button>
+                  {selectedProvider.provider_city && (
+                    <div className="flex items-center gap-1 text-muted-foreground">
+                      <MapPin className="h-4 w-4" />
+                      <span>{getCityLabel(selectedProvider.provider_city)}</span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-1 text-muted-foreground">
                     <Clock className="h-4 w-4" />
                     <span>{isRTL ? "متاح" : "Available"}</span>
@@ -375,9 +412,9 @@ export function ServiceDetailSheet({ open, onOpenChange, service }: ServiceDetai
                 <div key={i} className="bg-muted rounded-2xl h-20 animate-pulse" />
               ))}
             </div>
-          ) : providers.length > 0 ? (
+          ) : filteredProviders.length > 0 ? (
             <div className="space-y-2">
-              {providers.map((provider) => {
+              {filteredProviders.map((provider) => {
                 const ratingInfo = getRatingDisplay(provider.id);
                 return (
                   <button
@@ -396,9 +433,20 @@ export function ServiceDetailSheet({ open, onOpenChange, service }: ServiceDetai
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <h4 className="font-semibold text-foreground truncate">{provider.provider_name}</h4>
-                      <p className="text-sm text-muted-foreground truncate">{provider.title}</p>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <span className="truncate">{provider.title}</span>
+                        {provider.provider_city && (
+                          <>
+                            <span>•</span>
+                            <span className="flex items-center gap-1 flex-shrink-0">
+                              <MapPin className="h-3 w-3" />
+                              {getCityLabel(provider.provider_city)}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 flex-shrink-0">
                       <Star className={cn(
                         "h-4 w-4",
                         ratingInfo.hasRating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground"
@@ -412,6 +460,22 @@ export function ServiceDetailSheet({ open, onOpenChange, service }: ServiceDetai
                   </button>
                 );
               })}
+            </div>
+          ) : providers.length > 0 ? (
+            // Filters applied but no results
+            <div className="py-12 text-center">
+              <div className="h-16 w-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
+                <MapPin className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <p className="text-muted-foreground font-medium">
+                {filters?.city 
+                  ? (isRTL ? `لا يوجد مقدمي خدمة في ${getCityLabel(filters.city)}` : `No providers in ${getCityLabel(filters.city)}`)
+                  : (isRTL ? "لا توجد نتائج مطابقة للفلاتر" : "No results match your filters")
+                }
+              </p>
+              <p className="text-sm text-muted-foreground/70 mt-1">
+                {isRTL ? "جرب تغيير الفلاتر" : "Try adjusting your filters"}
+              </p>
             </div>
           ) : (
             <div className="py-12 text-center">
