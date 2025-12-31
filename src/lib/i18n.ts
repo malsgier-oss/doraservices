@@ -1,10 +1,10 @@
-// Translations for the Service Hub app
+// Translations for the Dora Service Marketplace
 
 export const translations = {
   en: {
     // App name
-    appName: "The Circle",
-    appTagline: "Local Service Hub",
+    appName: "Dora",
+    appTagline: "Service Marketplace",
     
     // Navigation
     nav: {
@@ -16,7 +16,14 @@ export const translations = {
     
     // Categories
     categories: {
-      homeMaintenance: "Home Maintenance",
+      homeMaintenance: "Home & Maintenance",
+      carCare: "Car Care",
+      powerUtilities: "Power & Utilities",
+      professionalLegal: "Professional & Legal",
+      propertyLogistics: "Property & Logistics",
+      learningEducation: "Learning & Education",
+      healingWellness: "Healing & Wellness",
+      eventsCatering: "Events & Catering",
       personalCare: "Personal Care",
       techSupport: "Tech Support",
       petServices: "Pet Services",
@@ -29,15 +36,43 @@ export const translations = {
     // Hub
     hub: {
       welcome: "Welcome",
-      whatService: "What does your home need today?",
-      browseCategories: "Browse Categories",
-      featuredProviders: "Featured Providers",
+      searchPlaceholder: "Search for Electricians, Lawyers, or Tutors...",
+      featuredServices: "Featured Services",
       viewAll: "View All",
-      quickCategories: "Quick Categories",
       noResults: "We'll find a pro for that soon!",
       liveStatus: "Live Status",
       providerOnWay: "is on the way",
       minsAway: "mins away",
+    },
+    
+    // Featured Services Data
+    featuredList: {
+      electrician: "Electrician",
+      electricianDesc: "Wiring & lighting",
+      plumbing: "Plumbing",
+      plumbingDesc: "Leaks & tanks",
+      acRepair: "AC Repair",
+      acRepairDesc: "Cooling maintenance",
+      oilFilter: "Oil & Filter",
+      oilFilterDesc: "Engine care",
+      inspection: "Pre-Purchase Inspection",
+      inspectionDesc: "Mechanical checks",
+      solar: "Solar Solutions",
+      solarDesc: "Backup panels",
+      generator: "Generator Service",
+      generatorDesc: "Repairs & oil",
+      legal: "Legal Consulting",
+      legalDesc: "Contracts & advice",
+      translation: "Translation",
+      translationDesc: "Certified documents",
+      photography: "Photography",
+      photographyDesc: "Event coverage",
+      catering: "Catering",
+      cateringDesc: "Full meal services",
+      homeDoctor: "Home Doctor",
+      homeDoctorDesc: "Professional visits",
+      nursing: "Nursing",
+      nursingDesc: "Home care",
     },
     
     // Service Directory
@@ -45,7 +80,7 @@ export const translations = {
       title: "Services",
       startingFrom: "Starting from",
       price: "Price",
-      bookService: "Book Service",
+      bookService: "Book Now",
       noServices: "No services in this category",
       backToHub: "Back to Home",
       selectCategory: "Select a category to view services",
@@ -97,7 +132,7 @@ export const translations = {
     // Service Creator (Business Onboarding)
     creator: {
       title: "Add Your Service",
-      subtitle: "Join as a service provider in The Circle",
+      subtitle: "Join as a service provider on Dora",
       serviceName: "Service Name",
       serviceNamePlaceholder: "e.g., Professional AC Repair",
       category: "Category",
@@ -173,6 +208,7 @@ export const translations = {
       search: "Search",
       searchPlaceholder: "Search for a service...",
       currency: "$",
+      notifications: "Notifications",
     },
     
     // Ratings
@@ -191,8 +227,8 @@ export const translations = {
   
   ar: {
     // App name
-    appName: "الدائرة",
-    appTagline: "مركز الخدمات المحلية",
+    appName: "دورة",
+    appTagline: "سوق الخدمات",
     
     // Navigation
     nav: {
@@ -204,7 +240,14 @@ export const translations = {
     
     // Categories
     categories: {
-      homeMaintenance: "صيانة المنزل",
+      homeMaintenance: "المنزل والصيانة",
+      carCare: "العناية بالسيارة",
+      powerUtilities: "الطاقة والمرافق",
+      professionalLegal: "المهني والقانوني",
+      propertyLogistics: "العقارات واللوجستيات",
+      learningEducation: "التعلم والتعليم",
+      healingWellness: "الصحة والعافية",
+      eventsCatering: "الفعاليات والضيافة",
       personalCare: "العناية الشخصية",
       techSupport: "الدعم التقني",
       petServices: "خدمات الحيوانات",
@@ -217,15 +260,43 @@ export const translations = {
     // Hub
     hub: {
       welcome: "مرحباً",
-      whatService: "ماذا يحتاج منزلك اليوم؟",
-      browseCategories: "تصفح الفئات",
-      featuredProviders: "مزودو الخدمات المميزون",
+      searchPlaceholder: "ابحث عن كهربائي، محامي، أو مدرس...",
+      featuredServices: "الخدمات المميزة",
       viewAll: "عرض الكل",
-      quickCategories: "فئات سريعة",
       noResults: "سنجد لك متخصصاً قريباً!",
       liveStatus: "الحالة المباشرة",
       providerOnWay: "في الطريق",
       minsAway: "دقائق",
+    },
+    
+    // Featured Services Data
+    featuredList: {
+      electrician: "كهربائي",
+      electricianDesc: "الأسلاك والإضاءة",
+      plumbing: "سباكة",
+      plumbingDesc: "التسريبات والخزانات",
+      acRepair: "صيانة التكييف",
+      acRepairDesc: "صيانة التبريد",
+      oilFilter: "زيت وفلتر",
+      oilFilterDesc: "العناية بالمحرك",
+      inspection: "فحص ما قبل الشراء",
+      inspectionDesc: "فحوصات ميكانيكية",
+      solar: "حلول الطاقة الشمسية",
+      solarDesc: "ألواح احتياطية",
+      generator: "خدمة المولدات",
+      generatorDesc: "إصلاحات وزيت",
+      legal: "استشارات قانونية",
+      legalDesc: "عقود ونصائح",
+      translation: "ترجمة",
+      translationDesc: "وثائق معتمدة",
+      photography: "تصوير",
+      photographyDesc: "تغطية الفعاليات",
+      catering: "ضيافة",
+      cateringDesc: "خدمات الوجبات الكاملة",
+      homeDoctor: "طبيب منزلي",
+      homeDoctorDesc: "زيارات مهنية",
+      nursing: "تمريض",
+      nursingDesc: "رعاية منزلية",
     },
     
     // Service Directory
@@ -233,7 +304,7 @@ export const translations = {
       title: "الخدمات",
       startingFrom: "يبدأ من",
       price: "السعر",
-      bookService: "احجز الخدمة",
+      bookService: "احجز الآن",
       noServices: "لا توجد خدمات في هذه الفئة",
       backToHub: "العودة للرئيسية",
       selectCategory: "اختر فئة لعرض الخدمات",
@@ -285,7 +356,7 @@ export const translations = {
     // Service Creator (Business Onboarding)
     creator: {
       title: "أضف خدمتك",
-      subtitle: "انضم كمزود خدمة في الدائرة",
+      subtitle: "انضم كمزود خدمة في دورة",
       serviceName: "اسم الخدمة",
       serviceNamePlaceholder: "مثال: صيانة مكيفات احترافية",
       category: "الفئة",
@@ -361,6 +432,7 @@ export const translations = {
       search: "بحث",
       searchPlaceholder: "ابحث عن خدمة...",
       currency: "ر.س",
+      notifications: "الإشعارات",
     },
     
     // Ratings
