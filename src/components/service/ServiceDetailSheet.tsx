@@ -134,6 +134,27 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
     }
   };
 
+  // Filter providers based on city and rating - moved BEFORE any early returns
+  const filteredProviders = useMemo(() => {
+    let result = providers;
+
+    // Filter by city
+    if (filters?.city) {
+      result = result.filter(p => p.provider_city === filters.city);
+    }
+
+    // Filter by minimum rating (4+ stars)
+    if (filters?.minRating) {
+      result = result.filter(p => {
+        const r = providerRatings.get(p.id);
+        return r && r.averageRating >= 4;
+      });
+    }
+
+    return result;
+  }, [providers, filters, providerRatings]);
+
+  // Early return AFTER all hooks
   if (!service) return null;
 
   const IconComponent = service.icon;
@@ -207,25 +228,7 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
     return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true, rating: r.averageRating };
   };
 
-  // Filter providers based on city and rating
-  const filteredProviders = useMemo(() => {
-    let result = providers;
-
-    // Filter by city
-    if (filters?.city) {
-      result = result.filter(p => p.provider_city === filters.city);
-    }
-
-    // Filter by minimum rating (4+ stars)
-    if (filters?.minRating) {
-      result = result.filter(p => {
-        const r = providerRatings.get(p.id);
-        return r && r.averageRating >= 4;
-      });
-    }
-
-    return result;
-  }, [providers, filters, providerRatings]);
+  // Provider detail view
 
   // Provider detail view
   if (selectedProvider) {
