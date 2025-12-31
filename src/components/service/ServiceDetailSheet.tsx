@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { X, Phone, Star, Clock, ChevronRight, User, Heart } from "lucide-react";
+import { X, Phone, Star, Clock, ChevronRight, User, Heart, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Drawer,
   DrawerClose,
@@ -16,6 +17,9 @@ import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useFavorites } from "@/hooks/useFavorites";
+import { useReviews, useServiceRatings } from "@/hooks/useReviews";
+import { ReviewDialog } from "./ReviewDialog";
+import { ReviewList } from "./ReviewList";
 import { toast } from "sonner";
 
 interface ServiceProvider {
@@ -51,6 +55,14 @@ export function ServiceDetailSheet({ open, onOpenChange, service }: ServiceDetai
   const [providers, setProviders] = useState<ServiceProvider[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
+  // Reviews for selected provider
+  const { reviews, rating, userReview, submitReview, loading: reviewsLoading } = useReviews(selectedProvider?.id);
+  
+  // Ratings for providers list
+  const { ratings: providerRatings } = useServiceRatings(providers.map(p => p.id));
 
   useEffect(() => {
     if (open && service) {
@@ -144,106 +156,189 @@ export function ServiceDetailSheet({ open, onOpenChange, service }: ServiceDetai
     }
   };
 
+  const handleOpenReviewDialog = () => {
+    if (!user) {
+      onOpenChange(false);
+      navigate("/auth");
+      return;
+    }
+    setReviewDialogOpen(true);
+  };
+
+  const handleSubmitReview = async (reviewRating: number, content: string) => {
+    if (!selectedProvider) return;
+    
+    setIsSubmittingReview(true);
+    const { error } = await submitReview({
+      rating: reviewRating,
+      content: content || undefined,
+      providerId: selectedProvider.user_id,
+    });
+    setIsSubmittingReview(false);
+
+    if (error) {
+      toast.error(isRTL ? "حدث خطأ" : "Error submitting review");
+    } else {
+      toast.success(isRTL ? "تم حفظ التقييم" : "Review saved");
+      setReviewDialogOpen(false);
+    }
+  };
+
   const handleBack = () => {
     setSelectedProvider(null);
+  };
+
+  const getRatingDisplay = (serviceId: string) => {
+    const r = providerRatings.get(serviceId);
+    if (!r || r.totalReviews === 0) {
+      return { text: isRTL ? "جديد" : "New", hasRating: false };
+    }
+    return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true };
   };
 
   // Provider detail view
   if (selectedProvider) {
     const isProviderFavorite = isFavorite(selectedProvider.id);
+    const hasRating = rating.totalReviews > 0;
     
     return (
-      <Drawer open={open} onOpenChange={(isOpen) => {
-        if (!isOpen) setSelectedProvider(null);
-        onOpenChange(isOpen);
-      }}>
-        <DrawerContent className="max-h-[90vh]">
-          <DrawerHeader className="relative pb-0">
-            <button
-              onClick={handleBack}
-              className={cn(
-                "absolute top-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
-                isRTL ? "right-4" : "left-4"
-              )}
-            >
-              <ChevronRight className={cn("h-4 w-4 text-muted-foreground", !isRTL && "rotate-180")} />
-            </button>
-            <DrawerClose className={cn(
-              "absolute top-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
-              isRTL ? "left-4" : "right-4"
-            )}>
-              <X className="h-4 w-4 text-muted-foreground" />
-            </DrawerClose>
-            <div className="flex flex-col items-center pt-2">
-              <Avatar className="h-20 w-20 mb-4">
-                <AvatarImage src={selectedProvider.provider_avatar || undefined} />
-                <AvatarFallback className="bg-primary text-primary-foreground text-xl font-medium">
-                  {selectedProvider.provider_name.split(" ").map(n => n[0]).join("").slice(0, 2)}
-                </AvatarFallback>
-              </Avatar>
-              <DrawerTitle className="text-xl font-bold text-foreground">
-                {selectedProvider.provider_name}
-              </DrawerTitle>
-              <p className="text-sm text-muted-foreground mt-1">{selectedProvider.title}</p>
-            </div>
-          </DrawerHeader>
-
-          <div className="px-6 py-6 space-y-6" dir={isRTL ? "rtl" : "ltr"}>
-            {/* Rating & Info */}
-            <div className="flex items-center justify-center gap-6 text-sm">
-              <div className="flex items-center gap-1">
-                <Star className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium text-muted-foreground">{isRTL ? "جديد" : "New"}</span>
-              </div>
-              <div className="flex items-center gap-1 text-muted-foreground">
-                <Clock className="h-4 w-4" />
-                <span>{isRTL ? "متاح" : "Available"}</span>
-              </div>
-            </div>
-
-            {/* Description */}
-            {selectedProvider.description && (
-              <div className="bg-muted/50 rounded-2xl p-4">
-                <h3 className="font-semibold text-foreground mb-2">
-                  {isRTL ? "عن الخدمة" : "About this service"}
-                </h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  {selectedProvider.description}
-                </p>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex gap-3 pt-2">
-              <Button
-                variant="outline"
-                size="lg"
-                className="flex-1 h-14 rounded-2xl"
-                onClick={() => handleCall(selectedProvider.provider_phone)}
-                disabled={!selectedProvider.provider_phone}
-              >
-                <Phone className="h-5 w-5 mr-2" />
-                {isRTL ? "اتصل" : "Call"}
-              </Button>
-              <Button
-                variant={isProviderFavorite ? "default" : "outline"}
-                size="lg"
+      <>
+        <Drawer open={open} onOpenChange={(isOpen) => {
+          if (!isOpen) setSelectedProvider(null);
+          onOpenChange(isOpen);
+        }}>
+          <DrawerContent className="max-h-[90vh]">
+            <DrawerHeader className="relative pb-0">
+              <button
+                onClick={handleBack}
                 className={cn(
-                  "flex-1 h-14 rounded-2xl",
-                  isProviderFavorite && "bg-red-500 hover:bg-red-600 text-white"
+                  "absolute top-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
+                  isRTL ? "right-4" : "left-4"
                 )}
-                onClick={() => handleToggleFavorite(selectedProvider.id)}
               >
-                <Heart className={cn("h-5 w-5 mr-2", isProviderFavorite && "fill-current")} />
-                {isProviderFavorite 
-                  ? (isRTL ? "في المفضلة" : "Favorited") 
-                  : (isRTL ? "أضف للمفضلة" : "Add to Favorites")
-                }
-              </Button>
-            </div>
-          </div>
-        </DrawerContent>
-      </Drawer>
+                <ChevronRight className={cn("h-4 w-4 text-muted-foreground", !isRTL && "rotate-180")} />
+              </button>
+              <DrawerClose className={cn(
+                "absolute top-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
+                isRTL ? "left-4" : "right-4"
+              )}>
+                <X className="h-4 w-4 text-muted-foreground" />
+              </DrawerClose>
+              <div className="flex flex-col items-center pt-2">
+                <Avatar className="h-20 w-20 mb-4">
+                  <AvatarImage src={selectedProvider.provider_avatar || undefined} />
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xl font-medium">
+                    {selectedProvider.provider_name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                  </AvatarFallback>
+                </Avatar>
+                <DrawerTitle className="text-xl font-bold text-foreground">
+                  {selectedProvider.provider_name}
+                </DrawerTitle>
+                <p className="text-sm text-muted-foreground mt-1">{selectedProvider.title}</p>
+              </div>
+            </DrawerHeader>
+
+            <ScrollArea className="flex-1 max-h-[60vh]">
+              <div className="px-6 py-6 space-y-6" dir={isRTL ? "rtl" : "ltr"}>
+                {/* Rating & Info */}
+                <div className="flex items-center justify-center gap-6 text-sm">
+                  <button 
+                    onClick={handleOpenReviewDialog}
+                    className="flex items-center gap-1 hover:opacity-70 transition-opacity"
+                  >
+                    <Star className={cn(
+                      "h-4 w-4",
+                      hasRating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground"
+                    )} />
+                    <span className={cn("font-medium", hasRating ? "text-foreground" : "text-muted-foreground")}>
+                      {hasRating ? `${rating.averageRating} (${rating.totalReviews})` : (isRTL ? "جديد" : "New")}
+                    </span>
+                  </button>
+                  <div className="flex items-center gap-1 text-muted-foreground">
+                    <Clock className="h-4 w-4" />
+                    <span>{isRTL ? "متاح" : "Available"}</span>
+                  </div>
+                </div>
+
+                {/* Description */}
+                {selectedProvider.description && (
+                  <div className="bg-muted/50 rounded-2xl p-4">
+                    <h3 className="font-semibold text-foreground mb-2">
+                      {isRTL ? "عن الخدمة" : "About this service"}
+                    </h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {selectedProvider.description}
+                    </p>
+                  </div>
+                )}
+
+                {/* Reviews Section */}
+                <div className="space-y-3">
+                  <div className={cn(
+                    "flex items-center justify-between",
+                    isRTL && "flex-row-reverse"
+                  )}>
+                    <h3 className="font-semibold text-foreground">
+                      {isRTL ? "التقييمات" : "Reviews"}
+                    </h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleOpenReviewDialog}
+                      className="text-primary"
+                    >
+                      <MessageSquare className="h-4 w-4 mr-1" />
+                      {userReview 
+                        ? (isRTL ? "تعديل تقييمك" : "Edit Review")
+                        : (isRTL ? "أضف تقييم" : "Add Review")
+                      }
+                    </Button>
+                  </div>
+                  <ReviewList reviews={reviews} loading={reviewsLoading} />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="flex-1 h-14 rounded-2xl"
+                    onClick={() => handleCall(selectedProvider.provider_phone)}
+                    disabled={!selectedProvider.provider_phone}
+                  >
+                    <Phone className="h-5 w-5 mr-2" />
+                    {isRTL ? "اتصل" : "Call"}
+                  </Button>
+                  <Button
+                    variant={isProviderFavorite ? "default" : "outline"}
+                    size="lg"
+                    className={cn(
+                      "flex-1 h-14 rounded-2xl",
+                      isProviderFavorite && "bg-red-500 hover:bg-red-600 text-white"
+                    )}
+                    onClick={() => handleToggleFavorite(selectedProvider.id)}
+                  >
+                    <Heart className={cn("h-5 w-5 mr-2", isProviderFavorite && "fill-current")} />
+                    {isProviderFavorite 
+                      ? (isRTL ? "في المفضلة" : "Favorited") 
+                      : (isRTL ? "أضف للمفضلة" : "Add to Favorites")
+                    }
+                  </Button>
+                </div>
+              </div>
+            </ScrollArea>
+          </DrawerContent>
+        </Drawer>
+
+        <ReviewDialog
+          open={reviewDialogOpen}
+          onOpenChange={setReviewDialogOpen}
+          providerName={selectedProvider.provider_name}
+          existingReview={userReview ? { rating: userReview.rating, content: userReview.content } : undefined}
+          onSubmit={handleSubmitReview}
+          isSubmitting={isSubmittingReview}
+        />
+      </>
     );
   }
 
@@ -282,35 +377,41 @@ export function ServiceDetailSheet({ open, onOpenChange, service }: ServiceDetai
             </div>
           ) : providers.length > 0 ? (
             <div className="space-y-2">
-              {providers.map((provider) => (
-                <button
-                  key={provider.id}
-                  onClick={() => handleProviderClick(provider)}
-                  className={cn(
-                    "w-full flex items-center gap-4 p-4 bg-card rounded-2xl border border-border transition-colors hover:bg-muted/50 active:bg-muted",
-                    isRTL && "flex-row-reverse text-right"
-                  )}
-                >
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage src={provider.provider_avatar || undefined} />
-                    <AvatarFallback className="bg-primary text-primary-foreground font-medium">
-                      {provider.provider_name.split(" ").map(n => n[0]).join("").slice(0, 2)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold text-foreground truncate">{provider.provider_name}</h4>
-                    <p className="text-sm text-muted-foreground truncate">{provider.title}</p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Star className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">{isRTL ? "جديد" : "New"}</span>
-                  </div>
-                  <ChevronRight className={cn(
-                    "h-5 w-5 text-muted-foreground/50",
-                    isRTL && "rotate-180"
-                  )} />
-                </button>
-              ))}
+              {providers.map((provider) => {
+                const ratingInfo = getRatingDisplay(provider.id);
+                return (
+                  <button
+                    key={provider.id}
+                    onClick={() => handleProviderClick(provider)}
+                    className={cn(
+                      "w-full flex items-center gap-4 p-4 bg-card rounded-2xl border border-border transition-colors hover:bg-muted/50 active:bg-muted",
+                      isRTL && "flex-row-reverse text-right"
+                    )}
+                  >
+                    <Avatar className="h-12 w-12">
+                      <AvatarImage src={provider.provider_avatar || undefined} />
+                      <AvatarFallback className="bg-primary text-primary-foreground font-medium">
+                        {provider.provider_name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-foreground truncate">{provider.provider_name}</h4>
+                      <p className="text-sm text-muted-foreground truncate">{provider.title}</p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Star className={cn(
+                        "h-4 w-4",
+                        ratingInfo.hasRating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground"
+                      )} />
+                      <span className="text-sm text-muted-foreground">{ratingInfo.text}</span>
+                    </div>
+                    <ChevronRight className={cn(
+                      "h-5 w-5 text-muted-foreground/50",
+                      isRTL && "rotate-180"
+                    )} />
+                  </button>
+                );
+              })}
             </div>
           ) : (
             <div className="py-12 text-center">
