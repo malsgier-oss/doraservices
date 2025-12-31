@@ -17,10 +17,11 @@ import { useServices } from "@/hooks/useServices";
 import { useProfile } from "@/hooks/useProfile";
 import { useCategories } from "@/hooks/useCategories";
 import { useSubcategories } from "@/hooks/useSubcategories";
+import { useCities } from "@/hooks/useCities";
+import { useSubCities } from "@/hooks/useSubCities";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
-import { LIBYAN_CITIES } from "@/components/search/SearchFilters";
 import { 
   Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper,
   Wrench, Droplets, Wind, Fuel, ClipboardCheck, Sun, Cog, Scale,
@@ -45,6 +46,7 @@ export default function ServiceCreator() {
   const { createService } = useServices();
   const { profile, updateProfile } = useProfile();
   const { data: categories } = useCategories();
+  const { data: cities } = useCities();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -53,11 +55,13 @@ export default function ServiceCreator() {
     subcategory: "",
     bio: "",
     city: "",
+    subCity: "",
   });
 
   // Get subcategories for selected category
   const selectedCategory = categories?.find(c => c.id === formData.category);
   const { data: subcategories } = useSubcategories(formData.category || undefined);
+  const { data: subCities } = useSubCities(formData.city || profile?.city || null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -175,9 +179,9 @@ export default function ServiceCreator() {
                 <SelectItem value="none">
                   {isRTL ? "-- اختر مدينة --" : "-- Select city --"}
                 </SelectItem>
-                {LIBYAN_CITIES.map((city) => (
+                {cities?.map((city) => (
                   <SelectItem key={city.id} value={city.id}>
-                    {language === "ar" ? city.ar : city.en}
+                    {language === "ar" && city.name_ar ? city.name_ar : city.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -186,6 +190,34 @@ export default function ServiceCreator() {
               {isRTL ? "يساعد العملاء على إيجادك" : "Helps customers find you"}
             </p>
           </div>
+
+          {/* Sub-city Selection */}
+          {(formData.city || profile?.city) && subCities && subCities.length > 0 && (
+            <div className="space-y-2">
+              <Label className={cn("flex items-center gap-2", isRTL ? "flex-row-reverse justify-end" : "")}>
+                <MapPin className="h-4 w-4" />
+                {isRTL ? "المنطقة" : "Area"}
+              </Label>
+              <Select
+                value={formData.subCity || "none"}
+                onValueChange={(value) => setFormData({ ...formData, subCity: value === "none" ? "" : value })}
+              >
+                <SelectTrigger className="rounded-xl h-12">
+                  <SelectValue placeholder={isRTL ? "اختر منطقتك" : "Select your area"} />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border z-50">
+                  <SelectItem value="none">
+                    {isRTL ? "-- اختر منطقة --" : "-- Select area --"}
+                  </SelectItem>
+                  {subCities.map((sc) => (
+                    <SelectItem key={sc.id} value={sc.id}>
+                      {language === "ar" && sc.name_ar ? sc.name_ar : sc.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Subcategory Selection (if available) */}
           {selectedCategory && subcategories && subcategories.length > 0 && (

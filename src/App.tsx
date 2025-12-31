@@ -30,6 +30,7 @@ import AdminCities from "./pages/admin/AdminCities";
 import AdminAnalytics from "./pages/admin/AdminAnalytics";
 import AdminMedia from "./pages/admin/AdminMedia";
 import AdminBulkUpload from "./pages/admin/AdminBulkUpload";
+import AdminSubCities from "./pages/admin/AdminSubCities";
 
 const queryClient = new QueryClient();
 
@@ -107,6 +108,7 @@ const AppRoutes = () => {
         <Route path="reviews" element={<AdminReviews />} />
         <Route path="categories" element={<AdminCategories />} />
         <Route path="cities" element={<AdminCities />} />
+        <Route path="sub-cities" element={<AdminSubCities />} />
         <Route path="reports" element={<AdminReports />} />
         <Route path="settings" element={<AdminSettings />} />
         <Route path="messages" element={<AdminMessages />} />

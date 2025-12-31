@@ -17,26 +17,13 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useCities } from "@/hooks/useCities";
+import { useSubCities } from "@/hooks/useSubCities";
 import { cn } from "@/lib/utils";
-
-// Libyan cities
-export const LIBYAN_CITIES = [
-  { id: "tripoli", en: "Tripoli", ar: "طرابلس" },
-  { id: "benghazi", en: "Benghazi", ar: "بنغازي" },
-  { id: "misrata", en: "Misrata", ar: "مصراتة" },
-  { id: "zawiya", en: "Zawiya", ar: "الزاوية" },
-  { id: "zliten", en: "Zliten", ar: "زليتن" },
-  { id: "bayda", en: "Bayda", ar: "البيضاء" },
-  { id: "khoms", en: "Khoms", ar: "الخمس" },
-  { id: "derna", en: "Derna", ar: "درنة" },
-  { id: "sirte", en: "Sirte", ar: "سرت" },
-  { id: "tobruk", en: "Tobruk", ar: "طبرق" },
-  { id: "sebha", en: "Sebha", ar: "سبها" },
-  { id: "gharyan", en: "Gharyan", ar: "غريان" },
-];
 
 export interface SearchFiltersState {
   city: string | null;
+  subCity: string | null;
   minRating: boolean; // 4+ stars
 }
 
@@ -48,14 +35,24 @@ interface SearchFiltersProps {
 export function SearchFilters({ filters, onFiltersChange }: SearchFiltersProps) {
   const { t, isRTL, language } = useLanguage();
   const [open, setOpen] = useState(false);
+  const { data: cities } = useCities();
+  const { data: subCities } = useSubCities(filters.city);
 
-  const hasActiveFilters = filters.city || filters.minRating;
-  const activeFilterCount = (filters.city ? 1 : 0) + (filters.minRating ? 1 : 0);
+  const hasActiveFilters = filters.city || filters.subCity || filters.minRating;
+  const activeFilterCount = (filters.city ? 1 : 0) + (filters.subCity ? 1 : 0) + (filters.minRating ? 1 : 0);
 
   const handleCityChange = (value: string) => {
     onFiltersChange({
       ...filters,
       city: value === "all" ? null : value,
+      subCity: null, // Reset sub-city when city changes
+    });
+  };
+
+  const handleSubCityChange = (value: string) => {
+    onFiltersChange({
+      ...filters,
+      subCity: value === "all" ? null : value,
     });
   };
 
@@ -67,13 +64,18 @@ export function SearchFilters({ filters, onFiltersChange }: SearchFiltersProps) 
   };
 
   const clearAllFilters = () => {
-    onFiltersChange({ city: null, minRating: false });
+    onFiltersChange({ city: null, subCity: null, minRating: false });
     setOpen(false);
   };
 
   const getCityLabel = (cityId: string) => {
-    const city = LIBYAN_CITIES.find(c => c.id === cityId);
-    return city ? (language === "ar" ? city.ar : city.en) : cityId;
+    const city = cities?.find(c => c.id === cityId);
+    return city ? (language === "ar" && city.name_ar ? city.name_ar : city.name) : cityId;
+  };
+
+  const getSubCityLabel = (subCityId: string) => {
+    const subCity = subCities?.find(sc => sc.id === subCityId);
+    return subCity ? (language === "ar" && subCity.name_ar ? subCity.name_ar : subCity.name) : subCityId;
   };
 
   return (
@@ -137,14 +139,42 @@ export function SearchFilters({ filters, onFiltersChange }: SearchFiltersProps) 
                 <SelectItem value="all">
                   {isRTL ? "جميع المدن" : "All cities"}
                 </SelectItem>
-                {LIBYAN_CITIES.map((city) => (
+                {cities?.map((city) => (
                   <SelectItem key={city.id} value={city.id}>
-                    {language === "ar" ? city.ar : city.en}
+                    {language === "ar" && city.name_ar ? city.name_ar : city.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+
+          {/* Sub-City Filter - only show when city is selected */}
+          {filters.city && subCities && subCities.length > 0 && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2 text-sm font-medium">
+                <MapPin className="h-4 w-4" />
+                {isRTL ? "المنطقة" : "Area"}
+              </Label>
+              <Select
+                value={filters.subCity || "all"}
+                onValueChange={handleSubCityChange}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={isRTL ? "جميع المناطق" : "All areas"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    {isRTL ? "جميع المناطق" : "All areas"}
+                  </SelectItem>
+                  {subCities.map((subCity) => (
+                    <SelectItem key={subCity.id} value={subCity.id}>
+                      {language === "ar" && subCity.name_ar ? subCity.name_ar : subCity.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Rating Filter */}
           <div className="flex items-center justify-between py-2">
@@ -171,13 +201,20 @@ interface ActiveFilterChipsProps {
 
 export function ActiveFilterChips({ filters, onRemoveFilter }: ActiveFilterChipsProps) {
   const { language, isRTL } = useLanguage();
+  const { data: cities } = useCities();
+  const { data: subCities } = useSubCities(filters.city);
 
   const getCityLabel = (cityId: string) => {
-    const city = LIBYAN_CITIES.find(c => c.id === cityId);
-    return city ? (language === "ar" ? city.ar : city.en) : cityId;
+    const city = cities?.find(c => c.id === cityId);
+    return city ? (language === "ar" && city.name_ar ? city.name_ar : city.name) : cityId;
   };
 
-  if (!filters.city && !filters.minRating) return null;
+  const getSubCityLabel = (subCityId: string) => {
+    const subCity = subCities?.find(sc => sc.id === subCityId);
+    return subCity ? (language === "ar" && subCity.name_ar ? subCity.name_ar : subCity.name) : subCityId;
+  };
+
+  if (!filters.city && !filters.subCity && !filters.minRating) return null;
 
   return (
     <div className={cn("flex flex-wrap gap-2", isRTL && "flex-row-reverse")}>
@@ -189,6 +226,17 @@ export function ActiveFilterChips({ filters, onRemoveFilter }: ActiveFilterChips
         >
           <MapPin className="h-3 w-3" />
           {getCityLabel(filters.city)}
+          <X className="h-3 w-3 ml-1" />
+        </Badge>
+      )}
+      {filters.subCity && (
+        <Badge
+          variant="secondary"
+          className="pl-2 pr-1 py-1 gap-1 cursor-pointer hover:bg-secondary/80"
+          onClick={() => onRemoveFilter("subCity")}
+        >
+          <MapPin className="h-3 w-3" />
+          {getSubCityLabel(filters.subCity)}
           <X className="h-3 w-3 ml-1" />
         </Badge>
       )}

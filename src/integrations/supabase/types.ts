@@ -506,6 +506,7 @@ export type Database = {
           points: number
           provider_status: string | null
           status: string
+          sub_city: string | null
           suspended_at: string | null
           suspended_reason: string | null
           tier: string
@@ -523,6 +524,7 @@ export type Database = {
           points?: number
           provider_status?: string | null
           status?: string
+          sub_city?: string | null
           suspended_at?: string | null
           suspended_reason?: string | null
           tier?: string
@@ -540,6 +542,7 @@ export type Database = {
           points?: number
           provider_status?: string | null
           status?: string
+          sub_city?: string | null
           suspended_at?: string | null
           suspended_reason?: string | null
           tier?: string
@@ -668,6 +671,7 @@ export type Database = {
           price: number | null
           provider_name: string | null
           provider_phone: string | null
+          sub_city: string | null
           title: string
           updated_at: string
           user_id: string | null
@@ -686,6 +690,7 @@ export type Database = {
           price?: number | null
           provider_name?: string | null
           provider_phone?: string | null
+          sub_city?: string | null
           title: string
           updated_at?: string
           user_id?: string | null
@@ -704,12 +709,51 @@ export type Database = {
           price?: number | null
           provider_name?: string | null
           provider_phone?: string | null
+          sub_city?: string | null
           title?: string
           updated_at?: string
           user_id?: string | null
           views_count?: number
         }
         Relationships: []
+      }
+      sub_cities: {
+        Row: {
+          city_id: string
+          created_at: string | null
+          display_order: number | null
+          id: string
+          is_active: boolean | null
+          name: string
+          name_ar: string | null
+        }
+        Insert: {
+          city_id: string
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          name_ar?: string | null
+        }
+        Update: {
+          city_id?: string
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          name_ar?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sub_cities_city_id_fkey"
+            columns: ["city_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       subcategories: {
         Row: {

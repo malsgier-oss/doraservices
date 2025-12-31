@@ -40,9 +40,10 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useServices } from "@/hooks/useServices";
 import { useAvatarUpload } from "@/hooks/useAvatarUpload";
+import { useCities } from "@/hooks/useCities";
+import { useSubCities } from "@/hooks/useSubCities";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { LIBYAN_CITIES } from "@/components/search/SearchFilters";
 
 // Format phone to Libyan style: 09x xxx xx xx
 const formatLibyanPhone = (value: string): string => {
@@ -73,9 +74,11 @@ const Profile = () => {
   const { user, signOut } = useAuth();
   const { profile, loading, updateProfile } = useProfile();
   const { isBusiness, loading: roleLoading, upgradeToBusiness } = useUserRole();
-  const { t, isRTL } = useLanguage();
+  const { t, isRTL, language } = useLanguage();
   const { myServices, deleteService } = useServices();
   const { uploadAvatar, uploading } = useAvatarUpload();
+  const { data: cities } = useCities();
+  const { data: subCities } = useSubCities(profile?.city || null);
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -83,6 +86,7 @@ const Profile = () => {
     avatar_url: "",
     phone: "",
     city: "",
+    sub_city: "",
   });
 
   // Check if provider is missing phone number
@@ -99,6 +103,7 @@ const Profile = () => {
         avatar_url: profile.avatar_url || "",
         phone: profile.phone ? formatLibyanPhone(profile.phone) : "",
         city: profile.city || "",
+        sub_city: profile.sub_city || "",
       });
     }
     setIsEditing(true);
@@ -119,6 +124,7 @@ const Profile = () => {
       avatar_url: formData.avatar_url || null,
       phone: phoneDigits || null,
       city: formData.city || null,
+      sub_city: formData.sub_city || null,
     });
 
     if (error) {
@@ -332,7 +338,7 @@ const Profile = () => {
                     <Select
                       value={formData.city || "none"}
                       onValueChange={(value) =>
-                        setFormData({ ...formData, city: value === "none" ? "" : value })
+                        setFormData({ ...formData, city: value === "none" ? "" : value, sub_city: "" })
                       }
                     >
                       <SelectTrigger className="w-full">
@@ -342,14 +348,44 @@ const Profile = () => {
                         <SelectItem value="none">
                           {isRTL ? "-- اختر مدينة --" : "-- Select city --"}
                         </SelectItem>
-                        {LIBYAN_CITIES.map((city) => (
+                        {cities?.map((city) => (
                           <SelectItem key={city.id} value={city.id}>
-                            {isRTL ? city.ar : city.en}
+                            {language === "ar" && city.name_ar ? city.name_ar : city.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
+                  
+                  {/* Sub-city selector */}
+                  {formData.city && subCities && subCities.length > 0 && (
+                    <div className="space-y-2">
+                      <Label htmlFor="sub_city" className="flex items-center gap-1">
+                        <MapPin className="h-4 w-4" />
+                        {isRTL ? "المنطقة" : "Area"}
+                      </Label>
+                      <Select
+                        value={formData.sub_city || "none"}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, sub_city: value === "none" ? "" : value })
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={isRTL ? "اختر منطقتك" : "Select your area"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">
+                            {isRTL ? "-- اختر منطقة --" : "-- Select area --"}
+                          </SelectItem>
+                          {subCities.map((sc) => (
+                            <SelectItem key={sc.id} value={sc.id}>
+                              {language === "ar" && sc.name_ar ? sc.name_ar : sc.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   
                   <div className={`flex gap-2 ${isRTL ? "flex-row-reverse" : ""}`}>
                     <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} className="rounded-full flex-1">
@@ -422,7 +458,10 @@ const Profile = () => {
                     {profile?.city && (
                       <span className="flex items-center gap-1">
                         <MapPin className="h-4 w-4" />
-                        {LIBYAN_CITIES.find(c => c.id === profile.city)?.[isRTL ? "ar" : "en"] || profile.city}
+                        {cities?.find(c => c.id === profile.city)?.[language === "ar" ? "name_ar" : "name"] || profile.city}
+                        {profile.sub_city && subCities?.find(sc => sc.id === profile.sub_city) && (
+                          <>, {subCities.find(sc => sc.id === profile.sub_city)?.[language === "ar" ? "name_ar" : "name"]}</>
+                        )}
                       </span>
                     )}
                   </div>
