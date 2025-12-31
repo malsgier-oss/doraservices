@@ -32,11 +32,21 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { MobileNav } from "@/components/layout/MobileNav";
+import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
+import { LucideIcon } from "lucide-react";
+
+interface FeaturedService {
+  id: string;
+  icon: LucideIcon;
+  color: string;
+  titleKey: string;
+  descKey: string;
+  category: string;
+}
 
 // Category data with colors and icons
 const categories = [
@@ -74,18 +84,17 @@ export default function Hub() {
   const { t, isRTL } = useLanguage();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedService, setSelectedService] = useState<FeaturedService | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const handleCategoryClick = (categoryId: string) => {
     setSelectedCategory(prev => prev === categoryId ? null : categoryId);
     setSearchQuery(""); // Clear search when selecting category
   };
 
-  const handleServiceClick = (serviceId: string) => {
-    if (!user) {
-      navigate("/auth");
-      return;
-    }
-    toast.success(isRTL ? "سيتم التواصل معك قريباً" : "We'll connect you with a provider soon!");
+  const handleServiceClick = (service: FeaturedService) => {
+    setSelectedService(service);
+    setSheetOpen(true);
   };
 
   const clearFilters = () => {
@@ -257,7 +266,7 @@ export default function Hub() {
                 return (
                   <button
                     key={service.id}
-                    onClick={() => handleServiceClick(service.id)}
+                    onClick={() => handleServiceClick(service)}
                     className={cn(
                       "w-full flex items-center gap-4 p-4 text-left transition-colors hover:bg-gray-50 active:bg-gray-100",
                       isRTL && "text-right flex-row-reverse",
@@ -306,6 +315,12 @@ export default function Hub() {
       </main>
 
       <MobileNav />
+      
+      <ServiceDetailSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        service={selectedService}
+      />
     </div>
   );
 }
