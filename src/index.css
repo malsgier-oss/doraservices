@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -186,7 +186,16 @@ html {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Hide scrollbars on mobile for cleaner look */
+/* Hide scrollbars for cleaner look */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 @media (max-width: 768px) {
   ::-webkit-scrollbar {
     display: none;

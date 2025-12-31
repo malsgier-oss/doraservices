@@ -14,8 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Cairo", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
-        display: ["Cairo", "system-ui", "sans-serif"],
+        sans: ["Inter", "Cairo", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
+        display: ["Inter", "Cairo", "system-ui", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -92,7 +92,9 @@ export default {
         md: "0.5rem",
         sm: "0.25rem",
         xl: "1rem",
-        "2xl": "1.5rem",
+        "2xl": "1.25rem",
+        "3xl": "1.5rem",
+        "20": "20px",
         full: "9999px",
       },
       keyframes: {
