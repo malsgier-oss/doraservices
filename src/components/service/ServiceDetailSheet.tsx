@@ -119,32 +119,49 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
         return;
       }
 
-      // Get provider profiles - ONLY approved providers
-      const userIds = [...new Set(servicesData.map(s => s.user_id))];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, avatar_url, phone, city, sub_city, provider_status")
-        .in("user_id", userIds)
-        .eq("provider_status", "approved"); // Only show approved providers
+      // Get provider profiles - ONLY approved providers (for claimed services)
+      const userIds = [...new Set(servicesData.map(s => s.user_id).filter(Boolean))];
+      let profileMap = new Map();
+      
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name, avatar_url, phone, city, sub_city, provider_status")
+          .in("user_id", userIds)
+          .eq("provider_status", "approved");
+        
+        profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
+      }
 
-      const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
-
-      // Only include services from approved providers
+      // Include BOTH:
+      // 1. Bulk-uploaded services (user_id is NULL but have provider_name/provider_phone)
+      // 2. Claimed services from approved providers
       const enrichedServices: ServiceProvider[] = servicesData
-        .filter(svc => profileMap.has(svc.user_id))
-        .map(svc => ({
-          id: svc.id,
-          title: svc.title,
-          description: svc.description,
-          category: svc.category,
-          image_url: svc.image_url,
-          user_id: svc.user_id,
-          provider_name: profileMap.get(svc.user_id)?.full_name || (isRTL ? "مقدم الخدمة" : "Provider"),
-          provider_avatar: profileMap.get(svc.user_id)?.avatar_url || "",
-          provider_phone: profileMap.get(svc.user_id)?.phone || "",
-          provider_city: profileMap.get(svc.user_id)?.city || null,
-          provider_sub_city: profileMap.get(svc.user_id)?.sub_city || null,
-        }));
+        .filter(svc => {
+          // Bulk uploaded service (unclaimed) - show if has provider info
+          if (!svc.user_id) {
+            return svc.provider_name && svc.provider_phone;
+          }
+          // Claimed service - only show if provider is approved
+          return profileMap.has(svc.user_id);
+        })
+        .map(svc => {
+          const profile = svc.user_id ? profileMap.get(svc.user_id) : null;
+          return {
+            id: svc.id,
+            title: svc.title,
+            description: svc.description,
+            category: svc.category,
+            image_url: svc.image_url,
+            user_id: svc.user_id,
+            // Use profile data if claimed, otherwise use service table data (bulk upload)
+            provider_name: profile?.full_name || svc.provider_name || (isRTL ? "مقدم الخدمة" : "Provider"),
+            provider_avatar: profile?.avatar_url || "",
+            provider_phone: profile?.phone || svc.provider_phone || "",
+            provider_city: profile?.city || svc.city || null,
+            provider_sub_city: profile?.sub_city || svc.sub_city || null,
+          };
+        });
 
       setProviders(enrichedServices);
     } catch (error) {
