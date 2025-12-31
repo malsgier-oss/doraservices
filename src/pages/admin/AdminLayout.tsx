@@ -1,9 +1,25 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { 
-  LayoutDashboard, Users, Store, Tag, Flag, Settings, MessageSquare, History, ArrowLeft 
+import {
+  LayoutDashboard,
+  Users,
+  Store,
+  Tag,
+  Flag,
+  Settings,
+  MessageSquare,
+  History,
+  ArrowLeft,
+  Menu,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 const navItems = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -64,7 +80,43 @@ export default function AdminLayout() {
         {/* Mobile Header */}
         <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-card border-b p-4">
           <div className="flex items-center justify-between">
-            <h2 className="font-display font-bold">Admin Panel</h2>
+            <div className="flex items-center gap-2">
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="Open admin menu">
+                    <Menu className="h-5 w-5" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="p-4">
+                  <SheetHeader>
+                    <SheetTitle className="font-display">Admin Panel</SheetTitle>
+                  </SheetHeader>
+                  <nav className="mt-4 space-y-1">
+                    {navItems.map((item) => (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        end={item.end}
+                        className={({ isActive }) =>
+                          cn(
+                            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                            isActive
+                              ? "bg-primary text-primary-foreground"
+                              : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                          )
+                        }
+                      >
+                        <item.icon className="h-4 w-4" />
+                        {item.label}
+                      </NavLink>
+                    ))}
+                  </nav>
+                </SheetContent>
+              </Sheet>
+
+              <h2 className="font-display font-bold">Admin Panel</h2>
+            </div>
+
             <NavLink to="/">
               <Button variant="ghost" size="sm">
                 <ArrowLeft className="h-4 w-4 mr-1" />
