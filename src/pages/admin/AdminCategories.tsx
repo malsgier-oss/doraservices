@@ -1,18 +1,10 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -20,31 +12,45 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Plus, Edit, Trash2, GripVertical, ArrowUp, ArrowDown } from "lucide-react";
+import { 
+  Plus, Edit, Trash2, ArrowUp, ArrowDown,
+  Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper,
+  Wrench, Droplets, Wind, Fuel, ClipboardCheck, Sun, Cog, Scale,
+  Languages, Camera, UtensilsCrossed, Stethoscope, Activity, Dog,
+  Scissors, Laptop, PawPrint, Sparkles, Dumbbell, Utensils, Music,
+  Plane, ShoppingCart, Baby, Paintbrush, LucideIcon
+} from "lucide-react";
 import { Category, useAllCategories } from "@/hooks/useCategories";
+import { cn } from "@/lib/utils";
 
-const ICON_OPTIONS = [
-  "Wrench", "Sparkles", "Car", "GraduationCap", "PartyPopper",
-  "Laptop", "Heart", "Scale", "Camera", "Dumbbell", "Home",
-  "Briefcase", "Utensils", "Music", "Plane", "ShoppingCart",
-  "Baby", "Paintbrush", "Scissors", "Dog",
-];
+// Icon mapping for rendering actual icons
+const ICON_MAP: Record<string, LucideIcon> = {
+  Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper,
+  Wrench, Droplets, Wind, Fuel, ClipboardCheck, Sun, Cog, Scale,
+  Languages, Camera, UtensilsCrossed, Stethoscope, Activity, Dog,
+  Scissors, Laptop, PawPrint, Sparkles, Dumbbell, Utensils, Music,
+  Plane, ShoppingCart, Baby, Paintbrush
+};
+
+const ICON_OPTIONS = Object.keys(ICON_MAP);
 
 const COLOR_OPTIONS = [
-  "bg-blue-500", "bg-pink-500", "bg-orange-500", "bg-purple-500",
-  "bg-yellow-500", "bg-cyan-500", "bg-red-500", "bg-emerald-500",
-  "bg-indigo-500", "bg-lime-500", "bg-rose-500", "bg-teal-500",
+  { value: "bg-[#FFEBD4]", label: "Peach" },
+  { value: "bg-[#FFE9A8]", label: "Yellow" },
+  { value: "bg-[#FFD6B0]", label: "Orange" },
+  { value: "bg-[#C5D8F8]", label: "Blue" },
+  { value: "bg-[#D4C4B0]", label: "Brown" },
+  { value: "bg-[#B8E0E0]", label: "Teal" },
+  { value: "bg-[#D4E5D2]", label: "Green" },
+  { value: "bg-[#E8D4F0]", label: "Purple" },
+  { value: "bg-[#C5E8F8]", label: "Light Blue" },
+  { value: "bg-[#E8F4E8]", label: "Light Green" },
+  { value: "bg-[#FFE4E4]", label: "Pink" },
+  { value: "bg-[#F0F0F0]", label: "Gray" },
 ];
 
 export default function AdminCategories() {
@@ -55,8 +61,8 @@ export default function AdminCategories() {
   const [form, setForm] = useState({
     name: "",
     name_ar: "",
-    icon: "Wrench",
-    color: "bg-blue-500",
+    icon: "Home",
+    color: "bg-[#FFEBD4]",
     is_active: true,
   });
 
@@ -104,7 +110,6 @@ export default function AdminCategories() {
 
   const deleteCategory = useMutation({
     mutationFn: async (id: string) => {
-      // Check if any services use this category
       const { count } = await supabase
         .from("services")
         .select("*", { count: "exact", head: true })
@@ -158,7 +163,7 @@ export default function AdminCategories() {
 
   const openCreateDialog = () => {
     setEditingCategory(null);
-    setForm({ name: "", name_ar: "", icon: "Wrench", color: "bg-blue-500", is_active: true });
+    setForm({ name: "", name_ar: "", icon: "Home", color: "bg-[#FFEBD4]", is_active: true });
     setDialogOpen(true);
   };
 
@@ -193,12 +198,14 @@ export default function AdminCategories() {
     }
   };
 
+  const sortedCategories = [...(categories || [])].sort((a, b) => a.display_order - b.display_order);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-display font-bold">Categories</h1>
-          <p className="text-muted-foreground">Manage service categories</p>
+          <p className="text-muted-foreground">Manage service categories as shown on the main page</p>
         </div>
         <Button onClick={openCreateDialog}>
           <Plus className="h-4 w-4 mr-2" />
@@ -206,108 +213,171 @@ export default function AdminCategories() {
         </Button>
       </div>
 
+      {/* Preview Section - Shows categories as they appear on main page */}
       <Card>
         <CardHeader>
-          <CardTitle>All Categories</CardTitle>
+          <CardTitle className="text-base">Preview (Main Page Style)</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="space-y-2">
+            <div className="flex gap-3 overflow-x-auto pb-2">
               {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
+                <Skeleton key={i} className="w-[100px] h-[100px] rounded-[20px] flex-shrink-0" />
               ))}
             </div>
-          ) : categories?.length === 0 ? (
+          ) : sortedCategories.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">No categories found</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12">Order</TableHead>
-                  <TableHead>Icon</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Arabic Name</TableHead>
-                  <TableHead>Color</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {[...(categories || [])]
-                  .sort((a, b) => a.display_order - b.display_order)
-                  .map((category, index) => (
-                    <TableRow key={category.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <GripVertical className="h-4 w-4 text-muted-foreground" />
-                          <span>{index + 1}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className={`w-8 h-8 rounded-lg ${category.color} flex items-center justify-center text-white text-xs`}>
-                          {category.icon.slice(0, 2)}
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-medium">{category.name}</TableCell>
-                      <TableCell>{category.name_ar || "-"}</TableCell>
-                      <TableCell>
-                        <div className={`w-6 h-6 rounded ${category.color}`} />
-                      </TableCell>
-                      <TableCell>
-                        {category.is_active ? (
-                          <Badge className="bg-green-500">Active</Badge>
-                        ) : (
-                          <Badge variant="secondary">Inactive</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => reorderCategory.mutate({ id: category.id, direction: "up" })}
-                            disabled={index === 0}
-                          >
-                            <ArrowUp className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => reorderCategory.mutate({ id: category.id, direction: "down" })}
-                            disabled={index === (categories?.length || 0) - 1}
-                          >
-                            <ArrowDown className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => openEditDialog(category)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-red-500"
-                            onClick={() => {
-                              if (confirm("Are you sure you want to delete this category?")) {
-                                deleteCategory.mutate(category.id);
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-              </TableBody>
-            </Table>
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+              {sortedCategories.filter(c => c.is_active).map((category) => {
+                const IconComponent = ICON_MAP[category.icon] || Home;
+                return (
+                  <div
+                    key={category.id}
+                    className={cn(
+                      "flex-shrink-0 w-[100px] h-[100px] rounded-[20px] flex flex-col items-center justify-center gap-2",
+                      category.color
+                    )}
+                  >
+                    <IconComponent className="h-7 w-7 text-[#333]" strokeWidth={1.5} />
+                    <span className="text-[10px] font-medium text-[#333] text-center px-1 leading-tight">
+                      {category.name}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>
 
+      {/* Management Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>All Categories ({sortedCategories.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[...Array(6)].map((_, i) => (
+                <Skeleton key={i} className="h-32 w-full rounded-xl" />
+              ))}
+            </div>
+          ) : sortedCategories.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">No categories found. Add your first category!</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {sortedCategories.map((category, index) => {
+                const IconComponent = ICON_MAP[category.icon] || Home;
+                return (
+                  <div
+                    key={category.id}
+                    className={cn(
+                      "relative p-4 rounded-xl border transition-all",
+                      !category.is_active && "opacity-50"
+                    )}
+                  >
+                    {/* Category Card Preview */}
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={cn(
+                          "h-14 w-14 rounded-xl flex items-center justify-center flex-shrink-0",
+                          category.color
+                        )}
+                      >
+                        <IconComponent className="h-7 w-7 text-[#333]" strokeWidth={1.5} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-sm truncate">{category.name}</span>
+                          {!category.is_active && (
+                            <Badge variant="secondary" className="text-xs">Inactive</Badge>
+                          )}
+                        </div>
+                        {category.name_ar && (
+                          <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">
+                            {category.name_ar}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Order: {index + 1} • Icon: {category.icon}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center justify-between mt-3 pt-3 border-t">
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => reorderCategory.mutate({ id: category.id, direction: "up" })}
+                          disabled={index === 0}
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => reorderCategory.mutate({ id: category.id, direction: "down" })}
+                          disabled={index === sortedCategories.length - 1}
+                        >
+                          <ArrowDown className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(category)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => {
+                            if (confirm("Are you sure you want to delete this category?")) {
+                              deleteCategory.mutate(category.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{editingCategory ? "Edit Category" : "Add Category"}</DialogTitle>
           </DialogHeader>
+          
+          {/* Live Preview */}
+          <div className="flex justify-center py-4">
+            <div
+              className={cn(
+                "w-[100px] h-[100px] rounded-[20px] flex flex-col items-center justify-center gap-2 transition-all",
+                form.color
+              )}
+            >
+              {(() => {
+                const IconComp = ICON_MAP[form.icon] || Home;
+                return <IconComp className="h-7 w-7 text-[#333]" strokeWidth={1.5} />;
+              })()}
+              <span className="text-[10px] font-medium text-[#333] text-center px-1 leading-tight">
+                {form.name || "Category"}
+              </span>
+            </div>
+          </div>
+
           <div className="space-y-4">
             <div>
               <Label>Name (English)</Label>
@@ -326,46 +396,69 @@ export default function AdminCategories() {
                 dir="rtl"
               />
             </div>
+
+            {/* Icon Selection */}
             <div>
               <Label>Icon</Label>
-              <Select value={form.icon} onValueChange={(v) => setForm({ ...form, icon: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ICON_OPTIONS.map((icon) => (
-                    <SelectItem key={icon} value={icon}>
-                      {icon}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="grid grid-cols-8 gap-2 mt-2 max-h-32 overflow-y-auto p-1">
+                {ICON_OPTIONS.map((iconName) => {
+                  const IconComp = ICON_MAP[iconName];
+                  return (
+                    <button
+                      key={iconName}
+                      type="button"
+                      className={cn(
+                        "h-9 w-9 rounded-lg flex items-center justify-center border transition-all",
+                        form.icon === iconName
+                          ? "border-primary bg-primary/10 ring-2 ring-primary ring-offset-1"
+                          : "border-border hover:border-primary/50"
+                      )}
+                      onClick={() => setForm({ ...form, icon: iconName })}
+                      title={iconName}
+                    >
+                      <IconComp className="h-4 w-4" />
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+
+            {/* Color Selection */}
             <div>
               <Label>Color</Label>
-              <div className="flex gap-2 flex-wrap mt-2">
-                {COLOR_OPTIONS.map((color) => (
+              <div className="grid grid-cols-6 gap-2 mt-2">
+                {COLOR_OPTIONS.map((colorOpt) => (
                   <button
-                    key={color}
-                    className={`w-8 h-8 rounded-lg ${color} ${form.color === color ? "ring-2 ring-offset-2 ring-primary" : ""}`}
-                    onClick={() => setForm({ ...form, color })}
+                    key={colorOpt.value}
+                    type="button"
+                    className={cn(
+                      "h-9 w-9 rounded-lg transition-all",
+                      colorOpt.value,
+                      form.color === colorOpt.value
+                        ? "ring-2 ring-primary ring-offset-2"
+                        : "hover:scale-105"
+                    )}
+                    onClick={() => setForm({ ...form, color: colorOpt.value })}
+                    title={colorOpt.label}
                   />
                 ))}
               </div>
             </div>
+
             <div className="flex items-center gap-2">
               <Switch
                 checked={form.is_active}
                 onCheckedChange={(checked) => setForm({ ...form, is_active: checked })}
               />
-              <Label>Active</Label>
+              <Label>Active (visible on main page)</Label>
             </div>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={closeDialog}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit}>
+            <Button onClick={handleSubmit} disabled={createCategory.isPending || updateCategory.isPending}>
               {editingCategory ? "Save Changes" : "Create Category"}
             </Button>
           </DialogFooter>
