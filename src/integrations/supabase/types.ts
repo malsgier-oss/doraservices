@@ -71,6 +71,36 @@ export type Database = {
         }
         Relationships: []
       }
+      analytics_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          metadata: Json | null
+          target_id: string | null
+          target_type: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          metadata?: Json | null
+          target_id?: string | null
+          target_type?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          target_id?: string | null
+          target_type?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       bookings: {
         Row: {
           created_at: string
@@ -120,6 +150,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      bulk_upload_jobs: {
+        Row: {
+          admin_id: string
+          completed_at: string | null
+          created_at: string
+          error_log: Json | null
+          failed_items: number
+          file_url: string | null
+          id: string
+          processed_items: number
+          status: string
+          total_items: number
+        }
+        Insert: {
+          admin_id: string
+          completed_at?: string | null
+          created_at?: string
+          error_log?: Json | null
+          failed_items?: number
+          file_url?: string | null
+          id?: string
+          processed_items?: number
+          status?: string
+          total_items?: number
+        }
+        Update: {
+          admin_id?: string
+          completed_at?: string | null
+          created_at?: string
+          error_log?: Json | null
+          failed_items?: number
+          file_url?: string | null
+          id?: string
+          processed_items?: number
+          status?: string
+          total_items?: number
+        }
+        Relationships: []
       }
       businesses: {
         Row: {
@@ -172,6 +241,72 @@ export type Database = {
           suspended_at?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      categories: {
+        Row: {
+          color: string
+          created_at: string
+          display_order: number
+          icon: string
+          id: string
+          is_active: boolean
+          name: string
+          name_ar: string | null
+          updated_at: string
+        }
+        Insert: {
+          color: string
+          created_at?: string
+          display_order?: number
+          icon: string
+          id?: string
+          is_active?: boolean
+          name: string
+          name_ar?: string | null
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          display_order?: number
+          icon?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          name_ar?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      cities: {
+        Row: {
+          created_at: string
+          display_order: number
+          id: string
+          is_active: boolean
+          name: string
+          name_ar: string | null
+          region: string | null
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          name: string
+          name_ar?: string | null
+          region?: string | null
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          name_ar?: string | null
+          region?: string | null
         }
         Relationships: []
       }
@@ -256,27 +391,36 @@ export type Database = {
         Row: {
           content: string
           created_at: string
+          delivery_count: number
           id: string
           is_read: boolean
+          scheduled_at: string | null
           sender_id: string
+          sent_at: string | null
           target_audience: string
           title: string
         }
         Insert: {
           content: string
           created_at?: string
+          delivery_count?: number
           id?: string
           is_read?: boolean
+          scheduled_at?: string | null
           sender_id: string
+          sent_at?: string | null
           target_audience?: string
           title: string
         }
         Update: {
           content?: string
           created_at?: string
+          delivery_count?: number
           id?: string
           is_read?: boolean
+          scheduled_at?: string | null
           sender_id?: string
+          sent_at?: string | null
           target_audience?: string
           title?: string
         }
@@ -465,9 +609,11 @@ export type Database = {
       }
       service_reviews: {
         Row: {
+          admin_hidden: boolean
           content: string | null
           created_at: string
           id: string
+          is_flagged: boolean
           provider_id: string
           rating: number
           service_id: string
@@ -475,9 +621,11 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          admin_hidden?: boolean
           content?: string | null
           created_at?: string
           id?: string
+          is_flagged?: boolean
           provider_id: string
           rating: number
           service_id: string
@@ -485,9 +633,11 @@ export type Database = {
           user_id: string
         }
         Update: {
+          admin_hidden?: boolean
           content?: string | null
           created_at?: string
           id?: string
+          is_flagged?: boolean
           provider_id?: string
           rating?: number
           service_id?: string
@@ -506,40 +656,52 @@ export type Database = {
       }
       services: {
         Row: {
+          admin_note: string | null
           category: string
+          city: string | null
           created_at: string
           description: string | null
           id: string
           image_url: string | null
           is_active: boolean
+          is_visible: boolean
           price: number
           title: string
           updated_at: string
           user_id: string
+          views_count: number
         }
         Insert: {
+          admin_note?: string | null
           category: string
+          city?: string | null
           created_at?: string
           description?: string | null
           id?: string
           image_url?: string | null
           is_active?: boolean
+          is_visible?: boolean
           price: number
           title: string
           updated_at?: string
           user_id: string
+          views_count?: number
         }
         Update: {
+          admin_note?: string | null
           category?: string
+          city?: string | null
           created_at?: string
           description?: string | null
           id?: string
           image_url?: string | null
           is_active?: boolean
+          is_visible?: boolean
           price?: number
           title?: string
           updated_at?: string
           user_id?: string
+          views_count?: number
         }
         Relationships: []
       }

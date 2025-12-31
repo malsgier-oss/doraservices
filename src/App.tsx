@@ -22,6 +22,14 @@ import AdminReports from "./pages/admin/AdminReports";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminMessages from "./pages/admin/AdminMessages";
 import AdminAuditLog from "./pages/admin/AdminAuditLog";
+import AdminProviders from "./pages/admin/AdminProviders";
+import AdminServices from "./pages/admin/AdminServices";
+import AdminReviews from "./pages/admin/AdminReviews";
+import AdminCategories from "./pages/admin/AdminCategories";
+import AdminCities from "./pages/admin/AdminCities";
+import AdminAnalytics from "./pages/admin/AdminAnalytics";
+import AdminMedia from "./pages/admin/AdminMedia";
+import AdminBulkUpload from "./pages/admin/AdminBulkUpload";
 
 const queryClient = new QueryClient();
 
@@ -93,11 +101,19 @@ const AppRoutes = () => {
       >
         <Route index element={<AdminDashboard />} />
         <Route path="users" element={<AdminUsers />} />
+        <Route path="providers" element={<AdminProviders />} />
+        <Route path="services" element={<AdminServices />} />
         <Route path="businesses" element={<AdminBusinesses />} />
         <Route path="deals" element={<AdminDeals />} />
+        <Route path="reviews" element={<AdminReviews />} />
+        <Route path="categories" element={<AdminCategories />} />
+        <Route path="cities" element={<AdminCities />} />
         <Route path="reports" element={<AdminReports />} />
         <Route path="settings" element={<AdminSettings />} />
         <Route path="messages" element={<AdminMessages />} />
+        <Route path="analytics" element={<AdminAnalytics />} />
+        <Route path="media" element={<AdminMedia />} />
+        <Route path="bulk-upload" element={<AdminBulkUpload />} />
         <Route path="audit-log" element={<AdminAuditLog />} />
       </Route>
       <Route path="*" element={<NotFound />} />
