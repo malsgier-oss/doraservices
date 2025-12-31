@@ -1,6 +1,8 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { X, Phone, MessageCircle, Star, Clock, MapPin } from "lucide-react";
+import { X, Phone, MessageCircle, Star, Clock, MapPin, ChevronRight, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Drawer,
   DrawerClose,
@@ -12,6 +14,21 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { BookingDialog } from "./BookingDialog";
+
+interface ServiceProvider {
+  id: string;
+  title: string;
+  description: string | null;
+  price: number;
+  category: string;
+  image_url: string | null;
+  user_id: string;
+  provider_name: string;
+  provider_avatar: string;
+  provider_phone: string;
+}
 
 interface ServiceDetailSheetProps {
   open: boolean;
@@ -30,13 +47,80 @@ export function ServiceDetailSheet({ open, onOpenChange, service }: ServiceDetai
   const navigate = useNavigate();
   const { user } = useAuth();
   const { t, isRTL } = useLanguage();
+  const [providers, setProviders] = useState<ServiceProvider[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
+  const [bookingOpen, setBookingOpen] = useState(false);
+
+  useEffect(() => {
+    if (open && service) {
+      fetchProviders();
+    }
+  }, [open, service]);
+
+  const fetchProviders = async () => {
+    if (!service) return;
+    
+    setLoading(true);
+    try {
+      const { data: servicesData, error: servicesError } = await supabase
+        .from("services")
+        .select("*")
+        .eq("category", service.category)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+
+      if (servicesError) {
+        console.error("Error fetching services:", servicesError);
+        setLoading(false);
+        return;
+      }
+
+      if (!servicesData || servicesData.length === 0) {
+        setProviders([]);
+        setLoading(false);
+        return;
+      }
+
+      // Get provider profiles
+      const userIds = [...new Set(servicesData.map(s => s.user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, avatar_url, phone")
+        .in("user_id", userIds);
+
+      const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
+
+      const enrichedServices: ServiceProvider[] = servicesData.map(svc => ({
+        id: svc.id,
+        title: svc.title,
+        description: svc.description,
+        price: Number(svc.price),
+        category: svc.category,
+        image_url: svc.image_url,
+        user_id: svc.user_id,
+        provider_name: profileMap.get(svc.user_id)?.full_name || (isRTL ? "مقدم الخدمة" : "Provider"),
+        provider_avatar: profileMap.get(svc.user_id)?.avatar_url || "",
+        provider_phone: profileMap.get(svc.user_id)?.phone || "",
+      }));
+
+      setProviders(enrichedServices);
+    } catch (error) {
+      console.error("Error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!service) return null;
 
   const IconComponent = service.icon;
   const title = t.featuredList[service.titleKey as keyof typeof t.featuredList] || service.titleKey;
-  const description = t.featuredList[service.descKey as keyof typeof t.featuredList] || service.descKey;
   const categoryLabel = t.categories[service.category as keyof typeof t.categories] || service.category;
+
+  const handleProviderClick = (provider: ServiceProvider) => {
+    setSelectedProvider(provider);
+  };
 
   const handleBookNow = () => {
     if (!user) {
@@ -44,25 +128,147 @@ export function ServiceDetailSheet({ open, onOpenChange, service }: ServiceDetai
       navigate("/auth");
       return;
     }
-    // Navigate to create service request or show booking flow
-    onOpenChange(false);
-    navigate("/create-service");
-  };
-
-  const handleCall = () => {
-    // Placeholder for call functionality
-    window.location.href = "tel:+1234567890";
-  };
-
-  const handleMessage = () => {
-    // Placeholder for message functionality
-    if (!user) {
-      onOpenChange(false);
-      navigate("/auth");
-      return;
+    if (selectedProvider) {
+      setBookingOpen(true);
     }
   };
 
+  const handleCall = (phone: string) => {
+    if (phone) {
+      window.location.href = `tel:${phone}`;
+    }
+  };
+
+  const handleBack = () => {
+    setSelectedProvider(null);
+  };
+
+  // Provider detail view
+  if (selectedProvider) {
+    return (
+      <>
+        <Drawer open={open} onOpenChange={(isOpen) => {
+          if (!isOpen) setSelectedProvider(null);
+          onOpenChange(isOpen);
+        }}>
+          <DrawerContent className="max-h-[90vh]">
+            <DrawerHeader className="relative pb-0">
+              <button
+                onClick={handleBack}
+                className={cn(
+                  "absolute top-0 h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center",
+                  isRTL ? "right-4" : "left-4"
+                )}
+              >
+                <ChevronRight className={cn("h-4 w-4 text-gray-600", !isRTL && "rotate-180")} />
+              </button>
+              <DrawerClose className={cn(
+                "absolute top-0 h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center",
+                isRTL ? "left-4" : "right-4"
+              )}>
+                <X className="h-4 w-4 text-gray-600" />
+              </DrawerClose>
+              <div className="flex flex-col items-center pt-2">
+                <Avatar className="h-20 w-20 mb-4">
+                  <AvatarImage src={selectedProvider.provider_avatar || undefined} />
+                  <AvatarFallback className="bg-[#333] text-white text-xl font-medium">
+                    {selectedProvider.provider_name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                  </AvatarFallback>
+                </Avatar>
+                <DrawerTitle className="text-xl font-bold text-[#333]">
+                  {selectedProvider.provider_name}
+                </DrawerTitle>
+                <p className="text-sm text-[#777] mt-1">{selectedProvider.title}</p>
+              </div>
+            </DrawerHeader>
+
+            <div className="px-6 py-6 space-y-6" dir={isRTL ? "rtl" : "ltr"}>
+              {/* Rating & Info */}
+              <div className="flex items-center justify-center gap-6 text-sm">
+                <div className="flex items-center gap-1">
+                  <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                  <span className="font-medium text-[#333]">4.8</span>
+                  <span className="text-[#999]">(New)</span>
+                </div>
+                <div className="flex items-center gap-1 text-[#777]">
+                  <Clock className="h-4 w-4" />
+                  <span>{isRTL ? "متاح" : "Available"}</span>
+                </div>
+              </div>
+
+              {/* Price */}
+              <div className="bg-primary/10 rounded-[16px] p-4 text-center">
+                <p className="text-sm text-[#777]">{isRTL ? "السعر يبدأ من" : "Starting from"}</p>
+                <p className="text-2xl font-bold text-[#333]">
+                  {selectedProvider.price} {isRTL ? "ريال" : "SAR"}
+                </p>
+              </div>
+
+              {/* Description */}
+              {selectedProvider.description && (
+                <div className="bg-gray-50 rounded-[16px] p-4">
+                  <h3 className="font-semibold text-[#333] mb-2">
+                    {isRTL ? "عن الخدمة" : "About this service"}
+                  </h3>
+                  <p className="text-sm text-[#666] leading-relaxed">
+                    {selectedProvider.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="flex-1 h-14 rounded-[16px] border-gray-200"
+                  onClick={() => handleCall(selectedProvider.provider_phone)}
+                  disabled={!selectedProvider.provider_phone}
+                >
+                  <Phone className="h-5 w-5 mr-2" />
+                  {isRTL ? "اتصل" : "Call"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="flex-1 h-14 rounded-[16px] border-gray-200"
+                  onClick={() => {
+                    if (!user) {
+                      onOpenChange(false);
+                      navigate("/auth");
+                    }
+                  }}
+                >
+                  <MessageCircle className="h-5 w-5 mr-2" />
+                  {isRTL ? "رسالة" : "Message"}
+                </Button>
+              </div>
+
+              <Button
+                size="lg"
+                className="w-full h-14 rounded-[16px] bg-[#333] hover:bg-[#444] text-white font-semibold"
+                onClick={handleBookNow}
+              >
+                {isRTL ? "احجز الآن" : "Book Now"}
+              </Button>
+            </div>
+          </DrawerContent>
+        </Drawer>
+
+        <BookingDialog
+          open={bookingOpen}
+          onOpenChange={setBookingOpen}
+          serviceId={selectedProvider.id}
+          serviceTitle={selectedProvider.title}
+          providerId={selectedProvider.user_id}
+          providerName={selectedProvider.provider_name}
+          providerPhone={selectedProvider.provider_phone}
+        />
+      </>
+    );
+  }
+
+  // Providers list view
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="max-h-[85vh]">
@@ -72,10 +278,10 @@ export function ServiceDetailSheet({ open, onOpenChange, service }: ServiceDetai
           </DrawerClose>
           <div className="flex flex-col items-center pt-2">
             <div className={cn(
-              "h-20 w-20 rounded-full flex items-center justify-center mb-4",
+              "h-16 w-16 rounded-full flex items-center justify-center mb-3",
               service.color
             )}>
-              <IconComponent className="h-10 w-10 text-[#333]" strokeWidth={1.5} />
+              <IconComponent className="h-8 w-8 text-[#333]" strokeWidth={1.5} />
             </div>
             <DrawerTitle className="text-xl font-bold text-[#333]">
               {title}
@@ -84,83 +290,75 @@ export function ServiceDetailSheet({ open, onOpenChange, service }: ServiceDetai
           </div>
         </DrawerHeader>
 
-        <div className="px-6 py-6 space-y-6" dir={isRTL ? "rtl" : "ltr"}>
-          {/* Rating & Info */}
-          <div className="flex items-center justify-center gap-6 text-sm">
-            <div className="flex items-center gap-1">
-              <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-              <span className="font-medium text-[#333]">4.8</span>
-              <span className="text-[#999]">(120+)</span>
-            </div>
-            <div className="flex items-center gap-1 text-[#777]">
-              <Clock className="h-4 w-4" />
-              <span>{isRTL ? "متاح اليوم" : "Available today"}</span>
-            </div>
-            <div className="flex items-center gap-1 text-[#777]">
-              <MapPin className="h-4 w-4" />
-              <span>{isRTL ? "قريب منك" : "Near you"}</span>
-            </div>
-          </div>
+        <div className="px-4 py-4" dir={isRTL ? "rtl" : "ltr"}>
+          <h3 className="text-sm font-semibold text-[#777] mb-3 px-2">
+            {isRTL ? "مقدمي الخدمة المتاحين" : "Available Service Providers"}
+          </h3>
 
-          {/* Description */}
-          <div className="bg-gray-50 rounded-[16px] p-4">
-            <h3 className="font-semibold text-[#333] mb-2">
-              {isRTL ? "عن الخدمة" : "About this service"}
-            </h3>
-            <p className="text-sm text-[#666] leading-relaxed">
-              {description}
-            </p>
-          </div>
-
-          {/* What's included */}
-          <div>
-            <h3 className="font-semibold text-[#333] mb-3">
-              {isRTL ? "ما يشمله" : "What's included"}
-            </h3>
-            <ul className="space-y-2">
-              {[
-                isRTL ? "تشخيص المشكلة" : "Problem diagnosis",
-                isRTL ? "قطع الغيار الأصلية" : "Original spare parts",
-                isRTL ? "ضمان على العمل" : "Work guarantee",
-                isRTL ? "دعم ما بعد الخدمة" : "After-service support",
-              ].map((item, i) => (
-                <li key={i} className="flex items-center gap-2 text-sm text-[#666]">
-                  <div className="h-1.5 w-1.5 rounded-full bg-[#333]" />
-                  {item}
-                </li>
+          {loading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="bg-gray-100 rounded-[16px] h-20 animate-pulse" />
               ))}
-            </ul>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-3 pt-2">
-            <Button
-              variant="outline"
-              size="lg"
-              className="flex-1 h-14 rounded-[16px] border-gray-200"
-              onClick={handleCall}
-            >
-              <Phone className="h-5 w-5 mr-2" />
-              {isRTL ? "اتصل" : "Call"}
-            </Button>
-            <Button
-              variant="outline"
-              size="lg"
-              className="flex-1 h-14 rounded-[16px] border-gray-200"
-              onClick={handleMessage}
-            >
-              <MessageCircle className="h-5 w-5 mr-2" />
-              {isRTL ? "رسالة" : "Message"}
-            </Button>
-          </div>
-
-          <Button
-            size="lg"
-            className="w-full h-14 rounded-[16px] bg-[#333] hover:bg-[#444] text-white font-semibold"
-            onClick={handleBookNow}
-          >
-            {isRTL ? "احجز الآن" : "Book Now"}
-          </Button>
+            </div>
+          ) : providers.length > 0 ? (
+            <div className="space-y-2">
+              {providers.map((provider) => (
+                <button
+                  key={provider.id}
+                  onClick={() => handleProviderClick(provider)}
+                  className={cn(
+                    "w-full flex items-center gap-4 p-4 bg-white rounded-[16px] border border-gray-100 transition-colors hover:bg-gray-50 active:bg-gray-100",
+                    isRTL && "flex-row-reverse text-right"
+                  )}
+                >
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src={provider.provider_avatar || undefined} />
+                    <AvatarFallback className="bg-[#333] text-white font-medium">
+                      {provider.provider_name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-semibold text-[#333] truncate">{provider.provider_name}</h4>
+                    <p className="text-sm text-[#777] truncate">{provider.title}</p>
+                    <p className="text-sm font-medium text-primary mt-0.5">
+                      {provider.price} {isRTL ? "ريال" : "SAR"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                    <span className="text-sm font-medium text-[#333]">4.8</span>
+                  </div>
+                  <ChevronRight className={cn(
+                    "h-5 w-5 text-[#CCC]",
+                    isRTL && "rotate-180"
+                  )} />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="py-12 text-center">
+              <div className="h-16 w-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+                <User className="h-8 w-8 text-[#999]" />
+              </div>
+              <p className="text-[#777] font-medium">
+                {isRTL ? "لا يوجد مقدمي خدمة حالياً" : "No providers available yet"}
+              </p>
+              <p className="text-sm text-[#999] mt-1">
+                {isRTL ? "كن أول من يقدم هذه الخدمة!" : "Be the first to offer this service!"}
+              </p>
+              <Button
+                variant="outline"
+                className="mt-4"
+                onClick={() => {
+                  onOpenChange(false);
+                  navigate(user ? "/profile" : "/auth");
+                }}
+              >
+                {isRTL ? "قدم خدمتك" : "Offer your service"}
+              </Button>
+            </div>
+          )}
         </div>
       </DrawerContent>
     </Drawer>
