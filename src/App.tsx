@@ -46,14 +46,10 @@ function AuthenticatedRedirect({ children }: { children: React.ReactNode }) {
 const AppRoutes = () => {
   return (
     <Routes>
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <Hub />
-          </ProtectedRoute>
-        }
-      />
+      {/* Hub is now public - no auth required to browse */}
+      <Route path="/" element={<Hub />} />
+      
+      {/* Protected routes - require login */}
       <Route
         path="/favorites"
         element={

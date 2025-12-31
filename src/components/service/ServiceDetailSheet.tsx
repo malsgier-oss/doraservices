@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { X, Phone, Star, Clock, ChevronRight, User, Heart, MessageSquare, MapPin } from "lucide-react";
+import { X, Phone, Star, Clock, ChevronRight, Heart, MessageSquare, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -85,6 +85,7 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
     
     setLoading(true);
     try {
+      // Get services from this category
       const { data: servicesData, error: servicesError } = await supabase
         .from("services")
         .select("*")
@@ -104,27 +105,31 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
         return;
       }
 
-      // Get provider profiles
+      // Get provider profiles - ONLY approved providers
       const userIds = [...new Set(servicesData.map(s => s.user_id))];
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("user_id, full_name, avatar_url, phone, city")
-        .in("user_id", userIds);
+        .select("user_id, full_name, avatar_url, phone, city, provider_status")
+        .in("user_id", userIds)
+        .eq("provider_status", "approved"); // Only show approved providers
 
       const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
 
-      const enrichedServices: ServiceProvider[] = servicesData.map(svc => ({
-        id: svc.id,
-        title: svc.title,
-        description: svc.description,
-        category: svc.category,
-        image_url: svc.image_url,
-        user_id: svc.user_id,
-        provider_name: profileMap.get(svc.user_id)?.full_name || (isRTL ? "مقدم الخدمة" : "Provider"),
-        provider_avatar: profileMap.get(svc.user_id)?.avatar_url || "",
-        provider_phone: profileMap.get(svc.user_id)?.phone || "",
-        provider_city: profileMap.get(svc.user_id)?.city || null,
-      }));
+      // Only include services from approved providers
+      const enrichedServices: ServiceProvider[] = servicesData
+        .filter(svc => profileMap.has(svc.user_id))
+        .map(svc => ({
+          id: svc.id,
+          title: svc.title,
+          description: svc.description,
+          category: svc.category,
+          image_url: svc.image_url,
+          user_id: svc.user_id,
+          provider_name: profileMap.get(svc.user_id)?.full_name || (isRTL ? "مقدم الخدمة" : "Provider"),
+          provider_avatar: profileMap.get(svc.user_id)?.avatar_url || "",
+          provider_phone: profileMap.get(svc.user_id)?.phone || "",
+          provider_city: profileMap.get(svc.user_id)?.city || null,
+        }));
 
       setProviders(enrichedServices);
     } catch (error) {
@@ -165,7 +170,14 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
     setSelectedProvider(provider);
   };
 
+  // Require auth for contact actions
   const handleCall = (phone: string) => {
+    if (!user) {
+      toast.info(isRTL ? "يرجى تسجيل الدخول للتواصل" : "Please sign in to contact");
+      onOpenChange(false);
+      navigate("/auth");
+      return;
+    }
     if (phone) {
       window.location.href = `tel:${phone}`;
     }
@@ -173,6 +185,7 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
 
   const handleToggleFavorite = async (serviceId: string) => {
     if (!user) {
+      toast.info(isRTL ? "يرجى تسجيل الدخول" : "Please sign in first");
       onOpenChange(false);
       navigate("/auth");
       return;
@@ -190,6 +203,7 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
 
   const handleOpenReviewDialog = () => {
     if (!user) {
+      toast.info(isRTL ? "يرجى تسجيل الدخول" : "Please sign in first");
       onOpenChange(false);
       navigate("/auth");
       return;
@@ -227,8 +241,6 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
     }
     return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true, rating: r.averageRating };
   };
-
-  // Provider detail view
 
   // Provider detail view
   if (selectedProvider) {
@@ -454,53 +466,26 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
                         "h-4 w-4",
                         ratingInfo.hasRating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground"
                       )} />
-                      <span className="text-sm text-muted-foreground">{ratingInfo.text}</span>
+                      <span className={cn(
+                        "text-sm font-medium",
+                        ratingInfo.hasRating ? "text-foreground" : "text-muted-foreground"
+                      )}>
+                        {ratingInfo.text}
+                      </span>
                     </div>
-                    <ChevronRight className={cn(
-                      "h-5 w-5 text-muted-foreground/50",
-                      isRTL && "rotate-180"
-                    )} />
                   </button>
                 );
               })}
             </div>
-          ) : providers.length > 0 ? (
-            // Filters applied but no results
-            <div className="py-12 text-center">
-              <div className="h-16 w-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
-                <MapPin className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <p className="text-muted-foreground font-medium">
-                {filters?.city 
-                  ? (isRTL ? `لا يوجد مقدمي خدمة في ${getCityLabel(filters.city)}` : `No providers in ${getCityLabel(filters.city)}`)
-                  : (isRTL ? "لا توجد نتائج مطابقة للفلاتر" : "No results match your filters")
-                }
-              </p>
-              <p className="text-sm text-muted-foreground/70 mt-1">
-                {isRTL ? "جرب تغيير الفلاتر" : "Try adjusting your filters"}
-              </p>
-            </div>
           ) : (
-            <div className="py-12 text-center">
-              <div className="h-16 w-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
-                <User className="h-8 w-8 text-muted-foreground" />
-              </div>
+            <div className="text-center py-12">
+              <div className="text-4xl mb-3">🔍</div>
               <p className="text-muted-foreground font-medium">
-                {isRTL ? "لا يوجد مقدمي خدمة حالياً" : "No providers available yet"}
+                {isRTL ? "لا يوجد مقدمي خدمة" : "No providers available"}
               </p>
-              <p className="text-sm text-muted-foreground/70 mt-1">
-                {isRTL ? "كن أول من يقدم هذه الخدمة!" : "Be the first to offer this service!"}
+              <p className="text-sm text-muted-foreground mt-1">
+                {isRTL ? "جرب تصفية مختلفة" : "Try different filters"}
               </p>
-              <Button
-                variant="outline"
-                className="mt-4"
-                onClick={() => {
-                  onOpenChange(false);
-                  navigate(user ? "/create-service" : "/auth");
-                }}
-              >
-                {isRTL ? "قدم خدمتك" : "Offer your service"}
-              </Button>
             </div>
           )}
         </div>

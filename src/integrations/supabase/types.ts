@@ -360,6 +360,7 @@ export type Database = {
           id: string
           phone: string | null
           points: number
+          provider_status: string | null
           status: string
           suspended_at: string | null
           suspended_reason: string | null
@@ -376,6 +377,7 @@ export type Database = {
           id?: string
           phone?: string | null
           points?: number
+          provider_status?: string | null
           status?: string
           suspended_at?: string | null
           suspended_reason?: string | null
@@ -392,6 +394,7 @@ export type Database = {
           id?: string
           phone?: string | null
           points?: number
+          provider_status?: string | null
           status?: string
           suspended_at?: string | null
           suspended_reason?: string | null

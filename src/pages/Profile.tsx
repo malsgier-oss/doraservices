@@ -15,6 +15,8 @@ import {
   AlertCircle,
   Heart,
   MapPin,
+  Phone,
+  Clock,
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -42,6 +44,26 @@ import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { LIBYAN_CITIES } from "@/components/search/SearchFilters";
 
+// Format phone to Libyan style: 09x xxx xx xx
+const formatLibyanPhone = (value: string): string => {
+  // Remove all non-digits
+  const digits = value.replace(/\D/g, "");
+  
+  // Limit to 10 digits
+  const limited = digits.slice(0, 10);
+  
+  // Format as 09x xxx xx xx
+  if (limited.length <= 3) {
+    return limited;
+  } else if (limited.length <= 6) {
+    return `${limited.slice(0, 3)} ${limited.slice(3)}`;
+  } else if (limited.length <= 8) {
+    return `${limited.slice(0, 3)} ${limited.slice(3, 6)} ${limited.slice(6)}`;
+  } else {
+    return `${limited.slice(0, 3)} ${limited.slice(3, 6)} ${limited.slice(6, 8)} ${limited.slice(8)}`;
+  }
+};
+
 const Profile = () => {
   const [activeTab, setActiveTab] = useState("favorites");
   const [isEditing, setIsEditing] = useState(false);
@@ -65,6 +87,9 @@ const Profile = () => {
 
   // Check if provider is missing phone number
   const providerMissingPhone = isBusiness && !profile?.phone;
+  
+  // Check if provider is pending approval
+  const isPendingApproval = isBusiness && profile?.provider_status === "pending";
 
   const handleEdit = () => {
     if (profile) {
@@ -72,19 +97,27 @@ const Profile = () => {
         full_name: profile.full_name || "",
         bio: profile.bio || "",
         avatar_url: profile.avatar_url || "",
-        phone: profile.phone || "",
+        phone: profile.phone ? formatLibyanPhone(profile.phone) : "",
         city: profile.city || "",
       });
     }
     setIsEditing(true);
   };
 
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatLibyanPhone(e.target.value);
+    setFormData({ ...formData, phone: formatted });
+  };
+
   const handleSave = async () => {
+    // Store phone without spaces
+    const phoneDigits = formData.phone.replace(/\D/g, "");
+    
     const { error } = await updateProfile({
       full_name: formData.full_name || null,
       bio: formData.bio || null,
       avatar_url: formData.avatar_url || null,
-      phone: formData.phone || null,
+      phone: phoneDigits || null,
       city: formData.city || null,
     });
 
@@ -164,7 +197,9 @@ const Profile = () => {
     } else {
       toast({
         title: t.profile.providerAccount,
-        description: "You can now create and list your services.",
+        description: isRTL 
+          ? "يمكنك الآن إضافة خدماتك. حسابك قيد المراجعة." 
+          : "You can now add your services. Your account is pending approval.",
       });
       navigate("/create-service");
     }
@@ -215,7 +250,7 @@ const Profile = () => {
           <div className="flex flex-col items-center gap-6">
             {/* Circular Avatar with Upload */}
             <div className="relative">
-              <Avatar className="h-28 w-28 ring-4 ring-primary/20 shadow-lg">
+              <Avatar className="h-28 w-28 shadow-lg">
                 <AvatarImage src={profile?.avatar_url || ""} alt={displayName} />
                 <AvatarFallback className="text-3xl font-display font-bold bg-primary text-primary-foreground">
                   {initials}
@@ -271,58 +306,50 @@ const Profile = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone" className="flex items-center gap-1">
+                      <Phone className="h-4 w-4" />
                       {t.profile.phone}
                       {isBusiness && <span className="text-destructive">*</span>}
                     </Label>
                     <Input
                       id="phone"
                       value={formData.phone}
-                      onChange={(e) =>
-                        setFormData({ ...formData, phone: e.target.value })
-                      }
-                      placeholder={t.profile.phonePlaceholder}
+                      onChange={handlePhoneChange}
+                      placeholder="09x xxx xx xx"
                       className="rounded-full"
                       dir="ltr"
                     />
-                    {isBusiness && (
-                      <p className="text-xs text-muted-foreground">
-                        {isRTL ? "مطلوب للتواصل مع العملاء" : "Required for customer contact"}
-                      </p>
-                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {isRTL ? "التنسيق: 09x xxx xx xx" : "Format: 09x xxx xx xx"}
+                    </p>
                   </div>
                   
-                  {/* City selector for providers */}
-                  {isBusiness && (
-                    <div className="space-y-2">
-                      <Label htmlFor="city" className="flex items-center gap-1">
-                        <MapPin className="h-4 w-4" />
-                        {isRTL ? "المدينة" : "City"}
-                      </Label>
-                      <Select
-                        value={formData.city || "none"}
-                        onValueChange={(value) =>
-                          setFormData({ ...formData, city: value === "none" ? "" : value })
-                        }
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={isRTL ? "اختر مدينتك" : "Select your city"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">
-                            {isRTL ? "-- اختر مدينة --" : "-- Select city --"}
+                  {/* City selector for all users */}
+                  <div className="space-y-2">
+                    <Label htmlFor="city" className="flex items-center gap-1">
+                      <MapPin className="h-4 w-4" />
+                      {isRTL ? "المدينة" : "City"}
+                    </Label>
+                    <Select
+                      value={formData.city || "none"}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, city: value === "none" ? "" : value })
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder={isRTL ? "اختر مدينتك" : "Select your city"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">
+                          {isRTL ? "-- اختر مدينة --" : "-- Select city --"}
+                        </SelectItem>
+                        {LIBYAN_CITIES.map((city) => (
+                          <SelectItem key={city.id} value={city.id}>
+                            {isRTL ? city.ar : city.en}
                           </SelectItem>
-                          {LIBYAN_CITIES.map((city) => (
-                            <SelectItem key={city.id} value={city.id}>
-                              {isRTL ? city.ar : city.en}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">
-                        {isRTL ? "يساعد العملاء على إيجادك" : "Helps customers find you"}
-                      </p>
-                    </div>
-                  )}
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   
                   <div className={`flex gap-2 ${isRTL ? "flex-row-reverse" : ""}`}>
                     <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} className="rounded-full flex-1">
@@ -342,10 +369,18 @@ const Profile = () => {
                       {displayName}
                     </h1>
                     {isBusiness && (
-                      <Badge className="rounded-full bg-success/10 text-success border-0">
-                        <Briefcase className="h-3 w-3 mr-1" />
-                        {t.profile.providerAccount}
-                      </Badge>
+                      <div className="flex items-center justify-center gap-2 flex-wrap">
+                        <Badge className="rounded-full bg-success/10 text-success border-0">
+                          <Briefcase className="h-3 w-3 mr-1" />
+                          {t.profile.providerAccount}
+                        </Badge>
+                        {isPendingApproval && (
+                          <Badge className="rounded-full bg-amber-500/10 text-amber-600 border-0">
+                            <Clock className="h-3 w-3 mr-1" />
+                            {isRTL ? "قيد المراجعة" : "Pending Approval"}
+                          </Badge>
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -367,11 +402,29 @@ const Profile = () => {
                     </Alert>
                   )}
 
+                  {/* Pending Approval Notice */}
+                  {isPendingApproval && (
+                    <Alert className="max-w-md mx-auto mt-4 bg-amber-50 border-amber-200">
+                      <Clock className="h-4 w-4 text-amber-600" />
+                      <AlertDescription className="text-amber-800">
+                        {isRTL 
+                          ? "حسابك قيد المراجعة. خدماتك لن تظهر للعملاء حتى يتم الموافقة عليها." 
+                          : "Your account is pending approval. Your services won't be visible to customers until approved."}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
                   <div className="flex justify-center gap-6 text-sm text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <Calendar className="h-4 w-4" />
                       {t.profile.memberSince} {memberSince}
                     </span>
+                    {profile?.city && (
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-4 w-4" />
+                        {LIBYAN_CITIES.find(c => c.id === profile.city)?.[isRTL ? "ar" : "en"] || profile.city}
+                      </span>
+                    )}
                   </div>
                 </>
               )}
@@ -497,9 +550,16 @@ const Profile = () => {
                             <div className="flex-1">
                               <h3 className="font-semibold text-foreground">{service.title}</h3>
                               <p className="text-sm text-muted-foreground mt-1">{service.description}</p>
-                              <Badge variant="outline" className="mt-2">
-                                {t.categories[service.category as keyof typeof t.categories] || service.category}
-                              </Badge>
+                              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                <Badge variant="outline">
+                                  {t.categories[service.category as keyof typeof t.categories] || service.category}
+                                </Badge>
+                                {isPendingApproval && (
+                                  <Badge variant="secondary" className="bg-amber-100 text-amber-700">
+                                    {isRTL ? "غير مرئي" : "Not visible"}
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
                             <div className="flex gap-2">
                               <Button 
@@ -539,19 +599,16 @@ const Profile = () => {
               </TabsContent>
             )}
 
-            {/* Settings Tab */}
+            {/* Settings Tab - removed language selection */}
             <TabsContent value="settings" className="animate-fade-in">
               <div className="max-w-md mx-auto space-y-4">
                 <h2 className="font-display text-lg font-semibold">
                   {t.profile.settings}
                 </h2>
                 <div className="bg-card rounded-2xl p-4 shadow-card space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-foreground">{t.language.title}</span>
-                    <span className="text-muted-foreground text-sm">
-                      {isRTL ? t.language.arabic : t.language.english}
-                    </span>
-                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {isRTL ? "إعدادات الحساب" : "Account settings"}
+                  </p>
                 </div>
               </div>
             </TabsContent>
