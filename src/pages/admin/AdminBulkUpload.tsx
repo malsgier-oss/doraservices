@@ -13,9 +13,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { Upload, Download, FileSpreadsheet, CheckCircle, XCircle, AlertCircle, Phone } from "lucide-react";
+import { Upload, Download, CheckCircle, XCircle, AlertCircle, Phone, Tag } from "lucide-react";
 import { useCategories } from "@/hooks/useCategories";
 import { useCities } from "@/hooks/useCities";
 
@@ -23,7 +30,6 @@ interface ParsedService {
   row: number;
   title: string;
   description: string;
-  category: string;
   city: string;
   provider_phone: string;
   provider_name: string;
@@ -42,14 +48,14 @@ export default function AdminBulkUpload() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadComplete, setUploadComplete] = useState(false);
   const [stats, setStats] = useState({ total: 0, success: 0, failed: 0 });
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
 
-  const categoryNames = categories?.map((c) => c.name.toLowerCase()) || [];
   const cityNames = cities?.map((c) => c.name.toLowerCase()) || [];
 
   const downloadTemplate = () => {
-    const template = `title,category,city,provider_phone,provider_name,description
-"AC Repair Service","Home Maintenance","Tripoli","+218912345678","Ahmed Mohammed","Professional AC repair and maintenance"
-"Hair Styling","Beauty & Wellness","Benghazi","+218923456789","Fatima Ali","Expert hair styling services"`;
+    const template = `title,city,provider_phone,provider_name,description
+"AC Repair Service","Tripoli","+218912345678","Ahmed Mohammed","Professional AC repair and maintenance"
+"Hair Styling","Benghazi","+218923456789","Fatima Ali","Expert hair styling services"`;
     
     const blob = new Blob([template], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -67,13 +73,12 @@ export default function AdminBulkUpload() {
     const headers = lines[0].split(",").map((h) => h.trim().replace(/"/g, "").toLowerCase());
     const titleIdx = headers.indexOf("title");
     const descIdx = headers.indexOf("description");
-    const catIdx = headers.indexOf("category");
     const cityIdx = headers.indexOf("city");
     const phoneIdx = headers.indexOf("provider_phone");
     const nameIdx = headers.indexOf("provider_name");
 
-    if (titleIdx === -1 || catIdx === -1 || phoneIdx === -1) {
-      toast.error("Invalid CSV format. Required columns: title, category, provider_phone");
+    if (titleIdx === -1 || phoneIdx === -1) {
+      toast.error("Invalid CSV format. Required columns: title, provider_phone");
       return [];
     }
 
@@ -81,20 +86,18 @@ export default function AdminBulkUpload() {
     
     for (let i = 1; i < lines.length; i++) {
       const values = parseCSVLine(lines[i]);
-      if (values.length < headers.length) continue;
+      if (values.length === 0) continue;
 
       const title = values[titleIdx]?.trim();
-      const description = values[descIdx]?.trim() || "";
-      const category = values[catIdx]?.trim();
-      const city = values[cityIdx]?.trim() || "";
+      const description = descIdx !== -1 ? values[descIdx]?.trim() || "" : "";
+      const city = cityIdx !== -1 ? values[cityIdx]?.trim() || "" : "";
       const providerPhone = values[phoneIdx]?.trim();
-      const providerName = values[nameIdx]?.trim() || "";
+      const providerName = nameIdx !== -1 ? values[nameIdx]?.trim() || "" : "";
 
       const service: ParsedService = {
         row: i + 1,
         title,
         description,
-        category,
         city,
         provider_phone: providerPhone,
         provider_name: providerName,
@@ -105,12 +108,6 @@ export default function AdminBulkUpload() {
       if (!title) {
         service.status = "error";
         service.error = "Title is required";
-      } else if (!category) {
-        service.status = "error";
-        service.error = "Category is required";
-      } else if (!categoryNames.includes(category.toLowerCase())) {
-        service.status = "error";
-        service.error = `Invalid category: ${category}`;
       } else if (city && !cityNames.includes(city.toLowerCase())) {
         service.status = "error";
         service.error = `Invalid city: ${city}`;
@@ -168,7 +165,7 @@ export default function AdminBulkUpload() {
   };
 
   const processUpload = async () => {
-    if (parsedData.length === 0) return;
+    if (parsedData.length === 0 || !selectedCategory) return;
 
     setIsUploading(true);
     setUploadProgress(0);
@@ -181,9 +178,6 @@ export default function AdminBulkUpload() {
       const item = pendingItems[i];
       
       try {
-        const matchingCategory = categories?.find(
-          (c) => c.name.toLowerCase() === item.category.toLowerCase()
-        );
         const matchingCity = cities?.find(
           (c) => c.name.toLowerCase() === item.city.toLowerCase()
         );
@@ -192,7 +186,7 @@ export default function AdminBulkUpload() {
         const { error } = await supabase.from("services").insert({
           title: item.title,
           description: item.description || null,
-          category: matchingCategory?.name || item.category,
+          category: selectedCategory,
           city: matchingCity?.name || item.city || null,
           provider_phone: item.provider_phone,
           provider_name: item.provider_name || null,
@@ -224,7 +218,7 @@ export default function AdminBulkUpload() {
     await supabase.rpc("log_admin_action", {
       p_action: "bulk_upload",
       p_target_type: "services",
-      p_details: { total: parsedData.length, success: successCount, failed: failedCount },
+      p_details: { total: parsedData.length, success: successCount, failed: failedCount, category: selectedCategory },
     });
 
     queryClient.invalidateQueries({ queryKey: ["admin-services"] });
@@ -253,16 +247,38 @@ export default function AdminBulkUpload() {
         <CardHeader>
           <CardTitle>Upload CSV File</CardTitle>
           <CardDescription>
-            Download the template, add services with provider phone numbers, then upload. Services will be auto-claimed when providers sign up with matching phone numbers.
+            Select a category, download the template, add services with provider phone numbers, then upload.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium flex items-center gap-2">
+              <Tag className="h-4 w-4" />
+              Select Category for All Services
+            </label>
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-full max-w-xs">
+                <SelectValue placeholder="Choose a category..." />
+              </SelectTrigger>
+              <SelectContent>
+                {categories?.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.name}>
+                    {cat.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="flex gap-4">
             <Button variant="outline" onClick={downloadTemplate}>
               <Download className="h-4 w-4 mr-2" />
               Download Template
             </Button>
-            <Button onClick={() => fileInputRef.current?.click()}>
+            <Button 
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!selectedCategory}
+            >
               <Upload className="h-4 w-4 mr-2" />
               Upload CSV
             </Button>
@@ -275,10 +291,19 @@ export default function AdminBulkUpload() {
             />
           </div>
 
+          {!selectedCategory && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Please select a category before uploading a CSV file.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Alert>
             <Phone className="h-4 w-4" />
             <AlertDescription>
-              <strong>Required:</strong> title, category, provider_phone. <strong>Optional:</strong> city, provider_name, description.
+              <strong>Required:</strong> title, provider_phone. <strong>Optional:</strong> city, provider_name, description.
               <br />
               <span className="text-muted-foreground">When a provider signs up with a matching phone number, services are automatically linked to their account.</span>
             </AlertDescription>
@@ -298,7 +323,7 @@ export default function AdminBulkUpload() {
                   <Badge variant="secondary">{stats.total - stats.success - stats.failed} Pending</Badge>
                 </div>
                 {!uploadComplete && (
-                  <Button onClick={processUpload} disabled={isUploading}>
+                  <Button onClick={processUpload} disabled={isUploading || !selectedCategory}>
                     {isUploading ? "Uploading..." : "Start Upload"}
                   </Button>
                 )}
@@ -322,7 +347,6 @@ export default function AdminBulkUpload() {
                     <TableHead>Row</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Title</TableHead>
-                    <TableHead>Category</TableHead>
                     <TableHead>City</TableHead>
                     <TableHead>Provider Phone</TableHead>
                     <TableHead>Provider Name</TableHead>
@@ -335,11 +359,10 @@ export default function AdminBulkUpload() {
                       <TableCell>{item.row}</TableCell>
                       <TableCell>{getStatusIcon(item.status)}</TableCell>
                       <TableCell className="max-w-32 truncate">{item.title}</TableCell>
-                      <TableCell>{item.category}</TableCell>
                       <TableCell>{item.city || "-"}</TableCell>
                       <TableCell>{item.provider_phone}</TableCell>
                       <TableCell>{item.provider_name || "-"}</TableCell>
-                      <TableCell className="text-red-500 text-sm max-w-48 truncate">
+                      <TableCell className="text-destructive text-sm max-w-48 truncate">
                         {item.error}
                       </TableCell>
                     </TableRow>
