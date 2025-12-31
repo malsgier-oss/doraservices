@@ -6,7 +6,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { format } from "date-fns";
 import { arSA, enUS } from "date-fns/locale";
 
-type Status = "pending" | "in_progress" | "completed";
+type Status = "pending" | "in_progress" | "completed" | "cancelled";
 
 interface ServiceRequestCardProps {
   id: string;
@@ -39,11 +39,14 @@ export function ServiceRequestCard({
     .join("")
     .slice(0, 2);
 
+  // Don't show cancelled bookings in the status indicator
+  const displayStatus = status === "cancelled" ? "completed" : status;
+
   return (
-    <div className="bg-card rounded-2xl p-4 shadow-card animate-fade-in">
+    <div className={`bg-card rounded-2xl p-4 shadow-card animate-fade-in ${status === "cancelled" ? "opacity-60" : ""}`}>
       <div className="flex gap-4">
         {/* Status */}
-        <StatusIndicator status={status} size="md" showLabel={false} />
+        <StatusIndicator status={displayStatus} size="md" showLabel={false} />
 
         {/* Content */}
         <div className="flex-1 min-w-0">
@@ -59,6 +62,13 @@ export function ServiceRequestCard({
             </Avatar>
             <span className="text-sm text-muted-foreground">{providerName}</span>
           </div>
+
+          {/* Status Badge for cancelled */}
+          {status === "cancelled" && (
+            <span className="inline-block mt-2 text-xs text-destructive bg-destructive/10 px-2 py-0.5 rounded-full">
+              {t.booking.cancelled}
+            </span>
+          )}
 
           {/* Dates */}
           <div className="flex flex-wrap gap-3 mt-3 text-xs text-muted-foreground">
@@ -77,7 +87,7 @@ export function ServiceRequestCard({
       </div>
 
       {/* Actions */}
-      {(status === "pending" || onViewDetails) && (
+      {(status === "pending" || onViewDetails) && status !== "cancelled" && (
         <div className="flex gap-2 mt-4 pt-3 border-t border-border">
           {onViewDetails && (
             <Button 

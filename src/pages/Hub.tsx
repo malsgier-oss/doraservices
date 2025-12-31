@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
@@ -9,6 +9,7 @@ import { BookingDialog } from "@/components/service/BookingDialog";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
+import { useServices, Service } from "@/hooks/useServices";
 import { cn } from "@/lib/utils";
 
 export default function Hub() {
@@ -16,16 +17,10 @@ export default function Hub() {
   const { user } = useAuth();
   const { profile } = useProfile();
   const { t, isRTL } = useLanguage();
+  const { services, loading } = useServices();
   const [searchQuery, setSearchQuery] = useState("");
   const [bookingOpen, setBookingOpen] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<{
-    id: string;
-    providerName: string;
-    serviceTitle: string;
-    rating: number;
-    reviewCount: number;
-    hourlyRate: number;
-  } | null>(null);
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
 
   const categories = [
     { id: "homeMaintenance", label: t.categories.homeMaintenance },
@@ -38,58 +33,8 @@ export default function Hub() {
     { id: "health", label: t.categories.health },
   ];
 
-  // Mock featured providers
-  const featuredProviders = isRTL ? [
-    {
-      id: "1",
-      providerName: "أحمد الشمري",
-      serviceTitle: "صيانة مكيفات احترافية",
-      rating: 4.9,
-      reviewCount: 127,
-      hourlyRate: 150,
-    },
-    {
-      id: "2",
-      providerName: "سارة القحطاني",
-      serviceTitle: "تنظيف منازل شامل",
-      rating: 4.8,
-      reviewCount: 89,
-      hourlyRate: 100,
-    },
-    {
-      id: "3",
-      providerName: "محمد العتيبي",
-      serviceTitle: "صيانة أجهزة إلكترونية",
-      rating: 4.7,
-      reviewCount: 64,
-      hourlyRate: 120,
-    },
-  ] : [
-    {
-      id: "1",
-      providerName: "John Smith",
-      serviceTitle: "Professional AC Repair",
-      rating: 4.9,
-      reviewCount: 127,
-      hourlyRate: 75,
-    },
-    {
-      id: "2",
-      providerName: "Sarah Johnson",
-      serviceTitle: "Full House Cleaning",
-      rating: 4.8,
-      reviewCount: 89,
-      hourlyRate: 50,
-    },
-    {
-      id: "3",
-      providerName: "Mike Williams",
-      serviceTitle: "Electronics Repair",
-      rating: 4.7,
-      reviewCount: 64,
-      hourlyRate: 60,
-    },
-  ];
+  // Get featured providers (first 3 services)
+  const featuredProviders = services.slice(0, 3);
 
   const firstName = profile?.full_name?.split(" ")[0] || "";
 
@@ -97,13 +42,13 @@ export default function Hub() {
     navigate(`/services/${categoryId}`);
   };
 
-  const handleBook = (provider: typeof featuredProviders[0]) => {
-    setSelectedProvider(provider);
+  const handleBook = (service: Service) => {
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
+    setSelectedService(service);
     setBookingOpen(true);
-  };
-
-  const handleBookingSubmit = async (data: { description: string; date: Date; timeSlot: string }) => {
-    console.log("Booking submitted:", { provider: selectedProvider, ...data });
   };
 
   return (
@@ -169,25 +114,36 @@ export default function Hub() {
             </h2>
           </div>
           <div className="space-y-3">
-            {featuredProviders.map((provider) => (
-              <ServiceProviderCard
-                key={provider.id}
-                {...provider}
-                onBook={() => handleBook(provider)}
-              />
-            ))}
+            {featuredProviders.length > 0 ? (
+              featuredProviders.map((service) => (
+                <ServiceProviderCard
+                  key={service.id}
+                  id={service.id}
+                  providerName={service.provider_name || "Provider"}
+                  providerAvatar={service.provider_avatar}
+                  serviceTitle={service.title}
+                  price={Number(service.price)}
+                  onBook={() => handleBook(service)}
+                />
+              ))
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                {loading ? t.common.loading : t.services.noServices}
+              </div>
+            )}
           </div>
         </section>
       </div>
 
       {/* Booking Dialog */}
-      {selectedProvider && (
+      {selectedService && (
         <BookingDialog
           open={bookingOpen}
           onOpenChange={setBookingOpen}
-          serviceTitle={selectedProvider.serviceTitle}
-          providerName={selectedProvider.providerName}
-          onSubmit={handleBookingSubmit}
+          serviceId={selectedService.id}
+          serviceTitle={selectedService.title}
+          providerId={selectedService.user_id}
+          providerName={selectedService.provider_name || "Provider"}
         />
       )}
     </Layout>
