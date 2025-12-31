@@ -15,6 +15,7 @@ export interface Service {
   updated_at: string;
   provider_name?: string;
   provider_avatar?: string;
+  provider_phone?: string;
 }
 
 export function useServices() {
@@ -39,7 +40,7 @@ export function useServices() {
     const userIds = [...new Set(servicesData?.map(s => s.user_id) || [])];
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("user_id, full_name, avatar_url")
+      .select("user_id, full_name, avatar_url, phone")
       .in("user_id", userIds);
 
     const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
@@ -48,6 +49,7 @@ export function useServices() {
       ...service,
       provider_name: profileMap.get(service.user_id)?.full_name || "Provider",
       provider_avatar: profileMap.get(service.user_id)?.avatar_url || "",
+      provider_phone: profileMap.get(service.user_id)?.phone || "",
     }));
 
     setServices(enrichedServices);

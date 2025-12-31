@@ -48,6 +48,7 @@ const Profile = () => {
     full_name: "",
     bio: "",
     avatar_url: "",
+    phone: "",
   });
 
   const handleEdit = () => {
@@ -56,6 +57,7 @@ const Profile = () => {
         full_name: profile.full_name || "",
         bio: profile.bio || "",
         avatar_url: profile.avatar_url || "",
+        phone: profile.phone || "",
       });
     }
     setIsEditing(true);
@@ -66,6 +68,7 @@ const Profile = () => {
       full_name: formData.full_name || null,
       bio: formData.bio || null,
       avatar_url: formData.avatar_url || null,
+      phone: formData.phone || null,
     });
 
     if (error) {
@@ -201,6 +204,19 @@ const Profile = () => {
                       placeholder={t.profile.bioPlaceholder}
                       rows={3}
                       className="rounded-2xl"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">{t.profile.phone}</Label>
+                    <Input
+                      id="phone"
+                      value={formData.phone}
+                      onChange={(e) =>
+                        setFormData({ ...formData, phone: e.target.value })
+                      }
+                      placeholder={t.profile.phonePlaceholder}
+                      className="rounded-full"
+                      dir="ltr"
                     />
                   </div>
                   <div className="space-y-2">

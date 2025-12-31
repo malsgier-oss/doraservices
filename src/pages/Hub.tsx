@@ -144,6 +144,7 @@ export default function Hub() {
           serviceTitle={selectedService.title}
           providerId={selectedService.user_id}
           providerName={selectedService.provider_name || "Provider"}
+          providerPhone={selectedService.provider_phone}
         />
       )}
     </Layout>
