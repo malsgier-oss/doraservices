@@ -108,6 +108,7 @@ export default function Hub() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [searchFilters, setSearchFilters] = useState<SearchFiltersState>({
     city: null,
+    subCity: null,
     minRating: false,
   });
 
@@ -139,14 +140,19 @@ export default function Hub() {
   const clearFilters = () => {
     setSelectedCategory(null);
     setSearchQuery("");
-    setSearchFilters({ city: null, minRating: false });
+    setSearchFilters({ city: null, subCity: null, minRating: false });
   };
 
   const handleRemoveFilter = (key: keyof SearchFiltersState) => {
-    setSearchFilters(prev => ({
-      ...prev,
-      [key]: key === "minRating" ? false : null,
-    }));
+    if (key === "city") {
+      // Also clear sub-city when clearing city
+      setSearchFilters(prev => ({ ...prev, city: null, subCity: null }));
+    } else {
+      setSearchFilters(prev => ({
+        ...prev,
+        [key]: key === "minRating" ? false : null,
+      }));
+    }
   };
 
   // Filter services based on search and category
@@ -170,7 +176,7 @@ export default function Hub() {
     return services;
   }, [selectedCategory, searchQuery, serviceItems]);
 
-  const hasActiveFilters = selectedCategory || searchQuery.trim() || searchFilters.city || searchFilters.minRating;
+  const hasActiveFilters = selectedCategory || searchQuery.trim() || searchFilters.city || searchFilters.subCity || searchFilters.minRating;
 
   const selectedCategoryData = categories?.find(c => c.id === selectedCategory);
   const selectedCategoryLabel = selectedCategoryData
@@ -292,7 +298,7 @@ export default function Hub() {
         </div>
 
         {/* Active Filter Chips */}
-        {(searchFilters.city || searchFilters.minRating) && (
+        {(searchFilters.city || searchFilters.subCity || searchFilters.minRating) && (
           <div className="mt-2">
             <ActiveFilterChips 
               filters={searchFilters} 

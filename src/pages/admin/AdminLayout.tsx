@@ -11,6 +11,7 @@ import {
   History,
   ArrowLeft,
   Menu,
+  MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +31,7 @@ const navItems = [
   { to: "/admin/reviews", label: "Reviews", icon: MessageSquare },
   { to: "/admin/categories", label: "Categories", icon: Tag },
   { to: "/admin/cities", label: "Cities", icon: Flag },
+  { to: "/admin/sub-cities", label: "Sub-Cities", icon: MapPin },
   { to: "/admin/reports", label: "Reports", icon: Flag },
   { to: "/admin/messages", label: "Messages", icon: MessageSquare },
   { to: "/admin/analytics", label: "Analytics", icon: LayoutDashboard },

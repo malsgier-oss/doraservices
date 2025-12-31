@@ -18,10 +18,12 @@ import { LucideIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useReviews, useServiceRatings } from "@/hooks/useReviews";
+import { useCities } from "@/hooks/useCities";
+import { useSubCities } from "@/hooks/useSubCities";
 import { ReviewDialog } from "./ReviewDialog";
 import { ReviewList } from "./ReviewList";
 import { toast } from "sonner";
-import { LIBYAN_CITIES, SearchFiltersState } from "@/components/search/SearchFilters";
+import { SearchFiltersState } from "@/components/search/SearchFilters";
 
 interface ServiceProvider {
   id: string;
@@ -34,6 +36,7 @@ interface ServiceProvider {
   provider_avatar: string;
   provider_phone: string;
   provider_city: string | null;
+  provider_sub_city: string | null;
 }
 
 interface ServiceDetailSheetProps {
@@ -57,6 +60,8 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
   const { user } = useAuth();
   const { t, isRTL, language } = useLanguage();
   const { toggleFavorite, isFavorite } = useFavorites();
+  const { data: cities } = useCities();
+  const { data: subCities } = useSubCities(filters?.city);
   const [providers, setProviders] = useState<ServiceProvider[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
@@ -72,8 +77,15 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
   // Helper to get city label
   const getCityLabel = (cityId: string | null) => {
     if (!cityId) return null;
-    const city = LIBYAN_CITIES.find(c => c.id === cityId);
-    return city ? (language === "ar" ? city.ar : city.en) : cityId;
+    const city = cities?.find(c => c.id === cityId || c.name.toLowerCase() === cityId.toLowerCase());
+    return city ? (language === "ar" && city.name_ar ? city.name_ar : city.name) : cityId;
+  };
+
+  // Helper to get sub-city label
+  const getSubCityLabel = (subCityId: string | null) => {
+    if (!subCityId) return null;
+    const subCity = subCities?.find(sc => sc.id === subCityId || sc.name.toLowerCase() === subCityId.toLowerCase());
+    return subCity ? (language === "ar" && subCity.name_ar ? subCity.name_ar : subCity.name) : subCityId;
   };
 
   useEffect(() => {
@@ -111,7 +123,7 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
       const userIds = [...new Set(servicesData.map(s => s.user_id))];
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("user_id, full_name, avatar_url, phone, city, provider_status")
+        .select("user_id, full_name, avatar_url, phone, city, sub_city, provider_status")
         .in("user_id", userIds)
         .eq("provider_status", "approved"); // Only show approved providers
 
@@ -131,6 +143,7 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
           provider_avatar: profileMap.get(svc.user_id)?.avatar_url || "",
           provider_phone: profileMap.get(svc.user_id)?.phone || "",
           provider_city: profileMap.get(svc.user_id)?.city || null,
+          provider_sub_city: profileMap.get(svc.user_id)?.sub_city || null,
         }));
 
       setProviders(enrichedServices);
@@ -148,6 +161,11 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
     // Filter by city
     if (filters?.city) {
       result = result.filter(p => p.provider_city === filters.city);
+    }
+
+    // Filter by sub-city
+    if (filters?.subCity) {
+      result = result.filter(p => p.provider_sub_city === filters.subCity);
     }
 
     // Filter by minimum rating (4+ stars)
