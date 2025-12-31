@@ -44,6 +44,8 @@ interface ServiceDetailSheetProps {
     titleKey: string;
     descKey: string;
     category: string;
+    categoryName?: string;
+    categoryNameAr?: string;
     color: string;
     icon: LucideIcon;
   } | null;
@@ -164,7 +166,9 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
 
   const IconComponent = service.icon;
   const title = t.featuredList[service.titleKey as keyof typeof t.featuredList] || service.titleKey;
-  const categoryLabel = t.categories[service.category as keyof typeof t.categories] || service.category;
+  const categoryLabel = language === "ar" && service.categoryNameAr 
+    ? service.categoryNameAr 
+    : (service.categoryName || t.categories[service.category as keyof typeof t.categories] || service.category);
 
   const handleProviderClick = (provider: ServiceProvider) => {
     setSelectedProvider(provider);

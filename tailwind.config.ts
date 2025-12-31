@@ -4,6 +4,22 @@ export default {
   darkMode: ["class"],
   content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
   prefix: "",
+  safelist: [
+    // Category background colors from database
+    'bg-blue-500', 'bg-orange-500', 'bg-pink-500', 'bg-purple-500',
+    'bg-yellow-500', 'bg-cyan-500', 'bg-red-500', 'bg-emerald-500',
+    'bg-indigo-500', 'bg-lime-500', 'bg-green-500', 'bg-teal-500',
+    'bg-amber-500', 'bg-rose-500', 'bg-sky-500', 'bg-violet-500',
+    'bg-slate-500', 'bg-gray-500', 'bg-zinc-500', 'bg-neutral-500',
+    // Lighter variants for service items
+    'bg-blue-100', 'bg-orange-100', 'bg-pink-100', 'bg-purple-100',
+    'bg-yellow-100', 'bg-cyan-100', 'bg-red-100', 'bg-emerald-100',
+    'bg-indigo-100', 'bg-lime-100', 'bg-green-100', 'bg-teal-100',
+    'bg-amber-100', 'bg-rose-100', 'bg-sky-100', 'bg-violet-100',
+    // Custom hex backgrounds
+    'bg-[#FFEBD4]', 'bg-[#D4F5E9]', 'bg-[#E8D4FF]', 'bg-[#FFD4D4]',
+    'bg-[#D4E8FF]', 'bg-[#FFF4D4]', 'bg-[#D4FFF4]', 'bg-[#FFD4F0]',
+  ],
   theme: {
     container: {
       center: true,
