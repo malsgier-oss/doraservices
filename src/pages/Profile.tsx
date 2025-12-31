@@ -11,7 +11,8 @@ import {
   Briefcase,
   ClipboardList,
   Plus,
-  User,
+  Trash2,
+  Check,
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -25,9 +26,10 @@ import { useProfile } from "@/hooks/useProfile";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useServices } from "@/hooks/useServices";
+import { useBookings } from "@/hooks/useBookings";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { ServiceProviderCard } from "@/components/service/ServiceProviderCard";
 import { ServiceRequestCard } from "@/components/service/ServiceRequestCard";
 
 const Profile = () => {
@@ -39,6 +41,8 @@ const Profile = () => {
   const { profile, loading, updateProfile } = useProfile();
   const { isBusiness, loading: roleLoading, upgradeToBusiness } = useUserRole();
   const { t, isRTL } = useLanguage();
+  const { myServices, deleteService } = useServices();
+  const { myBookings, incomingBookings, cancelBooking, acceptBooking, completeBooking } = useBookings();
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -104,40 +108,42 @@ const Profile = () => {
     navigate("/auth");
   };
 
-  // Mock bookings data - will be replaced with real data
-  const mockBookings = [
-    {
-      id: "1",
-      providerName: "أحمد محمد",
-      providerAvatar: "",
-      serviceTitle: "صيانة مكيفات",
-      status: "pending" as const,
-      scheduledDate: new Date("2024-01-15"),
-      requestedDate: new Date("2024-01-10"),
-    },
-    {
-      id: "2",
-      providerName: "فاطمة علي",
-      providerAvatar: "",
-      serviceTitle: "تنظيف منزلي",
-      status: "in_progress" as const,
-      scheduledDate: new Date("2024-01-10"),
-      requestedDate: new Date("2024-01-08"),
-    },
-  ];
+  const handleDeleteService = async (id: string) => {
+    const { error } = await deleteService(id);
+    if (error) {
+      toast({
+        title: t.common.error,
+        description: "Failed to delete service",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: t.profile.serviceDeleted,
+        description: t.profile.serviceDeletedDesc,
+      });
+    }
+  };
 
-  // Mock services for business users
-  const mockMyServices = [
-    {
-      id: "svc-1",
-      providerName: profile?.full_name || "Provider",
-      providerAvatar: profile?.avatar_url || "",
-      serviceTitle: "Professional AC Repair",
-      rating: 4.8,
-      reviewCount: 24,
-      hourlyRate: 75,
-    },
-  ];
+  const handleCancelBooking = async (id: string) => {
+    const { error } = await cancelBooking(id);
+    if (error) {
+      toast({ title: t.common.error, variant: "destructive" });
+    }
+  };
+
+  const handleAcceptBooking = async (id: string) => {
+    const { error } = await acceptBooking(id);
+    if (error) {
+      toast({ title: t.common.error, variant: "destructive" });
+    }
+  };
+
+  const handleCompleteBooking = async (id: string) => {
+    const { error } = await completeBooking(id);
+    if (error) {
+      toast({ title: t.common.error, variant: "destructive" });
+    }
+  };
 
   if (loading || roleLoading) {
     return (
@@ -226,17 +232,12 @@ const Profile = () => {
                     <h1 className="font-display text-2xl font-bold text-foreground">
                       {displayName}
                     </h1>
-                    <div className="flex gap-2 justify-center flex-wrap">
-                      <Badge className="rounded-full bg-primary/10 text-primary border-0">
-                        {t.profile.tier}: {profile?.tier || t.profile.explorer}
+                    {isBusiness && (
+                      <Badge className="rounded-full bg-success/10 text-success border-0">
+                        <Briefcase className="h-3 w-3 mr-1" />
+                        {t.profile.providerAccount}
                       </Badge>
-                      {isBusiness && (
-                        <Badge className="rounded-full bg-success/10 text-success border-0">
-                          <Briefcase className="h-3 w-3 mr-1" />
-                          {t.profile.providerAccount}
-                        </Badge>
-                      )}
-                    </div>
+                    )}
                   </div>
 
                   {profile?.bio && (
@@ -250,15 +251,6 @@ const Profile = () => {
                       <Calendar className="h-4 w-4" />
                       {t.profile.memberSince} {memberSince}
                     </span>
-                  </div>
-
-                  <div className="flex justify-center gap-4">
-                    <div className="text-center bg-muted/50 rounded-full px-6 py-3">
-                      <p className="font-display text-xl font-bold text-foreground">
-                        {profile?.points || 0}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{t.profile.points}</p>
-                    </div>
                   </div>
                 </>
               )}
@@ -318,7 +310,7 @@ const Profile = () => {
       <section className="py-6">
         <div className="container">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className={`grid w-full max-w-md grid-cols-${isBusiness ? "3" : "2"} mx-auto mb-6 rounded-full p-1`}>
+            <TabsList className={`grid w-full max-w-md ${isBusiness ? "grid-cols-3" : "grid-cols-2"} mx-auto mb-6 rounded-full p-1`}>
               <TabsTrigger value="bookings" className="flex items-center gap-1.5 rounded-full">
                 <ClipboardList className="h-4 w-4" />
                 {t.profile.myBookings}
@@ -337,44 +329,92 @@ const Profile = () => {
 
             {/* Bookings Tab */}
             <TabsContent value="bookings" className="animate-fade-in">
-              <div className="max-w-2xl mx-auto space-y-4">
-                <h2 className="font-display text-lg font-semibold">
-                  {t.profile.myBookings}
-                </h2>
-                {mockBookings.length > 0 ? (
-                  <div className="space-y-4">
-                    {mockBookings.map((booking) => (
-                      <ServiceRequestCard
-                        key={booking.id}
-                        id={booking.id}
-                        providerName={booking.providerName}
-                        providerAvatar={booking.providerAvatar}
-                        serviceTitle={booking.serviceTitle}
-                        status={booking.status}
-                        scheduledDate={booking.scheduledDate}
-                        requestedDate={booking.requestedDate}
-                        onViewDetails={() => {}}
-                        onCancel={() => {}}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12 bg-muted/30 rounded-3xl">
-                    <div className="h-16 w-16 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
-                      <ClipboardList className="h-8 w-8 text-muted-foreground" />
+              <div className="max-w-2xl mx-auto space-y-6">
+                {/* My Bookings */}
+                <div className="space-y-4">
+                  <h2 className="font-display text-lg font-semibold">
+                    {t.profile.myBookings}
+                  </h2>
+                  {myBookings.length > 0 ? (
+                    <div className="space-y-4">
+                      {myBookings.map((booking) => (
+                        <ServiceRequestCard
+                          key={booking.id}
+                          id={booking.id}
+                          providerName={booking.provider_name || "Provider"}
+                          providerAvatar={booking.provider_avatar}
+                          serviceTitle={booking.service_title || "Service"}
+                          status={booking.status}
+                          scheduledDate={new Date(booking.scheduled_date)}
+                          requestedDate={new Date(booking.created_at)}
+                          onViewDetails={() => {}}
+                          onCancel={() => handleCancelBooking(booking.id)}
+                        />
+                      ))}
                     </div>
-                    <p className="text-muted-foreground font-medium">
-                      {t.profile.noBookings}
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {t.profile.noBookingsDesc}
-                    </p>
-                    <Button 
-                      className="mt-4 rounded-full" 
-                      onClick={() => navigate("/")}
-                    >
-                      {t.services.bookService}
-                    </Button>
+                  ) : (
+                    <div className="text-center py-12 bg-muted/30 rounded-3xl">
+                      <div className="h-16 w-16 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
+                        <ClipboardList className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                      <p className="text-muted-foreground font-medium">
+                        {t.profile.noBookings}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {t.profile.noBookingsDesc}
+                      </p>
+                      <Button 
+                        className="mt-4 rounded-full" 
+                        onClick={() => navigate("/")}
+                      >
+                        {t.services.bookService}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Incoming Bookings for Providers */}
+                {isBusiness && incomingBookings.length > 0 && (
+                  <div className="space-y-4">
+                    <h2 className="font-display text-lg font-semibold">
+                      {t.booking.incomingRequests}
+                    </h2>
+                    <div className="space-y-4">
+                      {incomingBookings.map((booking) => (
+                        <div key={booking.id} className="bg-card rounded-2xl p-4 shadow-card">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <h3 className="font-semibold">{booking.service_title}</h3>
+                              <p className="text-sm text-muted-foreground">{booking.customer_name}</p>
+                              <p className="text-sm text-muted-foreground mt-1">{booking.description}</p>
+                              <p className="text-xs text-muted-foreground mt-2">
+                                {format(new Date(booking.scheduled_date), "d MMM yyyy")} • {booking.time_slot}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              {booking.status === "pending" && (
+                                <Button 
+                                  size="sm" 
+                                  className="rounded-full"
+                                  onClick={() => handleAcceptBooking(booking.id)}
+                                >
+                                  <Check className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {booking.status === "in_progress" && (
+                                <Button 
+                                  size="sm" 
+                                  className="rounded-full"
+                                  onClick={() => handleCompleteBooking(booking.id)}
+                                >
+                                  {t.booking.completeBooking}
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -398,24 +438,28 @@ const Profile = () => {
                     </Button>
                   </div>
                   
-                  {mockMyServices.length > 0 ? (
+                  {myServices.length > 0 ? (
                     <div className="space-y-4">
-                      {mockMyServices.map((service) => (
-                        <div key={service.id} className="relative">
-                          <ServiceProviderCard
-                            id={service.id}
-                            providerName={service.providerName}
-                            providerAvatar={service.providerAvatar}
-                            serviceTitle={service.serviceTitle}
-                            rating={service.rating}
-                            reviewCount={service.reviewCount}
-                            hourlyRate={service.hourlyRate}
-                            onBook={() => {}}
-                          />
-                          <div className={`absolute top-4 ${isRTL ? "left-4" : "right-4"} flex gap-2`}>
-                            <Button size="icon" variant="outline" className="h-8 w-8 rounded-full">
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
+                      {myServices.map((service) => (
+                        <div key={service.id} className="bg-card rounded-2xl p-4 shadow-card">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <h3 className="font-semibold text-foreground">{service.title}</h3>
+                              <p className="text-sm text-muted-foreground mt-1">{service.description}</p>
+                              <p className="font-bold text-primary mt-2">
+                                {service.price} {t.common.currency}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button 
+                                size="icon" 
+                                variant="outline" 
+                                className="h-8 w-8 rounded-full"
+                                onClick={() => handleDeleteService(service.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -450,39 +494,13 @@ const Profile = () => {
                 <h2 className="font-display text-lg font-semibold">
                   {t.profile.settings}
                 </h2>
-                <div className="bg-card rounded-3xl p-6 space-y-4 shadow-sm">
-                  <button 
-                    onClick={handleEdit}
-                    className={`w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-muted/50 transition-colors ${isRTL ? "flex-row-reverse text-right" : ""}`}
-                  >
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <User className="h-5 w-5 text-primary" />
-                    </div>
-                    <span className="font-medium">{t.profile.editProfile}</span>
-                  </button>
-                  
-                  {!isBusiness && (
-                    <button 
-                      onClick={handleUpgradeToBusiness}
-                      disabled={isUpgrading}
-                      className={`w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-muted/50 transition-colors ${isRTL ? "flex-row-reverse text-right" : ""}`}
-                    >
-                      <div className="h-10 w-10 rounded-full bg-success/10 flex items-center justify-center">
-                        <Briefcase className="h-5 w-5 text-success" />
-                      </div>
-                      <span className="font-medium">{t.profile.becomeProvider}</span>
-                    </button>
-                  )}
-                  
-                  <button 
-                    onClick={handleSignOut}
-                    className={`w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-destructive/10 transition-colors ${isRTL ? "flex-row-reverse text-right" : ""}`}
-                  >
-                    <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center">
-                      <LogOut className="h-5 w-5 text-destructive" />
-                    </div>
-                    <span className="font-medium text-destructive">{t.profile.logout}</span>
-                  </button>
+                <div className="bg-card rounded-2xl p-4 shadow-card space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-foreground">{t.language.title}</span>
+                    <span className="text-muted-foreground text-sm">
+                      {isRTL ? t.language.arabic : t.language.english}
+                    </span>
+                  </div>
                 </div>
               </div>
             </TabsContent>
