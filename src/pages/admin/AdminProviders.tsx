@@ -98,12 +98,26 @@ export default function AdminProviders() {
   });
 
   const updateProviderStatus = useMutation({
-    mutationFn: async ({ userId, providerStatus }: { userId: string; providerStatus: string }) => {
+    mutationFn: async ({ userId, providerStatus, providerName }: { userId: string; providerStatus: string; providerName?: string }) => {
       const { error } = await supabase
         .from("profiles")
         .update({ provider_status: providerStatus })
         .eq("user_id", userId);
       if (error) throw error;
+
+      // Send notification to provider
+      const title = providerStatus === "approved" 
+        ? "Provider Application Approved! 🎉" 
+        : "Provider Application Update";
+      const content = providerStatus === "approved"
+        ? "Congratulations! Your provider application has been approved. You can now offer your services on the platform."
+        : "Your provider application status has been updated. Please contact support if you have questions.";
+      
+      await supabase.rpc("create_user_notification", {
+        p_user_id: userId,
+        p_title: title,
+        p_content: content,
+      });
 
       // Log admin action
       await supabase.rpc("log_admin_action", {
