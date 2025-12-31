@@ -26,7 +26,9 @@ import {
   Stethoscope,
   Activity,
   X,
-  Search
+  Search,
+  Star,
+  MapPin
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -77,6 +79,34 @@ const featuredServices = [
   { id: "homeDoctor", icon: Stethoscope, color: "bg-[#D4E5D2]", titleKey: "homeDoctor", descKey: "homeDoctorDesc", category: "healingWellness" },
   { id: "nursing", icon: Activity, color: "bg-[#D4E5D2]", titleKey: "nursing", descKey: "nursingDesc", category: "healingWellness" },
 ];
+
+// Filter suggestion chip component
+function FilterSuggestionChip({ 
+  icon, 
+  label, 
+  isActive, 
+  onClick 
+}: { 
+  icon: React.ReactNode; 
+  label: string; 
+  isActive: boolean; 
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all",
+        isActive 
+          ? "bg-[#333] text-white" 
+          : "bg-white text-[#666] shadow-sm hover:bg-gray-50"
+      )}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
 
 export default function Hub() {
   const navigate = useNavigate();
@@ -183,9 +213,9 @@ export default function Hub() {
           </div>
         </div>
 
-        {/* Search Bar with Filter */}
-        <div className="mt-4 flex gap-2">
-          <div className="relative flex-1">
+        {/* Search Bar */}
+        <div className="mt-4">
+          <div className="relative">
             <Search
               className={cn(
                 "absolute top-1/2 -translate-y-1/2 h-5 w-5 text-[#999]",
@@ -214,6 +244,43 @@ export default function Hub() {
               </button>
             )}
           </div>
+        </div>
+
+        {/* Filter Suggestions */}
+        <div className="mt-3 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+          <FilterSuggestionChip
+            icon={<MapPin className="h-3.5 w-3.5" />}
+            label={isRTL ? "طرابلس" : "Tripoli"}
+            isActive={searchFilters.city === "tripoli"}
+            onClick={() => setSearchFilters(prev => ({ 
+              ...prev, 
+              city: prev.city === "tripoli" ? null : "tripoli" 
+            }))}
+          />
+          <FilterSuggestionChip
+            icon={<MapPin className="h-3.5 w-3.5" />}
+            label={isRTL ? "بنغازي" : "Benghazi"}
+            isActive={searchFilters.city === "benghazi"}
+            onClick={() => setSearchFilters(prev => ({ 
+              ...prev, 
+              city: prev.city === "benghazi" ? null : "benghazi" 
+            }))}
+          />
+          <FilterSuggestionChip
+            icon={<MapPin className="h-3.5 w-3.5" />}
+            label={isRTL ? "مصراتة" : "Misrata"}
+            isActive={searchFilters.city === "misrata"}
+            onClick={() => setSearchFilters(prev => ({ 
+              ...prev, 
+              city: prev.city === "misrata" ? null : "misrata" 
+            }))}
+          />
+          <FilterSuggestionChip
+            icon={<Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />}
+            label={isRTL ? "4+ نجوم" : "4+ Stars"}
+            isActive={searchFilters.minRating}
+            onClick={() => setSearchFilters(prev => ({ ...prev, minRating: !prev.minRating }))}
+          />
           <SearchFilters 
             filters={searchFilters} 
             onFiltersChange={setSearchFilters} 
@@ -222,7 +289,7 @@ export default function Hub() {
 
         {/* Active Filter Chips */}
         {(searchFilters.city || searchFilters.minRating) && (
-          <div className="mt-3">
+          <div className="mt-2">
             <ActiveFilterChips 
               filters={searchFilters} 
               onRemoveFilter={handleRemoveFilter} 

@@ -146,6 +146,11 @@ export default function ServiceCreator() {
       toast.error(isRTL ? "يرجى اختيار الفئة" : "Please select a category");
       return;
     }
+    const cityValue = formData.city || profile?.city;
+    if (!cityValue) {
+      toast.error(isRTL ? "يرجى اختيار المدينة" : "Please select your city");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -217,6 +222,35 @@ export default function ServiceCreator() {
             </Select>
           </div>
 
+          {/* City Selection - Under Category */}
+          <div className="space-y-2">
+            <Label className={cn("flex items-center gap-2", isRTL ? "flex-row-reverse justify-end" : "")}>
+              <MapPin className="h-4 w-4" />
+              {isRTL ? "المدينة" : "City"} <span className="text-destructive">*</span>
+            </Label>
+            <Select
+              value={formData.city || profile?.city || "none"}
+              onValueChange={(value) => setFormData({ ...formData, city: value === "none" ? "" : value })}
+            >
+              <SelectTrigger className="rounded-xl h-12">
+                <SelectValue placeholder={isRTL ? "اختر مدينتك" : "Select your city"} />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border z-50">
+                <SelectItem value="none">
+                  {isRTL ? "-- اختر مدينة --" : "-- Select city --"}
+                </SelectItem>
+                {LIBYAN_CITIES.map((city) => (
+                  <SelectItem key={city.id} value={city.id}>
+                    {language === "ar" ? city.ar : city.en}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {isRTL ? "يساعد العملاء على إيجادك" : "Helps customers find you"}
+            </p>
+          </div>
+
           {/* Subcategory Selection (if available) */}
           {selectedCategory && selectedCategory.subcategories.length > 0 && (
             <div className="space-y-2">
@@ -276,34 +310,6 @@ export default function ServiceCreator() {
             />
           </div>
 
-          {/* City Selection */}
-          <div className="space-y-2">
-            <Label className={cn("flex items-center gap-2", isRTL ? "flex-row-reverse justify-end" : "")}>
-              <MapPin className="h-4 w-4" />
-              {isRTL ? "المدينة" : "City"}
-            </Label>
-            <Select
-              value={formData.city || profile?.city || "none"}
-              onValueChange={(value) => setFormData({ ...formData, city: value === "none" ? "" : value })}
-            >
-              <SelectTrigger className="rounded-xl h-12">
-                <SelectValue placeholder={isRTL ? "اختر مدينتك" : "Select your city"} />
-              </SelectTrigger>
-              <SelectContent className="bg-card border-border z-50">
-                <SelectItem value="none">
-                  {isRTL ? "-- اختر مدينة --" : "-- Select city --"}
-                </SelectItem>
-                {LIBYAN_CITIES.map((city) => (
-                  <SelectItem key={city.id} value={city.id}>
-                    {language === "ar" ? city.ar : city.en}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              {isRTL ? "يساعد العملاء على إيجادك" : "Helps customers find you"}
-            </p>
-          </div>
 
           {/* Submit */}
           <Button
