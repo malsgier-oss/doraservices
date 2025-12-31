@@ -8,97 +8,34 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useServices } from "@/hooks/useServices";
 import { useProfile } from "@/hooks/useProfile";
+import { useCategories } from "@/hooks/useCategories";
+import { useSubcategories } from "@/hooks/useSubcategories";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { LIBYAN_CITIES } from "@/components/search/SearchFilters";
 import { 
-  Wrench, 
-  Car, 
-  Zap, 
-  Scale, 
-  Building, 
-  BookOpen, 
-  Heart, 
-  PartyPopper,
-  Lightbulb,
-  Droplets,
-  Snowflake,
-  Fuel,
-  ClipboardCheck,
-  Sun,
-  BatteryCharging,
-  Gavel,
-  Languages,
-  Camera,
-  UtensilsCrossed,
-  Stethoscope,
-  UserCheck,
-  MapPin
+  Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper,
+  Wrench, Droplets, Wind, Fuel, ClipboardCheck, Sun, Cog, Scale,
+  Languages, Camera, UtensilsCrossed, Stethoscope, Activity,
+  Hammer, Paintbrush, Battery, Calculator, Sparkles,
+  MapPin,
+  LucideIcon
 } from "lucide-react";
 
-// Subcategories for each main category
-const categoryStructure = {
-  homeMaintenance: {
-    icon: Wrench,
-    subcategories: [
-      { id: "electrician", icon: Lightbulb },
-      { id: "plumbing", icon: Droplets },
-      { id: "acRepair", icon: Snowflake },
-    ]
-  },
-  carCare: {
-    icon: Car,
-    subcategories: [
-      { id: "oilFilter", icon: Fuel },
-      { id: "inspection", icon: ClipboardCheck },
-    ]
-  },
-  powerUtilities: {
-    icon: Zap,
-    subcategories: [
-      { id: "solar", icon: Sun },
-      { id: "generator", icon: BatteryCharging },
-    ]
-  },
-  professionalLegal: {
-    icon: Scale,
-    subcategories: [
-      { id: "legal", icon: Gavel },
-      { id: "translation", icon: Languages },
-    ]
-  },
-  propertyLogistics: {
-    icon: Building,
-    subcategories: []
-  },
-  learningEducation: {
-    icon: BookOpen,
-    subcategories: []
-  },
-  healingWellness: {
-    icon: Heart,
-    subcategories: [
-      { id: "homeDoctor", icon: Stethoscope },
-      { id: "nursing", icon: UserCheck },
-    ]
-  },
-  eventsCatering: {
-    icon: PartyPopper,
-    subcategories: [
-      { id: "photography", icon: Camera },
-      { id: "catering", icon: UtensilsCrossed },
-    ]
-  },
+// Icon mapping for dynamic icons from database
+const ICON_MAP: Record<string, LucideIcon> = {
+  Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper,
+  Wrench, Droplets, Wind, Fuel, ClipboardCheck, Sun, Cog, Scale,
+  Languages, Camera, UtensilsCrossed, Stethoscope, Activity,
+  Hammer, Paintbrush, Battery, Calculator, Sparkles
 };
 
 export default function ServiceCreator() {
@@ -107,6 +44,8 @@ export default function ServiceCreator() {
   const { t, isRTL, language } = useLanguage();
   const { createService } = useServices();
   const { profile, updateProfile } = useProfile();
+  const { data: categories } = useCategories();
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     serviceName: "",
@@ -116,18 +55,9 @@ export default function ServiceCreator() {
     city: "",
   });
 
-  const mainCategories = Object.entries(categoryStructure).map(([id, data]) => ({
-    id,
-    label: t.categories[id as keyof typeof t.categories] || id,
-    icon: data.icon,
-    subcategories: data.subcategories.map(sub => ({
-      id: sub.id,
-      label: t.featuredList[sub.id as keyof typeof t.featuredList] || sub.id,
-      icon: sub.icon,
-    })),
-  }));
-
-  const selectedCategory = mainCategories.find(c => c.id === formData.category);
+  // Get subcategories for selected category
+  const selectedCategory = categories?.find(c => c.id === formData.category);
+  const { data: subcategories } = useSubcategories(formData.category || undefined);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -159,10 +89,15 @@ export default function ServiceCreator() {
         await updateProfile({ city: formData.city });
       }
 
+      // Use subcategory name if selected, otherwise use category name
+      const categoryToUse = formData.subcategory 
+        ? subcategories?.find(s => s.id === formData.subcategory)?.name 
+        : selectedCategory?.name;
+
       const { error } = await createService({
         title: formData.serviceName,
         description: formData.bio || undefined,
-        category: formData.category,
+        category: categoryToUse || "",
         price: 0, // Price no longer used but required by DB
       });
 
@@ -207,13 +142,14 @@ export default function ServiceCreator() {
                 <SelectValue placeholder={t.creator.selectCategory} />
               </SelectTrigger>
               <SelectContent className="bg-card border-border z-50">
-                {mainCategories.map((cat) => {
-                  const Icon = cat.icon;
+                {categories?.map((cat) => {
+                  const Icon = ICON_MAP[cat.icon] || Home;
+                  const displayName = language === "ar" && cat.name_ar ? cat.name_ar : cat.name;
                   return (
                     <SelectItem key={cat.id} value={cat.id}>
                       <div className="flex items-center gap-2">
                         <Icon className="h-4 w-4" />
-                        <span>{cat.label}</span>
+                        <span>{displayName}</span>
                       </div>
                     </SelectItem>
                   );
@@ -222,7 +158,7 @@ export default function ServiceCreator() {
             </Select>
           </div>
 
-          {/* City Selection - Under Category */}
+          {/* City Selection */}
           <div className="space-y-2">
             <Label className={cn("flex items-center gap-2", isRTL ? "flex-row-reverse justify-end" : "")}>
               <MapPin className="h-4 w-4" />
@@ -252,15 +188,16 @@ export default function ServiceCreator() {
           </div>
 
           {/* Subcategory Selection (if available) */}
-          {selectedCategory && selectedCategory.subcategories.length > 0 && (
+          {selectedCategory && subcategories && subcategories.length > 0 && (
             <div className="space-y-2">
               <Label className={cn(isRTL ? "text-right block" : "text-left block")}>
                 {isRTL ? "نوع الخدمة" : "Service Type"}
               </Label>
               <div className="grid grid-cols-2 gap-2">
-                {selectedCategory.subcategories.map((sub) => {
-                  const SubIcon = sub.icon;
+                {subcategories.map((sub) => {
+                  const SubIcon = ICON_MAP[sub.icon] || Wrench;
                   const isSelected = formData.subcategory === sub.id;
+                  const displayName = language === "ar" && sub.name_ar ? sub.name_ar : sub.name;
                   return (
                     <button
                       key={sub.id}
@@ -274,7 +211,7 @@ export default function ServiceCreator() {
                       )}
                     >
                       <SubIcon className="h-5 w-5" />
-                      <span className="text-sm font-medium">{sub.label}</span>
+                      <span className="text-sm font-medium">{displayName}</span>
                     </button>
                   );
                 })}
@@ -309,7 +246,6 @@ export default function ServiceCreator() {
               dir={isRTL ? "rtl" : "ltr"}
             />
           </div>
-
 
           {/* Submit */}
           <Button

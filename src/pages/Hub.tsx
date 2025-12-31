@@ -28,7 +28,13 @@ import {
   X,
   Search,
   Star,
-  MapPin
+  MapPin,
+  Hammer,
+  Paintbrush,
+  Battery,
+  Calculator,
+  Sparkles,
+  LucideIcon
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -39,46 +45,26 @@ import { SearchFilters, ActiveFilterChips, SearchFiltersState } from "@/componen
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
+import { useCategories } from "@/hooks/useCategories";
+import { useAllSubcategories } from "@/hooks/useSubcategories";
 import { cn } from "@/lib/utils";
-import { LucideIcon } from "lucide-react";
 
-interface FeaturedService {
+// Icon mapping for dynamic icons from database
+const ICON_MAP: Record<string, LucideIcon> = {
+  Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper,
+  Wrench, Droplets, Wind, Fuel, ClipboardCheck, Sun, Cog, Scale,
+  Languages, Camera, UtensilsCrossed, Stethoscope, Activity,
+  Hammer, Paintbrush, Battery, Calculator, Sparkles
+};
+
+interface ServiceItem {
   id: string;
   icon: LucideIcon;
   color: string;
-  titleKey: string;
-  descKey: string;
-  category: string;
+  name: string;
+  name_ar: string | null;
+  category_id: string;
 }
-
-// Category data with colors and icons
-const categories = [
-  { id: "homeMaintenance", icon: Home, color: "bg-[#FFEBD4]", labelKey: "homeMaintenance" },
-  { id: "carCare", icon: Car, color: "bg-[#FFE9A8]", labelKey: "carCare" },
-  { id: "powerUtilities", icon: Zap, color: "bg-[#FFD6B0]", labelKey: "powerUtilities" },
-  { id: "professionalLegal", icon: Briefcase, color: "bg-[#C5D8F8]", labelKey: "professionalLegal" },
-  { id: "propertyLogistics", icon: Building2, color: "bg-[#D4C4B0]", labelKey: "propertyLogistics" },
-  { id: "learningEducation", icon: GraduationCap, color: "bg-[#B8E0E0]", labelKey: "learningEducation" },
-  { id: "healingWellness", icon: Heart, color: "bg-[#D4E5D2]", labelKey: "healingWellness" },
-  { id: "eventsCatering", icon: PartyPopper, color: "bg-[#E8D4F0]", labelKey: "eventsCatering" },
-];
-
-// Featured services data
-const featuredServices = [
-  { id: "electrician", icon: Wrench, color: "bg-[#FFEBD4]", titleKey: "electrician", descKey: "electricianDesc", category: "homeMaintenance" },
-  { id: "plumbing", icon: Droplets, color: "bg-[#C5E8F8]", titleKey: "plumbing", descKey: "plumbingDesc", category: "homeMaintenance" },
-  { id: "acRepair", icon: Wind, color: "bg-[#E8F4E8]", titleKey: "acRepair", descKey: "acRepairDesc", category: "homeMaintenance" },
-  { id: "oilFilter", icon: Fuel, color: "bg-[#FFE9A8]", titleKey: "oilFilter", descKey: "oilFilterDesc", category: "carCare" },
-  { id: "inspection", icon: ClipboardCheck, color: "bg-[#FFE9A8]", titleKey: "inspection", descKey: "inspectionDesc", category: "carCare" },
-  { id: "solar", icon: Sun, color: "bg-[#FFD6B0]", titleKey: "solar", descKey: "solarDesc", category: "powerUtilities" },
-  { id: "generator", icon: Cog, color: "bg-[#FFD6B0]", titleKey: "generator", descKey: "generatorDesc", category: "powerUtilities" },
-  { id: "legal", icon: Scale, color: "bg-[#C5D8F8]", titleKey: "legal", descKey: "legalDesc", category: "professionalLegal" },
-  { id: "translation", icon: Languages, color: "bg-[#C5D8F8]", titleKey: "translation", descKey: "translationDesc", category: "professionalLegal" },
-  { id: "photography", icon: Camera, color: "bg-[#E8D4F0]", titleKey: "photography", descKey: "photographyDesc", category: "eventsCatering" },
-  { id: "catering", icon: UtensilsCrossed, color: "bg-[#E8D4F0]", titleKey: "catering", descKey: "cateringDesc", category: "eventsCatering" },
-  { id: "homeDoctor", icon: Stethoscope, color: "bg-[#D4E5D2]", titleKey: "homeDoctor", descKey: "homeDoctorDesc", category: "healingWellness" },
-  { id: "nursing", icon: Activity, color: "bg-[#D4E5D2]", titleKey: "nursing", descKey: "nursingDesc", category: "healingWellness" },
-];
 
 // Filter suggestion chip component
 function FilterSuggestionChip({ 
@@ -112,22 +98,40 @@ export default function Hub() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { profile } = useProfile();
-  const { t, isRTL } = useLanguage();
+  const { t, isRTL, language } = useLanguage();
+  const { data: categories, isLoading: categoriesLoading } = useCategories();
+  const { data: subcategories } = useAllSubcategories();
+  
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedService, setSelectedService] = useState<FeaturedService | null>(null);
+  const [selectedService, setSelectedService] = useState<ServiceItem | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [searchFilters, setSearchFilters] = useState<SearchFiltersState>({
     city: null,
     minRating: false,
   });
 
+  // Map subcategories to service items
+  const serviceItems: ServiceItem[] = useMemo(() => {
+    if (!subcategories) return [];
+    return subcategories
+      .filter(sub => sub.is_active)
+      .map(sub => ({
+        id: sub.id,
+        icon: ICON_MAP[sub.icon] || Wrench,
+        color: sub.color || categories?.find(c => c.id === sub.category_id)?.color || "bg-[#FFEBD4]",
+        name: sub.name,
+        name_ar: sub.name_ar,
+        category_id: sub.category_id,
+      }));
+  }, [subcategories, categories]);
+
   const handleCategoryClick = (categoryId: string) => {
     setSelectedCategory(prev => prev === categoryId ? null : categoryId);
     setSearchQuery(""); // Clear search when selecting category
   };
 
-  const handleServiceClick = (service: FeaturedService) => {
+  const handleServiceClick = (service: ServiceItem) => {
     setSelectedService(service);
     setSheetOpen(true);
   };
@@ -147,30 +151,30 @@ export default function Hub() {
 
   // Filter services based on search and category
   const filteredServices = useMemo(() => {
-    let services = featuredServices;
+    let services = serviceItems;
 
     // Filter by category
     if (selectedCategory) {
-      services = services.filter(s => s.category === selectedCategory);
+      services = services.filter(s => s.category_id === selectedCategory);
     }
 
     // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       services = services.filter(s => {
-        const title = t.featuredList[s.titleKey as keyof typeof t.featuredList] || "";
-        const desc = t.featuredList[s.descKey as keyof typeof t.featuredList] || "";
-        return title.toLowerCase().includes(query) || desc.toLowerCase().includes(query);
+        return s.name.toLowerCase().includes(query) || 
+               (s.name_ar && s.name_ar.toLowerCase().includes(query));
       });
     }
 
     return services;
-  }, [selectedCategory, searchQuery, t.featuredList]);
+  }, [selectedCategory, searchQuery, serviceItems]);
 
   const hasActiveFilters = selectedCategory || searchQuery.trim() || searchFilters.city || searchFilters.minRating;
 
-  const selectedCategoryLabel = selectedCategory
-    ? t.categories[selectedCategory as keyof typeof t.categories]
+  const selectedCategoryData = categories?.find(c => c.id === selectedCategory);
+  const selectedCategoryLabel = selectedCategoryData
+    ? (language === "ar" && selectedCategoryData.name_ar ? selectedCategoryData.name_ar : selectedCategoryData.name)
     : null;
 
   const initials = profile?.full_name
@@ -246,7 +250,7 @@ export default function Hub() {
           </div>
         </div>
 
-        {/* Filter Suggestions - moved down with more spacing */}
+        {/* Filter Suggestions */}
         <div className="mt-5 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
           <FilterSuggestionChip
             icon={<MapPin className="h-3.5 w-3.5" />}
@@ -299,33 +303,41 @@ export default function Hub() {
       </header>
 
       <main className="px-4 pb-8">
-        {/* Category Hero Section - moved down */}
+        {/* Category Hero Section */}
         <section className="mt-8">
           <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
-            {categories.map((cat) => {
-              const IconComponent = cat.icon;
-              const isSelected = selectedCategory === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => handleCategoryClick(cat.id)}
-                  className={cn(
-                    "flex-shrink-0 w-[100px] h-[100px] rounded-[20px] flex flex-col items-center justify-center gap-2 transition-all active:scale-95",
-                    cat.color,
-                    isSelected && "ring-2 ring-[#333] ring-offset-2"
-                  )}
-                >
-                  <IconComponent className="h-7 w-7 text-[#333]" strokeWidth={1.5} />
-                  <span className="text-[10px] font-medium text-[#333] text-center px-1 leading-tight">
-                    {t.categories[cat.labelKey as keyof typeof t.categories]}
-                  </span>
-                </button>
-              );
-            })}
+            {categoriesLoading ? (
+              // Loading skeleton
+              [...Array(5)].map((_, i) => (
+                <div key={i} className="flex-shrink-0 w-[100px] h-[100px] rounded-[20px] bg-gray-200 animate-pulse" />
+              ))
+            ) : (
+              categories?.map((cat) => {
+                const IconComponent = ICON_MAP[cat.icon] || Home;
+                const isSelected = selectedCategory === cat.id;
+                const displayName = language === "ar" && cat.name_ar ? cat.name_ar : cat.name;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => handleCategoryClick(cat.id)}
+                    className={cn(
+                      "flex-shrink-0 w-[100px] h-[100px] rounded-[20px] flex flex-col items-center justify-center gap-2 transition-all active:scale-95",
+                      cat.color,
+                      isSelected && "ring-2 ring-[#333] ring-offset-2"
+                    )}
+                  >
+                    <IconComponent className="h-7 w-7 text-[#333]" strokeWidth={1.5} />
+                    <span className="text-[10px] font-medium text-[#333] text-center px-1 leading-tight">
+                      {displayName}
+                    </span>
+                  </button>
+                );
+              })
+            )}
           </div>
         </section>
 
-        {/* Featured Services List - moved down with larger cards */}
+        {/* Featured Services List */}
         <section className="mt-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-[#333]">
@@ -359,6 +371,7 @@ export default function Hub() {
             {filteredServices.length > 0 ? (
               filteredServices.map((service, index) => {
                 const IconComponent = service.icon;
+                const displayName = language === "ar" && service.name_ar ? service.name_ar : service.name;
                 return (
                   <button
                     key={service.id}
@@ -369,7 +382,7 @@ export default function Hub() {
                       index < filteredServices.length - 1 && "border-b border-gray-100"
                     )}
                   >
-                    {/* Icon - larger */}
+                    {/* Icon */}
                     <div className={cn(
                       "h-14 w-14 rounded-full flex items-center justify-center flex-shrink-0",
                       service.color
@@ -377,14 +390,11 @@ export default function Hub() {
                       <IconComponent className="h-7 w-7 text-[#333]" strokeWidth={1.5} />
                     </div>
 
-                    {/* Text - larger */}
+                    {/* Text */}
                     <div className="flex-1 min-w-0">
                       <h3 className="text-lg font-semibold text-[#333]">
-                        {t.featuredList[service.titleKey as keyof typeof t.featuredList]}
+                        {displayName}
                       </h3>
-                      <p className="text-sm text-[#777] mt-1">
-                        {t.featuredList[service.descKey as keyof typeof t.featuredList]}
-                      </p>
                     </div>
 
                     {/* Chevron */}
@@ -415,7 +425,14 @@ export default function Hub() {
       <ServiceDetailSheet
         open={sheetOpen}
         onOpenChange={setSheetOpen}
-        service={selectedService}
+        service={selectedService ? {
+          id: selectedService.id,
+          icon: selectedService.icon,
+          color: selectedService.color,
+          titleKey: selectedService.name,
+          descKey: "",
+          category: selectedService.category_id,
+        } : null}
         filters={searchFilters}
       />
     </div>

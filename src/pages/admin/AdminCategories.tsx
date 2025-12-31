@@ -15,16 +15,23 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { 
-  Plus, Edit, Trash2, ArrowUp, ArrowDown,
+  Plus, Edit, Trash2, ArrowUp, ArrowDown, ChevronDown, ChevronRight,
   Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper,
   Wrench, Droplets, Wind, Fuel, ClipboardCheck, Sun, Cog, Scale,
   Languages, Camera, UtensilsCrossed, Stethoscope, Activity, Dog,
   Scissors, Laptop, PawPrint, Sparkles, Dumbbell, Utensils, Music,
-  Plane, ShoppingCart, Baby, Paintbrush, LucideIcon
+  Plane, ShoppingCart, Baby, Paintbrush, Hammer, Battery, Calculator,
+  LucideIcon
 } from "lucide-react";
 import { Category, useAllCategories } from "@/hooks/useCategories";
+import { Subcategory, useAllSubcategories, useSubcategoryMutations } from "@/hooks/useSubcategories";
 import { cn } from "@/lib/utils";
 
 // Icon mapping for rendering actual icons
@@ -33,7 +40,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Wrench, Droplets, Wind, Fuel, ClipboardCheck, Sun, Cog, Scale,
   Languages, Camera, UtensilsCrossed, Stethoscope, Activity, Dog,
   Scissors, Laptop, PawPrint, Sparkles, Dumbbell, Utensils, Music,
-  Plane, ShoppingCart, Baby, Paintbrush
+  Plane, ShoppingCart, Baby, Paintbrush, Hammer, Battery, Calculator
 };
 
 const ICON_OPTIONS = Object.keys(ICON_MAP);
@@ -56,6 +63,9 @@ const COLOR_OPTIONS = [
 export default function AdminCategories() {
   const queryClient = useQueryClient();
   const { data: categories, isLoading } = useAllCategories();
+  const { data: subcategories } = useAllSubcategories();
+  const { createSubcategory, updateSubcategory, deleteSubcategory } = useSubcategoryMutations();
+  
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [form, setForm] = useState({
@@ -65,6 +75,20 @@ export default function AdminCategories() {
     color: "bg-[#FFEBD4]",
     is_active: true,
   });
+
+  // Subcategory dialog state
+  const [subDialogOpen, setSubDialogOpen] = useState(false);
+  const [editingSubcategory, setEditingSubcategory] = useState<Subcategory | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [subForm, setSubForm] = useState({
+    name: "",
+    name_ar: "",
+    icon: "Wrench",
+    is_active: true,
+  });
+
+  // Track expanded categories
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
   const createCategory = useMutation({
     mutationFn: async (data: typeof form & { display_order: number }) => {
@@ -108,7 +132,7 @@ export default function AdminCategories() {
     },
   });
 
-  const deleteCategory = useMutation({
+  const deleteCategoryMutation = useMutation({
     mutationFn: async (id: string) => {
       const { count } = await supabase
         .from("services")
@@ -198,14 +222,78 @@ export default function AdminCategories() {
     }
   };
 
+  // Subcategory handlers
+  const openCreateSubDialog = (categoryId: string) => {
+    setSelectedCategoryId(categoryId);
+    setEditingSubcategory(null);
+    setSubForm({ name: "", name_ar: "", icon: "Wrench", is_active: true });
+    setSubDialogOpen(true);
+  };
+
+  const openEditSubDialog = (sub: Subcategory) => {
+    setSelectedCategoryId(sub.category_id);
+    setEditingSubcategory(sub);
+    setSubForm({
+      name: sub.name,
+      name_ar: sub.name_ar || "",
+      icon: sub.icon,
+      is_active: sub.is_active,
+    });
+    setSubDialogOpen(true);
+  };
+
+  const closeSubDialog = () => {
+    setSubDialogOpen(false);
+    setEditingSubcategory(null);
+    setSelectedCategoryId(null);
+  };
+
+  const handleSubSubmit = () => {
+    if (!subForm.name.trim()) {
+      toast.error("Name is required");
+      return;
+    }
+
+    if (editingSubcategory) {
+      updateSubcategory.mutate({ id: editingSubcategory.id, ...subForm });
+    } else if (selectedCategoryId) {
+      const categorySubcats = subcategories?.filter(s => s.category_id === selectedCategoryId) || [];
+      const maxOrder = Math.max(...categorySubcats.map(s => s.display_order), 0);
+      createSubcategory.mutate({
+        category_id: selectedCategoryId,
+        ...subForm,
+        display_order: maxOrder + 1,
+      });
+    }
+    closeSubDialog();
+  };
+
+  const toggleExpanded = (categoryId: string) => {
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(categoryId)) {
+        newSet.delete(categoryId);
+      } else {
+        newSet.add(categoryId);
+      }
+      return newSet;
+    });
+  };
+
   const sortedCategories = [...(categories || [])].sort((a, b) => a.display_order - b.display_order);
+
+  const getSubcategoriesForCategory = (categoryId: string) => {
+    return (subcategories || [])
+      .filter(s => s.category_id === categoryId)
+      .sort((a, b) => a.display_order - b.display_order);
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-display font-bold">Categories</h1>
-          <p className="text-muted-foreground">Manage service categories as shown on the main page</p>
+          <h1 className="text-2xl font-display font-bold">Categories & Subcategories</h1>
+          <p className="text-muted-foreground">Manage main categories and their subcategories (e.g., Electrician under Home Maintenance)</p>
         </div>
         <Button onClick={openCreateDialog}>
           <Plus className="h-4 w-4 mr-2" />
@@ -213,7 +301,7 @@ export default function AdminCategories() {
         </Button>
       </div>
 
-      {/* Preview Section - Shows categories as they appear on main page */}
+      {/* Preview Section */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Preview (Main Page Style)</CardTitle>
@@ -258,94 +346,180 @@ export default function AdminCategories() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[...Array(6)].map((_, i) => (
-                <Skeleton key={i} className="h-32 w-full rounded-xl" />
+            <div className="space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <Skeleton key={i} className="h-24 w-full rounded-xl" />
               ))}
             </div>
           ) : sortedCategories.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">No categories found. Add your first category!</p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-3">
               {sortedCategories.map((category, index) => {
                 const IconComponent = ICON_MAP[category.icon] || Home;
+                const categorySubs = getSubcategoriesForCategory(category.id);
+                const isExpanded = expandedCategories.has(category.id);
+
                 return (
-                  <div
+                  <Collapsible
                     key={category.id}
-                    className={cn(
-                      "relative p-4 rounded-xl border transition-all",
-                      !category.is_active && "opacity-50"
-                    )}
+                    open={isExpanded}
+                    onOpenChange={() => toggleExpanded(category.id)}
                   >
-                    {/* Category Card Preview */}
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={cn(
-                          "h-14 w-14 rounded-xl flex items-center justify-center flex-shrink-0",
-                          category.color
-                        )}
-                      >
-                        <IconComponent className="h-7 w-7 text-[#333]" strokeWidth={1.5} />
+                    <div
+                      className={cn(
+                        "rounded-xl border transition-all",
+                        !category.is_active && "opacity-50"
+                      )}
+                    >
+                      {/* Category Header */}
+                      <div className="p-4">
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={cn(
+                              "h-14 w-14 rounded-xl flex items-center justify-center flex-shrink-0",
+                              category.color
+                            )}
+                          >
+                            <IconComponent className="h-7 w-7 text-[#333]" strokeWidth={1.5} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-sm truncate">{category.name}</span>
+                              {!category.is_active && (
+                                <Badge variant="secondary" className="text-xs">Inactive</Badge>
+                              )}
+                              <Badge variant="outline" className="text-xs">
+                                {categorySubs.length} subcategories
+                              </Badge>
+                            </div>
+                            {category.name_ar && (
+                              <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">
+                                {category.name_ar}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => reorderCategory.mutate({ id: category.id, direction: "up" })}
+                              disabled={index === 0}
+                            >
+                              <ArrowUp className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => reorderCategory.mutate({ id: category.id, direction: "down" })}
+                              disabled={index === sortedCategories.length - 1}
+                            >
+                              <ArrowDown className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(category)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={() => {
+                                if (confirm("Are you sure you want to delete this category?")) {
+                                  deleteCategoryMutation.mutate(category.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Expand/Collapse Trigger */}
+                        <CollapsibleTrigger asChild>
+                          <Button variant="ghost" size="sm" className="mt-2 w-full justify-between">
+                            <span className="text-sm text-muted-foreground">
+                              {isExpanded ? "Hide" : "Show"} Subcategories
+                            </span>
+                            {isExpanded ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </CollapsibleTrigger>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-sm truncate">{category.name}</span>
-                          {!category.is_active && (
-                            <Badge variant="secondary" className="text-xs">Inactive</Badge>
+
+                      {/* Subcategories */}
+                      <CollapsibleContent>
+                        <div className="border-t px-4 py-3 bg-muted/30">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-sm font-medium">Subcategories</span>
+                            <Button size="sm" variant="outline" onClick={() => openCreateSubDialog(category.id)}>
+                              <Plus className="h-3 w-3 mr-1" />
+                              Add
+                            </Button>
+                          </div>
+
+                          {categorySubs.length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-4">
+                              No subcategories yet. Add one to enable specific service types.
+                            </p>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {categorySubs.map((sub) => {
+                                const SubIcon = ICON_MAP[sub.icon] || Wrench;
+                                return (
+                                  <div
+                                    key={sub.id}
+                                    className={cn(
+                                      "flex items-center gap-2 p-2 rounded-lg border bg-background",
+                                      !sub.is_active && "opacity-50"
+                                    )}
+                                  >
+                                    <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center">
+                                      <SubIcon className="h-4 w-4" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium truncate">{sub.name}</p>
+                                      {sub.name_ar && (
+                                        <p className="text-xs text-muted-foreground truncate" dir="rtl">
+                                          {sub.name_ar}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div className="flex gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7"
+                                        onClick={() => openEditSubDialog(sub)}
+                                      >
+                                        <Edit className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 text-destructive"
+                                        onClick={() => {
+                                          if (confirm("Delete this subcategory?")) {
+                                            deleteSubcategory.mutate(sub.id);
+                                          }
+                                        }}
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           )}
                         </div>
-                        {category.name_ar && (
-                          <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">
-                            {category.name_ar}
-                          </p>
-                        )}
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Order: {index + 1} • Icon: {category.icon}
-                        </p>
-                      </div>
+                      </CollapsibleContent>
                     </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center justify-between mt-3 pt-3 border-t">
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => reorderCategory.mutate({ id: category.id, direction: "up" })}
-                          disabled={index === 0}
-                        >
-                          <ArrowUp className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => reorderCategory.mutate({ id: category.id, direction: "down" })}
-                          disabled={index === sortedCategories.length - 1}
-                        >
-                          <ArrowDown className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(category)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
-                          onClick={() => {
-                            if (confirm("Are you sure you want to delete this category?")) {
-                              deleteCategory.mutate(category.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
+                  </Collapsible>
                 );
               })}
             </div>
@@ -353,7 +527,7 @@ export default function AdminCategories() {
         </CardContent>
       </Card>
 
-      {/* Add/Edit Dialog */}
+      {/* Add/Edit Category Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -460,6 +634,78 @@ export default function AdminCategories() {
             </Button>
             <Button onClick={handleSubmit} disabled={createCategory.isPending || updateCategory.isPending}>
               {editingCategory ? "Save Changes" : "Create Category"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add/Edit Subcategory Dialog */}
+      <Dialog open={subDialogOpen} onOpenChange={setSubDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingSubcategory ? "Edit Subcategory" : "Add Subcategory"}</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <Label>Name (English)</Label>
+              <Input
+                value={subForm.name}
+                onChange={(e) => setSubForm({ ...subForm, name: e.target.value })}
+                placeholder="e.g., Electrician"
+              />
+            </div>
+            <div>
+              <Label>Name (Arabic)</Label>
+              <Input
+                value={subForm.name_ar}
+                onChange={(e) => setSubForm({ ...subForm, name_ar: e.target.value })}
+                placeholder="e.g., كهربائي"
+                dir="rtl"
+              />
+            </div>
+
+            {/* Icon Selection */}
+            <div>
+              <Label>Icon</Label>
+              <div className="grid grid-cols-8 gap-2 mt-2 max-h-32 overflow-y-auto p-1">
+                {ICON_OPTIONS.map((iconName) => {
+                  const IconComp = ICON_MAP[iconName];
+                  return (
+                    <button
+                      key={iconName}
+                      type="button"
+                      className={cn(
+                        "h-9 w-9 rounded-lg flex items-center justify-center border transition-all",
+                        subForm.icon === iconName
+                          ? "border-primary bg-primary/10 ring-2 ring-primary ring-offset-1"
+                          : "border-border hover:border-primary/50"
+                      )}
+                      onClick={() => setSubForm({ ...subForm, icon: iconName })}
+                      title={iconName}
+                    >
+                      <IconComp className="h-4 w-4" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={subForm.is_active}
+                onCheckedChange={(checked) => setSubForm({ ...subForm, is_active: checked })}
+              />
+              <Label>Active</Label>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closeSubDialog}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubSubmit}>
+              {editingSubcategory ? "Save Changes" : "Add Subcategory"}
             </Button>
           </DialogFooter>
         </DialogContent>
