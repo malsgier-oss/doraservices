@@ -8,8 +8,7 @@ interface Profile {
   full_name: string | null;
   avatar_url: string | null;
   bio: string | null;
-  points: number;
-  tier: string;
+  phone: string | null;
   created_at: string;
   updated_at: string;
 }
