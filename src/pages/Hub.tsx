@@ -1,7 +1,5 @@
-import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
-  Search, 
   Bell, 
   User, 
   Home, 
@@ -27,14 +25,11 @@ import {
   Stethoscope,
   Activity
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { BookingDialog } from "@/components/service/BookingDialog";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
-import { useServices, Service } from "@/hooks/useServices";
 import { cn } from "@/lib/utils";
 
 // Category data with colors and icons
@@ -70,30 +65,7 @@ export default function Hub() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { profile } = useProfile();
-  const { t, isRTL, language } = useLanguage();
-  const { services } = useServices();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [bookingOpen, setBookingOpen] = useState(false);
-  const [selectedService, setSelectedService] = useState<Service | null>(null);
-  const [hasSearched, setHasSearched] = useState(false);
-
-  // Filter featured services based on search
-  const filteredServices = useMemo(() => {
-    if (!searchQuery.trim()) return featuredServices;
-    const query = searchQuery.toLowerCase();
-    return featuredServices.filter(s => {
-      const title = t.featuredList[s.titleKey as keyof typeof t.featuredList] || "";
-      const desc = t.featuredList[s.descKey as keyof typeof t.featuredList] || "";
-      return title.toLowerCase().includes(query) || desc.toLowerCase().includes(query);
-    });
-  }, [searchQuery, t.featuredList]);
-
-  const displayedServices = hasSearched ? filteredServices : featuredServices;
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setHasSearched(true);
-  };
+  const { t, isRTL } = useLanguage();
 
   const handleCategoryClick = (categoryId: string) => {
     navigate(`/services/${categoryId}`);
@@ -142,31 +114,6 @@ export default function Hub() {
             </button>
           </div>
         </div>
-
-        {/* Search Bar */}
-        <form onSubmit={handleSearch} className="mt-4">
-          <div className="relative">
-            <Search
-              className={cn(
-                "absolute top-1/2 -translate-y-1/2 h-5 w-5 text-[#777]",
-                isRTL ? "right-4" : "left-4"
-              )}
-            />
-            <Input
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                if (!e.target.value.trim()) setHasSearched(false);
-              }}
-              placeholder={t.hub.searchPlaceholder}
-              className={cn(
-                "rounded-[20px] bg-white border-0 h-14 text-base shadow-md placeholder:text-[#999]",
-                isRTL ? "pr-12 pl-4" : "pl-12 pr-4"
-              )}
-              dir={isRTL ? "rtl" : "ltr"}
-            />
-          </div>
-        </form>
       </header>
 
       <main className="px-4 pb-8">
@@ -201,73 +148,47 @@ export default function Hub() {
           </h2>
 
           <div className="bg-white rounded-[20px] shadow-sm overflow-hidden">
-            {displayedServices.length > 0 ? (
-              displayedServices.map((service, index) => {
-                const IconComponent = service.icon;
-                return (
-                  <button
-                    key={service.id}
-                    onClick={() => handleServiceClick(service.category)}
-                    className={cn(
-                      "w-full flex items-center gap-4 p-4 text-left transition-colors hover:bg-gray-50 active:bg-gray-100",
-                      isRTL && "text-right flex-row-reverse"
-                    )}
-                  >
-                    {/* Icon */}
-                    <div className={cn(
-                      "h-12 w-12 rounded-full flex items-center justify-center flex-shrink-0",
-                      service.color
-                    )}>
-                      <IconComponent className="h-6 w-6 text-[#333]" strokeWidth={1.5} />
-                    </div>
+            {featuredServices.map((service, index) => {
+              const IconComponent = service.icon;
+              return (
+                <button
+                  key={service.id}
+                  onClick={() => handleServiceClick(service.category)}
+                  className={cn(
+                    "w-full flex items-center gap-4 p-4 text-left transition-colors hover:bg-gray-50 active:bg-gray-100",
+                    isRTL && "text-right flex-row-reverse",
+                    index < featuredServices.length - 1 && "border-b border-gray-100"
+                  )}
+                >
+                  {/* Icon */}
+                  <div className={cn(
+                    "h-12 w-12 rounded-full flex items-center justify-center flex-shrink-0",
+                    service.color
+                  )}>
+                    <IconComponent className="h-6 w-6 text-[#333]" strokeWidth={1.5} />
+                  </div>
 
-                    {/* Text */}
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-base font-semibold text-[#333]">
-                        {t.featuredList[service.titleKey as keyof typeof t.featuredList]}
-                      </h3>
-                      <p className="text-xs text-[#777] mt-0.5">
-                        {t.featuredList[service.descKey as keyof typeof t.featuredList]}
-                      </p>
-                    </div>
+                  {/* Text */}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-base font-semibold text-[#333]">
+                      {t.featuredList[service.titleKey as keyof typeof t.featuredList]}
+                    </h3>
+                    <p className="text-xs text-[#777] mt-0.5">
+                      {t.featuredList[service.descKey as keyof typeof t.featuredList]}
+                    </p>
+                  </div>
 
-                    {/* Chevron */}
-                    <ChevronRight className={cn(
-                      "h-5 w-5 text-[#CCC] flex-shrink-0",
-                      isRTL && "rotate-180"
-                    )} />
-
-                    {/* Divider - shown for all except last */}
-                    {index < displayedServices.length - 1 && (
-                      <div className="absolute left-16 right-4 bottom-0 h-px bg-gray-100" />
-                    )}
-                  </button>
-                );
-              })
-            ) : hasSearched ? (
-              <div className="text-center py-12 px-4">
-                <div className="text-4xl mb-3">🔍</div>
-                <p className="text-[#777] font-medium">
-                  {t.hub.noResults}
-                </p>
-              </div>
-            ) : null}
+                  {/* Chevron */}
+                  <ChevronRight className={cn(
+                    "h-5 w-5 text-[#CCC] flex-shrink-0",
+                    isRTL && "rotate-180"
+                  )} />
+                </button>
+              );
+            })}
           </div>
         </section>
       </main>
-
-      {/* Booking Dialog */}
-      {selectedService && (
-        <BookingDialog
-          open={bookingOpen}
-          onOpenChange={setBookingOpen}
-          serviceId={selectedService.id}
-          serviceTitle={selectedService.title}
-          providerId={selectedService.user_id}
-          providerName={selectedService.provider_name || "Provider"}
-          providerPhone={selectedService.provider_phone}
-        />
-      )}
     </div>
   );
 }

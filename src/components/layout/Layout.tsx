@@ -1,4 +1,5 @@
 import { Header } from "./Header";
+import { MobileNav } from "./MobileNav";
 import { PageTransition } from "./PageTransition";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -11,11 +12,12 @@ export function Layout({ children, showHeader = true }: LayoutProps) {
   const { t, isRTL } = useLanguage();
 
   return (
-    <div className="min-h-screen flex flex-col touch-manipulation no-tap-highlight bg-[#F9F9F9]" dir={isRTL ? "rtl" : "ltr"}>
+    <div className="min-h-screen flex flex-col touch-manipulation no-tap-highlight bg-[#F9F9F9] pb-16 md:pb-0" dir={isRTL ? "rtl" : "ltr"}>
       {showHeader && <Header />}
       <main className="flex-1">
         <PageTransition>{children}</PageTransition>
       </main>
+      <MobileNav />
       <footer className="hidden md:block border-t border-border bg-white py-6">
         <div className="container">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
