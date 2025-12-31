@@ -4,16 +4,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
-import { BusinessRoute } from "@/components/auth/BusinessRoute";
 import { AdminRoute } from "@/components/auth/AdminRoute";
-import Index from "./pages/Index";
-import Businesses from "./pages/Businesses";
-import BusinessDetail from "./pages/BusinessDetail";
-import Community from "./pages/Community";
-import Deals from "./pages/Deals";
+import Hub from "./pages/Hub";
+import ServiceDirectory from "./pages/ServiceDirectory";
+import Activity from "./pages/Activity";
+import ServiceCreator from "./pages/ServiceCreator";
 import Profile from "./pages/Profile";
-import BusinessDashboard from "./pages/BusinessDashboard";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import AdminLayout from "./pages/admin/AdminLayout";
@@ -40,7 +38,7 @@ function AuthenticatedRedirect({ children }: { children: React.ReactNode }) {
   }
 
   if (user) {
-    return <Navigate to="/community" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
@@ -52,23 +50,43 @@ const AppRoutes = () => {
       <Route
         path="/"
         element={
-          <AuthenticatedRedirect>
-            <Index />
-          </AuthenticatedRedirect>
-        }
-      />
-      <Route path="/businesses" element={<Businesses />} />
-      <Route path="/businesses/:id" element={<BusinessDetail />} />
-      <Route
-        path="/community"
-        element={
           <ProtectedRoute>
-            <Community />
+            <Hub />
           </ProtectedRoute>
         }
       />
-      <Route path="/deals" element={<Deals />} />
-      <Route path="/auth" element={<Auth />} />
+      <Route
+        path="/services"
+        element={
+          <ProtectedRoute>
+            <ServiceDirectory />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/services/:category"
+        element={
+          <ProtectedRoute>
+            <ServiceDirectory />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/activity"
+        element={
+          <ProtectedRoute>
+            <Activity />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/create-service"
+        element={
+          <ProtectedRoute>
+            <ServiceCreator />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/profile"
         element={
@@ -78,11 +96,11 @@ const AppRoutes = () => {
         }
       />
       <Route
-        path="/dashboard"
+        path="/auth"
         element={
-          <BusinessRoute>
-            <BusinessDashboard />
-          </BusinessRoute>
+          <AuthenticatedRedirect>
+            <Auth />
+          </AuthenticatedRedirect>
         }
       />
       {/* Admin Routes */}
@@ -111,13 +129,15 @@ const AppRoutes = () => {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </TooltipProvider>
+      <LanguageProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </TooltipProvider>
+      </LanguageProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

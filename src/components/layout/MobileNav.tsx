@@ -3,12 +3,13 @@ import { Home, ClipboardList, Briefcase, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
-import { ar } from "@/lib/i18n";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export function MobileNav() {
   const location = useLocation();
   const { user } = useAuth();
   const { isBusiness, loading } = useUserRole();
+  const { t } = useLanguage();
 
   // Only show nav for authenticated users, and wait for role to load
   if (!user || loading) {
@@ -17,15 +18,15 @@ export function MobileNav() {
 
   const navItems = isBusiness
     ? [
-        { href: "/", label: ar.nav.home, icon: Home },
-        { href: "/activity", label: ar.nav.activity, icon: ClipboardList },
-        { href: "/my-services", label: ar.nav.services, icon: Briefcase },
-        { href: "/profile", label: ar.nav.profile, icon: User },
+        { href: "/", label: t.nav.home, icon: Home },
+        { href: "/activity", label: t.nav.activity, icon: ClipboardList },
+        { href: "/my-services", label: t.nav.services, icon: Briefcase },
+        { href: "/profile", label: t.nav.profile, icon: User },
       ]
     : [
-        { href: "/", label: ar.nav.home, icon: Home },
-        { href: "/activity", label: ar.nav.activity, icon: ClipboardList },
-        { href: "/profile", label: ar.nav.profile, icon: User },
+        { href: "/", label: t.nav.home, icon: Home },
+        { href: "/activity", label: t.nav.activity, icon: ClipboardList },
+        { href: "/profile", label: t.nav.profile, icon: User },
       ];
 
   return (

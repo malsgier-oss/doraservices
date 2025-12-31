@@ -6,56 +6,90 @@ import { Input } from "@/components/ui/input";
 import { CategoryIcon } from "@/components/service/CategoryIcon";
 import { ServiceProviderCard } from "@/components/service/ServiceProviderCard";
 import { BookingDialog } from "@/components/service/BookingDialog";
-import { ar } from "@/lib/i18n";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
-
-const categories = [
-  { id: "homeMaintenance", label: ar.categories.homeMaintenance },
-  { id: "personalCare", label: ar.categories.personalCare },
-  { id: "techSupport", label: ar.categories.techSupport },
-  { id: "petServices", label: ar.categories.petServices },
-  { id: "cleaning", label: ar.categories.cleaning },
-  { id: "automotive", label: ar.categories.automotive },
-  { id: "education", label: ar.categories.education },
-  { id: "health", label: ar.categories.health },
-];
-
-// Mock featured providers
-const featuredProviders = [
-  {
-    id: "1",
-    providerName: "أحمد الشمري",
-    serviceTitle: "صيانة مكيفات احترافية",
-    rating: 4.9,
-    reviewCount: 127,
-    hourlyRate: 150,
-  },
-  {
-    id: "2",
-    providerName: "سارة القحطاني",
-    serviceTitle: "تنظيف منازل شامل",
-    rating: 4.8,
-    reviewCount: 89,
-    hourlyRate: 100,
-  },
-  {
-    id: "3",
-    providerName: "محمد العتيبي",
-    serviceTitle: "صيانة أجهزة إلكترونية",
-    rating: 4.7,
-    reviewCount: 64,
-    hourlyRate: 120,
-  },
-];
+import { cn } from "@/lib/utils";
 
 export default function Hub() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { profile } = useProfile();
+  const { t, isRTL } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
   const [bookingOpen, setBookingOpen] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<typeof featuredProviders[0] | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<{
+    id: string;
+    providerName: string;
+    serviceTitle: string;
+    rating: number;
+    reviewCount: number;
+    hourlyRate: number;
+  } | null>(null);
+
+  const categories = [
+    { id: "homeMaintenance", label: t.categories.homeMaintenance },
+    { id: "personalCare", label: t.categories.personalCare },
+    { id: "techSupport", label: t.categories.techSupport },
+    { id: "petServices", label: t.categories.petServices },
+    { id: "cleaning", label: t.categories.cleaning },
+    { id: "automotive", label: t.categories.automotive },
+    { id: "education", label: t.categories.education },
+    { id: "health", label: t.categories.health },
+  ];
+
+  // Mock featured providers
+  const featuredProviders = isRTL ? [
+    {
+      id: "1",
+      providerName: "أحمد الشمري",
+      serviceTitle: "صيانة مكيفات احترافية",
+      rating: 4.9,
+      reviewCount: 127,
+      hourlyRate: 150,
+    },
+    {
+      id: "2",
+      providerName: "سارة القحطاني",
+      serviceTitle: "تنظيف منازل شامل",
+      rating: 4.8,
+      reviewCount: 89,
+      hourlyRate: 100,
+    },
+    {
+      id: "3",
+      providerName: "محمد العتيبي",
+      serviceTitle: "صيانة أجهزة إلكترونية",
+      rating: 4.7,
+      reviewCount: 64,
+      hourlyRate: 120,
+    },
+  ] : [
+    {
+      id: "1",
+      providerName: "John Smith",
+      serviceTitle: "Professional AC Repair",
+      rating: 4.9,
+      reviewCount: 127,
+      hourlyRate: 75,
+    },
+    {
+      id: "2",
+      providerName: "Sarah Johnson",
+      serviceTitle: "Full House Cleaning",
+      rating: 4.8,
+      reviewCount: 89,
+      hourlyRate: 50,
+    },
+    {
+      id: "3",
+      providerName: "Mike Williams",
+      serviceTitle: "Electronics Repair",
+      rating: 4.7,
+      reviewCount: 64,
+      hourlyRate: 60,
+    },
+  ];
 
   const firstName = profile?.full_name?.split(" ")[0] || "";
 
@@ -69,7 +103,6 @@ export default function Hub() {
   };
 
   const handleBookingSubmit = async (data: { description: string; date: Date; timeSlot: string }) => {
-    // TODO: Save booking to database
     console.log("Booking submitted:", { provider: selectedProvider, ...data });
   };
 
@@ -77,29 +110,38 @@ export default function Hub() {
     <Layout>
       <div className="container py-6 space-y-8">
         {/* Welcome */}
-        <div className="text-right">
+        <div className={cn(isRTL ? "text-right" : "text-left")}>
           <h1 className="text-2xl font-bold text-foreground">
-            {ar.hub.welcome} {firstName && `${firstName} 👋`}
+            {t.hub.welcome} {firstName && `${firstName} 👋`}
           </h1>
-          <p className="text-muted-foreground mt-1">{ar.hub.whatService}</p>
+          <p className="text-muted-foreground mt-1">{t.hub.whatService}</p>
         </div>
 
         {/* Search */}
         <div className="relative">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          <Search className={cn(
+            "absolute top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground",
+            isRTL ? "right-3" : "left-3"
+          )} />
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={ar.common.searchPlaceholder}
-            className="pr-10 rounded-full bg-card border-muted h-12"
-            dir="rtl"
+            placeholder={t.common.searchPlaceholder}
+            className={cn(
+              "rounded-full bg-card border-muted h-12",
+              isRTL ? "pr-10" : "pl-10"
+            )}
+            dir={isRTL ? "rtl" : "ltr"}
           />
         </div>
 
         {/* Categories Grid */}
         <section>
-          <h2 className="text-lg font-semibold text-foreground mb-4 text-right">
-            {ar.hub.browseCategories}
+          <h2 className={cn(
+            "text-lg font-semibold text-foreground mb-4",
+            isRTL ? "text-right" : "text-left"
+          )}>
+            {t.hub.browseCategories}
           </h2>
           <div className="grid grid-cols-4 gap-4">
             {categories.map((category) => (
@@ -120,10 +162,10 @@ export default function Hub() {
               onClick={() => navigate("/services")}
               className="text-sm text-primary font-medium"
             >
-              {ar.hub.viewAll}
+              {t.hub.viewAll}
             </button>
             <h2 className="text-lg font-semibold text-foreground">
-              {ar.hub.featuredProviders}
+              {t.hub.featuredProviders}
             </h2>
           </div>
           <div className="space-y-3">
