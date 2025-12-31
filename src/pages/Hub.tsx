@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { MobileNav } from "@/components/layout/MobileNav";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
@@ -227,6 +228,8 @@ export default function Hub() {
           </div>
         </section>
       </main>
+
+      <MobileNav />
     </div>
   );
 }
