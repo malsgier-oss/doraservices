@@ -29,10 +29,15 @@ export const translations = {
     // Hub
     hub: {
       welcome: "Welcome",
-      whatService: "What service do you need today?",
+      whatService: "What does your home need today?",
       browseCategories: "Browse Categories",
       featuredProviders: "Featured Providers",
       viewAll: "View All",
+      quickCategories: "Quick Categories",
+      noResults: "We'll find a pro for that soon!",
+      liveStatus: "Live Status",
+      providerOnWay: "is on the way",
+      minsAway: "mins away",
     },
     
     // Service Directory
@@ -212,10 +217,15 @@ export const translations = {
     // Hub
     hub: {
       welcome: "مرحباً",
-      whatService: "ما الخدمة التي تحتاجها اليوم؟",
+      whatService: "ماذا يحتاج منزلك اليوم؟",
       browseCategories: "تصفح الفئات",
       featuredProviders: "مزودو الخدمات المميزون",
       viewAll: "عرض الكل",
+      quickCategories: "فئات سريعة",
+      noResults: "سنجد لك متخصصاً قريباً!",
+      liveStatus: "الحالة المباشرة",
+      providerOnWay: "في الطريق",
+      minsAway: "دقائق",
     },
     
     // Service Directory

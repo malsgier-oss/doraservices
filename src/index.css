@@ -6,40 +6,40 @@
 
 @layer base {
   :root {
-    --background: 0 0% 98%;
-    --foreground: 0 0% 15%;
+    --background: 25 50% 97%;
+    --foreground: 20 10% 15%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 15%;
+    --card: 30 40% 99%;
+    --card-foreground: 20 10% 15%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 15%;
+    --popover: 30 40% 99%;
+    --popover-foreground: 20 10% 15%;
 
-    --primary: 220 90% 56%;
+    --primary: 175 55% 42%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 96%;
-    --secondary-foreground: 0 0% 25%;
+    --secondary: 25 45% 94%;
+    --secondary-foreground: 20 10% 25%;
 
-    --muted: 0 0% 94%;
-    --muted-foreground: 0 0% 45%;
+    --muted: 25 30% 92%;
+    --muted-foreground: 20 8% 45%;
 
-    --accent: 160 60% 45%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 20 85% 75%;
+    --accent-foreground: 20 10% 15%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 90%;
-    --input: 0 0% 90%;
-    --ring: 220 90% 56%;
+    --border: 25 25% 88%;
+    --input: 25 25% 88%;
+    --ring: 175 55% 42%;
 
     --radius: 9999px;
 
     /* Status colors */
-    --pending: 45 100% 51%;
-    --pending-foreground: 0 0% 15%;
-    --in-progress: 220 90% 56%;
+    --pending: 35 95% 55%;
+    --pending-foreground: 20 10% 15%;
+    --in-progress: 175 55% 42%;
     --in-progress-foreground: 0 0% 100%;
     --completed: 160 60% 45%;
     --completed-foreground: 0 0% 100%;
@@ -47,64 +47,73 @@
     /* Custom tokens */
     --success: 160 60% 45%;
     --success-foreground: 0 0% 100%;
-    --star: 45 100% 51%;
+    --star: 35 95% 55%;
+    --peach: 20 85% 75%;
+    --peach-light: 25 80% 92%;
+    --teal: 175 55% 42%;
+    --teal-light: 175 45% 90%;
 
     /* Shadows */
-    --shadow-sm: 0 1px 3px hsl(0 0% 0% / 0.04);
-    --shadow-md: 0 4px 12px hsl(0 0% 0% / 0.06);
-    --shadow-lg: 0 12px 32px hsl(0 0% 0% / 0.08);
+    --shadow-sm: 0 1px 3px hsl(20 20% 0% / 0.04);
+    --shadow-md: 0 4px 12px hsl(20 20% 0% / 0.06);
+    --shadow-lg: 0 12px 32px hsl(20 20% 0% / 0.08);
 
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 0 0% 25%;
-    --sidebar-primary: 220 90% 56%;
+    --sidebar-background: 30 40% 99%;
+    --sidebar-foreground: 20 10% 25%;
+    --sidebar-primary: 175 55% 42%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 96%;
-    --sidebar-accent-foreground: 0 0% 25%;
-    --sidebar-border: 0 0% 92%;
-    --sidebar-ring: 220 90% 56%;
+    --sidebar-accent: 25 45% 94%;
+    --sidebar-accent-foreground: 20 10% 25%;
+    --sidebar-border: 25 25% 88%;
+    --sidebar-ring: 175 55% 42%;
   }
 
   .dark {
-    --background: 0 0% 8%;
-    --foreground: 0 0% 96%;
+    --background: 20 15% 8%;
+    --foreground: 25 20% 96%;
 
-    --card: 0 0% 12%;
-    --card-foreground: 0 0% 96%;
+    --card: 20 15% 12%;
+    --card-foreground: 25 20% 96%;
 
-    --popover: 0 0% 12%;
-    --popover-foreground: 0 0% 96%;
+    --popover: 20 15% 12%;
+    --popover-foreground: 25 20% 96%;
 
-    --primary: 220 90% 60%;
+    --primary: 175 50% 50%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 16%;
-    --secondary-foreground: 0 0% 90%;
+    --secondary: 20 15% 16%;
+    --secondary-foreground: 25 20% 90%;
 
-    --muted: 0 0% 14%;
-    --muted-foreground: 0 0% 60%;
+    --muted: 20 10% 14%;
+    --muted-foreground: 20 10% 60%;
 
-    --accent: 160 55% 40%;
+    --accent: 20 70% 60%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 70% 45%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 20%;
-    --input: 0 0% 20%;
-    --ring: 220 90% 60%;
+    --border: 20 10% 20%;
+    --input: 20 10% 20%;
+    --ring: 175 50% 50%;
 
-    --pending: 45 90% 45%;
-    --in-progress: 220 90% 60%;
+    --pending: 35 85% 50%;
+    --in-progress: 175 50% 50%;
     --completed: 160 55% 40%;
 
-    --sidebar-background: 0 0% 10%;
-    --sidebar-foreground: 0 0% 90%;
-    --sidebar-primary: 220 90% 60%;
+    --peach: 20 70% 60%;
+    --peach-light: 20 40% 25%;
+    --teal: 175 50% 50%;
+    --teal-light: 175 30% 20%;
+
+    --sidebar-background: 20 15% 10%;
+    --sidebar-foreground: 25 20% 90%;
+    --sidebar-primary: 175 50% 50%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 14%;
-    --sidebar-accent-foreground: 0 0% 90%;
-    --sidebar-border: 0 0% 18%;
-    --sidebar-ring: 220 90% 60%;
+    --sidebar-accent: 20 15% 14%;
+    --sidebar-accent-foreground: 25 20% 90%;
+    --sidebar-border: 20 10% 18%;
+    --sidebar-ring: 175 50% 50%;
   }
 }
 
