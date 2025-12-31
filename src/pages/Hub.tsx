@@ -432,6 +432,8 @@ export default function Hub() {
           titleKey: selectedService.name,
           descKey: "",
           category: selectedService.category_id,
+          categoryName: categories?.find(c => c.id === selectedService.category_id)?.name || "",
+          categoryNameAr: categories?.find(c => c.id === selectedService.category_id)?.name_ar || "",
         } : null}
         filters={searchFilters}
       />
