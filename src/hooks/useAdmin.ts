@@ -326,11 +326,38 @@ export function useBusinessMutations() {
 
   const authorizeBusiness = useMutation({
     mutationFn: async ({ businessId, status, note }: { businessId: string; status: string; note?: string }) => {
+      // Get business to find user_id
+      const { data: business } = await supabase
+        .from("businesses")
+        .select("user_id, name")
+        .eq("id", businessId)
+        .single();
+
       const { error } = await supabase
         .from("businesses")
         .update({ authorization_status: status, authorization_note: note || null })
         .eq("id", businessId);
       if (error) throw error;
+
+      // Send notification to business owner
+      if (business?.user_id) {
+        const title = status === "approved" 
+          ? "Business Approved! 🎉" 
+          : status === "rejected" 
+          ? "Business Application Update" 
+          : "Business Status Updated";
+        const content = status === "approved"
+          ? `Your business "${business.name}" has been approved. You can now start offering services!`
+          : status === "rejected"
+          ? `Your business "${business.name}" application needs attention. ${note || "Please contact support for more details."}`
+          : `Your business "${business.name}" status has been updated to ${status}.`;
+        
+        await supabase.rpc("create_user_notification", {
+          p_user_id: business.user_id,
+          p_title: title,
+          p_content: content,
+        });
+      }
 
       await supabase.rpc("log_admin_action", {
         p_action: `authorize_business_${status}`,
