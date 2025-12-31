@@ -181,7 +181,9 @@ export default function AdminBulkUpload() {
     let failedCount = parsedData.filter((p) => p.status === "error").length;
 
     // Use subcategory name if selected, otherwise use category name
-    const categoryToUse = selectedSubcategory || selectedCategory;
+    const categoryToUse = selectedSubcategory && selectedSubcategory !== "__all__" 
+      ? selectedSubcategory 
+      : selectedCategory;
 
     for (let i = 0; i < pendingItems.length; i++) {
       const item = pendingItems[i];
@@ -303,7 +305,7 @@ export default function AdminBulkUpload() {
                   <SelectValue placeholder="Select specific service type..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All {selectedCategory}</SelectItem>
+                  <SelectItem value="__all__">All {selectedCategory}</SelectItem>
                   {subcategories.map((sub) => (
                     <SelectItem key={sub.id} value={sub.name}>
                       {sub.name} {sub.name_ar ? `(${sub.name_ar})` : ""}
@@ -312,7 +314,7 @@ export default function AdminBulkUpload() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                {selectedSubcategory 
+                {selectedSubcategory && selectedSubcategory !== "__all__"
                   ? `Services will be created as "${selectedSubcategory}"` 
                   : `Services will be created as "${selectedCategory}"`}
               </p>
