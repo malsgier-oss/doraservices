@@ -1,48 +1,49 @@
 import { useState } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { ServiceRequestCard } from "@/components/service/ServiceRequestCard";
-import { ar } from "@/lib/i18n";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 
 type Status = "pending" | "in_progress" | "completed";
 
-// Mock service requests
-const mockRequests = [
-  {
-    id: "1",
-    serviceTitle: "صيانة مكيفات احترافية",
-    providerName: "أحمد الشمري",
-    status: "pending" as Status,
-    scheduledDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
-    requestedDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-  },
-  {
-    id: "2",
-    serviceTitle: "تنظيف منازل شامل",
-    providerName: "سارة القحطاني",
-    status: "in_progress" as Status,
-    scheduledDate: new Date(),
-    requestedDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-  },
-  {
-    id: "3",
-    serviceTitle: "صيانة أجهزة إلكترونية",
-    providerName: "محمد العتيبي",
-    status: "completed" as Status,
-    scheduledDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-    requestedDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-  },
-];
-
-const tabs: { id: Status | "all"; label: string }[] = [
-  { id: "all", label: "الكل" },
-  { id: "pending", label: ar.activity.pending },
-  { id: "in_progress", label: ar.activity.inProgress },
-  { id: "completed", label: ar.activity.completed },
-];
-
 export default function Activity() {
+  const { t, isRTL } = useLanguage();
   const [activeTab, setActiveTab] = useState<Status | "all">("all");
+
+  // Mock service requests
+  const mockRequests = [
+    {
+      id: "1",
+      serviceTitle: isRTL ? "صيانة مكيفات احترافية" : "Professional AC Repair",
+      providerName: isRTL ? "أحمد الشمري" : "John Smith",
+      status: "pending" as Status,
+      scheduledDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+      requestedDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+    },
+    {
+      id: "2",
+      serviceTitle: isRTL ? "تنظيف منازل شامل" : "Full House Cleaning",
+      providerName: isRTL ? "سارة القحطاني" : "Sarah Johnson",
+      status: "in_progress" as Status,
+      scheduledDate: new Date(),
+      requestedDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+    },
+    {
+      id: "3",
+      serviceTitle: isRTL ? "صيانة أجهزة إلكترونية" : "Electronics Repair",
+      providerName: isRTL ? "محمد العتيبي" : "Mike Williams",
+      status: "completed" as Status,
+      scheduledDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+      requestedDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+    },
+  ];
+
+  const tabs: { id: Status | "all"; label: string }[] = [
+    { id: "all", label: t.activity.all },
+    { id: "pending", label: t.activity.pending },
+    { id: "in_progress", label: t.activity.inProgress },
+    { id: "completed", label: t.activity.completed },
+  ];
 
   const filteredRequests =
     activeTab === "all"
@@ -53,8 +54,11 @@ export default function Activity() {
     <Layout>
       <div className="container py-6 space-y-6">
         {/* Header */}
-        <h1 className="text-2xl font-bold text-foreground text-right">
-          {ar.activity.title}
+        <h1 className={cn(
+          "text-2xl font-bold text-foreground",
+          isRTL ? "text-right" : "text-left"
+        )}>
+          {t.activity.title}
         </h1>
 
         {/* Tabs */}
@@ -92,10 +96,10 @@ export default function Activity() {
                 <span className="text-3xl">📋</span>
               </div>
               <h3 className="font-semibold text-foreground mb-1">
-                {ar.activity.noRequests}
+                {t.activity.noRequests}
               </h3>
               <p className="text-sm text-muted-foreground">
-                {ar.activity.noRequestsDesc}
+                {t.activity.noRequestsDesc}
               </p>
             </div>
           )}

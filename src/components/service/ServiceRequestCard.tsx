@@ -2,9 +2,9 @@ import { Calendar, Clock } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { StatusIndicator } from "./StatusIndicator";
-import { ar } from "@/lib/i18n";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { format } from "date-fns";
-import { arSA } from "date-fns/locale";
+import { arSA, enUS } from "date-fns/locale";
 
 type Status = "pending" | "in_progress" | "completed";
 
@@ -30,6 +30,9 @@ export function ServiceRequestCard({
   onViewDetails,
   onCancel,
 }: ServiceRequestCardProps) {
+  const { t, language } = useLanguage();
+  const locale = language === "ar" ? arSA : enUS;
+  
   const initials = providerName
     .split(" ")
     .map((n) => n[0])
@@ -62,12 +65,12 @@ export function ServiceRequestCard({
             {scheduledDate && (
               <div className="flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5" />
-                <span>{format(scheduledDate, "d MMM yyyy", { locale: arSA })}</span>
+                <span>{format(scheduledDate, "d MMM yyyy", { locale })}</span>
               </div>
             )}
             <div className="flex items-center gap-1">
               <Clock className="h-3.5 w-3.5" />
-              <span>{format(requestedDate, "d MMM", { locale: arSA })}</span>
+              <span>{format(requestedDate, "d MMM", { locale })}</span>
             </div>
           </div>
         </div>
@@ -83,7 +86,7 @@ export function ServiceRequestCard({
               className="flex-1 rounded-full"
               onClick={onViewDetails}
             >
-              {ar.activity.viewDetails}
+              {t.activity.viewDetails}
             </Button>
           )}
           {status === "pending" && onCancel && (
@@ -93,7 +96,7 @@ export function ServiceRequestCard({
               className="rounded-full text-destructive hover:text-destructive"
               onClick={onCancel}
             >
-              {ar.activity.cancelRequest}
+              {t.activity.cancelRequest}
             </Button>
           )}
         </div>

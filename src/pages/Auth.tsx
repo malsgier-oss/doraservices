@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +10,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
-import { MapPin, Mail, Lock, User, Loader2, Building2 } from "lucide-react";
+import { Mail, Lock, User, Loader2, Briefcase } from "lucide-react";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { z } from "zod";
+import { cn } from "@/lib/utils";
 
 const emailSchema = z.string().email("Please enter a valid email address");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
@@ -19,9 +22,9 @@ const nameSchema = z.string().min(2, "Name must be at least 2 characters");
 export default function Auth() {
   const navigate = useNavigate();
   const { user, signIn, signUp, loading: authLoading } = useAuth();
+  const { t, isRTL } = useLanguage();
   const [isLoading, setIsLoading] = useState(false);
 
-  // Redirect if already logged in
   useEffect(() => {
     if (user) {
       navigate("/");
@@ -34,16 +37,15 @@ export default function Auth() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate
     const emailResult = emailSchema.safeParse(loginData.email);
     if (!emailResult.success) {
-      toast({ title: "Invalid email", description: emailResult.error.errors[0].message, variant: "destructive" });
+      toast({ title: isRTL ? "بريد إلكتروني غير صالح" : "Invalid email", description: emailResult.error.errors[0].message, variant: "destructive" });
       return;
     }
     
     const passwordResult = passwordSchema.safeParse(loginData.password);
     if (!passwordResult.success) {
-      toast({ title: "Invalid password", description: passwordResult.error.errors[0].message, variant: "destructive" });
+      toast({ title: isRTL ? "كلمة مرور غير صالحة" : "Invalid password", description: passwordResult.error.errors[0].message, variant: "destructive" });
       return;
     }
 
@@ -54,11 +56,11 @@ export default function Auth() {
     if (error) {
       let message = error.message;
       if (message.includes("Invalid login credentials")) {
-        message = "Invalid email or password. Please try again.";
+        message = isRTL ? "البريد أو كلمة المرور غير صحيحة" : "Invalid email or password";
       }
-      toast({ title: "Login failed", description: message, variant: "destructive" });
+      toast({ title: isRTL ? "فشل تسجيل الدخول" : "Login failed", description: message, variant: "destructive" });
     } else {
-      toast({ title: "Welcome back!", description: "You've successfully logged in." });
+      toast({ title: isRTL ? "مرحباً بعودتك!" : "Welcome back!", description: isRTL ? "تم تسجيل الدخول بنجاح" : "You've successfully logged in." });
       navigate("/");
     }
   };
@@ -66,22 +68,21 @@ export default function Auth() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate
     const nameResult = nameSchema.safeParse(signupData.fullName);
     if (!nameResult.success) {
-      toast({ title: "Invalid name", description: nameResult.error.errors[0].message, variant: "destructive" });
+      toast({ title: isRTL ? "اسم غير صالح" : "Invalid name", description: nameResult.error.errors[0].message, variant: "destructive" });
       return;
     }
     
     const emailResult = emailSchema.safeParse(signupData.email);
     if (!emailResult.success) {
-      toast({ title: "Invalid email", description: emailResult.error.errors[0].message, variant: "destructive" });
+      toast({ title: isRTL ? "بريد إلكتروني غير صالح" : "Invalid email", description: emailResult.error.errors[0].message, variant: "destructive" });
       return;
     }
     
     const passwordResult = passwordSchema.safeParse(signupData.password);
     if (!passwordResult.success) {
-      toast({ title: "Invalid password", description: passwordResult.error.errors[0].message, variant: "destructive" });
+      toast({ title: isRTL ? "كلمة مرور غير صالحة" : "Invalid password", description: passwordResult.error.errors[0].message, variant: "destructive" });
       return;
     }
 
@@ -92,15 +93,13 @@ export default function Auth() {
       setIsLoading(false);
       let message = error.message;
       if (message.includes("already registered")) {
-        message = "This email is already registered. Please log in instead.";
+        message = isRTL ? "هذا البريد مسجل بالفعل" : "This email is already registered.";
       }
-      toast({ title: "Signup failed", description: message, variant: "destructive" });
+      toast({ title: isRTL ? "فشل إنشاء الحساب" : "Signup failed", description: message, variant: "destructive" });
       return;
     }
 
-    // If registering as business, add business role
     if (signupData.isBusiness) {
-      // Wait for the user to be created and trigger to run
       let attempts = 0;
       let user = null;
       
@@ -112,22 +111,18 @@ export default function Auth() {
       }
       
       if (user) {
-        const { error: roleError } = await supabase
-          .from("user_roles")
-          .insert({ user_id: user.id, role: "business" });
-        
-        if (roleError) {
-          console.error("Failed to add business role:", roleError);
-        }
+        await supabase.from("user_roles").insert({ user_id: user.id, role: "business" });
       }
     }
 
     setIsLoading(false);
     toast({ 
-      title: "Account created!", 
-      description: signupData.isBusiness ? "Welcome! Set up your business dashboard." : "Welcome to LocalSpot!" 
+      title: isRTL ? "تم إنشاء الحساب!" : "Account created!", 
+      description: signupData.isBusiness 
+        ? (isRTL ? "مرحباً! أضف خدماتك الآن" : "Welcome! Add your services now")
+        : (isRTL ? "مرحباً بك في الدائرة!" : "Welcome to The Circle!") 
     });
-    navigate(signupData.isBusiness ? "/dashboard" : "/community");
+    navigate(signupData.isBusiness ? "/create-service" : "/");
   };
 
   if (authLoading) {
@@ -139,42 +134,47 @@ export default function Auth() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-subtle flex flex-col items-center justify-center p-4">
-      {/* Logo/Brand */}
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4" dir={isRTL ? "rtl" : "ltr"}>
+      {/* Language Toggle */}
+      <div className="absolute top-4 left-4">
+        <LanguageToggle />
+      </div>
+
+      {/* Logo */}
       <div className="flex items-center gap-2 mb-8">
-        <div className="w-10 h-10 gradient-warm rounded-xl flex items-center justify-center">
-          <MapPin className="w-6 h-6 text-primary-foreground" />
+        <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
+          <span className="text-primary-foreground font-bold text-lg">{isRTL ? "د" : "C"}</span>
         </div>
-        <span className="text-2xl font-display font-bold text-foreground">LocalSpot</span>
+        <span className="text-2xl font-bold text-foreground">{t.appName}</span>
       </div>
 
       <Card className="w-full max-w-md shadow-card">
         <Tabs defaultValue="login" className="w-full">
           <CardHeader className="pb-2">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Log In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              <TabsTrigger value="login">{t.auth.login}</TabsTrigger>
+              <TabsTrigger value="signup">{t.auth.signup}</TabsTrigger>
             </TabsList>
           </CardHeader>
           
           <CardContent className="pt-4">
             {/* Login Tab */}
             <TabsContent value="login" className="mt-0">
-              <div className="space-y-1 mb-6">
-                <CardTitle className="text-xl">Welcome back</CardTitle>
-                <CardDescription>Enter your credentials to access your account</CardDescription>
+              <div className={cn("space-y-1 mb-6", isRTL ? "text-right" : "text-left")}>
+                <CardTitle className="text-xl">{isRTL ? "مرحباً بعودتك" : "Welcome back"}</CardTitle>
+                <CardDescription>{isRTL ? "أدخل بياناتك للدخول" : "Enter your credentials to access your account"}</CardDescription>
               </div>
               
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
+                  <Label htmlFor="login-email">{t.auth.email}</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Mail className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground", isRTL ? "right-3" : "left-3")} />
                     <Input
                       id="login-email"
                       type="email"
                       placeholder="you@example.com"
-                      className="pl-10"
+                      className={cn(isRTL ? "pr-10" : "pl-10")}
                       value={loginData.email}
                       onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
                       required
@@ -183,14 +183,14 @@ export default function Auth() {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="login-password">Password</Label>
+                  <Label htmlFor="login-password">{t.auth.password}</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Lock className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground", isRTL ? "right-3" : "left-3")} />
                     <Input
                       id="login-password"
                       type="password"
                       placeholder="••••••••"
-                      className="pl-10"
+                      className={cn(isRTL ? "pr-10" : "pl-10")}
                       value={loginData.password}
                       onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
                       required
@@ -198,36 +198,29 @@ export default function Auth() {
                   </div>
                 </div>
                 
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Logging in...
-                    </>
-                  ) : (
-                    "Log In"
-                  )}
+                <Button type="submit" className="w-full rounded-full" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t.auth.login}
                 </Button>
               </form>
             </TabsContent>
 
             {/* Signup Tab */}
             <TabsContent value="signup" className="mt-0">
-              <div className="space-y-1 mb-6">
-                <CardTitle className="text-xl">Create an account</CardTitle>
-                <CardDescription>Join LocalSpot to discover local businesses</CardDescription>
+              <div className={cn("space-y-1 mb-6", isRTL ? "text-right" : "text-left")}>
+                <CardTitle className="text-xl">{isRTL ? "إنشاء حساب" : "Create an account"}</CardTitle>
+                <CardDescription>{isRTL ? "انضم إلى الدائرة" : "Join The Circle today"}</CardDescription>
               </div>
               
               <form onSubmit={handleSignup} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="signup-name">Full Name</Label>
+                  <Label htmlFor="signup-name">{t.auth.fullName}</Label>
                   <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <User className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground", isRTL ? "right-3" : "left-3")} />
                     <Input
                       id="signup-name"
                       type="text"
-                      placeholder="John Doe"
-                      className="pl-10"
+                      placeholder={isRTL ? "الاسم الكامل" : "John Doe"}
+                      className={cn(isRTL ? "pr-10" : "pl-10")}
                       value={signupData.fullName}
                       onChange={(e) => setSignupData({ ...signupData, fullName: e.target.value })}
                       required
@@ -236,14 +229,14 @@ export default function Auth() {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
+                  <Label htmlFor="signup-email">{t.auth.email}</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Mail className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground", isRTL ? "right-3" : "left-3")} />
                     <Input
                       id="signup-email"
                       type="email"
                       placeholder="you@example.com"
-                      className="pl-10"
+                      className={cn(isRTL ? "pr-10" : "pl-10")}
                       value={signupData.email}
                       onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
                       required
@@ -252,14 +245,14 @@ export default function Auth() {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
+                  <Label htmlFor="signup-password">{t.auth.password}</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Lock className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground", isRTL ? "right-3" : "left-3")} />
                     <Input
                       id="signup-password"
                       type="password"
                       placeholder="••••••••"
-                      className="pl-10"
+                      className={cn(isRTL ? "pr-10" : "pl-10")}
                       value={signupData.password}
                       onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
                       required
@@ -267,8 +260,8 @@ export default function Auth() {
                   </div>
                 </div>
 
-                {/* Business Registration Toggle */}
-                <div className="flex items-center space-x-3 p-4 rounded-lg bg-secondary/50 border border-border">
+                {/* Business Toggle */}
+                <div className={cn("flex items-center gap-3 p-4 rounded-xl bg-muted border border-border", isRTL ? "flex-row-reverse" : "")}>
                   <Checkbox
                     id="is-business"
                     checked={signupData.isBusiness}
@@ -278,34 +271,23 @@ export default function Auth() {
                   />
                   <div className="flex-1">
                     <Label htmlFor="is-business" className="flex items-center gap-2 cursor-pointer">
-                      <Building2 className="h-4 w-4 text-primary" />
-                      <span className="font-medium">I'm registering as a business</span>
+                      <Briefcase className="h-4 w-4 text-primary" />
+                      <span className="font-medium">{t.profile.becomeProvider}</span>
                     </Label>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Get access to the business dashboard to manage deals & promotions
+                      {isRTL ? "أضف خدماتك واستقبل الطلبات" : "Add your services and receive requests"}
                     </p>
                   </div>
                 </div>
                 
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating account...
-                    </>
-                  ) : (
-                    signupData.isBusiness ? "Create Business Account" : "Create Account"
-                  )}
+                <Button type="submit" className="w-full rounded-full" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t.auth.signup}
                 </Button>
               </form>
             </TabsContent>
           </CardContent>
         </Tabs>
       </Card>
-
-      <p className="mt-6 text-sm text-muted-foreground text-center">
-        By continuing, you agree to our Terms of Service and Privacy Policy.
-      </p>
     </div>
   );
 }

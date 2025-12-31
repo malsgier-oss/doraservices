@@ -12,9 +12,9 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ar } from "@/lib/i18n";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { format } from "date-fns";
-import { arSA } from "date-fns/locale";
+import { arSA, enUS } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -33,6 +33,9 @@ export function BookingDialog({
   providerName,
   onSubmit,
 }: BookingDialogProps) {
+  const { t, language, isRTL } = useLanguage();
+  const locale = language === "ar" ? arSA : enUS;
+  
   const [description, setDescription] = useState("");
   const [date, setDate] = useState<Date | undefined>();
   const [timeSlot, setTimeSlot] = useState("morning");
@@ -40,19 +43,19 @@ export function BookingDialog({
 
   const handleSubmit = async () => {
     if (!description.trim()) {
-      toast.error("يرجى وصف احتياجاتك");
+      toast.error(isRTL ? "يرجى وصف احتياجاتك" : "Please describe your needs");
       return;
     }
     if (!date) {
-      toast.error("يرجى اختيار التاريخ");
+      toast.error(isRTL ? "يرجى اختيار التاريخ" : "Please select a date");
       return;
     }
 
     setIsSubmitting(true);
     try {
       await onSubmit({ description, date, timeSlot });
-      toast.success(ar.booking.requestSent, {
-        description: ar.booking.requestSentDesc,
+      toast.success(t.booking.requestSent, {
+        description: t.booking.requestSentDesc,
       });
       onOpenChange(false);
       setDescription("");
@@ -67,31 +70,31 @@ export function BookingDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md rounded-2xl">
         <DialogHeader>
-          <DialogTitle className="text-right">{ar.booking.title}</DialogTitle>
+          <DialogTitle className={isRTL ? "text-right" : "text-left"}>{t.booking.title}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-5 pt-2">
           {/* Service Info */}
-          <div className="bg-muted rounded-xl p-3 text-right">
+          <div className={cn("bg-muted rounded-xl p-3", isRTL ? "text-right" : "text-left")}>
             <p className="font-semibold text-foreground">{serviceTitle}</p>
             <p className="text-sm text-muted-foreground">{providerName}</p>
           </div>
 
           {/* Description */}
           <div className="space-y-2">
-            <Label className="text-right block">{ar.booking.describeNeeds}</Label>
+            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{t.booking.describeNeeds}</Label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder={ar.booking.descriptionPlaceholder}
-              className="min-h-[100px] rounded-xl resize-none text-right"
-              dir="rtl"
+              placeholder={t.booking.descriptionPlaceholder}
+              className={cn("min-h-[100px] rounded-xl resize-none", isRTL ? "text-right" : "text-left")}
+              dir={isRTL ? "rtl" : "ltr"}
             />
           </div>
 
           {/* Date Picker */}
           <div className="space-y-2">
-            <Label className="text-right block">{ar.booking.selectDate}</Label>
+            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{t.booking.selectDate}</Label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
@@ -101,11 +104,11 @@ export function BookingDialog({
                     !date && "text-muted-foreground"
                   )}
                 >
-                  <Calendar className="ml-2 h-4 w-4" />
-                  {date ? format(date, "d MMMM yyyy", { locale: arSA }) : ar.booking.selectDate}
+                  <Calendar className={cn(isRTL ? "ml-2" : "mr-2", "h-4 w-4")} />
+                  {date ? format(date, "d MMMM yyyy", { locale }) : t.booking.selectDate}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
+              <PopoverContent className="w-auto p-0 bg-card z-50" align="start">
                 <CalendarComponent
                   mode="single"
                   selected={date}
@@ -119,16 +122,16 @@ export function BookingDialog({
 
           {/* Time Slot */}
           <div className="space-y-2">
-            <Label className="text-right block">{ar.booking.preferredTime}</Label>
+            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{t.booking.preferredTime}</Label>
             <RadioGroup
               value={timeSlot}
               onValueChange={setTimeSlot}
               className="flex gap-3"
             >
               {[
-                { value: "morning", label: ar.booking.morning },
-                { value: "afternoon", label: ar.booking.afternoon },
-                { value: "evening", label: ar.booking.evening },
+                { value: "morning", label: t.booking.morning },
+                { value: "afternoon", label: t.booking.afternoon },
+                { value: "evening", label: t.booking.evening },
               ].map((slot) => (
                 <label
                   key={slot.value}
@@ -153,14 +156,14 @@ export function BookingDialog({
               disabled={isSubmitting}
               className="flex-1 rounded-full"
             >
-              {isSubmitting ? ar.common.loading : ar.booking.submitRequest}
+              {isSubmitting ? t.common.loading : t.booking.submitRequest}
             </Button>
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}
               className="rounded-full"
             >
-              {ar.booking.cancel}
+              {t.booking.cancel}
             </Button>
           </div>
         </div>

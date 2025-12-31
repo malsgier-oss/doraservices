@@ -1,7 +1,7 @@
 import { Star } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { ar } from "@/lib/i18n";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface ServiceProviderCardProps {
   id: string;
@@ -23,6 +23,8 @@ export function ServiceProviderCard({
   hourlyRate,
   onBook,
 }: ServiceProviderCardProps) {
+  const { t } = useLanguage();
+  
   const initials = providerName
     .split(" ")
     .map((n) => n[0])
@@ -52,7 +54,7 @@ export function ServiceProviderCard({
             <Star className="h-4 w-4 fill-star text-star" />
             <span className="text-sm font-medium text-foreground">{rating.toFixed(1)}</span>
             <span className="text-xs text-muted-foreground">
-              ({reviewCount} {ar.rating.reviews})
+              ({reviewCount} {t.rating.reviews})
             </span>
           </div>
         </div>
@@ -60,11 +62,11 @@ export function ServiceProviderCard({
         {/* Price & Book */}
         <div className="flex flex-col items-end gap-2">
           <div className="text-left">
-            <span className="text-xs text-muted-foreground">{ar.services.startingFrom}</span>
+            <span className="text-xs text-muted-foreground">{t.services.startingFrom}</span>
             <p className="font-bold text-foreground">
-              {hourlyRate} {ar.common.sar}
+              {hourlyRate} {t.common.currency}
               <span className="text-xs font-normal text-muted-foreground">
-                {ar.services.perHour}
+                {t.services.perHour}
               </span>
             </p>
           </div>
@@ -73,7 +75,7 @@ export function ServiceProviderCard({
             size="sm" 
             className="rounded-full px-4"
           >
-            {ar.services.bookService}
+            {t.services.bookService}
           </Button>
         </div>
       </div>

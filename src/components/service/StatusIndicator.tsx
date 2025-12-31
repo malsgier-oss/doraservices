@@ -1,5 +1,5 @@
+import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
-import { ar } from "@/lib/i18n";
 
 type Status = "pending" | "in_progress" | "completed";
 
@@ -9,31 +9,30 @@ interface StatusIndicatorProps {
   showLabel?: boolean;
 }
 
-const statusConfig = {
-  pending: {
-    label: ar.activity.pending,
-    bgClass: "bg-pending/20",
-    ringClass: "stroke-pending",
-    dotClass: "bg-pending",
-    progress: 25,
-  },
-  in_progress: {
-    label: ar.activity.inProgress,
-    bgClass: "bg-in-progress/20",
-    ringClass: "stroke-in-progress",
-    dotClass: "bg-in-progress",
-    progress: 60,
-  },
-  completed: {
-    label: ar.activity.completed,
-    bgClass: "bg-completed/20",
-    ringClass: "stroke-completed",
-    dotClass: "bg-completed",
-    progress: 100,
-  },
-};
-
 export function StatusIndicator({ status, size = "md", showLabel = true }: StatusIndicatorProps) {
+  const { t } = useLanguage();
+  
+  const statusConfig = {
+    pending: {
+      label: t.activity.pending,
+      ringClass: "stroke-pending",
+      dotClass: "bg-pending",
+      progress: 25,
+    },
+    in_progress: {
+      label: t.activity.inProgress,
+      ringClass: "stroke-in-progress",
+      dotClass: "bg-in-progress",
+      progress: 60,
+    },
+    completed: {
+      label: t.activity.completed,
+      ringClass: "stroke-completed",
+      dotClass: "bg-completed",
+      progress: 100,
+    },
+  };
+
   const config = statusConfig[status];
   
   const sizes = {
