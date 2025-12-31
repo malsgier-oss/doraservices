@@ -23,16 +23,25 @@ export function useUserRole() {
   });
 
   useEffect(() => {
+    let cancelled = false;
+
     if (!user) {
       setState({ roles: [], loading: false, isBusiness: false, isUser: false, isAdmin: false });
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
+
+    // Important: ensure AdminRoute waits for roles when user becomes available
+    setState((prev) => ({ ...prev, loading: true }));
 
     const fetchRoles = async () => {
       const { data, error } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id);
+
+      if (cancelled) return;
 
       if (error) {
         console.error("Error fetching user roles:", error);
@@ -51,7 +60,11 @@ export function useUserRole() {
     };
 
     fetchRoles();
-  }, [user]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   const upgradeToBusiness = async () => {
     if (!user) return { error: new Error("Not authenticated") };
