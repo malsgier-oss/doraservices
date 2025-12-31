@@ -16,7 +16,7 @@ import NotFound from "./pages/NotFound";
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
-import AdminBusinesses from "./pages/admin/AdminBusinesses";
+
 import AdminDeals from "./pages/admin/AdminDeals";
 import AdminReports from "./pages/admin/AdminReports";
 import AdminSettings from "./pages/admin/AdminSettings";
@@ -103,7 +103,6 @@ const AppRoutes = () => {
         <Route path="users" element={<AdminUsers />} />
         <Route path="providers" element={<AdminProviders />} />
         <Route path="services" element={<AdminServices />} />
-        <Route path="businesses" element={<AdminBusinesses />} />
         <Route path="deals" element={<AdminDeals />} />
         <Route path="reviews" element={<AdminReviews />} />
         <Route path="categories" element={<AdminCategories />} />

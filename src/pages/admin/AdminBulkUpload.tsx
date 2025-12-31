@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { Upload, Download, FileSpreadsheet, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { Upload, Download, FileSpreadsheet, CheckCircle, XCircle, AlertCircle, Phone } from "lucide-react";
 import { useCategories } from "@/hooks/useCategories";
 import { useCities } from "@/hooks/useCities";
 
@@ -24,12 +24,11 @@ interface ParsedService {
   title: string;
   description: string;
   category: string;
-  price: number;
   city: string;
-  provider_email: string;
+  provider_phone: string;
+  provider_name: string;
   status: "pending" | "success" | "error";
   error?: string;
-  provider_id?: string;
 }
 
 export default function AdminBulkUpload() {
@@ -48,9 +47,9 @@ export default function AdminBulkUpload() {
   const cityNames = cities?.map((c) => c.name.toLowerCase()) || [];
 
   const downloadTemplate = () => {
-    const template = `title,description,category,price,city,provider_email
-"AC Repair Service","Professional AC repair and maintenance","Home Maintenance",50,"Tripoli","provider@email.com"
-"Hair Styling","Expert hair styling services","Beauty & Wellness",30,"Benghazi","stylist@email.com"`;
+    const template = `title,category,city,provider_phone,provider_name,description
+"AC Repair Service","Home Maintenance","Tripoli","+218912345678","Ahmed Mohammed","Professional AC repair and maintenance"
+"Hair Styling","Beauty & Wellness","Benghazi","+218923456789","Fatima Ali","Expert hair styling services"`;
     
     const blob = new Blob([template], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -69,12 +68,12 @@ export default function AdminBulkUpload() {
     const titleIdx = headers.indexOf("title");
     const descIdx = headers.indexOf("description");
     const catIdx = headers.indexOf("category");
-    const priceIdx = headers.indexOf("price");
     const cityIdx = headers.indexOf("city");
-    const emailIdx = headers.indexOf("provider_email");
+    const phoneIdx = headers.indexOf("provider_phone");
+    const nameIdx = headers.indexOf("provider_name");
 
-    if (titleIdx === -1 || catIdx === -1 || priceIdx === -1 || emailIdx === -1) {
-      toast.error("Invalid CSV format. Required columns: title, category, price, provider_email");
+    if (titleIdx === -1 || catIdx === -1 || phoneIdx === -1) {
+      toast.error("Invalid CSV format. Required columns: title, category, provider_phone");
       return [];
     }
 
@@ -87,18 +86,18 @@ export default function AdminBulkUpload() {
       const title = values[titleIdx]?.trim();
       const description = values[descIdx]?.trim() || "";
       const category = values[catIdx]?.trim();
-      const price = parseFloat(values[priceIdx]?.trim() || "0");
       const city = values[cityIdx]?.trim() || "";
-      const providerEmail = values[emailIdx]?.trim();
+      const providerPhone = values[phoneIdx]?.trim();
+      const providerName = values[nameIdx]?.trim() || "";
 
       const service: ParsedService = {
         row: i + 1,
         title,
         description,
         category,
-        price,
         city,
-        provider_email: providerEmail,
+        provider_phone: providerPhone,
+        provider_name: providerName,
         status: "pending",
       };
 
@@ -112,15 +111,12 @@ export default function AdminBulkUpload() {
       } else if (!categoryNames.includes(category.toLowerCase())) {
         service.status = "error";
         service.error = `Invalid category: ${category}`;
-      } else if (isNaN(price) || price <= 0) {
-        service.status = "error";
-        service.error = "Invalid price";
       } else if (city && !cityNames.includes(city.toLowerCase())) {
         service.status = "error";
         service.error = `Invalid city: ${city}`;
-      } else if (!providerEmail || !providerEmail.includes("@")) {
+      } else if (!providerPhone) {
         service.status = "error";
-        service.error = "Valid provider email is required";
+        service.error = "Provider phone is required";
       }
 
       services.push(service);
@@ -166,15 +162,6 @@ export default function AdminBulkUpload() {
       return;
     }
 
-    // Look up provider IDs
-    const emailsToLookup = [...new Set(parsed.filter((p) => p.status === "pending").map((p) => p.provider_email))];
-    
-    for (const email of emailsToLookup) {
-      const { data: users } = await supabase.auth.admin.listUsers();
-      // Since we can't access admin API from client, we'll need to handle this differently
-      // For now, we'll skip validation and let the upload handle it
-    }
-
     setParsedData(parsed);
     setUploadComplete(false);
     setStats({ total: parsed.length, success: 0, failed: parsed.filter((p) => p.status === "error").length });
@@ -194,10 +181,6 @@ export default function AdminBulkUpload() {
       const item = pendingItems[i];
       
       try {
-        // Find provider by looking up profile with matching email
-        // This is a workaround since we can't query auth.users directly
-        // In production, you'd use an edge function for this
-        
         const matchingCategory = categories?.find(
           (c) => c.name.toLowerCase() === item.category.toLowerCase()
         );
@@ -205,15 +188,16 @@ export default function AdminBulkUpload() {
           (c) => c.name.toLowerCase() === item.city.toLowerCase()
         );
 
-        // For demo, we'll create with a placeholder user_id
-        // In production, this should be resolved via edge function
+        // Insert with user_id = NULL (unclaimed) and provider_phone for claiming
         const { error } = await supabase.from("services").insert({
           title: item.title,
-          description: item.description,
+          description: item.description || null,
           category: matchingCategory?.name || item.category,
-          price: item.price,
-          city: matchingCity?.name || item.city,
-          user_id: "00000000-0000-0000-0000-000000000000", // Placeholder - needs edge function
+          city: matchingCity?.name || item.city || null,
+          provider_phone: item.provider_phone,
+          provider_name: item.provider_name || null,
+          user_id: null, // Unclaimed - will be set when provider signs up
+          price: null, // Provider sets price after claiming
           is_visible: true,
           is_active: true,
         });
@@ -262,14 +246,14 @@ export default function AdminBulkUpload() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-display font-bold">Bulk Upload Services</h1>
-        <p className="text-muted-foreground">Upload multiple services at once using a CSV file</p>
+        <p className="text-muted-foreground">Upload services with phone numbers - providers will claim them when they sign up</p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Upload CSV File</CardTitle>
           <CardDescription>
-            Download the template, fill in your services, then upload the file
+            Download the template, add services with provider phone numbers, then upload. Services will be auto-claimed when providers sign up with matching phone numbers.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -292,9 +276,11 @@ export default function AdminBulkUpload() {
           </div>
 
           <Alert>
-            <FileSpreadsheet className="h-4 w-4" />
+            <Phone className="h-4 w-4" />
             <AlertDescription>
-              Required columns: title, category, price, provider_email. Optional: description, city
+              <strong>Required:</strong> title, category, provider_phone. <strong>Optional:</strong> city, provider_name, description.
+              <br />
+              <span className="text-muted-foreground">When a provider signs up with a matching phone number, services are automatically linked to their account.</span>
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -337,9 +323,9 @@ export default function AdminBulkUpload() {
                     <TableHead>Status</TableHead>
                     <TableHead>Title</TableHead>
                     <TableHead>Category</TableHead>
-                    <TableHead>Price</TableHead>
                     <TableHead>City</TableHead>
-                    <TableHead>Provider Email</TableHead>
+                    <TableHead>Provider Phone</TableHead>
+                    <TableHead>Provider Name</TableHead>
                     <TableHead>Error</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -350,9 +336,9 @@ export default function AdminBulkUpload() {
                       <TableCell>{getStatusIcon(item.status)}</TableCell>
                       <TableCell className="max-w-32 truncate">{item.title}</TableCell>
                       <TableCell>{item.category}</TableCell>
-                      <TableCell>${item.price}</TableCell>
                       <TableCell>{item.city || "-"}</TableCell>
-                      <TableCell className="max-w-32 truncate">{item.provider_email}</TableCell>
+                      <TableCell>{item.provider_phone}</TableCell>
+                      <TableCell>{item.provider_name || "-"}</TableCell>
                       <TableCell className="text-red-500 text-sm max-w-48 truncate">
                         {item.error}
                       </TableCell>

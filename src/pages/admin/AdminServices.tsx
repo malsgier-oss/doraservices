@@ -38,6 +38,8 @@ import {
   Edit,
   Trash2,
   StickyNote,
+  Phone,
+  UserCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useCategories } from "@/hooks/useCategories";
@@ -47,13 +49,15 @@ interface Service {
   title: string;
   description: string | null;
   category: string;
-  price: number;
+  price: number | null;
   city: string | null;
   is_visible: boolean;
   is_active: boolean;
   admin_note: string | null;
   views_count: number;
-  user_id: string;
+  user_id: string | null;
+  provider_phone: string | null;
+  provider_name: string | null;
   created_at: string;
   provider?: {
     full_name: string | null;
@@ -66,6 +70,7 @@ export default function AdminServices() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [visibilityFilter, setVisibilityFilter] = useState<string>("all");
+  const [claimFilter, setClaimFilter] = useState<string>("all");
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -74,12 +79,11 @@ export default function AdminServices() {
     title: "",
     description: "",
     category: "",
-    price: 0,
     city: "",
   });
 
   const { data: services, isLoading } = useQuery({
-    queryKey: ["admin-services", categoryFilter, visibilityFilter, search],
+    queryKey: ["admin-services", categoryFilter, visibilityFilter, claimFilter, search],
     queryFn: async () => {
       let query = supabase.from("services").select("*");
 
@@ -89,22 +93,30 @@ export default function AdminServices() {
       if (visibilityFilter !== "all") {
         query = query.eq("is_visible", visibilityFilter === "visible");
       }
+      if (claimFilter === "claimed") {
+        query = query.not("user_id", "is", null);
+      } else if (claimFilter === "pending") {
+        query = query.is("user_id", null);
+      }
       if (search) {
-        query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+        query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%,provider_phone.ilike.%${search}%`);
       }
 
       const { data, error } = await query.order("created_at", { ascending: false });
       if (error) throw error;
 
-      // Get provider info for each service
+      // Get provider info for claimed services
       const servicesWithProvider = await Promise.all(
         (data || []).map(async (service) => {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("user_id", service.user_id)
-            .single();
-          return { ...service, provider: profile };
+          if (service.user_id) {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("full_name")
+              .eq("user_id", service.user_id)
+              .single();
+            return { ...service, provider: profile };
+          }
+          return service;
         })
       );
 
@@ -203,7 +215,6 @@ export default function AdminServices() {
       title: service.title,
       description: service.description || "",
       category: service.category,
-      price: service.price,
       city: service.city || "",
     });
     setEditOpen(true);
@@ -213,6 +224,23 @@ export default function AdminServices() {
     setSelectedService(service);
     setAdminNote(service.admin_note || "");
     setNoteOpen(true);
+  };
+
+  const getClaimStatus = (service: Service) => {
+    if (service.user_id) {
+      return (
+        <Badge className="bg-green-500">
+          <UserCheck className="h-3 w-3 mr-1" />
+          Claimed
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="secondary">
+        <Phone className="h-3 w-3 mr-1" />
+        Pending
+      </Badge>
+    );
   };
 
   return (
@@ -249,8 +277,18 @@ export default function AdminServices() {
                   ))}
                 </SelectContent>
               </Select>
+              <Select value={claimFilter} onValueChange={setClaimFilter}>
+                <SelectTrigger className="w-36">
+                  <SelectValue placeholder="Claim Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="claimed">Claimed</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                </SelectContent>
+              </Select>
               <Select value={visibilityFilter} onValueChange={setVisibilityFilter}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="w-36">
                   <SelectValue placeholder="Visibility" />
                 </SelectTrigger>
                 <SelectContent>
@@ -278,9 +316,9 @@ export default function AdminServices() {
                   <TableHead>Title</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Provider</TableHead>
-                  <TableHead>Price</TableHead>
+                  <TableHead>Claim Status</TableHead>
                   <TableHead>Views</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Visibility</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -295,8 +333,16 @@ export default function AdminServices() {
                       )}
                     </TableCell>
                     <TableCell>{service.category}</TableCell>
-                    <TableCell>{service.provider?.full_name || "N/A"}</TableCell>
-                    <TableCell>${service.price}</TableCell>
+                    <TableCell>
+                      {service.user_id ? (
+                        service.provider?.full_name || "N/A"
+                      ) : (
+                        <span className="text-muted-foreground text-sm">
+                          {service.provider_name || service.provider_phone || "—"}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>{getClaimStatus(service)}</TableCell>
                     <TableCell>{service.views_count}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
@@ -405,14 +451,6 @@ export default function AdminServices() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div>
-              <Label>Price</Label>
-              <Input
-                type="number"
-                value={editForm.price}
-                onChange={(e) => setEditForm({ ...editForm, price: Number(e.target.value) })}
-              />
             </div>
             <div>
               <Label>City</Label>
