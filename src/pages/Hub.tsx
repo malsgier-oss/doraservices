@@ -48,6 +48,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { useCategories } from "@/hooks/useCategories";
 import { useAllSubcategories } from "@/hooks/useSubcategories";
 import { cn } from "@/lib/utils";
+import doraLogo from "@/assets/dora-logo.png";
 
 // Icon mapping for dynamic icons from database
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -212,7 +213,10 @@ export default function Hub() {
           </button>
 
           {/* Logo */}
-          <h1 className="text-xl font-bold text-[#333]">{t.appName}</h1>
+          <div className="flex items-center gap-2">
+            <img src={doraLogo} alt="Dora Logo" className="h-8 w-8 rounded-full object-cover" />
+            <h1 className="text-xl font-bold text-[#333]">{t.appName}</h1>
+          </div>
 
           {/* Right Actions */}
           <div className="flex items-center gap-2">

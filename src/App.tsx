@@ -13,6 +13,7 @@ import ServiceCreator from "./pages/ServiceCreator";
 import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import ProviderDashboard from "./pages/ProviderDashboard";
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
@@ -80,6 +81,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <Profile />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/provider-dashboard"
+        element={
+          <ProtectedRoute>
+            <ProviderDashboard />
           </ProtectedRoute>
         }
       />

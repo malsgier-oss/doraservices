@@ -244,6 +244,38 @@ export type Database = {
         }
         Relationships: []
       }
+      call_logs: {
+        Row: {
+          caller_id: string
+          created_at: string
+          id: string
+          provider_id: string
+          service_id: string
+        }
+        Insert: {
+          caller_id: string
+          created_at?: string
+          id?: string
+          provider_id: string
+          service_id: string
+        }
+        Update: {
+          caller_id?: string
+          created_at?: string
+          id?: string
+          provider_id?: string
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_logs_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           color: string
@@ -386,6 +418,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notification_events: {
+        Row: {
+          body: string
+          created_at: string
+          data: Json | null
+          id: string
+          is_read: boolean
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          data?: Json | null
+          id?: string
+          is_read?: boolean
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          data?: Json | null
+          id?: string
+          is_read?: boolean
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       platform_messages: {
         Row: {
@@ -551,6 +616,117 @@ export type Database = {
         }
         Relationships: []
       }
+      provider_stats: {
+        Row: {
+          profile_views: number
+          provider_id: string
+          total_calls: number
+          total_favorites: number
+          updated_at: string
+        }
+        Insert: {
+          profile_views?: number
+          provider_id: string
+          total_calls?: number
+          total_favorites?: number
+          updated_at?: string
+        }
+        Update: {
+          profile_views?: number
+          provider_id?: string
+          total_calls?: number
+          total_favorites?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      push_tokens: {
+        Row: {
+          created_at: string
+          device_type: string | null
+          id: string
+          is_active: boolean
+          player_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_type?: string | null
+          id?: string
+          is_active?: boolean
+          player_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_type?: string | null
+          id?: string
+          is_active?: boolean
+          player_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      review_prompts: {
+        Row: {
+          call_log_id: string | null
+          created_at: string
+          dismissed_at: string | null
+          id: string
+          prompt_sent_at: string | null
+          provider_id: string
+          reviewed_at: string | null
+          service_id: string
+          status: string
+          trigger_at: string
+          user_id: string
+        }
+        Insert: {
+          call_log_id?: string | null
+          created_at?: string
+          dismissed_at?: string | null
+          id?: string
+          prompt_sent_at?: string | null
+          provider_id: string
+          reviewed_at?: string | null
+          service_id: string
+          status?: string
+          trigger_at: string
+          user_id: string
+        }
+        Update: {
+          call_log_id?: string | null
+          created_at?: string
+          dismissed_at?: string | null
+          id?: string
+          prompt_sent_at?: string | null
+          provider_id?: string
+          reviewed_at?: string | null
+          service_id?: string
+          status?: string
+          trigger_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_prompts_call_log_id_fkey"
+            columns: ["call_log_id"]
+            isOneToOne: false
+            referencedRelation: "call_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_prompts_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reviews: {
         Row: {
           business_id: string
@@ -660,6 +836,7 @@ export type Database = {
       services: {
         Row: {
           admin_note: string | null
+          approval_status: string
           category: string
           city: string | null
           created_at: string
@@ -667,6 +844,7 @@ export type Database = {
           id: string
           image_url: string | null
           is_active: boolean
+          is_paused: boolean
           is_visible: boolean
           price: number | null
           provider_name: string | null
@@ -679,6 +857,7 @@ export type Database = {
         }
         Insert: {
           admin_note?: string | null
+          approval_status?: string
           category: string
           city?: string | null
           created_at?: string
@@ -686,6 +865,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_active?: boolean
+          is_paused?: boolean
           is_visible?: boolean
           price?: number | null
           provider_name?: string | null
@@ -698,6 +878,7 @@ export type Database = {
         }
         Update: {
           admin_note?: string | null
+          approval_status?: string
           category?: string
           city?: string | null
           created_at?: string
@@ -705,6 +886,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_active?: boolean
+          is_paused?: boolean
           is_visible?: boolean
           price?: number | null
           provider_name?: string | null
@@ -839,12 +1021,14 @@ export type Database = {
       }
       user_reports: {
         Row: {
+          call_log_id: string | null
           created_at: string
           id: string
           reason: string
           report_type: string
           reported_business_id: string | null
           reported_deal_id: string | null
+          reported_service_id: string | null
           reported_user_id: string | null
           reporter_id: string
           resolution_note: string | null
@@ -853,12 +1037,14 @@ export type Database = {
           status: string
         }
         Insert: {
+          call_log_id?: string | null
           created_at?: string
           id?: string
           reason: string
           report_type: string
           reported_business_id?: string | null
           reported_deal_id?: string | null
+          reported_service_id?: string | null
           reported_user_id?: string | null
           reporter_id: string
           resolution_note?: string | null
@@ -867,12 +1053,14 @@ export type Database = {
           status?: string
         }
         Update: {
+          call_log_id?: string | null
           created_at?: string
           id?: string
           reason?: string
           report_type?: string
           reported_business_id?: string | null
           reported_deal_id?: string | null
+          reported_service_id?: string | null
           reported_user_id?: string | null
           reporter_id?: string
           resolution_note?: string | null
@@ -880,7 +1068,22 @@ export type Database = {
           resolved_by?: string | null
           status?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_reports_call_log_id_fkey"
+            columns: ["call_log_id"]
+            isOneToOne: false
+            referencedRelation: "call_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_reports_reported_service_id_fkey"
+            columns: ["reported_service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
