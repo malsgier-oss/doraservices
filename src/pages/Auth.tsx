@@ -10,10 +10,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
-import { Mail, Lock, User, Loader2, Briefcase } from "lucide-react";
+import { Mail, Lock, User, Loader2, Briefcase, AlertCircle } from "lucide-react";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
+import doraLogo from "@/assets/dora-logo.png";
+import { useRegistrationEnabled } from "@/hooks/usePlatformSettings";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const emailSchema = z.string().email("Please enter a valid email address");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
@@ -24,6 +27,7 @@ export default function Auth() {
   const { user, signIn, signUp, loading: authLoading } = useAuth();
   const { t, isRTL } = useLanguage();
   const [isLoading, setIsLoading] = useState(false);
+  const { isEnabled: registrationEnabled, isLoading: settingsLoading } = useRegistrationEnabled();
 
   useEffect(() => {
     if (user) {
@@ -67,6 +71,16 @@ export default function Auth() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Check if registration is enabled
+    if (!registrationEnabled) {
+      toast({ 
+        title: isRTL ? "التسجيل مغلق" : "Registration Disabled", 
+        description: isRTL ? "التسجيل مغلق حالياً. يرجى المحاولة لاحقاً." : "Registration is currently disabled. Please try again later.", 
+        variant: "destructive" 
+      });
+      return;
+    }
     
     const nameResult = nameSchema.safeParse(signupData.fullName);
     if (!nameResult.success) {
@@ -120,12 +134,12 @@ export default function Auth() {
       title: isRTL ? "تم إنشاء الحساب!" : "Account created!", 
       description: signupData.isBusiness 
         ? (isRTL ? "مرحباً! أضف خدماتك الآن" : "Welcome! Add your services now")
-        : (isRTL ? "مرحباً بك في الدائرة!" : "Welcome to The Circle!") 
+        : (isRTL ? "مرحباً بك في دورة!" : "Welcome to Dora!") 
     });
     navigate(signupData.isBusiness ? "/create-service" : "/");
   };
 
-  if (authLoading) {
+  if (authLoading || settingsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -142,9 +156,7 @@ export default function Auth() {
 
       {/* Logo */}
       <div className="flex items-center gap-2 mb-8">
-        <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
-          <span className="text-primary-foreground font-bold text-lg">{isRTL ? "د" : "C"}</span>
-        </div>
+        <img src={doraLogo} alt="Dora Logo" className="w-10 h-10 rounded-full object-cover" />
         <span className="text-2xl font-bold text-foreground">{t.appName}</span>
       </div>
 
@@ -208,8 +220,18 @@ export default function Auth() {
             <TabsContent value="signup" className="mt-0">
               <div className={cn("space-y-1 mb-6", isRTL ? "text-right" : "text-left")}>
                 <CardTitle className="text-xl">{isRTL ? "إنشاء حساب" : "Create an account"}</CardTitle>
-                <CardDescription>{isRTL ? "انضم إلى الدائرة" : "Join The Circle today"}</CardDescription>
+                <CardDescription>{isRTL ? "انضم إلى دورة اليوم" : "Join Dora today"}</CardDescription>
               </div>
+
+              {/* Registration Disabled Alert */}
+              {!registrationEnabled && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    {isRTL ? "التسجيل مغلق حالياً. يرجى المحاولة لاحقاً." : "Registration is currently disabled. Please try again later."}
+                  </AlertDescription>
+                </Alert>
+              )}
               
               <form onSubmit={handleSignup} className="space-y-4">
                 <div className="space-y-2">
@@ -280,7 +302,7 @@ export default function Auth() {
                   </div>
                 </div>
                 
-                <Button type="submit" className="w-full rounded-full" disabled={isLoading}>
+                <Button type="submit" className="w-full rounded-full" disabled={isLoading || !registrationEnabled}>
                   {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t.auth.signup}
                 </Button>
               </form>

@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import doraLogo from "@/assets/dora-logo.png";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -50,11 +51,7 @@ export function Header() {
       <div className="container flex h-14 items-center justify-between">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2">
-          <div className="h-9 w-9 rounded-full bg-[#333] flex items-center justify-center">
-            <span className="text-white font-bold">
-              {isRTL ? "د" : "D"}
-            </span>
-          </div>
+          <img src={doraLogo} alt="Dora Logo" className="h-9 w-9 rounded-full object-cover" />
           <span className="font-bold text-lg text-[#333] hidden sm:block">
             {t.appName}
           </span>
