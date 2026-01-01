@@ -11,6 +11,9 @@ export interface Service {
   price: number;
   image_url: string | null;
   is_active: boolean;
+  is_paused?: boolean;
+  is_visible?: boolean;
+  approval_status?: string;
   created_at: string;
   updated_at: string;
   provider_name?: string;

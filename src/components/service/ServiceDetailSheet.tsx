@@ -4,6 +4,7 @@ import { X, Phone, Star, Clock, ChevronRight, Heart, MessageSquare, MapPin } fro
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 import {
   Drawer,
   DrawerClose,
@@ -20,6 +21,7 @@ import { useFavorites } from "@/hooks/useFavorites";
 import { useReviews, useServiceRatings } from "@/hooks/useReviews";
 import { useCities } from "@/hooks/useCities";
 import { useSubCities } from "@/hooks/useSubCities";
+import { useCallLogs } from "@/hooks/useCallLogs";
 import { ReviewDialog } from "./ReviewDialog";
 import { ReviewList } from "./ReviewList";
 import { toast } from "sonner";
@@ -62,11 +64,13 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
   const { toggleFavorite, isFavorite } = useFavorites();
   const { data: cities } = useCities();
   const { data: subCities } = useSubCities(filters?.city);
+  const { logCall } = useCallLogs();
   const [providers, setProviders] = useState<ServiceProvider[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [isLoggingCall, setIsLoggingCall] = useState(false);
 
   // Reviews for selected provider
   const { reviews, rating, userReview, submitReview, loading: reviewsLoading } = useReviews(selectedProvider?.id);
@@ -99,12 +103,13 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
     
     setLoading(true);
     try {
-      // Get services from this category
+      // Get services from this category (exclude paused services)
       const { data: servicesData, error: servicesError } = await supabase
         .from("services")
         .select("*")
         .eq("category", service.category)
         .eq("is_active", true)
+        .or("is_paused.is.null,is_paused.eq.false") // Exclude paused services
         .order("created_at", { ascending: false });
 
       if (servicesError) {
@@ -209,17 +214,35 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
     setSelectedProvider(provider);
   };
 
-  // Require auth for contact actions
-  const handleCall = (phone: string) => {
+  // Require auth for contact actions and log the call
+  const handleCall = async (provider: ServiceProvider) => {
     if (!user) {
       toast.info(isRTL ? "يرجى تسجيل الدخول للتواصل" : "Please sign in to contact");
       onOpenChange(false);
       navigate("/auth");
       return;
     }
-    if (phone) {
-      window.location.href = `tel:${phone}`;
+
+    if (!provider.provider_phone) {
+      toast.error(isRTL ? "رقم الهاتف غير متوفر" : "Phone number not available");
+      return;
     }
+
+    // Log the call to analytics
+    setIsLoggingCall(true);
+    try {
+      await logCall.mutateAsync({
+        service_id: provider.id,
+        provider_id: provider.user_id || provider.id, // Use service ID as fallback for unclaimed services
+      });
+    } catch (error) {
+      console.error("Error logging call:", error);
+      // Don't block the call if logging fails
+    }
+    setIsLoggingCall(false);
+
+    // Initiate the phone call
+    window.location.href = `tel:${provider.provider_phone}`;
   };
 
   const handleToggleFavorite = async (serviceId: string) => {
@@ -394,11 +417,11 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
                     variant="outline"
                     size="lg"
                     className="flex-1 h-14 rounded-2xl"
-                    onClick={() => handleCall(selectedProvider.provider_phone)}
-                    disabled={!selectedProvider.provider_phone}
+                    onClick={() => handleCall(selectedProvider)}
+                    disabled={!selectedProvider.provider_phone || isLoggingCall}
                   >
                     <Phone className="h-5 w-5 mr-2" />
-                    {isRTL ? "اتصل" : "Call"}
+                    {isLoggingCall ? (isRTL ? "جاري..." : "Calling...") : (isRTL ? "اتصل" : "Call")}
                   </Button>
                   <Button
                     variant={isProviderFavorite ? "default" : "outline"}
@@ -416,6 +439,15 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
                     }
                   </Button>
                 </div>
+
+                {/* Unclaimed Service Notice */}
+                {!selectedProvider.user_id && (
+                  <div className="mt-2">
+                    <Badge variant="secondary" className="bg-amber-100 text-amber-700 text-xs">
+                      {isRTL ? "خدمة غير مؤكدة" : "Unclaimed Service"}
+                    </Badge>
+                  </div>
+                )}
               </div>
             </ScrollArea>
           </DrawerContent>
