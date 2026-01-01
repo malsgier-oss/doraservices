@@ -17,6 +17,9 @@ import {
   MapPin,
   Phone,
   Clock,
+  Pencil,
+  Pause,
+  Play,
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -44,6 +47,8 @@ import { useCities } from "@/hooks/useCities";
 import { useSubCities } from "@/hooks/useSubCities";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { ProfileCompleteness } from "@/components/profile/ProfileCompleteness";
+import { EditServiceDialog } from "@/components/service/EditServiceDialog";
 
 // Format phone to Libyan style: 09x xxx xx xx
 const formatLibyanPhone = (value: string): string => {
@@ -69,13 +74,16 @@ const Profile = () => {
   const [activeTab, setActiveTab] = useState("favorites");
   const [isEditing, setIsEditing] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
+  const [editingService, setEditingService] = useState<typeof myServices[0] | null>(null);
+  const [isSavingService, setIsSavingService] = useState(false);
+  const [togglingPauseId, setTogglingPauseId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { profile, loading, updateProfile } = useProfile();
   const { isBusiness, loading: roleLoading, upgradeToBusiness } = useUserRole();
   const { t, isRTL, language } = useLanguage();
-  const { myServices, deleteService } = useServices();
+  const { myServices, deleteService, updateService } = useServices();
   const { uploadAvatar, uploading } = useAvatarUpload();
   const { data: cities } = useCities();
   const { data: subCities } = useSubCities(profile?.city || null);
@@ -217,6 +225,10 @@ const Profile = () => {
   };
 
   const handleDeleteService = async (id: string) => {
+    if (!confirm(isRTL ? "هل أنت متأكد من حذف هذه الخدمة؟" : "Are you sure you want to delete this service?")) {
+      return;
+    }
+    
     const { error } = await deleteService(id);
     if (error) {
       toast({
@@ -228,6 +240,60 @@ const Profile = () => {
       toast({
         title: t.profile.serviceDeleted,
         description: t.profile.serviceDeletedDesc,
+      });
+    }
+  };
+
+  const handleEditService = (service: typeof myServices[0]) => {
+    setEditingService(service);
+  };
+
+  const handleSaveService = async (
+    serviceId: string, 
+    updates: { title: string; description: string | null; category: string; is_paused: boolean }
+  ) => {
+    setIsSavingService(true);
+    const { error } = await updateService(serviceId, updates);
+    setIsSavingService(false);
+
+    if (error) {
+      toast({
+        title: t.common.error,
+        description: isRTL ? "فشل تحديث الخدمة" : "Failed to update service",
+        variant: "destructive",
+      });
+      return { error };
+    }
+
+    toast({
+      title: isRTL ? "تم التحديث" : "Updated",
+      description: isRTL ? "تم تحديث الخدمة بنجاح" : "Service updated successfully",
+    });
+    setEditingService(null);
+    return { error: null };
+  };
+
+  const handleTogglePause = async (service: typeof myServices[0]) => {
+    setTogglingPauseId(service.id);
+    const { error } = await updateService(service.id, { 
+      is_paused: !service.is_paused 
+    });
+    setTogglingPauseId(null);
+
+    if (error) {
+      toast({
+        title: t.common.error,
+        description: isRTL ? "فشل تحديث الحالة" : "Failed to update status",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: service.is_paused 
+          ? (isRTL ? "تم تفعيل الخدمة" : "Service Activated") 
+          : (isRTL ? "تم إيقاف الخدمة" : "Service Paused"),
+        description: service.is_paused 
+          ? (isRTL ? "الخدمة مرئية للعملاء الآن" : "Service is now visible to customers")
+          : (isRTL ? "الخدمة مخفية عن العملاء" : "Service is hidden from customers"),
       });
     }
   };
@@ -519,7 +585,18 @@ const Profile = () => {
         </div>
       </section>
 
-      {/* Tabs */}
+      {/* Profile Completeness for Business Users */}
+      {isBusiness && !isEditing && (
+        <section className="pb-4">
+          <div className="container">
+            <ProfileCompleteness 
+              profile={profile} 
+              hasServices={myServices.length > 0}
+              className="max-w-2xl mx-auto"
+            />
+          </div>
+        </section>
+      )}
       <section className="py-6">
         <div className="container">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -584,23 +661,60 @@ const Profile = () => {
                   {myServices.length > 0 ? (
                     <div className="space-y-4">
                       {myServices.map((service) => (
-                        <div key={service.id} className="bg-card rounded-2xl p-4 shadow-card">
+                        <div 
+                          key={service.id} 
+                          className={`bg-card rounded-2xl p-4 shadow-card ${service.is_paused ? "opacity-60" : ""}`}
+                        >
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1">
-                              <h3 className="font-semibold text-foreground">{service.title}</h3>
-                              <p className="text-sm text-muted-foreground mt-1">{service.description}</p>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-semibold text-foreground">{service.title}</h3>
+                                {service.is_paused && (
+                                  <Badge variant="secondary" className="bg-gray-200 text-gray-600 text-xs">
+                                    <Pause className="h-3 w-3 mr-1" />
+                                    {isRTL ? "متوقف" : "Paused"}
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{service.description}</p>
                               <div className="flex items-center gap-2 mt-2 flex-wrap">
                                 <Badge variant="outline">
                                   {t.categories[service.category as keyof typeof t.categories] || service.category}
                                 </Badge>
                                 {isPendingApproval && (
                                   <Badge variant="secondary" className="bg-amber-100 text-amber-700">
-                                    {isRTL ? "غير مرئي" : "Not visible"}
+                                    {isRTL ? "قيد المراجعة" : "Pending"}
                                   </Badge>
                                 )}
                               </div>
                             </div>
                             <div className="flex gap-2">
+                              {/* Pause/Resume Toggle */}
+                              <Button 
+                                size="icon" 
+                                variant="outline" 
+                                className="h-8 w-8 rounded-full"
+                                onClick={() => handleTogglePause(service)}
+                                disabled={togglingPauseId === service.id}
+                              >
+                                {togglingPauseId === service.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : service.is_paused ? (
+                                  <Play className="h-4 w-4 text-green-600" />
+                                ) : (
+                                  <Pause className="h-4 w-4 text-orange-500" />
+                                )}
+                              </Button>
+                              {/* Edit Button */}
+                              <Button 
+                                size="icon" 
+                                variant="outline" 
+                                className="h-8 w-8 rounded-full"
+                                onClick={() => handleEditService(service)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              {/* Delete Button */}
                               <Button 
                                 size="icon" 
                                 variant="outline" 
@@ -654,6 +768,14 @@ const Profile = () => {
           </Tabs>
         </div>
       </section>
+      {/* Edit Service Dialog */}
+      <EditServiceDialog
+        open={!!editingService}
+        onOpenChange={(open) => !open && setEditingService(null)}
+        service={editingService}
+        onSave={handleSaveService}
+        isSaving={isSavingService}
+      />
     </Layout>
   );
 };
