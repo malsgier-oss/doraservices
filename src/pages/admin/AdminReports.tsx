@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Check, X, AlertTriangle, User, Store, Tag } from "lucide-react";
+import { Check, X, AlertTriangle, User, Store, Tag, Wrench } from "lucide-react";
 import { useAdminReports, useReportMutations } from "@/hooks/useAdmin";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
@@ -59,7 +59,9 @@ export default function AdminReports() {
     reported_user_id: string | null;
     reported_business_id: string | null;
     reported_deal_id: string | null;
+    reported_service_id: string | null;
   }) => {
+    if (report.reported_service_id) return <Wrench className="h-4 w-4" />;
     if (report.reported_user_id) return <User className="h-4 w-4" />;
     if (report.reported_business_id) return <Store className="h-4 w-4" />;
     if (report.reported_deal_id) return <Tag className="h-4 w-4" />;
@@ -70,7 +72,9 @@ export default function AdminReports() {
     reported_user_id: string | null;
     reported_business_id: string | null;
     reported_deal_id: string | null;
+    reported_service_id: string | null;
   }) => {
+    if (report.reported_service_id) return "Service";
     if (report.reported_user_id) return "User";
     if (report.reported_business_id) return "Business";
     if (report.reported_deal_id) return "Deal";
