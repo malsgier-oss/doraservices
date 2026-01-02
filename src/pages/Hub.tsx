@@ -42,6 +42,7 @@ import { LanguageToggle } from "@/components/LanguageToggle";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
 import { SearchFilters, ActiveFilterChips, SearchFiltersState } from "@/components/search/SearchFilters";
+import { ReviewPromptBanner } from "@/components/review/ReviewPromptBanner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
@@ -313,6 +314,9 @@ export default function Hub() {
       </header>
 
       <main className="px-4 pb-8">
+        {/* Review Prompt Banner */}
+        <ReviewPromptBanner />
+
         {/* Category Hero Section */}
         <section className="mt-8">
           <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">

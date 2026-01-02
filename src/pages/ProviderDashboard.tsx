@@ -17,11 +17,14 @@ import {
   MapPin,
   FileText,
   Briefcase,
-  Loader2
+  Loader2,
+  Star,
+  TrendingUp
 } from "lucide-react";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { cn } from "@/lib/utils";
 import { useEffect } from "react";
+import { StatsChart } from "@/components/dashboard/StatsChart";
 
 function calculateProfileCompleteness(profile: {
   full_name?: string | null;
@@ -206,12 +209,18 @@ export default function ProviderDashboard() {
           ))}
         </div>
 
+        {/* Performance Chart */}
+        {serviceStats && serviceStats.length > 0 && (
+          <StatsChart serviceStats={serviceStats} />
+        )}
+
         {/* Per-Service Breakdown */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base">
-              {isRTL ? "إحصائيات الخدمات" : "Service Stats"}
+              {isRTL ? "تفاصيل الخدمات" : "Service Details"}
             </CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             {!serviceStats || serviceStats.length === 0 ? (
@@ -245,10 +254,10 @@ export default function ProviderDashboard() {
                     <span className="text-sm font-medium truncate pr-2">
                       {service.title}
                     </span>
-                    <span className="text-center text-sm">
+                    <span className="text-center text-sm font-medium">
                       {service.calls}
                     </span>
-                    <span className="text-center text-sm">
+                    <span className="text-center text-sm font-medium">
                       {service.favorites}
                     </span>
                   </div>

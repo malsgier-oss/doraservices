@@ -49,6 +49,8 @@ interface Report {
   reported_user_id: string | null;
   reported_business_id: string | null;
   reported_deal_id: string | null;
+  reported_service_id: string | null;
+  call_log_id: string | null;
   report_type: string;
   reason: string;
   status: string;
