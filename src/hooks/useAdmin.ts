@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -250,7 +251,22 @@ export function useUserMutations() {
       const { data, error } = await supabase.functions.invoke("admin", {
         body: { action: "deleteUser", userId },
       });
-      if (error) throw error;
+
+      if (error) {
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const payload = await error.context.json();
+            const msg = typeof payload?.error === "string" ? payload.error : error.message;
+            const details = payload?.details ? ` (${typeof payload.details === "string" ? payload.details : JSON.stringify(payload.details)})` : "";
+            throw new Error(`${msg}${details}`);
+          } catch {
+            // fallback when body isn't JSON
+            throw new Error(error.message);
+          }
+        }
+        throw new Error(error.message);
+      }
+
       if (data && typeof data === "object" && "error" in (data as Record<string, unknown>)) {
         throw new Error(String((data as Record<string, unknown>).error));
       }
