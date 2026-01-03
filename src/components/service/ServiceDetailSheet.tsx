@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { X, Phone, Star, Clock, ChevronRight, Heart, MessageSquare, MapPin, Flag } from "lucide-react";
+import { X, Phone, Star, Clock, ChevronRight, Heart, MessageSquare, MapPin, Flag, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -25,6 +25,7 @@ import { useCallLogs } from "@/hooks/useCallLogs";
 import { ReviewDialog } from "./ReviewDialog";
 import { ReviewList } from "./ReviewList";
 import { ReportDialog } from "@/components/report/ReportDialog";
+import { ClaimServiceDialog } from "./ClaimServiceDialog";
 import { toast } from "sonner";
 import { SearchFiltersState } from "@/components/search/SearchFilters";
 
@@ -71,6 +72,7 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
   const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [claimDialogOpen, setClaimDialogOpen] = useState(false);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [isLoggingCall, setIsLoggingCall] = useState(false);
 
@@ -442,12 +444,25 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
                   </Button>
                 </div>
 
-                {/* Report and Unclaimed badges */}
-                <div className="flex items-center justify-between mt-2">
+                {/* Claim, Report and Unclaimed badges */}
+                <div className="flex items-center justify-between mt-2 gap-2">
                   {!selectedProvider.user_id ? (
-                    <Badge variant="secondary" className="bg-amber-100 text-amber-700 text-xs">
-                      {isRTL ? "خدمة غير مؤكدة" : "Unclaimed Service"}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="bg-amber-100 text-amber-700 text-xs">
+                        {isRTL ? "خدمة غير مؤكدة" : "Unclaimed Service"}
+                      </Badge>
+                      {user && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-primary border-primary hover:bg-primary/10"
+                          onClick={() => setClaimDialogOpen(true)}
+                        >
+                          <UserCheck className="h-4 w-4 mr-1" />
+                          {isRTL ? "المطالبة بالخدمة" : "Claim"}
+                        </Button>
+                      )}
+                    </div>
                   ) : <div />}
                   
                   <Button
@@ -480,6 +495,20 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
           serviceId={selectedProvider.id}
           userId={selectedProvider.user_id}
           providerName={selectedProvider.provider_name}
+        />
+
+        <ClaimServiceDialog
+          open={claimDialogOpen}
+          onOpenChange={setClaimDialogOpen}
+          service={selectedProvider ? {
+            id: selectedProvider.id,
+            title: selectedProvider.title,
+            provider_phone: selectedProvider.provider_phone,
+          } : null}
+          onClaimSuccess={() => {
+            fetchProviders();
+            setSelectedProvider(null);
+          }}
         />
       </>
     );
