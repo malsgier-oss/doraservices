@@ -107,28 +107,54 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Clean up app tables first
-      const cleanupResults = await Promise.all([
-        adminClient.from("deals").delete().eq("user_id", targetUserId),
-        adminClient.from("businesses").delete().eq("user_id", targetUserId),
-        adminClient.from("reviews").delete().eq("user_id", targetUserId),
-        adminClient.from("posts").delete().eq("user_id", targetUserId),
-        adminClient.from("saved_businesses").delete().eq("user_id", targetUserId),
+      // Clean up app tables first (order matters for foreign key dependencies)
+      // First: delete records that reference other user data
+      const firstPassResults = await Promise.all([
+        adminClient.from("review_prompts").delete().eq("user_id", targetUserId),
+        adminClient.from("service_reviews").delete().eq("user_id", targetUserId),
+        adminClient.from("call_logs").delete().eq("caller_id", targetUserId),
+        adminClient.from("notification_events").delete().eq("user_id", targetUserId),
         adminClient.from("user_reports").delete().eq("reporter_id", targetUserId),
         adminClient.from("user_reports").delete().eq("reported_user_id", targetUserId),
+        adminClient.from("saved_businesses").delete().eq("user_id", targetUserId),
         adminClient.from("user_messages").delete().eq("user_id", targetUserId),
+        adminClient.from("reviews").delete().eq("user_id", targetUserId),
+        adminClient.from("push_tokens").delete().eq("user_id", targetUserId),
+      ]);
+
+      // Log first pass errors but continue
+      const firstPassErrors = firstPassResults.filter(r => r.error);
+      if (firstPassErrors.length > 0) {
+        console.warn("first pass cleanup warnings", firstPassErrors.map(r => r.error?.message));
+      }
+
+      // Second pass: delete records where user is a provider
+      const secondPassResults = await Promise.all([
+        adminClient.from("review_prompts").delete().eq("provider_id", targetUserId),
+        adminClient.from("call_logs").delete().eq("provider_id", targetUserId),
+        adminClient.from("provider_stats").delete().eq("provider_id", targetUserId),
+        adminClient.from("services").delete().eq("user_id", targetUserId),
+        adminClient.from("deals").delete().eq("user_id", targetUserId),
+        adminClient.from("businesses").delete().eq("user_id", targetUserId),
+        adminClient.from("posts").delete().eq("user_id", targetUserId),
+      ]);
+
+      // Log second pass errors but continue
+      const secondPassErrors = secondPassResults.filter(r => r.error);
+      if (secondPassErrors.length > 0) {
+        console.warn("second pass cleanup warnings", secondPassErrors.map(r => r.error?.message));
+      }
+
+      // Final pass: delete core user records (must be last due to FK constraints)
+      const finalResults = await Promise.all([
         adminClient.from("user_roles").delete().eq("user_id", targetUserId),
         adminClient.from("profiles").delete().eq("user_id", targetUserId),
       ]);
 
-      const cleanupErrors = cleanupResults
-        .map((r) => r.error)
-        .filter(Boolean)
-        .map((e) => ({ message: e!.message, details: e }));
-
-      if (cleanupErrors.length > 0) {
-        console.error("cleanup failed", cleanupErrors);
-        return new Response(JSON.stringify({ error: "Failed to delete user data", details: cleanupErrors }), {
+      const finalErrors = finalResults.filter(r => r.error);
+      if (finalErrors.length > 0) {
+        console.error("final cleanup failed", finalErrors.map(r => r.error));
+        return new Response(JSON.stringify({ error: "Failed to delete user data", details: finalErrors.map(r => r.error?.message) }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
