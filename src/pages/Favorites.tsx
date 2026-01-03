@@ -64,11 +64,11 @@ export default function Favorites() {
         return;
       }
 
-      // Get service details
+      // Get service details - include provider_name and provider_phone for bulk-uploaded services
       const serviceIds = savedData.map(s => s.business_id);
       const { data: services } = await supabase
         .from("services")
-        .select("id, title, category, user_id")
+        .select("id, title, category, user_id, provider_name, provider_phone")
         .in("id", serviceIds);
 
       if (!services || services.length === 0) {
@@ -77,29 +77,37 @@ export default function Favorites() {
         return;
       }
 
-      // Get provider profiles
-      const userIds = [...new Set(services.map(s => s.user_id))];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, avatar_url, phone")
-        .in("user_id", userIds);
+      // Get provider profiles only for claimed services (those with user_id)
+      const userIds = [...new Set(services.map(s => s.user_id).filter(Boolean))] as string[];
+      let profileMap = new Map<string, { full_name: string | null; avatar_url: string | null; phone: string | null }>();
+      
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name, avatar_url, phone")
+          .in("user_id", userIds);
 
-      const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
+        profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
+      }
+
       const serviceMap = new Map(services.map(s => [s.id, s]));
 
       const enrichedFavorites: FavoriteService[] = savedData
         .filter(saved => serviceMap.has(saved.business_id))
         .map(saved => {
           const service = serviceMap.get(saved.business_id)!;
-          const profile = profileMap.get(service.user_id);
+          const profile = service.user_id ? profileMap.get(service.user_id) : null;
+          
+          // For bulk-uploaded services (user_id is null), use the service table's provider info
+          // For claimed services, use the profile data
           return {
             id: saved.id,
             service_id: service.id,
             service_title: service.title,
             service_category: service.category,
-            provider_name: profile?.full_name || (isRTL ? "مقدم الخدمة" : "Provider"),
+            provider_name: profile?.full_name || service.provider_name || (isRTL ? "مقدم الخدمة" : "Provider"),
             provider_avatar: profile?.avatar_url || "",
-            provider_phone: profile?.phone || "",
+            provider_phone: profile?.phone || service.provider_phone || "",
           };
         });
 
