@@ -1,6 +1,17 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { X, Phone, Star, Clock, ChevronRight, Heart, MessageSquare, MapPin, Flag, UserCheck } from "lucide-react";
+import {
+  X,
+  Phone,
+  Star,
+  Clock,
+  ChevronRight,
+  Heart,
+  MessageSquare,
+  MapPin,
+  Flag,
+  UserCheck,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -57,9 +68,18 @@ interface ServiceDetailSheetProps {
     icon: LucideIcon;
   } | null;
   filters?: SearchFiltersState;
+
+  // ✅ NEW: If provided, sheet will open directly on that provider (service row id)
+  initialProviderServiceId?: string | null;
 }
 
-export function ServiceDetailSheet({ open, onOpenChange, service, filters }: ServiceDetailSheetProps) {
+export function ServiceDetailSheet({
+  open,
+  onOpenChange,
+  service,
+  filters,
+  initialProviderServiceId,
+}: ServiceDetailSheetProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { t, isRTL, language } = useLanguage();
@@ -67,6 +87,7 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
   const { data: cities } = useCities();
   const { data: subCities } = useSubCities(filters?.city);
   const { logCall } = useCallLogs();
+
   const [providers, setProviders] = useState<ServiceProvider[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
@@ -77,34 +98,53 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
   const [isLoggingCall, setIsLoggingCall] = useState(false);
 
   // Reviews for selected provider
-  const { reviews, rating, userReview, submitReview, loading: reviewsLoading } = useReviews(selectedProvider?.id);
-  
+  const { reviews, rating, userReview, submitReview, loading: reviewsLoading } =
+    useReviews(selectedProvider?.id);
+
   // Ratings for providers list
-  const { ratings: providerRatings } = useServiceRatings(providers.map(p => p.id));
+  const { ratings: providerRatings } = useServiceRatings(providers.map((p) => p.id));
 
   // Helper to get city label
   const getCityLabel = (cityId: string | null) => {
     if (!cityId) return null;
-    const city = cities?.find(c => c.id === cityId || c.name.toLowerCase() === cityId.toLowerCase());
-    return city ? (language === "ar" && city.name_ar ? city.name_ar : city.name) : cityId;
+    const city = cities?.find(
+      (c) => c.id === cityId || c.name.toLowerCase() === cityId.toLowerCase()
+    );
+    return city
+      ? language === "ar" && city.name_ar
+        ? city.name_ar
+        : city.name
+      : cityId;
   };
 
   // Helper to get sub-city label
   const getSubCityLabel = (subCityId: string | null) => {
     if (!subCityId) return null;
-    const subCity = subCities?.find(sc => sc.id === subCityId || sc.name.toLowerCase() === subCityId.toLowerCase());
-    return subCity ? (language === "ar" && subCity.name_ar ? subCity.name_ar : subCity.name) : subCityId;
+    const subCity = subCities?.find(
+      (sc) => sc.id === subCityId || sc.name.toLowerCase() === subCityId.toLowerCase()
+    );
+    return subCity
+      ? language === "ar" && subCity.name_ar
+        ? subCity.name_ar
+        : subCity.name
+      : subCityId;
   };
 
   useEffect(() => {
     if (open && service) {
       fetchProviders();
     }
-  }, [open, service]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, service?.id]);
+
+  // ✅ NEW: reset selected provider when switching service/category
+  useEffect(() => {
+    setSelectedProvider(null);
+  }, [service?.id]);
 
   const fetchProviders = async () => {
     if (!service) return;
-    
+
     setLoading(true);
     try {
       // Get services from this category (exclude paused services)
@@ -113,48 +153,45 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
         .select("*")
         .eq("category", service.category)
         .eq("is_active", true)
-        .or("is_paused.is.null,is_paused.eq.false") // Exclude paused services
+        .or("is_paused.is.null,is_paused.eq.false")
         .order("created_at", { ascending: false });
 
       if (servicesError) {
         console.error("Error fetching services:", servicesError);
-        setLoading(false);
+        setProviders([]);
         return;
       }
 
       if (!servicesData || servicesData.length === 0) {
         setProviders([]);
-        setLoading(false);
         return;
       }
 
       // Get provider profiles - ONLY approved providers (for claimed services)
-      const userIds = [...new Set(servicesData.map(s => s.user_id).filter(Boolean))];
-      let profileMap = new Map();
-      
+      const userIds = [...new Set(servicesData.map((s: any) => s.user_id).filter(Boolean))];
+      let profileMap = new Map<string, any>();
+
       if (userIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")
           .select("user_id, full_name, avatar_url, phone, city, sub_city, provider_status")
           .in("user_id", userIds)
           .eq("provider_status", "approved");
-        
-        profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
+
+        profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
       }
 
       // Include BOTH:
       // 1. Bulk-uploaded services (user_id is NULL but have provider_name/provider_phone)
       // 2. Claimed services from approved providers
       const enrichedServices: ServiceProvider[] = servicesData
-        .filter(svc => {
-          // Bulk uploaded service (unclaimed) - show if has provider info
+        .filter((svc: any) => {
           if (!svc.user_id) {
             return svc.provider_name && svc.provider_phone;
           }
-          // Claimed service - only show if provider is approved
           return profileMap.has(svc.user_id);
         })
-        .map(svc => {
+        .map((svc: any) => {
           const profile = svc.user_id ? profileMap.get(svc.user_id) : null;
           return {
             id: svc.id,
@@ -163,8 +200,8 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
             category: svc.category,
             image_url: svc.image_url,
             user_id: svc.user_id,
-            // Use profile data if claimed, otherwise use service table data (bulk upload)
-            provider_name: profile?.full_name || svc.provider_name || (isRTL ? "مقدم الخدمة" : "Provider"),
+            provider_name:
+              profile?.full_name || svc.provider_name || (isRTL ? "مقدم الخدمة" : "Provider"),
             provider_avatar: profile?.avatar_url || "",
             provider_phone: profile?.phone || svc.provider_phone || "",
             provider_city: profile?.city || svc.city || null,
@@ -175,28 +212,38 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
       setProviders(enrichedServices);
     } catch (error) {
       console.error("Error:", error);
+      setProviders([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Filter providers based on city and rating - moved BEFORE any early returns
+  // ✅ NEW: if Hub passes provider service_id, open directly to that provider details
+  useEffect(() => {
+    if (!open) return;
+    if (!initialProviderServiceId) return;
+    if (providers.length === 0) return;
+
+    const match = providers.find((p) => p.id === initialProviderServiceId);
+    if (match) {
+      setSelectedProvider(match);
+    }
+  }, [open, initialProviderServiceId, providers]);
+
+  // Filter providers based on city and rating
   const filteredProviders = useMemo(() => {
     let result = providers;
 
-    // Filter by city
     if (filters?.city) {
-      result = result.filter(p => p.provider_city === filters.city);
+      result = result.filter((p) => p.provider_city === filters.city);
     }
 
-    // Filter by sub-city
     if (filters?.subCity) {
-      result = result.filter(p => p.provider_sub_city === filters.subCity);
+      result = result.filter((p) => p.provider_sub_city === filters.subCity);
     }
 
-    // Filter by minimum rating (4+ stars)
     if (filters?.minRating) {
-      result = result.filter(p => {
+      result = result.filter((p) => {
         const r = providerRatings.get(p.id);
         return r && r.averageRating >= 4;
       });
@@ -205,14 +252,18 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
     return result;
   }, [providers, filters, providerRatings]);
 
-  // Early return AFTER all hooks
+  // Early return AFTER hooks
   if (!service) return null;
 
   const IconComponent = service.icon;
-  const title = t.featuredList[service.titleKey as keyof typeof t.featuredList] || service.titleKey;
-  const categoryLabel = language === "ar" && service.categoryNameAr 
-    ? service.categoryNameAr 
-    : (service.categoryName || t.categories[service.category as keyof typeof t.categories] || service.category);
+  const title = (t as any).featuredList?.[service.titleKey] || service.titleKey;
+
+  const categoryLabel =
+    language === "ar" && service.categoryNameAr
+      ? service.categoryNameAr
+      : service.categoryName ||
+        (t as any).categories?.[service.category] ||
+        service.category;
 
   const handleProviderClick = (provider: ServiceProvider) => {
     setSelectedProvider(provider);
@@ -232,20 +283,17 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
       return;
     }
 
-    // Log the call to analytics
     setIsLoggingCall(true);
     try {
       await logCall.mutateAsync({
         service_id: provider.id,
-        provider_id: provider.user_id || provider.id, // Use service ID as fallback for unclaimed services
+        provider_id: provider.user_id || provider.id,
       });
     } catch (error) {
       console.error("Error logging call:", error);
-      // Don't block the call if logging fails
     }
     setIsLoggingCall(false);
 
-    // Initiate the phone call
     window.location.href = `tel:${provider.provider_phone}`;
   };
 
@@ -256,14 +304,18 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
       navigate("/auth");
       return;
     }
-    
+
     const result = await toggleFavorite(serviceId);
     if (!result.error) {
-      if (result.added) {
-        toast.success(isRTL ? "تمت الإضافة للمفضلة" : "Added to favorites");
-      } else {
-        toast.success(isRTL ? "تمت الإزالة من المفضلة" : "Removed from favorites");
-      }
+      toast.success(
+        result.added
+          ? isRTL
+            ? "تمت الإضافة للمفضلة"
+            : "Added to favorites"
+          : isRTL
+          ? "تمت الإزالة من المفضلة"
+          : "Removed from favorites"
+      );
     }
   };
 
@@ -279,7 +331,7 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
 
   const handleSubmitReview = async (reviewRating: number, content: string) => {
     if (!selectedProvider) return;
-    
+
     setIsSubmittingReview(true);
     const { error } = await submitReview({
       rating: reviewRating,
@@ -305,20 +357,27 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
     if (!r || r.totalReviews === 0) {
       return { text: isRTL ? "جديد" : "New", hasRating: false, rating: 0 };
     }
-    return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true, rating: r.averageRating };
+    return {
+      text: `${r.averageRating} (${r.totalReviews})`,
+      hasRating: true,
+      rating: r.averageRating,
+    };
   };
 
   // Provider detail view
   if (selectedProvider) {
     const isProviderFavorite = isFavorite(selectedProvider.id);
     const hasRating = rating.totalReviews > 0;
-    
+
     return (
       <>
-        <Drawer open={open} onOpenChange={(isOpen) => {
-          if (!isOpen) setSelectedProvider(null);
-          onOpenChange(isOpen);
-        }}>
+        <Drawer
+          open={open}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) setSelectedProvider(null);
+            onOpenChange(isOpen);
+          }}
+        >
           <DrawerContent className="max-h-[90vh]">
             <DrawerHeader className="relative pb-0">
               <button
@@ -330,17 +389,25 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
               >
                 <ChevronRight className={cn("h-4 w-4 text-muted-foreground", !isRTL && "rotate-180")} />
               </button>
-              <DrawerClose className={cn(
-                "absolute top-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
-                isRTL ? "left-4" : "right-4"
-              )}>
+
+              <DrawerClose
+                className={cn(
+                  "absolute top-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
+                  isRTL ? "left-4" : "right-4"
+                )}
+              >
                 <X className="h-4 w-4 text-muted-foreground" />
               </DrawerClose>
+
               <div className="flex flex-col items-center pt-2">
                 <Avatar className="h-20 w-20 mb-4">
                   <AvatarImage src={selectedProvider.provider_avatar || undefined} />
                   <AvatarFallback className="bg-primary text-primary-foreground text-xl font-medium">
-                    {selectedProvider.provider_name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                    {selectedProvider.provider_name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .slice(0, 2)}
                   </AvatarFallback>
                 </Avatar>
                 <DrawerTitle className="text-xl font-bold text-foreground">
@@ -354,24 +421,28 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
               <div className="px-6 py-6 space-y-6" dir={isRTL ? "rtl" : "ltr"}>
                 {/* Rating & Info */}
                 <div className="flex items-center justify-center gap-6 text-sm">
-                  <button 
+                  <button
                     onClick={handleOpenReviewDialog}
                     className="flex items-center gap-1 hover:opacity-70 transition-opacity"
                   >
-                    <Star className={cn(
-                      "h-4 w-4",
-                      hasRating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground"
-                    )} />
+                    <Star
+                      className={cn(
+                        "h-4 w-4",
+                        hasRating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground"
+                      )}
+                    />
                     <span className={cn("font-medium", hasRating ? "text-foreground" : "text-muted-foreground")}>
-                      {hasRating ? `${rating.averageRating} (${rating.totalReviews})` : (isRTL ? "جديد" : "New")}
+                      {hasRating ? `${rating.averageRating} (${rating.totalReviews})` : isRTL ? "جديد" : "New"}
                     </span>
                   </button>
+
                   {selectedProvider.provider_city && (
                     <div className="flex items-center gap-1 text-muted-foreground">
                       <MapPin className="h-4 w-4" />
                       <span>{getCityLabel(selectedProvider.provider_city)}</span>
                     </div>
                   )}
+
                   <div className="flex items-center gap-1 text-muted-foreground">
                     <Clock className="h-4 w-4" />
                     <span>{isRTL ? "متاح" : "Available"}</span>
@@ -392,13 +463,8 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
 
                 {/* Reviews Section */}
                 <div className="space-y-3">
-                  <div className={cn(
-                    "flex items-center justify-between",
-                    isRTL && "flex-row-reverse"
-                  )}>
-                    <h3 className="font-semibold text-foreground">
-                      {isRTL ? "التقييمات" : "Reviews"}
-                    </h3>
+                  <div className={cn("flex items-center justify-between", isRTL && "flex-row-reverse")}>
+                    <h3 className="font-semibold text-foreground">{isRTL ? "التقييمات" : "Reviews"}</h3>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -406,10 +472,13 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
                       className="text-primary"
                     >
                       <MessageSquare className="h-4 w-4 mr-1" />
-                      {userReview 
-                        ? (isRTL ? "تعديل تقييمك" : "Edit Review")
-                        : (isRTL ? "أضف تقييم" : "Add Review")
-                      }
+                      {userReview
+                        ? isRTL
+                          ? "تعديل تقييمك"
+                          : "Edit Review"
+                        : isRTL
+                        ? "أضف تقييم"
+                        : "Add Review"}
                     </Button>
                   </div>
                   <ReviewList reviews={reviews} loading={reviewsLoading} />
@@ -425,8 +494,9 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
                     disabled={!selectedProvider.provider_phone || isLoggingCall}
                   >
                     <Phone className="h-5 w-5 mr-2" />
-                    {isLoggingCall ? (isRTL ? "جاري..." : "Calling...") : (isRTL ? "اتصل" : "Call")}
+                    {isLoggingCall ? (isRTL ? "جاري..." : "Calling...") : isRTL ? "اتصل" : "Call"}
                   </Button>
+
                   <Button
                     variant={isProviderFavorite ? "default" : "outline"}
                     size="lg"
@@ -437,14 +507,11 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
                     onClick={() => handleToggleFavorite(selectedProvider.id)}
                   >
                     <Heart className={cn("h-5 w-5 mr-2", isProviderFavorite && "fill-current")} />
-                    {isProviderFavorite 
-                      ? (isRTL ? "في المفضلة" : "Favorited") 
-                      : (isRTL ? "أضف للمفضلة" : "Add to Favorites")
-                    }
+                    {isProviderFavorite ? (isRTL ? "في المفضلة" : "Favorited") : isRTL ? "أضف للمفضلة" : "Add to Favorites"}
                   </Button>
                 </div>
 
-                {/* Claim, Report and Unclaimed badges */}
+                {/* Claim / Report */}
                 <div className="flex items-center justify-between mt-2 gap-2">
                   {!selectedProvider.user_id ? (
                     <div className="flex items-center gap-2">
@@ -463,8 +530,10 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
                         </Button>
                       )}
                     </div>
-                  ) : <div />}
-                  
+                  ) : (
+                    <div />
+                  )}
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -500,11 +569,15 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
         <ClaimServiceDialog
           open={claimDialogOpen}
           onOpenChange={setClaimDialogOpen}
-          service={selectedProvider ? {
-            id: selectedProvider.id,
-            title: selectedProvider.title,
-            provider_phone: selectedProvider.provider_phone,
-          } : null}
+          service={
+            selectedProvider
+              ? {
+                  id: selectedProvider.id,
+                  title: selectedProvider.title,
+                  provider_phone: selectedProvider.provider_phone,
+                }
+              : null
+          }
           onClaimSuccess={() => {
             fetchProviders();
             setSelectedProvider(null);
@@ -522,16 +595,12 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
           <DrawerClose className="absolute top-0 right-4 h-8 w-8 rounded-full bg-muted flex items-center justify-center">
             <X className="h-4 w-4 text-muted-foreground" />
           </DrawerClose>
+
           <div className="flex flex-col items-center pt-2">
-            <div className={cn(
-              "h-16 w-16 rounded-full flex items-center justify-center mb-3",
-              service.color
-            )}>
+            <div className={cn("h-16 w-16 rounded-full flex items-center justify-center mb-3", service.color)}>
               <IconComponent className="h-8 w-8 text-foreground" strokeWidth={1.5} />
             </div>
-            <DrawerTitle className="text-xl font-bold text-foreground">
-              {title}
-            </DrawerTitle>
+            <DrawerTitle className="text-xl font-bold text-foreground">{title}</DrawerTitle>
             <p className="text-sm text-muted-foreground mt-1">{categoryLabel}</p>
           </div>
         </DrawerHeader>
@@ -543,7 +612,7 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
 
           {loading ? (
             <div className="space-y-3">
-              {[1, 2, 3].map(i => (
+              {[1, 2, 3].map((i) => (
                 <div key={i} className="bg-muted rounded-2xl h-20 animate-pulse" />
               ))}
             </div>
@@ -563,9 +632,10 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
                     <Avatar className="h-12 w-12">
                       <AvatarImage src={provider.provider_avatar || undefined} />
                       <AvatarFallback className="bg-primary text-primary-foreground font-medium">
-                        {provider.provider_name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                        {provider.provider_name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
                       </AvatarFallback>
                     </Avatar>
+
                     <div className="flex-1 min-w-0">
                       <h4 className="font-semibold text-foreground truncate">{provider.provider_name}</h4>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -581,15 +651,20 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
                         )}
                       </div>
                     </div>
+
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      <Star className={cn(
-                        "h-4 w-4",
-                        ratingInfo.hasRating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground"
-                      )} />
-                      <span className={cn(
-                        "text-sm font-medium",
-                        ratingInfo.hasRating ? "text-foreground" : "text-muted-foreground"
-                      )}>
+                      <Star
+                        className={cn(
+                          "h-4 w-4",
+                          ratingInfo.hasRating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground"
+                        )}
+                      />
+                      <span
+                        className={cn(
+                          "text-sm font-medium",
+                          ratingInfo.hasRating ? "text-foreground" : "text-muted-foreground"
+                        )}
+                      >
                         {ratingInfo.text}
                       </span>
                     </div>
@@ -600,12 +675,8 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
           ) : (
             <div className="text-center py-12">
               <div className="text-4xl mb-3">🔍</div>
-              <p className="text-muted-foreground font-medium">
-                {isRTL ? "لا يوجد مقدمي خدمة" : "No providers available"}
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">
-                {isRTL ? "جرب تصفية مختلفة" : "Try different filters"}
-              </p>
+              <p className="text-muted-foreground font-medium">{isRTL ? "لا يوجد مقدمي خدمة" : "No providers available"}</p>
+              <p className="text-sm text-muted-foreground mt-1">{isRTL ? "جرب تصفية مختلفة" : "Try different filters"}</p>
             </div>
           )}
         </div>
