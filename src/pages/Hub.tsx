@@ -116,6 +116,51 @@ type FeaturedProviderCard = {
   provider_sub_city: string | null;
 };
 
+type DoraSuggestion = {
+  id: string;
+  title_en: string;
+  title_ar: string;
+  hint_en: string;
+  hint_ar: string;
+  match_en: string[];
+  match_ar: string[];
+  icon?: LucideIcon;
+};
+
+// ✅ Suggested by Dora (manual-curated now, auto-maps to real subcategories)
+const DORA_SUGGESTIONS: DoraSuggestion[] = [
+  {
+    id: "power-cuts",
+    title_en: "Electricity cuts?",
+    title_ar: "انقطاع الكهرباء؟",
+    hint_en: "Generator technicians & wiring help",
+    hint_ar: "فني مولدات + صيانة كهرباء",
+    match_en: ["generator", "electric", "electrician", "wiring"],
+    match_ar: ["مولد", "كهرباء", "كهربائي", "تمديد"],
+    icon: Zap,
+  },
+  {
+    id: "water-issue",
+    title_en: "Water pressure / leaks",
+    title_ar: "ضعف الماء / تسريب",
+    hint_en: "Plumber & pump specialists",
+    hint_ar: "سباك + فني مضخات",
+    match_en: ["plumb", "plumber", "pump", "leak", "pipes"],
+    match_ar: ["سباك", "سباكة", "مضخة", "تسريب", "مواسير"],
+    icon: Droplets,
+  },
+  {
+    id: "ac-season",
+    title_en: "AC not cooling?",
+    title_ar: "المكيف ما يبرد؟",
+    hint_en: "AC maintenance & gas refill",
+    hint_ar: "صيانة تكييف + شحن غاز",
+    match_en: ["ac", "air", "conditioning", "hvac", "cooling"],
+    match_ar: ["تكييف", "مكيف", "تبريد", "مكيفات"],
+    icon: Wind,
+  },
+];
+
 function FilterSuggestionChip({
   icon,
   label,
@@ -169,7 +214,7 @@ export default function Hub() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  // Sheet service (subcategory context)
+  // Sheet service (subcategory context OR category context for featured provider open)
   const [selectedService, setSelectedService] = useState<{
     id: string;
     titleKey: string;
@@ -184,7 +229,7 @@ export default function Hub() {
   // If set, sheet opens directly to provider detail (used by Featured Providers)
   const [initialProviderServiceId, setInitialProviderServiceId] = useState<string | null>(null);
 
-  // Filters (keep simple; removed the filter symbol/button)
+  // Filters (simple)
   const [searchFilters, setSearchFilters] = useState<SearchFiltersState>({
     city: null,
     subCity: null,
@@ -215,7 +260,7 @@ export default function Hub() {
         icon: ICON_MAP[sub.icon] || Wrench,
         color:
           sub.color ||
-          categories?.find((c) => c.id === sub.category_id)?.color ||
+          categories?.find((c: any) => c.id === sub.category_id)?.color ||
           "bg-[#F2F2F2]",
         name: sub.name,
         name_ar: sub.name_ar,
@@ -232,14 +277,13 @@ export default function Hub() {
 
   const drawerCategory = useMemo(() => {
     if (!drawerCategoryId) return null;
-    return categories?.find((c) => c.id === drawerCategoryId) || null;
+    return categories?.find((c: any) => c.id === drawerCategoryId) || null;
   }, [drawerCategoryId, categories]);
 
   const drawerSubcategories = useMemo(() => {
     if (!drawerCategoryId) return [];
     const list = serviceItems.filter((s) => s.category_id === drawerCategoryId);
 
-    // stable alphabetical for clean UX
     return [...list].sort((a, b) => {
       const an = (language === "ar" && a.name_ar ? a.name_ar : a.name) || "";
       const bn = (language === "ar" && b.name_ar ? b.name_ar : b.name) || "";
@@ -250,24 +294,18 @@ export default function Hub() {
   // Search results (only when typing)
   const searchedServices = useMemo(() => {
     if (!searchQuery.trim()) return [];
-
     const q = searchQuery.toLowerCase();
     const list = serviceItems.filter((s) => {
       const en = (s.name || "").toLowerCase();
       const ar = (s.name_ar || "").toLowerCase();
       return en.includes(q) || ar.includes(q);
     });
-
     return [...list].sort((a, b) => {
       const an = (language === "ar" && a.name_ar ? a.name_ar : a.name) || "";
       const bn = (language === "ar" && b.name_ar ? b.name_ar : b.name) || "";
       return an.localeCompare(bn);
     });
   }, [serviceItems, searchQuery, language]);
-
-  const hasActiveFilters = Boolean(
-    searchQuery.trim() || searchFilters.city || searchFilters.subCity || searchFilters.minRating
-  );
 
   const clearFilters = () => {
     setSearchQuery("");
@@ -288,7 +326,7 @@ export default function Hub() {
   const openServiceSheetFromSubcategory = (service: ServiceItem) => {
     setInitialProviderServiceId(null);
 
-    const category = categories?.find((c) => c.id === service.category_id);
+    const category = categories?.find((c: any) => c.id === service.category_id);
 
     setSelectedService({
       id: service.id,
@@ -307,7 +345,7 @@ export default function Hub() {
   const openProviderDetailsFromFeatured = (fp: FeaturedProviderCard) => {
     setInitialProviderServiceId(fp.service_id);
 
-    // service.category here must match what ServiceDetailSheet fetches on: services.category
+    // IMPORTANT: ServiceDetailSheet fetches by services.category, so we pass that as category
     setSelectedService({
       id: fp.service_id,
       icon: Wrench,
@@ -336,17 +374,19 @@ export default function Hub() {
           .from("services")
           .select("*")
           .eq("is_active", true)
+          .eq("is_featured", true)
           .or("is_paused.is.null,is_paused.eq.false")
+          .order("featured_order", { ascending: true })
           .order("created_at", { ascending: false })
-          .limit(100);
+          .limit(50);
 
         if (error) {
-          console.error("Error fetching services for featured providers:", error);
+          console.error("Error fetching featured services:", error);
           setFeaturedProviders([]);
           return;
         }
 
-        const featured = (servicesData || []).filter((s: any) => s.is_featured === true);
+        const featured = servicesData || [];
         if (featured.length === 0) {
           setFeaturedProviders([]);
           return;
@@ -367,7 +407,9 @@ export default function Hub() {
 
         const cards: FeaturedProviderCard[] = featured
           .filter((svc: any) => {
+            // Bulk uploaded service (unclaimed)
             if (!svc.user_id) return svc.provider_name && svc.provider_phone;
+            // Claimed -> only approved provider
             return profileMap.has(svc.user_id);
           })
           .map((svc: any) => {
@@ -377,9 +419,7 @@ export default function Hub() {
               category: svc.category,
               service_title: svc.title || (isRTL ? "خدمة" : "Service"),
               provider_name:
-                p?.full_name ||
-                svc.provider_name ||
-                (isRTL ? "مقدم الخدمة" : "Provider"),
+                p?.full_name || svc.provider_name || (isRTL ? "مقدم الخدمة" : "Provider"),
               provider_phone: p?.phone || svc.provider_phone || "",
               provider_avatar: p?.avatar_url || null,
               provider_city: p?.city || svc.city || null,
@@ -387,16 +427,7 @@ export default function Hub() {
             };
           });
 
-        // Sort if featured_order exists
-        const sorted = [...cards].sort((a, b) => {
-          const ao =
-            (featured.find((x: any) => x.id === a.service_id)?.featured_order ?? 9999) as number;
-          const bo =
-            (featured.find((x: any) => x.id === b.service_id)?.featured_order ?? 9999) as number;
-          return ao - bo;
-        });
-
-        setFeaturedProviders(sorted.slice(0, 12));
+        setFeaturedProviders(cards.slice(0, 12));
       } catch (e) {
         console.error("Featured providers fetch error:", e);
         setFeaturedProviders([]);
@@ -413,10 +444,44 @@ export default function Hub() {
   const popularServices: ServiceItem[] = useMemo(() => {
     const flagged = serviceItems.filter((s) => s.is_popular);
     if (flagged.length === 0) return [];
-
     return [...flagged]
       .sort((a, b) => (a.popular_order ?? 9999) - (b.popular_order ?? 9999))
       .slice(0, 12);
+  }, [serviceItems]);
+
+  // Suggested by Dora -> map each suggestion to an actual ServiceItem (subcategory) if possible
+  const findBestMatchingSubcategory = (s: DoraSuggestion): ServiceItem | null => {
+    const candidates = serviceItems;
+
+    const matchAny = (text: string, keys: string[]) => {
+      const t = (text || "").toLowerCase();
+      return keys.some((k) => t.includes(k.toLowerCase()));
+    };
+
+    // 1) Try EN name
+    for (const item of candidates) {
+      if (matchAny(item.name, s.match_en)) return item;
+    }
+
+    // 2) Try AR name
+    for (const item of candidates) {
+      if (item.name_ar && matchAny(item.name_ar, s.match_ar)) return item;
+    }
+
+    // 3) Cross matching just in case
+    for (const item of candidates) {
+      if (item.name_ar && matchAny(item.name_ar, s.match_en)) return item;
+      if (matchAny(item.name, s.match_ar)) return item;
+    }
+
+    return null;
+  };
+
+  const suggestedByDora = useMemo(() => {
+    return DORA_SUGGESTIONS.map((s) => ({
+      suggestion: s,
+      target: findBestMatchingSubcategory(s),
+    })).filter((x) => Boolean(x.target));
   }, [serviceItems]);
 
   return (
@@ -492,7 +557,7 @@ export default function Hub() {
             </div>
           </div>
 
-          {/* Simple chips only (no filter symbol/button) */}
+          {/* Simple chips only */}
           <div className="mt-4 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
             <FilterSuggestionChip
               icon={<MapPin className="h-3.5 w-3.5" />}
@@ -552,7 +617,7 @@ export default function Hub() {
       <main className="px-4 pt-5 pb-10">
         <ReviewPromptBanner />
 
-        {/* Categories (bigger tiles) */}
+        {/* Categories */}
         <section className="mt-5">
           <SectionHeader title={isRTL ? "الفئات" : "Categories"} />
           {categoriesLoading ? (
@@ -571,9 +636,7 @@ export default function Hub() {
                   <button
                     key={cat.id}
                     onClick={() => openCategoryDrawer(cat.id)}
-                    className={cn(
-                      "h-[102px] rounded-2xl border bg-white border-gray-200 flex flex-col items-center justify-center gap-2 transition-all active:scale-[0.98]"
-                    )}
+                    className="h-[102px] rounded-2xl border bg-white border-gray-200 flex flex-col items-center justify-center gap-2 transition-all active:scale-[0.98]"
                   >
                     <div className={cn("h-12 w-12 rounded-2xl flex items-center justify-center", cat.color || "bg-[#F2F2F2]")}>
                       <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
@@ -703,12 +766,51 @@ export default function Hub() {
                 </div>
               ) : (
                 <div className="rounded-2xl bg-white border border-gray-200 p-5 text-sm text-[#777]">
-                  {isRTL
-                    ? "لا يوجد مزودين مختارين حالياً."
-                    : "No featured providers yet."}
+                  {isRTL ? "لا يوجد مزودين مختارين حالياً." : "No featured providers yet."}
                 </div>
               )}
             </section>
+
+            {/* ✅ Suggested by Dora */}
+            {suggestedByDora.length > 0 && (
+              <section className="mt-8">
+                <SectionHeader title={isRTL ? "مقترحات دورة" : "Suggested by Dora"} />
+                <div className="grid grid-cols-1 gap-3">
+                  {suggestedByDora.map(({ suggestion, target }) => {
+                    const targetService = target as ServiceItem;
+                    const Icon = suggestion.icon || Sparkles;
+
+                    return (
+                      <button
+                        key={suggestion.id}
+                        onClick={() => openServiceSheetFromSubcategory(targetService)}
+                        className={cn(
+                          "w-full rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.99]",
+                          isRTL && "text-right"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="h-12 w-12 rounded-2xl bg-[#F3F3F3] flex items-center justify-center flex-shrink-0">
+                            <Icon className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-[15px] font-semibold text-[#111]">
+                              {isRTL ? suggestion.title_ar : suggestion.title_en}
+                            </h3>
+                            <p className="text-xs text-[#777] mt-1 line-clamp-2">
+                              {isRTL ? suggestion.hint_ar : suggestion.hint_en}
+                            </p>
+                          </div>
+
+                          <ChevronRight className={cn("h-5 w-5 text-[#C9C9C9] flex-shrink-0", isRTL && "rotate-180")} />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
             {/* Popular Services (admin-picked only) */}
             {popularServices.length > 0 && (
@@ -770,13 +872,17 @@ export default function Hub() {
 
                   <div className="grid grid-cols-2 gap-2">
                     <button
-                      onClick={() => window.alert(isRTL ? "سيتم إضافة الشروط قريباً" : "Terms will be added soon")}
+                      onClick={() =>
+                        window.alert(isRTL ? "سيتم إضافة الشروط قريباً" : "Terms will be added soon")
+                      }
                       className="h-11 rounded-xl bg-[#F3F3F3] text-[#111] text-sm font-semibold"
                     >
                       {isRTL ? "الشروط" : "Terms"}
                     </button>
                     <button
-                      onClick={() => window.alert(isRTL ? "سيتم إضافة الخصوصية قريباً" : "Privacy will be added soon")}
+                      onClick={() =>
+                        window.alert(isRTL ? "سيتم إضافة الخصوصية قريباً" : "Privacy will be added soon")
+                      }
                       className="h-11 rounded-xl bg-[#F3F3F3] text-[#111] text-sm font-semibold"
                     >
                       {isRTL ? "الخصوصية" : "Privacy"}
@@ -793,20 +899,26 @@ export default function Hub() {
 
       {/* Category Drawer (full subcategories list) */}
       <Drawer open={categoryDrawerOpen} onOpenChange={setCategoryDrawerOpen}>
-        <DrawerContent className="max-h-[85vh]">
+        <DrawerContent className="h-[90vh] flex flex-col overflow-hidden">
           <DrawerHeader className="relative pb-2">
-            <DrawerClose className={cn(
-              "absolute top-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
-              isRTL ? "left-4" : "right-4"
-            )}>
+            <DrawerClose
+              className={cn(
+                "absolute top-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
+                isRTL ? "left-4" : "right-4"
+              )}
+            >
               <X className="h-4 w-4 text-muted-foreground" />
             </DrawerClose>
 
             <div className="flex flex-col items-center pt-2">
               <DrawerTitle className="text-lg font-bold text-foreground">
                 {drawerCategory
-                  ? (language === "ar" && drawerCategory.name_ar ? drawerCategory.name_ar : drawerCategory.name)
-                  : (isRTL ? "الفئة" : "Category")}
+                  ? language === "ar" && drawerCategory.name_ar
+                    ? drawerCategory.name_ar
+                    : drawerCategory.name
+                  : isRTL
+                  ? "الفئة"
+                  : "Category"}
               </DrawerTitle>
               <p className="text-sm text-muted-foreground mt-1">
                 {isRTL ? "اختر خدمة" : "Choose a service"}
@@ -814,7 +926,7 @@ export default function Hub() {
             </div>
           </DrawerHeader>
 
-          <ScrollArea className="max-h-[65vh]">
+          <ScrollArea className="flex-1">
             <div className="px-4 pb-5" dir={isRTL ? "rtl" : "ltr"}>
               {drawerSubcategories.length > 0 ? (
                 <div className="space-y-2">
