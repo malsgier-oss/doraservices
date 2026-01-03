@@ -42,12 +42,17 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
-import {
-  SearchFilters,
-  ActiveFilterChips,
-  SearchFiltersState,
-} from "@/components/search/SearchFilters";
+import { ActiveFilterChips, SearchFiltersState } from "@/components/search/SearchFilters";
 import { ReviewPromptBanner } from "@/components/review/ReviewPromptBanner";
+
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -95,15 +100,15 @@ interface ServiceItem {
   name_ar: string | null;
   category_id: string;
 
-  // Optional (admin-controlled in the future)
+  // Admin-picked later
   is_popular?: boolean;
   popular_order?: number | null;
 }
 
 type FeaturedProviderCard = {
-  service_id: string; // services.id
+  service_id: string; // services.id (important for opening provider details)
   category: string; // services.category
-  service_title: string; // services.title (provider’s service title)
+  service_title: string;
   provider_name: string;
   provider_phone: string;
   provider_avatar: string | null;
@@ -161,11 +166,10 @@ export default function Hub() {
   const { data: categories, isLoading: categoriesLoading } = useCategories();
   const { data: subcategories } = useAllSubcategories();
 
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  // Sheet service (subcategory-based) OR featured-provider-based
+  // Sheet service (subcategory context)
   const [selectedService, setSelectedService] = useState<{
     id: string;
     titleKey: string;
@@ -177,14 +181,19 @@ export default function Hub() {
     icon: LucideIcon;
   } | null>(null);
 
-  // If set, sheet opens directly to provider detail
+  // If set, sheet opens directly to provider detail (used by Featured Providers)
   const [initialProviderServiceId, setInitialProviderServiceId] = useState<string | null>(null);
 
+  // Filters (keep simple; removed the filter symbol/button)
   const [searchFilters, setSearchFilters] = useState<SearchFiltersState>({
     city: null,
     subCity: null,
     minRating: false,
   });
+
+  // Category drawer (full subcategories list)
+  const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
+  const [drawerCategoryId, setDrawerCategoryId] = useState<string | null>(null);
 
   const [featuredProviders, setFeaturedProviders] = useState<FeaturedProviderCard[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(false);
@@ -211,8 +220,6 @@ export default function Hub() {
         name: sub.name,
         name_ar: sub.name_ar,
         category_id: sub.category_id,
-
-        // Optional future fields (won’t break if not in DB)
         is_popular: Boolean(sub.is_popular),
         popular_order: sub.popular_order ?? null,
       }));
@@ -223,69 +230,46 @@ export default function Hub() {
     return list.slice(0, 8);
   }, [categories]);
 
-  const selectedCategoryData = categories?.find((c) => c.id === selectedCategory);
+  const drawerCategory = useMemo(() => {
+    if (!drawerCategoryId) return null;
+    return categories?.find((c) => c.id === drawerCategoryId) || null;
+  }, [drawerCategoryId, categories]);
 
-  // “Popular services” (practical grid)
-  const popularServices: ServiceItem[] = useMemo(() => {
-    let list = serviceItems;
+  const drawerSubcategories = useMemo(() => {
+    if (!drawerCategoryId) return [];
+    const list = serviceItems.filter((s) => s.category_id === drawerCategoryId);
 
-    // If category selected, popular should feel “smart”
-    if (selectedCategory) {
-      list = list.filter((s) => s.category_id === selectedCategory);
-    }
-
-    // Prefer admin-picked popular if available, otherwise fallback
-    const flagged = list.filter((s) => s.is_popular);
-    if (flagged.length > 0) {
-      return [...flagged]
-        .sort((a, b) => (a.popular_order ?? 9999) - (b.popular_order ?? 9999))
-        .slice(0, 12);
-    }
-
-    // Fallback: stable alphabetical list (practical and safe)
-    const sorted = [...list].sort((a, b) => {
+    // stable alphabetical for clean UX
+    return [...list].sort((a, b) => {
       const an = (language === "ar" && a.name_ar ? a.name_ar : a.name) || "";
       const bn = (language === "ar" && b.name_ar ? b.name_ar : b.name) || "";
       return an.localeCompare(bn);
     });
+  }, [drawerCategoryId, serviceItems, language]);
 
-    return sorted.slice(0, 12);
-  }, [serviceItems, selectedCategory, language]);
+  // Search results (only when typing)
+  const searchedServices = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+
+    const q = searchQuery.toLowerCase();
+    const list = serviceItems.filter((s) => {
+      const en = (s.name || "").toLowerCase();
+      const ar = (s.name_ar || "").toLowerCase();
+      return en.includes(q) || ar.includes(q);
+    });
+
+    return [...list].sort((a, b) => {
+      const an = (language === "ar" && a.name_ar ? a.name_ar : a.name) || "";
+      const bn = (language === "ar" && b.name_ar ? b.name_ar : b.name) || "";
+      return an.localeCompare(bn);
+    });
+  }, [serviceItems, searchQuery, language]);
 
   const hasActiveFilters = Boolean(
-    selectedCategory ||
-      searchQuery.trim() ||
-      searchFilters.city ||
-      searchFilters.subCity ||
-      searchFilters.minRating
+    searchQuery.trim() || searchFilters.city || searchFilters.subCity || searchFilters.minRating
   );
 
-  // Filter services ONLY used for search results section (when user searches)
-  const searchedServices = useMemo(() => {
-    let list = serviceItems;
-
-    if (selectedCategory) list = list.filter((s) => s.category_id === selectedCategory);
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      list = list.filter((s) => {
-        const en = (s.name || "").toLowerCase();
-        const ar = (s.name_ar || "").toLowerCase();
-        return en.includes(q) || ar.includes(q);
-      });
-    }
-
-    list = [...list].sort((a, b) => {
-      const an = (language === "ar" && a.name_ar ? a.name_ar : a.name) || "";
-      const bn = (language === "ar" && b.name_ar ? b.name_ar : b.name) || "";
-      return an.localeCompare(bn);
-    });
-
-    return list;
-  }, [serviceItems, selectedCategory, searchQuery, language]);
-
   const clearFilters = () => {
-    setSelectedCategory(null);
     setSearchQuery("");
     setSearchFilters({ city: null, subCity: null, minRating: false });
   };
@@ -302,7 +286,6 @@ export default function Hub() {
   };
 
   const openServiceSheetFromSubcategory = (service: ServiceItem) => {
-    // Clear “open directly to provider” mode
     setInitialProviderServiceId(null);
 
     const category = categories?.find((c) => c.id === service.category_id);
@@ -322,10 +305,9 @@ export default function Hub() {
   };
 
   const openProviderDetailsFromFeatured = (fp: FeaturedProviderCard) => {
-    // We open ServiceDetailSheet for the provider’s category,
-    // then auto-select the provider by services.id (initialProviderServiceId).
     setInitialProviderServiceId(fp.service_id);
 
+    // service.category here must match what ServiceDetailSheet fetches on: services.category
     setSelectedService({
       id: fp.service_id,
       icon: Wrench,
@@ -340,19 +322,23 @@ export default function Hub() {
     setSheetOpen(true);
   };
 
-  // Fetch featured providers (from services table)
+  const openCategoryDrawer = (categoryId: string) => {
+    setDrawerCategoryId(categoryId);
+    setCategoryDrawerOpen(true);
+  };
+
+  // Featured Providers (from services table; uses is_featured)
   useEffect(() => {
     const fetchFeaturedProviders = async () => {
       setFeaturedLoading(true);
       try {
-        // Select * to avoid breaking if is_featured doesn’t exist yet
         const { data: servicesData, error } = await supabase
           .from("services")
           .select("*")
           .eq("is_active", true)
           .or("is_paused.is.null,is_paused.eq.false")
           .order("created_at", { ascending: false })
-          .limit(80);
+          .limit(100);
 
         if (error) {
           console.error("Error fetching services for featured providers:", error);
@@ -366,7 +352,6 @@ export default function Hub() {
           return;
         }
 
-        // Pull profiles for claimed services (approved only)
         const userIds = [...new Set(featured.map((s: any) => s.user_id).filter(Boolean))];
         let profileMap = new Map<string, any>();
 
@@ -380,7 +365,6 @@ export default function Hub() {
           profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
         }
 
-        // Enrich and keep both: unclaimed bulk + claimed approved
         const cards: FeaturedProviderCard[] = featured
           .filter((svc: any) => {
             if (!svc.user_id) return svc.provider_name && svc.provider_phone;
@@ -403,10 +387,12 @@ export default function Hub() {
             };
           });
 
-        // If featured_order exists, sort by it; otherwise keep stable
-        const sorted = [...cards].sort((a: any, b: any) => {
-          const ao = (featured.find((x: any) => x.id === a.service_id)?.featured_order ?? 9999);
-          const bo = (featured.find((x: any) => x.id === b.service_id)?.featured_order ?? 9999);
+        // Sort if featured_order exists
+        const sorted = [...cards].sort((a, b) => {
+          const ao =
+            (featured.find((x: any) => x.id === a.service_id)?.featured_order ?? 9999) as number;
+          const bo =
+            (featured.find((x: any) => x.id === b.service_id)?.featured_order ?? 9999) as number;
           return ao - bo;
         });
 
@@ -422,6 +408,16 @@ export default function Hub() {
     fetchFeaturedProviders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Popular services = admin-picked only (no fallback)
+  const popularServices: ServiceItem[] = useMemo(() => {
+    const flagged = serviceItems.filter((s) => s.is_popular);
+    if (flagged.length === 0) return [];
+
+    return [...flagged]
+      .sort((a, b) => (a.popular_order ?? 9999) - (b.popular_order ?? 9999))
+      .slice(0, 12);
+  }, [serviceItems]);
 
   return (
     <div className="min-h-screen bg-[#F7F7F8] pb-24" dir={isRTL ? "rtl" : "ltr"}>
@@ -446,11 +442,9 @@ export default function Hub() {
               )}
             </button>
 
-            {/* Center: simple title (no logo) */}
+            {/* Center title */}
             <div className="flex flex-col items-center leading-none">
-              <span className="text-[13px] font-semibold text-[#111]">
-                {t.appName}
-              </span>
+              <span className="text-[13px] font-semibold text-[#111]">{t.appName}</span>
               <span className="text-[11px] text-[#777]">
                 {isRTL ? "خدمات قريبة منك" : "Local services"}
               </span>
@@ -498,7 +492,7 @@ export default function Hub() {
             </div>
           </div>
 
-          {/* Filter row (stronger visibility in English) */}
+          {/* Simple chips only (no filter symbol/button) */}
           <div className="mt-4 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
             <FilterSuggestionChip
               icon={<MapPin className="h-3.5 w-3.5" />}
@@ -508,6 +502,7 @@ export default function Hub() {
                 setSearchFilters((prev) => ({
                   ...prev,
                   city: prev.city === "tripoli" ? null : "tripoli",
+                  subCity: prev.city === "tripoli" ? prev.subCity : null,
                 }))
               }
             />
@@ -519,6 +514,7 @@ export default function Hub() {
                 setSearchFilters((prev) => ({
                   ...prev,
                   city: prev.city === "benghazi" ? null : "benghazi",
+                  subCity: prev.city === "benghazi" ? prev.subCity : null,
                 }))
               }
             />
@@ -530,6 +526,7 @@ export default function Hub() {
                 setSearchFilters((prev) => ({
                   ...prev,
                   city: prev.city === "misrata" ? null : "misrata",
+                  subCity: prev.city === "misrata" ? prev.subCity : null,
                 }))
               }
             />
@@ -537,9 +534,10 @@ export default function Hub() {
               icon={<Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />}
               label={isRTL ? "4+ نجوم" : "4+ Stars"}
               isActive={Boolean(searchFilters.minRating)}
-              onClick={() => setSearchFilters((prev) => ({ ...prev, minRating: !prev.minRating }))}
+              onClick={() =>
+                setSearchFilters((prev) => ({ ...prev, minRating: !prev.minRating }))
+              }
             />
-            <SearchFilters filters={searchFilters} onFiltersChange={setSearchFilters} />
           </div>
 
           {(searchFilters.city || searchFilters.subCity || searchFilters.minRating) && (
@@ -567,16 +565,14 @@ export default function Hub() {
             <div className="grid grid-cols-4 gap-3">
               {categoryGrid.map((cat: any) => {
                 const IconComponent = ICON_MAP[cat.icon] || Home;
-                const isSelected = selectedCategory === cat.id;
                 const displayName = language === "ar" && cat.name_ar ? cat.name_ar : cat.name;
 
                 return (
                   <button
                     key={cat.id}
-                    onClick={() => setSelectedCategory((prev) => (prev === cat.id ? null : cat.id))}
+                    onClick={() => openCategoryDrawer(cat.id)}
                     className={cn(
-                      "h-[102px] rounded-2xl border bg-white border-gray-200 flex flex-col items-center justify-center gap-2 transition-all active:scale-[0.98]",
-                      isSelected && "ring-2 ring-[#111] ring-offset-2 ring-offset-[#F7F7F8]"
+                      "h-[102px] rounded-2xl border bg-white border-gray-200 flex flex-col items-center justify-center gap-2 transition-all active:scale-[0.98]"
                     )}
                   >
                     <div className={cn("h-12 w-12 rounded-2xl flex items-center justify-center", cat.color || "bg-[#F2F2F2]")}>
@@ -592,8 +588,8 @@ export default function Hub() {
           )}
         </section>
 
-        {/* If user is searching/filtering, show search results (services) */}
-        {hasActiveFilters && searchQuery.trim() ? (
+        {/* Search results only when typing */}
+        {searchQuery.trim() ? (
           <section className="mt-8">
             <SectionHeader
               title={isRTL ? "نتائج البحث" : "Search results"}
@@ -603,16 +599,10 @@ export default function Hub() {
                   className="flex items-center gap-1 text-sm text-[#777] hover:text-[#111] transition-colors"
                 >
                   <X className="h-4 w-4" />
-                  {isRTL ? "مسح الكل" : "Clear all"}
+                  {isRTL ? "مسح" : "Clear"}
                 </button>
               }
             />
-
-            <p className="text-sm text-[#777] mb-4">
-              {isRTL
-                ? `${searchedServices.length} خدمة`
-                : `${searchedServices.length} service${searchedServices.length !== 1 ? "s" : ""}`}
-            </p>
 
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
               {searchedServices.length > 0 ? (
@@ -634,7 +624,9 @@ export default function Hub() {
                         <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-[16px] font-semibold text-[#111] line-clamp-1">{displayName}</h3>
+                        <h3 className="text-[16px] font-semibold text-[#111] line-clamp-1">
+                          {displayName}
+                        </h3>
                         <p className="text-xs text-[#777] mt-1">
                           {isRTL ? "اضغط لعرض مقدمي الخدمة" : "Tap to view providers"}
                         </p>
@@ -658,7 +650,7 @@ export default function Hub() {
           </section>
         ) : (
           <>
-            {/* Featured Providers (horizontal big cards) */}
+            {/* Featured Providers */}
             <section className="mt-8">
               <SectionHeader title={isRTL ? "مقدمي خدمة مختارين" : "Featured providers"} />
               {featuredLoading ? (
@@ -694,9 +686,7 @@ export default function Hub() {
                           <h3 className="text-[16px] font-semibold text-[#111] truncate">
                             {fp.provider_name}
                           </h3>
-                          <p className="text-xs text-[#777] mt-1 truncate">
-                            {fp.service_title}
-                          </p>
+                          <p className="text-xs text-[#777] mt-1 truncate">{fp.service_title}</p>
                         </div>
 
                         <ChevronRight className={cn("h-5 w-5 text-[#C9C9C9]", isRTL && "rotate-180")} />
@@ -714,55 +704,49 @@ export default function Hub() {
               ) : (
                 <div className="rounded-2xl bg-white border border-gray-200 p-5 text-sm text-[#777]">
                   {isRTL
-                    ? "لا يوجد مزودين مختارين حالياً (يمكن إضافتهم من لوحة التحكم لاحقاً)."
-                    : "No featured providers yet (you can manage this from the admin panel later)."}
+                    ? "لا يوجد مزودين مختارين حالياً."
+                    : "No featured providers yet."}
                 </div>
               )}
             </section>
 
-            {/* Popular Services (grid, practical like option 2) */}
-            <section className="mt-8">
-              <SectionHeader title={isRTL ? "الخدمات الأكثر طلباً" : "Popular services"} />
-              <div className="grid grid-cols-2 gap-3">
-                {popularServices.map((service) => {
-                  const IconComponent = service.icon;
-                  const displayName = language === "ar" && service.name_ar ? service.name_ar : service.name;
+            {/* Popular Services (admin-picked only) */}
+            {popularServices.length > 0 && (
+              <section className="mt-8">
+                <SectionHeader title={isRTL ? "الخدمات الأكثر طلباً" : "Popular services"} />
+                <div className="grid grid-cols-2 gap-3">
+                  {popularServices.map((service) => {
+                    const IconComponent = service.icon;
+                    const displayName = language === "ar" && service.name_ar ? service.name_ar : service.name;
 
-                  return (
-                    <button
-                      key={service.id}
-                      onClick={() => openServiceSheetFromSubcategory(service)}
-                      className={cn(
-                        "h-[96px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
-                        isRTL && "text-right"
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={cn("h-12 w-12 rounded-2xl flex items-center justify-center", service.color)}>
-                          <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
+                    return (
+                      <button
+                        key={service.id}
+                        onClick={() => openServiceSheetFromSubcategory(service)}
+                        className={cn(
+                          "h-[96px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
+                          isRTL && "text-right"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={cn("h-12 w-12 rounded-2xl flex items-center justify-center", service.color)}>
+                            <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-[15px] font-semibold text-[#111] line-clamp-1">
+                              {displayName}
+                            </h3>
+                            <p className="text-xs text-[#777] mt-1">
+                              {isRTL ? "عرض مقدمي الخدمة" : "View providers"}
+                            </p>
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-[15px] font-semibold text-[#111] line-clamp-1">
-                            {displayName}
-                          </h3>
-                          <p className="text-xs text-[#777] mt-1">
-                            {isRTL ? "عرض مقدمي الخدمة" : "View providers"}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {selectedCategoryData && (
-                <p className="text-xs text-[#777] mt-3">
-                  {isRTL
-                    ? `النتائج داخل فئة: ${language === "ar" && selectedCategoryData.name_ar ? selectedCategoryData.name_ar : selectedCategoryData.name}`
-                    : `Filtered by: ${language === "ar" && selectedCategoryData.name_ar ? selectedCategoryData.name_ar : selectedCategoryData.name}`}
-                </p>
-              )}
-            </section>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
             {/* Footer */}
             <section className="mt-10">
@@ -786,17 +770,13 @@ export default function Hub() {
 
                   <div className="grid grid-cols-2 gap-2">
                     <button
-                      onClick={() =>
-                        window.alert(isRTL ? "سيتم إضافة الشروط قريباً" : "Terms will be added soon")
-                      }
+                      onClick={() => window.alert(isRTL ? "سيتم إضافة الشروط قريباً" : "Terms will be added soon")}
                       className="h-11 rounded-xl bg-[#F3F3F3] text-[#111] text-sm font-semibold"
                     >
                       {isRTL ? "الشروط" : "Terms"}
                     </button>
                     <button
-                      onClick={() =>
-                        window.alert(isRTL ? "سيتم إضافة الخصوصية قريباً" : "Privacy will be added soon")
-                      }
+                      onClick={() => window.alert(isRTL ? "سيتم إضافة الخصوصية قريباً" : "Privacy will be added soon")}
                       className="h-11 rounded-xl bg-[#F3F3F3] text-[#111] text-sm font-semibold"
                     >
                       {isRTL ? "الخصوصية" : "Privacy"}
@@ -811,14 +791,82 @@ export default function Hub() {
 
       <MobileNav />
 
+      {/* Category Drawer (full subcategories list) */}
+      <Drawer open={categoryDrawerOpen} onOpenChange={setCategoryDrawerOpen}>
+        <DrawerContent className="max-h-[85vh]">
+          <DrawerHeader className="relative pb-2">
+            <DrawerClose className={cn(
+              "absolute top-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
+              isRTL ? "left-4" : "right-4"
+            )}>
+              <X className="h-4 w-4 text-muted-foreground" />
+            </DrawerClose>
+
+            <div className="flex flex-col items-center pt-2">
+              <DrawerTitle className="text-lg font-bold text-foreground">
+                {drawerCategory
+                  ? (language === "ar" && drawerCategory.name_ar ? drawerCategory.name_ar : drawerCategory.name)
+                  : (isRTL ? "الفئة" : "Category")}
+              </DrawerTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                {isRTL ? "اختر خدمة" : "Choose a service"}
+              </p>
+            </div>
+          </DrawerHeader>
+
+          <ScrollArea className="max-h-[65vh]">
+            <div className="px-4 pb-5" dir={isRTL ? "rtl" : "ltr"}>
+              {drawerSubcategories.length > 0 ? (
+                <div className="space-y-2">
+                  {drawerSubcategories.map((service) => {
+                    const IconComponent = service.icon;
+                    const displayName = language === "ar" && service.name_ar ? service.name_ar : service.name;
+
+                    return (
+                      <button
+                        key={service.id}
+                        onClick={() => {
+                          setCategoryDrawerOpen(false);
+                          openServiceSheetFromSubcategory(service);
+                        }}
+                        className={cn(
+                          "w-full flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-200 transition-colors hover:bg-gray-50 active:bg-gray-100",
+                          isRTL && "flex-row-reverse text-right"
+                        )}
+                      >
+                        <div className={cn("h-12 w-12 rounded-2xl flex items-center justify-center flex-shrink-0", service.color)}>
+                          <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-[15px] font-semibold text-[#111] line-clamp-1">
+                            {displayName}
+                          </h3>
+                          <p className="text-xs text-[#777] mt-1">
+                            {isRTL ? "عرض مقدمي الخدمة" : "View providers"}
+                          </p>
+                        </div>
+
+                        <ChevronRight className={cn("h-5 w-5 text-[#C9C9C9] flex-shrink-0", isRTL && "rotate-180")} />
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-10 text-sm text-muted-foreground">
+                  {isRTL ? "لا توجد خدمات في هذه الفئة" : "No services in this category"}
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </DrawerContent>
+      </Drawer>
+
       <ServiceDetailSheet
         open={sheetOpen}
         onOpenChange={(o) => {
           setSheetOpen(o);
-          if (!o) {
-            // reset “open provider directly” mode when closing
-            setInitialProviderServiceId(null);
-          }
+          if (!o) setInitialProviderServiceId(null);
         }}
         service={selectedService}
         filters={searchFilters}
