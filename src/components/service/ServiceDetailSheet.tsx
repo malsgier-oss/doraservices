@@ -4,7 +4,6 @@ import { X, Phone, Star, Clock, ChevronRight, Heart, MessageSquare, MapPin, Flag
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
 import {
   Drawer,
   DrawerClose,
@@ -29,12 +28,13 @@ import { toast } from "sonner";
 import { SearchFiltersState } from "@/components/search/SearchFilters";
 
 interface ServiceProvider {
-  id: string;
+  id: string; // service id
   title: string;
   description: string | null;
   category: string;
   image_url: string | null;
-  user_id: string;
+
+  user_id: string; // always present now
   provider_name: string;
   provider_avatar: string;
   provider_phone: string;
@@ -56,17 +56,9 @@ interface ServiceDetailSheetProps {
     icon: LucideIcon;
   } | null;
   filters?: SearchFiltersState;
-
-  // Optional: if you pass it later, it won't break anything
-  initialProviderServiceId?: string | null;
 }
 
-export function ServiceDetailSheet({
-  open,
-  onOpenChange,
-  service,
-  filters,
-}: ServiceDetailSheetProps) {
+export function ServiceDetailSheet({ open, onOpenChange, service, filters }: ServiceDetailSheetProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { t, isRTL, language } = useLanguage();
@@ -98,29 +90,28 @@ export function ServiceDetailSheet({
 
   const getSubCityLabel = (subCityId: string | null) => {
     if (!subCityId) return null;
-    const subCity = subCities?.find((sc) => sc.id === subCityId || sc.name.toLowerCase() === subCityId.toLowerCase());
-    return subCity ? (language === "ar" && subCity.name_ar ? subCity.name_ar : subCity.name) : subCityId;
+    const sc = subCities?.find((x) => x.id === subCityId || x.name.toLowerCase() === subCityId.toLowerCase());
+    return sc ? (language === "ar" && sc.name_ar ? sc.name_ar : sc.name) : subCityId;
   };
 
   useEffect(() => {
-    if (open && service) {
-      fetchProviders();
-    }
+    if (open && service) fetchProviders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, service]);
 
   const fetchProviders = async () => {
     if (!service) return;
-
     setLoading(true);
+
     try {
-      // Fetch by service.category
+      // ✅ Only real providers (user_id NOT NULL)
       const { data: servicesData, error: servicesError } = await supabase
         .from("services")
         .select("*")
         .eq("category", service.category)
         .eq("is_active", true)
         .or("is_paused.is.null,is_paused.eq.false")
+        .not("user_id", "is", null)
         .order("created_at", { ascending: false });
 
       if (servicesError) {
@@ -134,46 +125,46 @@ export function ServiceDetailSheet({
         return;
       }
 
-      const userIds = [...new Set((servicesData as any[]).map((s) => s.user_id).filter(Boolean))];
-      let profileMap = new Map<string, any>();
+      const userIds = Array.from(new Set(servicesData.map((s: any) => s.user_id).filter(Boolean))) as string[];
 
-      if (userIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, full_name, avatar_url, phone, city, sub_city, provider_status")
-          .in("user_id", userIds)
-          .eq("provider_status", "approved");
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, avatar_url, phone, city, sub_city, provider_status")
+        .in("user_id", userIds)
+        .eq("provider_status", "approved");
 
-        profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
+      if (profilesError) {
+        console.error("Error fetching profiles:", profilesError);
+        setProviders([]);
+        return;
       }
 
-      const enrichedServices: ServiceProvider[] = (servicesData as any[])
-        .filter((svc) => {
-          // Bulk uploaded services (unclaimed)
-          if (!svc.user_id) return svc.provider_name && svc.provider_phone;
-          // Claimed services only if provider approved
-          return profileMap.has(svc.user_id);
-        })
+      const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
+
+      // ✅ Only approved providers
+      const enriched: ServiceProvider[] = (servicesData as any[])
+        .filter((svc) => profileMap.has(svc.user_id))
         .map((svc) => {
-          const profile = svc.user_id ? profileMap.get(svc.user_id) : null;
+          const profile = profileMap.get(svc.user_id);
           return {
             id: svc.id,
             title: svc.title,
             description: svc.description,
             category: svc.category,
             image_url: svc.image_url,
+
             user_id: svc.user_id,
-            provider_name: profile?.full_name || svc.provider_name || (isRTL ? "مقدم الخدمة" : "Provider"),
+            provider_name: profile?.full_name || (isRTL ? "مقدم الخدمة" : "Provider"),
             provider_avatar: profile?.avatar_url || "",
-            provider_phone: profile?.phone || svc.provider_phone || "",
-            provider_city: profile?.city || svc.city || null,
-            provider_sub_city: profile?.sub_city || svc.sub_city || null,
+            provider_phone: profile?.phone || "",
+            provider_city: profile?.city || null,
+            provider_sub_city: profile?.sub_city || null,
           };
         });
 
-      setProviders(enrichedServices);
-    } catch (error) {
-      console.error("Error:", error);
+      setProviders(enriched);
+    } catch (e) {
+      console.error("Error:", e);
       setProviders([]);
     } finally {
       setLoading(false);
@@ -214,6 +205,7 @@ export function ServiceDetailSheet({
       navigate("/auth");
       return;
     }
+
     if (!provider.provider_phone) {
       toast.error(isRTL ? "رقم الهاتف غير متوفر" : "Phone number not available");
       return;
@@ -222,11 +214,11 @@ export function ServiceDetailSheet({
     setIsLoggingCall(true);
     try {
       await logCall.mutateAsync({
-        service_id: provider.id,
-        provider_id: provider.user_id || provider.id,
+        service_id: provider.id,         // service id
+        provider_id: provider.user_id,   // provider user id (always exists)
       });
-    } catch (error) {
-      console.error("Error logging call:", error);
+    } catch (err) {
+      console.error("Error logging call:", err);
     } finally {
       setIsLoggingCall(false);
     }
@@ -288,10 +280,10 @@ export function ServiceDetailSheet({
     return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true };
   };
 
-  // ✅ Drawer height control (change 85 -> 80 if you want)
+  // 85% drawer height (you can change)
   const drawerPageClass = "h-[85dvh] max-h-[85dvh] flex flex-col overflow-hidden mt-0";
 
-  // -------------------- Provider detail view --------------------
+  // ---------------- Provider detail view ----------------
   if (selectedProvider) {
     const isProviderFavorite = isFavorite(selectedProvider.id);
     const hasRating = rating.totalReviews > 0;
@@ -340,7 +332,6 @@ export function ServiceDetailSheet({
 
             <ScrollArea className="flex-1">
               <div className="px-6 py-6 space-y-6" dir={isRTL ? "rtl" : "ltr"}>
-                {/* Rating & Info */}
                 <div className="flex items-center justify-center gap-6 text-sm">
                   <button onClick={handleOpenReviewDialog} className="flex items-center gap-1 hover:opacity-70 transition-opacity">
                     <Star className={cn("h-4 w-4", hasRating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground")} />
@@ -362,7 +353,6 @@ export function ServiceDetailSheet({
                   </div>
                 </div>
 
-                {/* Description */}
                 {selectedProvider.description && (
                   <div className="bg-muted/50 rounded-2xl p-4">
                     <h3 className="font-semibold text-foreground mb-2">{isRTL ? "عن الخدمة" : "About this service"}</h3>
@@ -370,7 +360,6 @@ export function ServiceDetailSheet({
                   </div>
                 )}
 
-                {/* Reviews */}
                 <div className="space-y-3">
                   <div className={cn("flex items-center justify-between", isRTL && "flex-row-reverse")}>
                     <h3 className="font-semibold text-foreground">{isRTL ? "التقييمات" : "Reviews"}</h3>
@@ -382,7 +371,6 @@ export function ServiceDetailSheet({
                   <ReviewList reviews={reviews} loading={reviewsLoading} />
                 </div>
 
-                {/* Actions */}
                 <div className="flex gap-3 pt-2">
                   <Button
                     variant="outline"
@@ -406,16 +394,8 @@ export function ServiceDetailSheet({
                   </Button>
                 </div>
 
-                {/* Unclaimed badge + Report (Claim removed) */}
-                <div className="flex items-center justify-between mt-2 gap-2">
-                  {!selectedProvider.user_id ? (
-                    <Badge variant="secondary" className="bg-amber-100 text-amber-700 text-xs">
-                      {isRTL ? "خدمة غير مؤكدة" : "Unclaimed Service"}
-                    </Badge>
-                  ) : (
-                    <div />
-                  )}
-
+                {/* Report only */}
+                <div className="flex items-center justify-end mt-2">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -451,7 +431,7 @@ export function ServiceDetailSheet({
     );
   }
 
-  // -------------------- Providers list view --------------------
+  // ---------------- Providers list view ----------------
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className={drawerPageClass}>
