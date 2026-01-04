@@ -389,8 +389,7 @@ export function ServiceDetailSheet({
               <button
                 onClick={handleBack}
                 className={cn(
-                  "absolute top-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
-                  isRTL ? "right-4" : "left-4"
+                  "className={cn("absolute top-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center", isRTL ? "right-4" : "left-4", initialProviderServiceId && "hidden")}"
                 )}
               >
                 <ChevronRight
@@ -648,7 +647,7 @@ export function ServiceDetailSheet({
                 {filteredProviders.map((provider) => {
                   const ratingInfo = getRatingDisplay(provider.id);
                   return (
-                    <button hidden
+                    <button
                       key={provider.id}
                       onClick={() => handleProviderClick(provider)}
                       className={cn(
