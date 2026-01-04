@@ -38,8 +38,6 @@ import {
   Edit,
   Trash2,
   StickyNote,
-  Phone,
-  UserCheck,
   Star,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -57,11 +55,9 @@ interface Service {
   admin_note: string | null;
   views_count: number;
   user_id: string | null;
-  provider_phone: string | null;
-  provider_name: string | null;
   created_at: string;
 
-  // ✅ NEW (from migration)
+  // Featured
   is_featured?: boolean;
   featured_order?: number | null;
 
@@ -70,6 +66,12 @@ interface Service {
   };
 }
 
+type ProviderProfile = {
+  user_id: string;
+  full_name: string | null;
+  phone?: string | null;
+};
+
 export default function AdminServices() {
   const queryClient = useQueryClient();
   const { data: categories } = useCategories();
@@ -77,8 +79,7 @@ export default function AdminServices() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [visibilityFilter, setVisibilityFilter] = useState<string>("all");
-  const [claimFilter, setClaimFilter] = useState<string>("all");
-  const [featuredFilter, setFeaturedFilter] = useState<string>("all"); // ✅ NEW
+  const [featuredFilter, setFeaturedFilter] = useState<string>("all");
 
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -90,33 +91,34 @@ export default function AdminServices() {
     description: "",
     category: "",
     city: "",
+    user_id: "" as string, // ✅ provider assignment
   });
 
-  // Local draft for featured order (so typing doesn’t spam DB)
+  // Featured order local draft
   const [featuredOrderDraft, setFeaturedOrderDraft] = useState<Record<string, string>>({});
 
+  // Provider search in edit dialog
+  const [providerSearch, setProviderSearch] = useState("");
+  const [providerResults, setProviderResults] = useState<ProviderProfile[]>([]);
+  const [providerSearching, setProviderSearching] = useState(false);
+
   const { data: services, isLoading } = useQuery({
-    queryKey: ["admin-services", categoryFilter, visibilityFilter, claimFilter, featuredFilter, search],
+    queryKey: ["admin-services", categoryFilter, visibilityFilter, featuredFilter, search],
     queryFn: async () => {
       let query = supabase.from("services").select("*");
 
       if (categoryFilter !== "all") query = query.eq("category", categoryFilter);
       if (visibilityFilter !== "all") query = query.eq("is_visible", visibilityFilter === "visible");
 
-      if (claimFilter === "claimed") query = query.not("user_id", "is", null);
-      else if (claimFilter === "pending") query = query.is("user_id", null);
-
-      // ✅ Featured filter
       if (featuredFilter === "featured") query = query.eq("is_featured", true);
       else if (featuredFilter === "not_featured") query = query.or("is_featured.is.null,is_featured.eq.false");
 
       if (search) {
         query = query.or(
-          `title.ilike.%${search}%,description.ilike.%${search}%,provider_phone.ilike.%${search}%,provider_name.ilike.%${search}%`
+          `title.ilike.%${search}%,description.ilike.%${search}%`
         );
       }
 
-      // If you want featured list to appear sorted nicely when filtering
       const ordered =
         featuredFilter === "featured"
           ? query.order("featured_order", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false })
@@ -125,26 +127,30 @@ export default function AdminServices() {
       const { data, error } = await ordered;
       if (error) throw error;
 
-      // Get provider info for claimed services
-      const servicesWithProvider = await Promise.all(
-        (data || []).map(async (service: any) => {
-          if (service.user_id) {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("full_name")
-              .eq("user_id", service.user_id)
-              .single();
-            return { ...service, provider: profile };
-          }
-          return service;
-        })
-      );
+      // Batch fetch provider names for any services that have user_id
+      const userIds = Array.from(new Set((data || []).map((s: any) => s.user_id).filter(Boolean))) as string[];
+      let profileMap = new Map<string, any>();
+
+      if (userIds.length) {
+        const { data: profiles, error: pErr } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", userIds);
+
+        if (pErr) throw pErr;
+        profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
+      }
+
+      const servicesWithProvider = (data || []).map((service: any) => {
+        if (service.user_id) return { ...service, provider: profileMap.get(service.user_id) || null };
+        return { ...service, provider: null };
+      });
 
       return servicesWithProvider as Service[];
     },
   });
 
-  // Initialize drafts when services load
+  // Initialize featured order drafts
   useMemo(() => {
     if (!services) return;
     const map: Record<string, string> = {};
@@ -223,27 +229,23 @@ export default function AdminServices() {
     onError: () => toast.error("Failed to save note"),
   });
 
-  // ✅ NEW: featured toggle + order update
+  // Featured toggle / order
   const updateFeatured = useMutation({
     mutationFn: async (payload: { id: string; is_featured?: boolean; featured_order?: number | null }) => {
       const { id, ...updates } = payload;
       const { error } = await supabase.from("services").update(updates).eq("id", id);
       if (error) throw error;
 
-      // Log action
-      if (typeof updates.is_featured === "boolean") {
-        await supabase.rpc("log_admin_action", {
-          p_action: updates.is_featured ? "service_featured_on" : "service_featured_off",
-          p_target_type: "service",
-          p_target_id: id,
-        });
-      } else {
-        await supabase.rpc("log_admin_action", {
-          p_action: "service_featured_order",
-          p_target_type: "service",
-          p_target_id: id,
-        });
-      }
+      const action =
+        typeof updates.is_featured === "boolean"
+          ? (updates.is_featured ? "service_featured_on" : "service_featured_off")
+          : "service_featured_order";
+
+      await supabase.rpc("log_admin_action", {
+        p_action: action,
+        p_target_type: "service",
+        p_target_id: id,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-services"] });
@@ -254,12 +256,17 @@ export default function AdminServices() {
 
   const openEditDialog = (service: Service) => {
     setSelectedService(service);
+    setProviderSearch("");
+    setProviderResults([]);
+
     setEditForm({
       title: service.title,
       description: service.description || "",
       category: service.category,
       city: service.city || "",
+      user_id: service.user_id || "",
     });
+
     setEditOpen(true);
   };
 
@@ -269,27 +276,9 @@ export default function AdminServices() {
     setNoteOpen(true);
   };
 
-  const getClaimStatus = (service: Service) => {
-    if (service.user_id) {
-      return (
-        <Badge className="bg-green-500">
-          <UserCheck className="h-3 w-3 mr-1" />
-          Claimed
-        </Badge>
-      );
-    }
-    return (
-      <Badge variant="secondary">
-        <Phone className="h-3 w-3 mr-1" />
-        Pending
-      </Badge>
-    );
-  };
-
   const handleToggleFeatured = (service: Service) => {
     const next = !(service.is_featured === true);
 
-    // When turning ON featured, if order is empty, set a default high number
     const draft = featuredOrderDraft[service.id];
     const parsed = draft?.trim() ? Number(draft) : null;
 
@@ -309,12 +298,42 @@ export default function AdminServices() {
       return;
     }
 
-    // Allow setting order even if not featured (but usually you feature it first)
     updateFeatured.mutate({
       id: service.id,
       featured_order: nextOrder,
     });
   };
+
+  const runProviderSearch = async () => {
+    const q = providerSearch.trim();
+    if (!q) {
+      setProviderResults([]);
+      return;
+    }
+
+    setProviderSearching(true);
+    try {
+      // Search providers by name (you can extend to phone later)
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .ilike("full_name", `%${q}%`)
+        .limit(10);
+
+      if (error) throw error;
+
+      setProviderResults((data || []) as ProviderProfile[]);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to search providers");
+    } finally {
+      setProviderSearching(false);
+    }
+  };
+
+  const currentProviderLabel =
+    services?.find((s) => s.id === selectedService?.id)?.provider?.full_name ||
+    (editForm.user_id ? "Selected provider" : "");
 
   return (
     <div className="space-y-6">
@@ -353,17 +372,6 @@ export default function AdminServices() {
                 </SelectContent>
               </Select>
 
-              <Select value={claimFilter} onValueChange={setClaimFilter}>
-                <SelectTrigger className="w-36">
-                  <SelectValue placeholder="Claim Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="claimed">Claimed</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                </SelectContent>
-              </Select>
-
               <Select value={visibilityFilter} onValueChange={setVisibilityFilter}>
                 <SelectTrigger className="w-36">
                   <SelectValue placeholder="Visibility" />
@@ -375,7 +383,6 @@ export default function AdminServices() {
                 </SelectContent>
               </Select>
 
-              {/* ✅ NEW Featured Filter */}
               <Select value={featuredFilter} onValueChange={setFeaturedFilter}>
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Featured" />
@@ -406,9 +413,7 @@ export default function AdminServices() {
                   <TableHead>Title</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Provider</TableHead>
-                  <TableHead>Claim Status</TableHead>
 
-                  {/* ✅ NEW */}
                   <TableHead>Featured</TableHead>
                   <TableHead>Order</TableHead>
 
@@ -436,17 +441,12 @@ export default function AdminServices() {
 
                       <TableCell>
                         {service.user_id ? (
-                          service.provider?.full_name || "N/A"
+                          service.provider?.full_name || "—"
                         ) : (
-                          <span className="text-muted-foreground text-sm">
-                            {service.provider_name || service.provider_phone || "—"}
-                          </span>
+                          <span className="text-muted-foreground text-sm">—</span>
                         )}
                       </TableCell>
 
-                      <TableCell>{getClaimStatus(service)}</TableCell>
-
-                      {/* ✅ Featured toggle */}
                       <TableCell>
                         <Button
                           variant="ghost"
@@ -460,23 +460,20 @@ export default function AdminServices() {
                         </Button>
                       </TableCell>
 
-                      {/* ✅ Featured order */}
                       <TableCell className="w-32">
-                        <div className="flex items-center gap-2">
-                          <Input
-                            value={featuredOrderDraft[service.id] ?? ""}
-                            onChange={(e) =>
-                              setFeaturedOrderDraft((prev) => ({
-                                ...prev,
-                                [service.id]: e.target.value,
-                              }))
-                            }
-                            onBlur={() => handleSaveFeaturedOrder(service)}
-                            placeholder="e.g. 1"
-                            className="h-9"
-                            inputMode="numeric"
-                          />
-                        </div>
+                        <Input
+                          value={featuredOrderDraft[service.id] ?? ""}
+                          onChange={(e) =>
+                            setFeaturedOrderDraft((prev) => ({
+                              ...prev,
+                              [service.id]: e.target.value,
+                            }))
+                          }
+                          onBlur={() => handleSaveFeaturedOrder(service)}
+                          placeholder="e.g. 1"
+                          className="h-9"
+                          inputMode="numeric"
+                        />
                       </TableCell>
 
                       <TableCell>{service.views_count}</TableCell>
@@ -564,6 +561,54 @@ export default function AdminServices() {
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* ✅ Assign Provider */}
+            <div className="space-y-2">
+              <Label>Assign Provider</Label>
+
+              {editForm.user_id ? (
+                <div className="text-sm text-muted-foreground">
+                  Current: <span className="text-foreground font-medium">{currentProviderLabel || editForm.user_id}</span>
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">No provider assigned</div>
+              )}
+
+              <div className="flex gap-2">
+                <Input
+                  value={providerSearch}
+                  onChange={(e) => setProviderSearch(e.target.value)}
+                  placeholder="Search provider by name..."
+                />
+                <Button type="button" variant="outline" onClick={runProviderSearch} disabled={providerSearching}>
+                  {providerSearching ? "Searching..." : "Search"}
+                </Button>
+              </div>
+
+              {providerResults.length > 0 && (
+                <div className="border rounded-lg overflow-hidden">
+                  {providerResults.map((p) => (
+                    <button
+                      key={p.user_id}
+                      type="button"
+                      className="w-full text-left px-3 py-2 hover:bg-muted/50 transition-colors"
+                      onClick={() => {
+                        setEditForm((prev) => ({ ...prev, user_id: p.user_id }));
+                        setProviderResults([]);
+                        setProviderSearch(p.full_name || "");
+                      }}
+                    >
+                      <div className="font-medium">{p.full_name || "Unnamed provider"}</div>
+                      <div className="text-xs text-muted-foreground">{p.user_id}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground">
+                Assigning a provider sets <code>services.user_id</code>.
+              </p>
+            </div>
+
             <div>
               <Label>Title</Label>
               <Input
@@ -614,12 +659,24 @@ export default function AdminServices() {
             </Button>
             <Button
               onClick={() => {
-                if (selectedService) {
-                  updateService.mutate({
-                    id: selectedService.id,
-                    updates: editForm,
-                  });
+                if (!selectedService) return;
+
+                // ✅ Enforce rule: provider must exist
+                if (!editForm.user_id) {
+                  toast.error("Please assign a provider");
+                  return;
                 }
+
+                updateService.mutate({
+                  id: selectedService.id,
+                  updates: {
+                    title: editForm.title,
+                    description: editForm.description,
+                    category: editForm.category,
+                    city: editForm.city,
+                    user_id: editForm.user_id,
+                  },
+                });
               }}
             >
               Save Changes
@@ -651,9 +708,7 @@ export default function AdminServices() {
             </Button>
             <Button
               onClick={() => {
-                if (selectedService) {
-                  saveAdminNote.mutate({ id: selectedService.id, note: adminNote });
-                }
+                if (selectedService) saveAdminNote.mutate({ id: selectedService.id, note: adminNote });
               }}
             >
               Save Note
