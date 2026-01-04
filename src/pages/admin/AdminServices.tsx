@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,7 @@ import {
   StickyNote,
   Phone,
   UserCheck,
+  Star,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useCategories } from "@/hooks/useCategories";
@@ -59,6 +60,11 @@ interface Service {
   provider_phone: string | null;
   provider_name: string | null;
   created_at: string;
+
+  // ✅ NEW (from migration)
+  is_featured?: boolean;
+  featured_order?: number | null;
+
   provider?: {
     full_name: string | null;
   };
@@ -67,14 +73,18 @@ interface Service {
 export default function AdminServices() {
   const queryClient = useQueryClient();
   const { data: categories } = useCategories();
+
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [visibilityFilter, setVisibilityFilter] = useState<string>("all");
   const [claimFilter, setClaimFilter] = useState<string>("all");
+  const [featuredFilter, setFeaturedFilter] = useState<string>("all"); // ✅ NEW
+
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [adminNote, setAdminNote] = useState("");
+
   const [editForm, setEditForm] = useState({
     title: "",
     description: "",
@@ -82,32 +92,42 @@ export default function AdminServices() {
     city: "",
   });
 
+  // Local draft for featured order (so typing doesn’t spam DB)
+  const [featuredOrderDraft, setFeaturedOrderDraft] = useState<Record<string, string>>({});
+
   const { data: services, isLoading } = useQuery({
-    queryKey: ["admin-services", categoryFilter, visibilityFilter, claimFilter, search],
+    queryKey: ["admin-services", categoryFilter, visibilityFilter, claimFilter, featuredFilter, search],
     queryFn: async () => {
       let query = supabase.from("services").select("*");
 
-      if (categoryFilter !== "all") {
-        query = query.eq("category", categoryFilter);
-      }
-      if (visibilityFilter !== "all") {
-        query = query.eq("is_visible", visibilityFilter === "visible");
-      }
-      if (claimFilter === "claimed") {
-        query = query.not("user_id", "is", null);
-      } else if (claimFilter === "pending") {
-        query = query.is("user_id", null);
-      }
+      if (categoryFilter !== "all") query = query.eq("category", categoryFilter);
+      if (visibilityFilter !== "all") query = query.eq("is_visible", visibilityFilter === "visible");
+
+      if (claimFilter === "claimed") query = query.not("user_id", "is", null);
+      else if (claimFilter === "pending") query = query.is("user_id", null);
+
+      // ✅ Featured filter
+      if (featuredFilter === "featured") query = query.eq("is_featured", true);
+      else if (featuredFilter === "not_featured") query = query.or("is_featured.is.null,is_featured.eq.false");
+
       if (search) {
-        query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%,provider_phone.ilike.%${search}%`);
+        query = query.or(
+          `title.ilike.%${search}%,description.ilike.%${search}%,provider_phone.ilike.%${search}%,provider_name.ilike.%${search}%`
+        );
       }
 
-      const { data, error } = await query.order("created_at", { ascending: false });
+      // If you want featured list to appear sorted nicely when filtering
+      const ordered =
+        featuredFilter === "featured"
+          ? query.order("featured_order", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false })
+          : query.order("created_at", { ascending: false });
+
+      const { data, error } = await ordered;
       if (error) throw error;
 
       // Get provider info for claimed services
       const servicesWithProvider = await Promise.all(
-        (data || []).map(async (service) => {
+        (data || []).map(async (service: any) => {
           if (service.user_id) {
             const { data: profile } = await supabase
               .from("profiles")
@@ -124,12 +144,20 @@ export default function AdminServices() {
     },
   });
 
+  // Initialize drafts when services load
+  useMemo(() => {
+    if (!services) return;
+    const map: Record<string, string> = {};
+    services.forEach((s) => {
+      map[s.id] = s.featured_order === null || s.featured_order === undefined ? "" : String(s.featured_order);
+    });
+    setFeaturedOrderDraft(map);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [services?.length]);
+
   const toggleVisibility = useMutation({
     mutationFn: async ({ id, isVisible }: { id: string; isVisible: boolean }) => {
-      const { error } = await supabase
-        .from("services")
-        .update({ is_visible: isVisible })
-        .eq("id", id);
+      const { error } = await supabase.from("services").update({ is_visible: isVisible }).eq("id", id);
       if (error) throw error;
 
       await supabase.rpc("log_admin_action", {
@@ -142,17 +170,12 @@ export default function AdminServices() {
       queryClient.invalidateQueries({ queryKey: ["admin-services"] });
       toast.success("Service visibility updated");
     },
-    onError: () => {
-      toast.error("Failed to update visibility");
-    },
+    onError: () => toast.error("Failed to update visibility"),
   });
 
   const updateService = useMutation({
     mutationFn: async (data: { id: string; updates: Partial<Service> }) => {
-      const { error } = await supabase
-        .from("services")
-        .update(data.updates)
-        .eq("id", data.id);
+      const { error } = await supabase.from("services").update(data.updates).eq("id", data.id);
       if (error) throw error;
 
       await supabase.rpc("log_admin_action", {
@@ -166,9 +189,7 @@ export default function AdminServices() {
       toast.success("Service updated");
       setEditOpen(false);
     },
-    onError: () => {
-      toast.error("Failed to update service");
-    },
+    onError: () => toast.error("Failed to update service"),
   });
 
   const deleteService = useMutation({
@@ -186,17 +207,12 @@ export default function AdminServices() {
       queryClient.invalidateQueries({ queryKey: ["admin-services"] });
       toast.success("Service deleted");
     },
-    onError: () => {
-      toast.error("Failed to delete service");
-    },
+    onError: () => toast.error("Failed to delete service"),
   });
 
   const saveAdminNote = useMutation({
     mutationFn: async ({ id, note }: { id: string; note: string }) => {
-      const { error } = await supabase
-        .from("services")
-        .update({ admin_note: note })
-        .eq("id", id);
+      const { error } = await supabase.from("services").update({ admin_note: note }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -204,9 +220,36 @@ export default function AdminServices() {
       toast.success("Note saved");
       setNoteOpen(false);
     },
-    onError: () => {
-      toast.error("Failed to save note");
+    onError: () => toast.error("Failed to save note"),
+  });
+
+  // ✅ NEW: featured toggle + order update
+  const updateFeatured = useMutation({
+    mutationFn: async (payload: { id: string; is_featured?: boolean; featured_order?: number | null }) => {
+      const { id, ...updates } = payload;
+      const { error } = await supabase.from("services").update(updates).eq("id", id);
+      if (error) throw error;
+
+      // Log action
+      if (typeof updates.is_featured === "boolean") {
+        await supabase.rpc("log_admin_action", {
+          p_action: updates.is_featured ? "service_featured_on" : "service_featured_off",
+          p_target_type: "service",
+          p_target_id: id,
+        });
+      } else {
+        await supabase.rpc("log_admin_action", {
+          p_action: "service_featured_order",
+          p_target_type: "service",
+          p_target_id: id,
+        });
+      }
     },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-services"] });
+      toast.success("Featured updated");
+    },
+    onError: () => toast.error("Failed to update featured"),
   });
 
   const openEditDialog = (service: Service) => {
@@ -243,6 +286,36 @@ export default function AdminServices() {
     );
   };
 
+  const handleToggleFeatured = (service: Service) => {
+    const next = !(service.is_featured === true);
+
+    // When turning ON featured, if order is empty, set a default high number
+    const draft = featuredOrderDraft[service.id];
+    const parsed = draft?.trim() ? Number(draft) : null;
+
+    updateFeatured.mutate({
+      id: service.id,
+      is_featured: next,
+      featured_order: next ? (Number.isFinite(parsed as any) ? parsed : 999) : null,
+    });
+  };
+
+  const handleSaveFeaturedOrder = (service: Service) => {
+    const draft = (featuredOrderDraft[service.id] ?? "").trim();
+    const nextOrder = draft === "" ? null : Number(draft);
+
+    if (draft !== "" && !Number.isFinite(nextOrder)) {
+      toast.error("Order must be a number");
+      return;
+    }
+
+    // Allow setting order even if not featured (but usually you feature it first)
+    updateFeatured.mutate({
+      id: service.id,
+      featured_order: nextOrder,
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -254,6 +327,7 @@ export default function AdminServices() {
         <CardHeader>
           <CardTitle className="flex items-center justify-between flex-wrap gap-4">
             <span>All Services</span>
+
             <div className="flex gap-2 flex-wrap">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -264,6 +338,7 @@ export default function AdminServices() {
                   className="pl-9 w-64"
                 />
               </div>
+
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Category" />
@@ -277,6 +352,7 @@ export default function AdminServices() {
                   ))}
                 </SelectContent>
               </Select>
+
               <Select value={claimFilter} onValueChange={setClaimFilter}>
                 <SelectTrigger className="w-36">
                   <SelectValue placeholder="Claim Status" />
@@ -287,6 +363,7 @@ export default function AdminServices() {
                   <SelectItem value="pending">Pending</SelectItem>
                 </SelectContent>
               </Select>
+
               <Select value={visibilityFilter} onValueChange={setVisibilityFilter}>
                 <SelectTrigger className="w-36">
                   <SelectValue placeholder="Visibility" />
@@ -297,9 +374,22 @@ export default function AdminServices() {
                   <SelectItem value="hidden">Hidden</SelectItem>
                 </SelectContent>
               </Select>
+
+              {/* ✅ NEW Featured Filter */}
+              <Select value={featuredFilter} onValueChange={setFeaturedFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Featured" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="featured">Featured Only</SelectItem>
+                  <SelectItem value="not_featured">Not Featured</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardTitle>
         </CardHeader>
+
         <CardContent>
           {isLoading ? (
             <div className="space-y-2">
@@ -317,96 +407,149 @@ export default function AdminServices() {
                   <TableHead>Category</TableHead>
                   <TableHead>Provider</TableHead>
                   <TableHead>Claim Status</TableHead>
+
+                  {/* ✅ NEW */}
+                  <TableHead>Featured</TableHead>
+                  <TableHead>Order</TableHead>
+
                   <TableHead>Views</TableHead>
                   <TableHead>Visibility</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
+
               <TableBody>
-                {services?.map((service) => (
-                  <TableRow key={service.id}>
-                    <TableCell className="font-medium max-w-48 truncate">
-                      {service.title}
-                      {service.admin_note && (
-                        <StickyNote className="inline ml-2 h-3 w-3 text-yellow-500" />
-                      )}
-                    </TableCell>
-                    <TableCell>{service.category}</TableCell>
-                    <TableCell>
-                      {service.user_id ? (
-                        service.provider?.full_name || "N/A"
-                      ) : (
-                        <span className="text-muted-foreground text-sm">
-                          {service.provider_name || service.provider_phone || "—"}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>{getClaimStatus(service)}</TableCell>
-                    <TableCell>{service.views_count}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        {service.is_visible ? (
-                          <Badge className="bg-green-500">Visible</Badge>
+                {services?.map((service) => {
+                  const isFeatured = service.is_featured === true;
+
+                  return (
+                    <TableRow key={service.id}>
+                      <TableCell className="font-medium max-w-48 truncate">
+                        {service.title}
+                        {service.admin_note && (
+                          <StickyNote className="inline ml-2 h-3 w-3 text-yellow-500" />
+                        )}
+                      </TableCell>
+
+                      <TableCell>{service.category}</TableCell>
+
+                      <TableCell>
+                        {service.user_id ? (
+                          service.provider?.full_name || "N/A"
                         ) : (
-                          <Badge variant="secondary">Hidden</Badge>
+                          <span className="text-muted-foreground text-sm">
+                            {service.provider_name || service.provider_phone || "—"}
+                          </span>
                         )}
-                        {!service.is_active && (
-                          <Badge variant="destructive">Inactive</Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(service.created_at), "MMM d, yyyy")}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
+                      </TableCell>
+
+                      <TableCell>{getClaimStatus(service)}</TableCell>
+
+                      {/* ✅ Featured toggle */}
+                      <TableCell>
                         <Button
                           variant="ghost"
-                          size="icon"
-                          onClick={() =>
-                            toggleVisibility.mutate({
-                              id: service.id,
-                              isVisible: !service.is_visible,
-                            })
-                          }
+                          size="sm"
+                          className={isFeatured ? "text-yellow-600" : "text-muted-foreground"}
+                          onClick={() => handleToggleFeatured(service)}
+                          disabled={updateFeatured.isPending}
                         >
-                          {service.is_visible ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
+                          <Star className={isFeatured ? "h-4 w-4 fill-yellow-400 text-yellow-400" : "h-4 w-4"} />
+                          <span className="ml-2">{isFeatured ? "Yes" : "No"}</span>
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEditDialog(service)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openNoteDialog(service)}
-                        >
-                          <StickyNote className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-red-500"
-                          onClick={() => {
-                            if (confirm("Are you sure you want to delete this service?")) {
-                              deleteService.mutate(service.id);
+                      </TableCell>
+
+                      {/* ✅ Featured order */}
+                      <TableCell className="w-32">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={featuredOrderDraft[service.id] ?? ""}
+                            onChange={(e) =>
+                              setFeaturedOrderDraft((prev) => ({
+                                ...prev,
+                                [service.id]: e.target.value,
+                              }))
                             }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                            onBlur={() => handleSaveFeaturedOrder(service)}
+                            placeholder="e.g. 1"
+                            className="h-9"
+                            inputMode="numeric"
+                          />
+                        </div>
+                      </TableCell>
+
+                      <TableCell>{service.views_count}</TableCell>
+
+                      <TableCell>
+                        <div className="flex gap-1">
+                          {service.is_visible ? (
+                            <Badge className="bg-green-500">Visible</Badge>
+                          ) : (
+                            <Badge variant="secondary">Hidden</Badge>
+                          )}
+                          {!service.is_active && (
+                            <Badge variant="destructive">Inactive</Badge>
+                          )}
+                        </div>
+                      </TableCell>
+
+                      <TableCell>
+                        {format(new Date(service.created_at), "MMM d, yyyy")}
+                      </TableCell>
+
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() =>
+                              toggleVisibility.mutate({
+                                id: service.id,
+                                isVisible: !service.is_visible,
+                              })
+                            }
+                          >
+                            {service.is_visible ? (
+                              <EyeOff className="h-4 w-4" />
+                            ) : (
+                              <Eye className="h-4 w-4" />
+                            )}
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEditDialog(service)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openNoteDialog(service)}
+                          >
+                            <StickyNote className="h-4 w-4" />
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-red-500"
+                            onClick={() => {
+                              if (confirm("Are you sure you want to delete this service?")) {
+                                deleteService.mutate(service.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
@@ -419,6 +562,7 @@ export default function AdminServices() {
           <DialogHeader>
             <DialogTitle>Edit Service</DialogTitle>
           </DialogHeader>
+
           <div className="space-y-4">
             <div>
               <Label>Title</Label>
@@ -427,6 +571,7 @@ export default function AdminServices() {
                 onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
               />
             </div>
+
             <div>
               <Label>Description</Label>
               <Textarea
@@ -434,6 +579,7 @@ export default function AdminServices() {
                 onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
               />
             </div>
+
             <div>
               <Label>Category</Label>
               <Select
@@ -452,6 +598,7 @@ export default function AdminServices() {
                 </SelectContent>
               </Select>
             </div>
+
             <div>
               <Label>City</Label>
               <Input
@@ -460,6 +607,7 @@ export default function AdminServices() {
               />
             </div>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)}>
               Cancel
@@ -486,6 +634,7 @@ export default function AdminServices() {
           <DialogHeader>
             <DialogTitle>Admin Note</DialogTitle>
           </DialogHeader>
+
           <div>
             <Label>Internal Note</Label>
             <Textarea
@@ -495,6 +644,7 @@ export default function AdminServices() {
               rows={4}
             />
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setNoteOpen(false)}>
               Cancel
