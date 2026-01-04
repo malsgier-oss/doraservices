@@ -20,6 +20,7 @@ import {
   Pencil,
   Pause,
   Play,
+  ImageOff,
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -52,41 +53,42 @@ import { EditServiceDialog } from "@/components/service/EditServiceDialog";
 
 // Format phone to Libyan style: 09x xxx xx xx
 const formatLibyanPhone = (value: string): string => {
-  // Remove all non-digits
   const digits = value.replace(/\D/g, "");
-  
-  // Limit to 10 digits
   const limited = digits.slice(0, 10);
-  
-  // Format as 09x xxx xx xx
-  if (limited.length <= 3) {
-    return limited;
-  } else if (limited.length <= 6) {
-    return `${limited.slice(0, 3)} ${limited.slice(3)}`;
-  } else if (limited.length <= 8) {
+
+  if (limited.length <= 3) return limited;
+  if (limited.length <= 6) return `${limited.slice(0, 3)} ${limited.slice(3)}`;
+  if (limited.length <= 8)
     return `${limited.slice(0, 3)} ${limited.slice(3, 6)} ${limited.slice(6)}`;
-  } else {
-    return `${limited.slice(0, 3)} ${limited.slice(3, 6)} ${limited.slice(6, 8)} ${limited.slice(8)}`;
-  }
+  return `${limited.slice(0, 3)} ${limited.slice(3, 6)} ${limited.slice(
+    6,
+    8
+  )} ${limited.slice(8)}`;
 };
 
 const Profile = () => {
-  const [activeTab, setActiveTab] = useState("favorites");
+  const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [activeTab, setActiveTab] = useState("account");
   const [isEditing, setIsEditing] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
-  const [editingService, setEditingService] = useState<typeof myServices[0] | null>(null);
-  const [isSavingService, setIsSavingService] = useState(false);
-  const [togglingPauseId, setTogglingPauseId] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const navigate = useNavigate();
+
   const { user, signOut } = useAuth();
   const { profile, loading, updateProfile } = useProfile();
   const { isBusiness, loading: roleLoading, upgradeToBusiness } = useUserRole();
   const { t, isRTL, language } = useLanguage();
-  const { myServices, deleteService, updateService } = useServices();
+  const servicesApi = useServices();
+  const { myServices, deleteService, updateService } = servicesApi;
   const { uploadAvatar, uploading } = useAvatarUpload();
   const { data: cities } = useCities();
   const { data: subCities } = useSubCities(profile?.city || null);
+
+  // ✅ Fix TS typing for editingService safely
+  type MyService = ReturnType<typeof useServices>["myServices"][number];
+  const [editingService, setEditingService] = useState<MyService | null>(null);
+  const [isSavingService, setIsSavingService] = useState(false);
+  const [togglingPauseId, setTogglingPauseId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -97,11 +99,15 @@ const Profile = () => {
     sub_city: "",
   });
 
-  // Check if provider is missing phone number
   const providerMissingPhone = isBusiness && !profile?.phone;
-  
-  // Check if provider is pending approval
+
   const isPendingApproval = isBusiness && profile?.provider_status === "pending";
+
+  const displayName = profile?.full_name || user?.email?.split("@")[0] || "User";
+  const initials = displayName.slice(0, 2).toUpperCase();
+  const memberSince = profile?.created_at
+    ? format(new Date(profile.created_at), "MMMM yyyy")
+    : "Recently";
 
   const handleEdit = () => {
     if (profile) {
@@ -115,6 +121,7 @@ const Profile = () => {
       });
     }
     setIsEditing(true);
+    setActiveTab("account");
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -123,9 +130,8 @@ const Profile = () => {
   };
 
   const handleSave = async () => {
-    // Store phone without spaces
     const phoneDigits = formData.phone.replace(/\D/g, "");
-    
+
     const { error } = await updateProfile({
       full_name: formData.full_name || null,
       bio: formData.bio || null,
@@ -141,20 +147,22 @@ const Profile = () => {
         description: "Failed to update profile",
         variant: "destructive",
       });
-    } else {
-      toast({
-        title: t.profile.profileUpdated,
-        description: t.profile.profileUpdatedDesc,
-      });
-      setIsEditing(false);
+      return;
     }
+
+    toast({
+      title: t.profile.profileUpdated,
+      description: t.profile.profileUpdatedDesc,
+    });
+    setIsEditing(false);
   };
 
-  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     if (!file.type.startsWith("image/")) {
       toast({
         title: t.common.error,
@@ -164,19 +172,20 @@ const Profile = () => {
       return;
     }
 
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       toast({
         title: t.common.error,
-        description: isRTL ? "حجم الصورة كبير جداً (الحد الأقصى 5MB)" : "Image too large (max 5MB)",
+        description: isRTL
+          ? "حجم الصورة كبير جداً (الحد الأقصى 5MB)"
+          : "Image too large (max 5MB)",
         variant: "destructive",
       });
       return;
     }
 
     const { url, error } = await uploadAvatar(file);
-    
-    if (error) {
+
+    if (error || !url) {
       toast({
         title: t.common.error,
         description: isRTL ? "فشل رفع الصورة" : "Failed to upload image",
@@ -185,16 +194,30 @@ const Profile = () => {
       return;
     }
 
-    if (url) {
-      // Update profile with new avatar URL
-      const { error: updateError } = await updateProfile({ avatar_url: url });
-      if (!updateError) {
-        toast({
-          title: t.profile.profileUpdated,
-          description: isRTL ? "تم تحديث الصورة بنجاح" : "Avatar updated successfully",
-        });
-      }
+    const { error: updateError } = await updateProfile({ avatar_url: url });
+    if (!updateError) {
+      toast({
+        title: t.profile.profileUpdated,
+        description: isRTL ? "تم تحديث الصورة بنجاح" : "Avatar updated successfully",
+      });
     }
+  };
+
+  // ✅ Remove avatar only in edit mode
+  const handleRemoveAvatar = async () => {
+    const { error } = await updateProfile({ avatar_url: null });
+    if (error) {
+      toast({
+        title: t.common.error,
+        description: isRTL ? "فشل حذف الصورة" : "Failed to remove avatar",
+        variant: "destructive",
+      });
+      return;
+    }
+    toast({
+      title: isRTL ? "تم حذف الصورة" : "Avatar removed",
+      description: isRTL ? "تمت إعادة الصورة الافتراضية" : "Default avatar restored",
+    });
   };
 
   const handleUpgradeToBusiness = async () => {
@@ -208,15 +231,18 @@ const Profile = () => {
         description: "Failed to upgrade to provider account",
         variant: "destructive",
       });
-    } else {
-      toast({
-        title: t.profile.providerAccount,
-        description: isRTL 
-          ? "يمكنك الآن إضافة خدماتك. حسابك قيد المراجعة." 
-          : "You can now add your services. Your account is pending approval.",
-      });
-      navigate("/create-service");
+      return;
     }
+
+    toast({
+      title: t.profile.providerAccount,
+      description: isRTL
+        ? "يمكنك الآن إضافة خدماتك. حسابك قيد المراجعة."
+        : "You can now add your services. Your account is pending approval.",
+    });
+
+    // Keep them in profile; they need phone first anyway
+    setActiveTab("account");
   };
 
   const handleSignOut = async () => {
@@ -225,10 +251,14 @@ const Profile = () => {
   };
 
   const handleDeleteService = async (id: string) => {
-    if (!confirm(isRTL ? "هل أنت متأكد من حذف هذه الخدمة؟" : "Are you sure you want to delete this service?")) {
+    if (
+      !confirm(
+        isRTL ? "هل أنت متأكد من حذف هذه الخدمة؟" : "Are you sure you want to delete this service?"
+      )
+    ) {
       return;
     }
-    
+
     const { error } = await deleteService(id);
     if (error) {
       toast({
@@ -236,21 +266,27 @@ const Profile = () => {
         description: "Failed to delete service",
         variant: "destructive",
       });
-    } else {
-      toast({
-        title: t.profile.serviceDeleted,
-        description: t.profile.serviceDeletedDesc,
-      });
+      return;
     }
+
+    toast({
+      title: t.profile.serviceDeleted,
+      description: t.profile.serviceDeletedDesc,
+    });
   };
 
-  const handleEditService = (service: typeof myServices[0]) => {
+  const handleEditService = (service: MyService) => {
     setEditingService(service);
   };
 
   const handleSaveService = async (
-    serviceId: string, 
-    updates: { title: string; description: string | null; category: string; is_paused: boolean }
+    serviceId: string,
+    updates: {
+      title: string;
+      description: string | null;
+      category: string;
+      is_paused: boolean;
+    }
   ) => {
     setIsSavingService(true);
     const { error } = await updateService(serviceId, updates);
@@ -273,10 +309,10 @@ const Profile = () => {
     return { error: null };
   };
 
-  const handleTogglePause = async (service: typeof myServices[0]) => {
+  const handleTogglePause = async (service: MyService) => {
     setTogglingPauseId(service.id);
-    const { error } = await updateService(service.id, { 
-      is_paused: !service.is_paused 
+    const { error } = await updateService(service.id, {
+      is_paused: !service.is_paused,
     });
     setTogglingPauseId(null);
 
@@ -286,16 +322,25 @@ const Profile = () => {
         description: isRTL ? "فشل تحديث الحالة" : "Failed to update status",
         variant: "destructive",
       });
-    } else {
-      toast({
-        title: service.is_paused 
-          ? (isRTL ? "تم تفعيل الخدمة" : "Service Activated") 
-          : (isRTL ? "تم إيقاف الخدمة" : "Service Paused"),
-        description: service.is_paused 
-          ? (isRTL ? "الخدمة مرئية للعملاء الآن" : "Service is now visible to customers")
-          : (isRTL ? "الخدمة مخفية عن العملاء" : "Service is hidden from customers"),
-      });
+      return;
     }
+
+    toast({
+      title: service.is_paused
+        ? isRTL
+          ? "تم تفعيل الخدمة"
+          : "Service Activated"
+        : isRTL
+        ? "تم إيقاف الخدمة"
+        : "Service Paused",
+      description: service.is_paused
+        ? isRTL
+          ? "الخدمة مرئية للعملاء الآن"
+          : "Service is now visible to customers"
+        : isRTL
+        ? "الخدمة مخفية عن العملاء"
+        : "Service is hidden from customers",
+    });
   };
 
   if (loading || roleLoading) {
@@ -308,11 +353,18 @@ const Profile = () => {
     );
   }
 
-  const displayName = profile?.full_name || user?.email?.split("@")[0] || "User";
-  const initials = displayName.slice(0, 2).toUpperCase();
-  const memberSince = profile?.created_at 
-    ? format(new Date(profile.created_at), "MMMM yyyy")
-    : "Recently";
+  const cityLabel = profile?.city
+    ? cities?.find((c) => c.id === profile.city)?.[
+        language === "ar" ? "name_ar" : "name"
+      ] || null
+    : null;
+
+  const subCityLabel =
+    profile?.sub_city && subCities?.length
+      ? subCities.find((sc) => sc.id === profile.sub_city)?.[
+          language === "ar" ? "name_ar" : "name"
+        ] || null
+      : null;
 
   return (
     <Layout>
@@ -320,7 +372,7 @@ const Profile = () => {
       <section className="bg-background py-8">
         <div className="container">
           <div className="flex flex-col items-center gap-6">
-            {/* Circular Avatar with Upload */}
+            {/* Avatar */}
             <div className="relative">
               <Avatar className="h-28 w-28 shadow-lg">
                 <AvatarImage src={profile?.avatar_url || ""} alt={displayName} />
@@ -328,6 +380,7 @@ const Profile = () => {
                   {initials}
                 </AvatarFallback>
               </Avatar>
+
               <input
                 ref={fileInputRef}
                 type="file"
@@ -335,6 +388,7 @@ const Profile = () => {
                 className="hidden"
                 onChange={handleAvatarUpload}
               />
+
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
@@ -363,6 +417,7 @@ const Profile = () => {
                       className="rounded-full"
                     />
                   </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="bio">{t.profile.bio}</Label>
                     <Textarea
@@ -376,6 +431,7 @@ const Profile = () => {
                       className="rounded-2xl"
                     />
                   </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="phone" className="flex items-center gap-1">
                       <Phone className="h-4 w-4" />
@@ -394,8 +450,8 @@ const Profile = () => {
                       {isRTL ? "التنسيق: 09x xxx xx xx" : "Format: 09x xxx xx xx"}
                     </p>
                   </div>
-                  
-                  {/* City selector for all users */}
+
+                  {/* City */}
                   <div className="space-y-2">
                     <Label htmlFor="city" className="flex items-center gap-1">
                       <MapPin className="h-4 w-4" />
@@ -404,11 +460,17 @@ const Profile = () => {
                     <Select
                       value={formData.city || "none"}
                       onValueChange={(value) =>
-                        setFormData({ ...formData, city: value === "none" ? "" : value, sub_city: "" })
+                        setFormData({
+                          ...formData,
+                          city: value === "none" ? "" : value,
+                          sub_city: "",
+                        })
                       }
                     >
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder={isRTL ? "اختر مدينتك" : "Select your city"} />
+                        <SelectValue
+                          placeholder={isRTL ? "اختر مدينتك" : "Select your city"}
+                        />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">
@@ -422,8 +484,8 @@ const Profile = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  
-                  {/* Sub-city selector */}
+
+                  {/* Sub-city */}
                   {formData.city && subCities && subCities.length > 0 && (
                     <div className="space-y-2">
                       <Label htmlFor="sub_city" className="flex items-center gap-1">
@@ -433,11 +495,16 @@ const Profile = () => {
                       <Select
                         value={formData.sub_city || "none"}
                         onValueChange={(value) =>
-                          setFormData({ ...formData, sub_city: value === "none" ? "" : value })
+                          setFormData({
+                            ...formData,
+                            sub_city: value === "none" ? "" : value,
+                          })
                         }
                       >
                         <SelectTrigger className="w-full">
-                          <SelectValue placeholder={isRTL ? "اختر منطقتك" : "Select your area"} />
+                          <SelectValue
+                            placeholder={isRTL ? "اختر منطقتك" : "Select your area"}
+                          />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">
@@ -452,15 +519,39 @@ const Profile = () => {
                       </Select>
                     </div>
                   )}
-                  
+
+                  {/* Remove avatar (edit mode only) */}
+                  {!!profile?.avatar_url && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleRemoveAvatar}
+                      className="rounded-full w-full"
+                    >
+                      <ImageOff className="h-4 w-4" />
+                      <span className={isRTL ? "mr-1" : "ml-1"}>
+                        {isRTL ? "حذف الصورة" : "Remove photo"}
+                      </span>
+                    </Button>
+                  )}
+
                   <div className={`flex gap-2 ${isRTL ? "flex-row-reverse" : ""}`}>
-                    <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} className="rounded-full flex-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsEditing(false)}
+                      className="rounded-full flex-1"
+                    >
                       <X className="h-4 w-4" />
-                      <span className={isRTL ? "mr-1" : "ml-1"}>{t.profile.cancelEdit}</span>
+                      <span className={isRTL ? "mr-1" : "ml-1"}>
+                        {t.profile.cancelEdit}
+                      </span>
                     </Button>
                     <Button size="sm" onClick={handleSave} className="rounded-full flex-1">
                       <Save className="h-4 w-4" />
-                      <span className={isRTL ? "mr-1" : "ml-1"}>{t.profile.saveChanges}</span>
+                      <span className={isRTL ? "mr-1" : "ml-1"}>
+                        {t.profile.saveChanges}
+                      </span>
                     </Button>
                   </div>
                 </div>
@@ -470,6 +561,7 @@ const Profile = () => {
                     <h1 className="font-display text-2xl font-bold text-foreground">
                       {displayName}
                     </h1>
+
                     {isBusiness && (
                       <div className="flex items-center justify-center gap-2 flex-wrap">
                         <Badge className="rounded-full bg-success/10 text-success border-0">
@@ -492,42 +584,41 @@ const Profile = () => {
                     </p>
                   )}
 
-                  {/* Phone Warning for Providers */}
+                  {/* Provider missing phone -> strong warning */}
                   {providerMissingPhone && (
                     <Alert variant="destructive" className="max-w-md mx-auto mt-4">
                       <AlertCircle className="h-4 w-4" />
                       <AlertDescription>
-                        {isRTL 
-                          ? "يرجى إضافة رقم هاتفك حتى يتمكن العملاء من التواصل معك" 
-                          : "Please add your phone number so customers can contact you"}
+                        {isRTL
+                          ? "أضف رقم هاتفك أولاً حتى يتمكن العملاء من التواصل معك. لن تتمكن من إضافة خدمة قبل ذلك."
+                          : "Add your phone number first so customers can contact you. You cannot add a service before that."}
                       </AlertDescription>
                     </Alert>
                   )}
 
-                  {/* Pending Approval Notice */}
+                  {/* Pending notice */}
                   {isPendingApproval && (
                     <Alert className="max-w-md mx-auto mt-4 bg-amber-50 border-amber-200">
                       <Clock className="h-4 w-4 text-amber-600" />
                       <AlertDescription className="text-amber-800">
-                        {isRTL 
-                          ? "حسابك قيد المراجعة. خدماتك لن تظهر للعملاء حتى يتم الموافقة عليها." 
-                          : "Your account is pending approval. Your services won't be visible to customers until approved."}
+                        {isRTL
+                          ? "حسابك قيد المراجعة. خدماتك لن تظهر للعملاء حتى تتم الموافقة."
+                          : "Your account is pending approval. Your services won’t be visible until approved."}
                       </AlertDescription>
                     </Alert>
                   )}
 
-                  <div className="flex justify-center gap-6 text-sm text-muted-foreground">
+                  <div className="flex justify-center gap-6 text-sm text-muted-foreground flex-wrap">
                     <span className="flex items-center gap-1">
                       <Calendar className="h-4 w-4" />
                       {t.profile.memberSince} {memberSince}
                     </span>
-                    {profile?.city && (
+
+                    {(cityLabel || subCityLabel) && (
                       <span className="flex items-center gap-1">
                         <MapPin className="h-4 w-4" />
-                        {cities?.find(c => c.id === profile.city)?.[language === "ar" ? "name_ar" : "name"] || profile.city}
-                        {profile.sub_city && subCities?.find(sc => sc.id === profile.sub_city) && (
-                          <>, {subCities.find(sc => sc.id === profile.sub_city)?.[language === "ar" ? "name_ar" : "name"]}</>
-                        )}
+                        {cityLabel || (isRTL ? "—" : "—")}
+                        {subCityLabel ? `, ${subCityLabel}` : ""}
                       </span>
                     )}
                   </div>
@@ -542,10 +633,10 @@ const Profile = () => {
                   <Edit2 className="h-4 w-4" />
                   <span className={isRTL ? "mr-1" : "ml-1"}>{t.profile.editProfile}</span>
                 </Button>
-                
+
                 {!isBusiness && (
-                  <Button 
-                    size="sm" 
+                  <Button
+                    size="sm"
                     onClick={handleUpgradeToBusiness}
                     disabled={isUpgrading}
                     className="rounded-full"
@@ -559,20 +650,22 @@ const Profile = () => {
                   </Button>
                 )}
 
+                {/* Provider add service button is disabled until phone exists */}
                 {isBusiness && (
-                  <Button 
-                    size="sm" 
+                  <Button
+                    size="sm"
                     onClick={() => navigate("/create-service")}
                     className="rounded-full"
+                    disabled={providerMissingPhone}
                   >
                     <Plus className="h-4 w-4" />
                     <span className={isRTL ? "mr-1" : "ml-1"}>{t.profile.addService}</span>
                   </Button>
                 )}
 
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={handleSignOut}
                   className="rounded-full text-destructive hover:text-destructive hover:bg-destructive/10"
                 >
@@ -589,97 +682,145 @@ const Profile = () => {
       {isBusiness && !isEditing && (
         <section className="pb-4">
           <div className="container">
-            <ProfileCompleteness 
-              profile={profile} 
+            <ProfileCompleteness
+              profile={profile}
               hasServices={myServices.length > 0}
               className="max-w-2xl mx-auto"
             />
           </div>
         </section>
       )}
+
+      {/* Tabs */}
       <section className="py-6">
         <div className="container">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className={`grid w-full max-w-md ${isBusiness ? "grid-cols-3" : "grid-cols-2"} mx-auto mb-6 rounded-full p-1`}>
-              <TabsTrigger value="favorites" className="flex items-center gap-1.5 rounded-full">
-                <Heart className="h-4 w-4" />
-                {t.favorites?.title || (isRTL ? "المفضلة" : "Favorites")}
+            <TabsList
+              className={`grid w-full max-w-md ${
+                isBusiness ? "grid-cols-3" : "grid-cols-2"
+              } mx-auto mb-6 rounded-full p-1`}
+            >
+              <TabsTrigger value="account" className="flex items-center gap-1.5 rounded-full">
+                <Edit2 className="h-4 w-4" />
+                {isRTL ? "الحساب" : "Account"}
               </TabsTrigger>
+
               {isBusiness && (
                 <TabsTrigger value="services" className="flex items-center gap-1.5 rounded-full">
                   <Briefcase className="h-4 w-4" />
                   {t.profile.myServices}
                 </TabsTrigger>
               )}
+
               <TabsTrigger value="settings" className="flex items-center gap-1.5 rounded-full">
                 <Settings className="h-4 w-4" />
                 {t.profile.settings}
               </TabsTrigger>
             </TabsList>
 
-            {/* Favorites Tab */}
-            <TabsContent value="favorites" className="animate-fade-in">
-              <div className="max-w-2xl mx-auto">
-                <div className="text-center py-12 bg-muted/30 rounded-3xl">
-                  <div className="h-16 w-16 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
-                    <Heart className="h-8 w-8 text-muted-foreground" />
+            {/* Account Tab */}
+            <TabsContent value="account" className="animate-fade-in">
+              <div className="max-w-2xl mx-auto space-y-4">
+                {/* Favorites card */}
+                <div className="bg-card rounded-2xl p-4 shadow-card flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                      <Heart className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">
+                        {t.favorites?.title || (isRTL ? "المفضلة" : "Favorites")}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {isRTL ? "اعرض خدماتك المفضلة بسرعة" : "Quick access to your saved services"}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-muted-foreground font-medium">
-                    {t.favorites?.noFavorites || (isRTL ? "لا توجد مفضلات" : "No favorites yet")}
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {t.favorites?.noFavoritesDesc || (isRTL ? "أضف خدمات إلى المفضلة" : "Add services to favorites")}
-                  </p>
-                  <Button 
-                    className="mt-4 rounded-full" 
-                    onClick={() => navigate("/favorites")}
-                  >
-                    {isRTL ? "عرض المفضلة" : "View Favorites"}
+                  <Button className="rounded-full" onClick={() => navigate("/favorites")}>
+                    {isRTL ? "فتح" : "Open"}
                   </Button>
                 </div>
+
+                {/* Provider quick note */}
+                {isBusiness && (
+                  <div className="bg-card rounded-2xl p-4 shadow-card">
+                    <p className="font-medium text-foreground">
+                      {isRTL ? "حساب مقدم خدمة" : "Provider account"}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {isPendingApproval
+                        ? isRTL
+                          ? "حسابك قيد المراجعة حالياً."
+                          : "Your account is currently under review."
+                        : isRTL
+                        ? "حسابك مفعل ويمكن للعملاء مشاهدة خدماتك."
+                        : "Your account is active and visible to customers."}
+                    </p>
+                  </div>
+                )}
               </div>
             </TabsContent>
 
-            {/* Services Tab (Business Users) */}
+            {/* Services Tab */}
             {isBusiness && (
               <TabsContent value="services" className="animate-fade-in">
                 <div className="max-w-2xl mx-auto space-y-4">
                   <div className={`flex items-center justify-between ${isRTL ? "flex-row-reverse" : ""}`}>
-                    <h2 className="font-display text-lg font-semibold">
-                      {t.profile.myServices}
-                    </h2>
-                    <Button 
-                      size="sm" 
+                    <h2 className="font-display text-lg font-semibold">{t.profile.myServices}</h2>
+                    <Button
+                      size="sm"
                       className="rounded-full"
                       onClick={() => navigate("/create-service")}
+                      disabled={providerMissingPhone}
                     >
                       <Plus className="h-4 w-4" />
                       <span className={isRTL ? "mr-1" : "ml-1"}>{t.profile.addService}</span>
                     </Button>
                   </div>
-                  
+
+                  {providerMissingPhone && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        {isRTL
+                          ? "أضف رقم هاتفك من (تعديل الملف) ثم يمكنك إضافة خدمة."
+                          : "Add your phone number in (Edit profile) then you can add a service."}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
                   {myServices.length > 0 ? (
                     <div className="space-y-4">
                       {myServices.map((service) => (
-                        <div 
-                          key={service.id} 
-                          className={`bg-card rounded-2xl p-4 shadow-card ${service.is_paused ? "opacity-60" : ""}`}
+                        <div
+                          key={service.id}
+                          className={`bg-card rounded-2xl p-4 shadow-card ${
+                            service.is_paused ? "opacity-60" : ""
+                          }`}
                         >
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
                                 <h3 className="font-semibold text-foreground">{service.title}</h3>
                                 {service.is_paused && (
-                                  <Badge variant="secondary" className="bg-gray-200 text-gray-600 text-xs">
+                                  <Badge
+                                    variant="secondary"
+                                    className="bg-gray-200 text-gray-600 text-xs"
+                                  >
                                     <Pause className="h-3 w-3 mr-1" />
                                     {isRTL ? "متوقف" : "Paused"}
                                   </Badge>
                                 )}
                               </div>
-                              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{service.description}</p>
+
+                              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                                {service.description}
+                              </p>
+
                               <div className="flex items-center gap-2 mt-2 flex-wrap">
                                 <Badge variant="outline">
-                                  {t.categories[service.category as keyof typeof t.categories] || service.category}
+                                  {t.categories[service.category as keyof typeof t.categories] ||
+                                    service.category}
                                 </Badge>
                                 {isPendingApproval && (
                                   <Badge variant="secondary" className="bg-amber-100 text-amber-700">
@@ -688,11 +829,11 @@ const Profile = () => {
                                 )}
                               </div>
                             </div>
+
                             <div className="flex gap-2">
-                              {/* Pause/Resume Toggle */}
-                              <Button 
-                                size="icon" 
-                                variant="outline" 
+                              <Button
+                                size="icon"
+                                variant="outline"
                                 className="h-8 w-8 rounded-full"
                                 onClick={() => handleTogglePause(service)}
                                 disabled={togglingPauseId === service.id}
@@ -705,19 +846,19 @@ const Profile = () => {
                                   <Pause className="h-4 w-4 text-orange-500" />
                                 )}
                               </Button>
-                              {/* Edit Button */}
-                              <Button 
-                                size="icon" 
-                                variant="outline" 
+
+                              <Button
+                                size="icon"
+                                variant="outline"
                                 className="h-8 w-8 rounded-full"
                                 onClick={() => handleEditService(service)}
                               >
                                 <Pencil className="h-4 w-4" />
                               </Button>
-                              {/* Delete Button */}
-                              <Button 
-                                size="icon" 
-                                variant="outline" 
+
+                              <Button
+                                size="icon"
+                                variant="outline"
                                 className="h-8 w-8 rounded-full"
                                 onClick={() => handleDeleteService(service.id)}
                               >
@@ -733,15 +874,12 @@ const Profile = () => {
                       <div className="h-16 w-16 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
                         <Briefcase className="h-8 w-8 text-muted-foreground" />
                       </div>
-                      <p className="text-muted-foreground font-medium">
-                        {t.profile.noServices}
-                      </p>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {t.profile.noServicesDesc}
-                      </p>
-                      <Button 
-                        className="mt-4 rounded-full" 
+                      <p className="text-muted-foreground font-medium">{t.profile.noServices}</p>
+                      <p className="text-sm text-muted-foreground mt-1">{t.profile.noServicesDesc}</p>
+                      <Button
+                        className="mt-4 rounded-full"
                         onClick={() => navigate("/create-service")}
+                        disabled={providerMissingPhone}
                       >
                         <Plus className="h-4 w-4 mr-1" />
                         {t.profile.createService}
@@ -752,22 +890,31 @@ const Profile = () => {
               </TabsContent>
             )}
 
-            {/* Settings Tab - removed language selection */}
+            {/* Settings Tab (minimal but not dead) */}
             <TabsContent value="settings" className="animate-fade-in">
               <div className="max-w-md mx-auto space-y-4">
-                <h2 className="font-display text-lg font-semibold">
-                  {t.profile.settings}
-                </h2>
-                <div className="bg-card rounded-2xl p-4 shadow-card space-y-4">
+                <h2 className="font-display text-lg font-semibold">{t.profile.settings}</h2>
+
+                <div className="bg-card rounded-2xl p-4 shadow-card space-y-3">
                   <p className="text-sm text-muted-foreground">
-                    {isRTL ? "إعدادات الحساب" : "Account settings"}
+                    {isRTL ? "إعدادات الحساب الأساسية" : "Basic account settings"}
                   </p>
+
+                  <Button
+                    variant="outline"
+                    className="rounded-full w-full justify-center"
+                    onClick={handleSignOut}
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span className={isRTL ? "mr-1" : "ml-1"}>{t.profile.logout}</span>
+                  </Button>
                 </div>
               </div>
             </TabsContent>
           </Tabs>
         </div>
       </section>
+
       {/* Edit Service Dialog */}
       <EditServiceDialog
         open={!!editingService}
