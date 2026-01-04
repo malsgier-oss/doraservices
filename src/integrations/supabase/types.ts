@@ -841,9 +841,11 @@ export type Database = {
           city: string | null
           created_at: string
           description: string | null
+          featured_order: number | null
           id: string
           image_url: string | null
           is_active: boolean
+          is_featured: boolean
           is_paused: boolean
           is_visible: boolean
           price: number | null
@@ -862,9 +864,11 @@ export type Database = {
           city?: string | null
           created_at?: string
           description?: string | null
+          featured_order?: number | null
           id?: string
           image_url?: string | null
           is_active?: boolean
+          is_featured?: boolean
           is_paused?: boolean
           is_visible?: boolean
           price?: number | null
@@ -883,9 +887,11 @@ export type Database = {
           city?: string | null
           created_at?: string
           description?: string | null
+          featured_order?: number | null
           id?: string
           image_url?: string | null
           is_active?: boolean
+          is_featured?: boolean
           is_paused?: boolean
           is_visible?: boolean
           price?: number | null
