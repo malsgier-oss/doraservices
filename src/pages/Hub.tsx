@@ -59,6 +59,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { useCategories } from "@/hooks/useCategories";
 import { useAllSubcategories } from "@/hooks/useSubcategories";
+import { useCities } from "@/hooks/useCities";
+import { useServiceRatings } from "@/hooks/useReviews";
+
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -210,6 +213,7 @@ export default function Hub() {
   const { t, isRTL, language } = useLanguage();
   const { data: categories, isLoading: categoriesLoading } = useCategories();
   const { data: subcategories } = useAllSubcategories();
+  const { data: cities } = useCities();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -243,12 +247,38 @@ export default function Hub() {
   const [featuredProviders, setFeaturedProviders] = useState<FeaturedProviderCard[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(false);
 
+  // Ratings ONLY for featured cards (fast)
+  const { ratings: featuredRatings } = useServiceRatings(
+    featuredProviders.map((fp) => fp.service_id)
+  );
+
   const initials =
     profile?.full_name
       ?.split(" ")
       .map((n) => n[0])
       .join("")
       .slice(0, 2) || (isRTL ? "م" : "U");
+
+  // ✅ Convert city id -> name (fix UUID showing)
+  const getCityLabel = (cityIdOrName: string | null) => {
+    if (!cityIdOrName) return null;
+
+    const found = cities?.find(
+      (c: any) =>
+        c.id === cityIdOrName ||
+        c.name?.toLowerCase() === cityIdOrName.toLowerCase()
+    );
+
+    return found
+      ? (language === "ar" && found.name_ar ? found.name_ar : found.name)
+      : cityIdOrName;
+  };
+
+  const getFeaturedRatingDisplay = (serviceId: string) => {
+    const r = featuredRatings.get(serviceId);
+    if (!r || r.totalReviews === 0) return { text: isRTL ? "جديد" : "New", hasRating: false };
+    return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true };
+  };
 
   // Map subcategories -> service items
   const serviceItems: ServiceItem[] = useMemo(() => {
@@ -370,9 +400,10 @@ export default function Hub() {
     const fetchFeaturedProviders = async () => {
       setFeaturedLoading(true);
       try {
+        // ✅ Select only needed fields (faster than select "*")
         const { data: servicesData, error } = await supabase
           .from("services")
-          .select("*")
+          .select("id, category, title, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused, is_featured, featured_order, created_at")
           .eq("is_active", true)
           .eq("is_featured", true)
           .or("is_paused.is.null,is_paused.eq.false")
@@ -724,45 +755,66 @@ export default function Hub() {
                 </div>
               ) : featuredProviders.length > 0 ? (
                 <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-                  {featuredProviders.map((fp) => (
-                    <button
-                      key={fp.service_id}
-                      onClick={() => openProviderDetailsFromFeatured(fp)}
-                      className={cn(
-                        "flex-shrink-0 w-[310px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
-                        isRTL && "text-right"
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-12 w-12">
-                          <AvatarImage src={fp.provider_avatar || undefined} />
-                          <AvatarFallback className="bg-[#111] text-white font-semibold">
-                            {(fp.provider_name || (isRTL ? "م" : "P"))
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")
-                              .slice(0, 2)}
-                          </AvatarFallback>
-                        </Avatar>
+                  {featuredProviders.map((fp) => {
+                    const r = getFeaturedRatingDisplay(fp.service_id);
 
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-[16px] font-semibold text-[#111] truncate">
-                            {fp.provider_name}
-                          </h3>
-                          <p className="text-xs text-[#777] mt-1 truncate">{fp.service_title}</p>
+                    return (
+                      <button
+                        key={fp.service_id}
+                        onClick={() => openProviderDetailsFromFeatured(fp)}
+                        className={cn(
+                          "flex-shrink-0 w-[310px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
+                          isRTL && "text-right"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-12 w-12">
+                            <AvatarImage src={fp.provider_avatar || undefined} />
+                            <AvatarFallback className="bg-[#111] text-white font-semibold">
+                              {(fp.provider_name || (isRTL ? "م" : "P"))
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")
+                                .slice(0, 2)}
+                            </AvatarFallback>
+                          </Avatar>
+
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-[16px] font-semibold text-[#111] truncate">
+                              {fp.provider_name}
+                            </h3>
+
+                            <p className="text-xs text-[#777] mt-1 truncate">
+                              {fp.service_title}
+                            </p>
+
+                            {/* ✅ Rating on card */}
+                            <div className="mt-1 flex items-center gap-1 text-xs">
+                              <Star
+                                className={cn(
+                                  "h-3.5 w-3.5",
+                                  r.hasRating ? "text-yellow-500 fill-yellow-500" : "text-[#999]"
+                                )}
+                              />
+                              <span className={cn(r.hasRating ? "text-[#111] font-semibold" : "text-[#777]")}>
+                                {r.text}
+                              </span>
+                            </div>
+                          </div>
+
+                          <ChevronRight className={cn("h-5 w-5 text-[#C9C9C9]", isRTL && "rotate-180")} />
                         </div>
 
-                        <ChevronRight className={cn("h-5 w-5 text-[#C9C9C9]", isRTL && "rotate-180")} />
-                      </div>
-
-                      <div className="mt-3 text-xs text-[#777]">
-                        {fp.provider_city ? (isRTL ? "المدينة: " : "City: ") : ""}
-                        <span className="text-[#111] font-semibold">
-                          {fp.provider_city || (isRTL ? "غير محدد" : "Not set")}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
+                        {/* ✅ City label fixed (no UUID) */}
+                        <div className="mt-3 text-xs text-[#777]">
+                          {fp.provider_city ? (isRTL ? "المدينة: " : "City: ") : ""}
+                          <span className="text-[#111] font-semibold">
+                            {getCityLabel(fp.provider_city) || (isRTL ? "غير محدد" : "Not set")}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="rounded-2xl bg-white border border-gray-200 p-5 text-sm text-[#777]">
