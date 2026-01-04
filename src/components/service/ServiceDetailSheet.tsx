@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { X, Phone, Star, Clock, ChevronRight, Heart, MessageSquare, MapPin, Flag, UserCheck } from "lucide-react";
+import { X, Phone, Star, Clock, ChevronRight, Heart, MessageSquare, MapPin, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -25,7 +25,6 @@ import { useCallLogs } from "@/hooks/useCallLogs";
 import { ReviewDialog } from "./ReviewDialog";
 import { ReviewList } from "./ReviewList";
 import { ReportDialog } from "@/components/report/ReportDialog";
-import { ClaimServiceDialog } from "./ClaimServiceDialog";
 import { toast } from "sonner";
 import { SearchFiltersState } from "@/components/search/SearchFilters";
 
@@ -82,7 +81,6 @@ export function ServiceDetailSheet({
 
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
-  const [claimDialogOpen, setClaimDialogOpen] = useState(false);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [isLoggingCall, setIsLoggingCall] = useState(false);
 
@@ -116,8 +114,7 @@ export function ServiceDetailSheet({
 
     setLoading(true);
     try {
-      // NOTE: keeping your existing logic as-is:
-      // It fetches by service.category
+      // Fetch by service.category
       const { data: servicesData, error: servicesError } = await supabase
         .from("services")
         .select("*")
@@ -137,7 +134,7 @@ export function ServiceDetailSheet({
         return;
       }
 
-      const userIds = [...new Set(servicesData.map((s: any) => s.user_id).filter(Boolean))];
+      const userIds = [...new Set((servicesData as any[]).map((s) => s.user_id).filter(Boolean))];
       let profileMap = new Map<string, any>();
 
       if (userIds.length > 0) {
@@ -152,7 +149,9 @@ export function ServiceDetailSheet({
 
       const enrichedServices: ServiceProvider[] = (servicesData as any[])
         .filter((svc) => {
+          // Bulk uploaded services (unclaimed)
           if (!svc.user_id) return svc.provider_name && svc.provider_phone;
+          // Claimed services only if provider approved
           return profileMap.has(svc.user_id);
         })
         .map((svc) => {
@@ -184,18 +183,16 @@ export function ServiceDetailSheet({
   const filteredProviders = useMemo(() => {
     let result = providers;
 
-    if (filters?.city) {
-      result = result.filter((p) => p.provider_city === filters.city);
-    }
-    if (filters?.subCity) {
-      result = result.filter((p) => p.provider_sub_city === filters.subCity);
-    }
+    if (filters?.city) result = result.filter((p) => p.provider_city === filters.city);
+    if (filters?.subCity) result = result.filter((p) => p.provider_sub_city === filters.subCity);
+
     if (filters?.minRating) {
       result = result.filter((p) => {
         const r = providerRatings.get(p.id);
         return r && r.averageRating >= 4;
       });
     }
+
     return result;
   }, [providers, filters, providerRatings]);
 
@@ -248,7 +245,9 @@ export function ServiceDetailSheet({
     const result = await toggleFavorite(serviceId);
     if (!result.error) {
       toast.success(
-        result.added ? (isRTL ? "تمت الإضافة للمفضلة" : "Added to favorites") : (isRTL ? "تمت الإزالة من المفضلة" : "Removed from favorites")
+        result.added
+          ? (isRTL ? "تمت الإضافة للمفضلة" : "Added to favorites")
+          : (isRTL ? "تمت الإزالة من المفضلة" : "Removed from favorites")
       );
     }
   };
@@ -285,14 +284,12 @@ export function ServiceDetailSheet({
 
   const getRatingDisplay = (serviceId: string) => {
     const r = providerRatings.get(serviceId);
-    if (!r || r.totalReviews === 0) {
-      return { text: isRTL ? "جديد" : "New", hasRating: false, rating: 0 };
-    }
-    return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true, rating: r.averageRating };
+    if (!r || r.totalReviews === 0) return { text: isRTL ? "جديد" : "New", hasRating: false };
+    return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true };
   };
 
-  // ✅ Drawer height control: change 85 -> 90 if you want
-  const drawerPageClass = "h-[90dvh] max-h-[90dvh] flex flex-col overflow-hidden mt-0";
+  // ✅ Drawer height control (change 85 -> 80 if you want)
+  const drawerPageClass = "h-[85dvh] max-h-[85dvh] flex flex-col overflow-hidden mt-0";
 
   // -------------------- Provider detail view --------------------
   if (selectedProvider) {
@@ -319,6 +316,7 @@ export function ServiceDetailSheet({
               >
                 <ChevronRight className={cn("h-4 w-4 text-muted-foreground", !isRTL && "rotate-180")} />
               </button>
+
               <DrawerClose
                 className={cn(
                   "absolute top-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
@@ -340,7 +338,6 @@ export function ServiceDetailSheet({
               </div>
             </DrawerHeader>
 
-            {/* ✅ FIX: ScrollArea must be flex-1 (no max-h) */}
             <ScrollArea className="flex-1">
               <div className="px-6 py-6 space-y-6" dir={isRTL ? "rtl" : "ltr"}>
                 {/* Rating & Info */}
@@ -348,7 +345,7 @@ export function ServiceDetailSheet({
                   <button onClick={handleOpenReviewDialog} className="flex items-center gap-1 hover:opacity-70 transition-opacity">
                     <Star className={cn("h-4 w-4", hasRating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground")} />
                     <span className={cn("font-medium", hasRating ? "text-foreground" : "text-muted-foreground")}>
-                      {hasRating ? `${rating.averageRating} (${rating.totalReviews})` : isRTL ? "جديد" : "New"}
+                      {hasRating ? `${rating.averageRating} (${rating.totalReviews})` : (isRTL ? "جديد" : "New")}
                     </span>
                   </button>
 
@@ -379,7 +376,7 @@ export function ServiceDetailSheet({
                     <h3 className="font-semibold text-foreground">{isRTL ? "التقييمات" : "Reviews"}</h3>
                     <Button variant="ghost" size="sm" onClick={handleOpenReviewDialog} className="text-primary">
                       <MessageSquare className="h-4 w-4 mr-1" />
-                      {userReview ? (isRTL ? "تعديل تقييمك" : "Edit Review") : isRTL ? "أضف تقييم" : "Add Review"}
+                      {userReview ? (isRTL ? "تعديل تقييمك" : "Edit Review") : (isRTL ? "أضف تقييم" : "Add Review")}
                     </Button>
                   </div>
                   <ReviewList reviews={reviews} loading={reviewsLoading} />
@@ -395,7 +392,7 @@ export function ServiceDetailSheet({
                     disabled={!selectedProvider.provider_phone || isLoggingCall}
                   >
                     <Phone className="h-5 w-5 mr-2" />
-                    {isLoggingCall ? (isRTL ? "جاري..." : "Calling...") : isRTL ? "اتصل" : "Call"}
+                    {isLoggingCall ? (isRTL ? "جاري..." : "Calling...") : (isRTL ? "اتصل" : "Call")}
                   </Button>
 
                   <Button
@@ -405,34 +402,26 @@ export function ServiceDetailSheet({
                     onClick={() => handleToggleFavorite(selectedProvider.id)}
                   >
                     <Heart className={cn("h-5 w-5 mr-2", isProviderFavorite && "fill-current")} />
-                    {isProviderFavorite ? (isRTL ? "في المفضلة" : "Favorited") : isRTL ? "أضف للمفضلة" : "Add to Favorites"}
+                    {isProviderFavorite ? (isRTL ? "في المفضلة" : "Favorited") : (isRTL ? "أضف للمفضلة" : "Add to Favorites")}
                   </Button>
                 </div>
 
-                {/* Claim/Report */}
+                {/* Unclaimed badge + Report (Claim removed) */}
                 <div className="flex items-center justify-between mt-2 gap-2">
                   {!selectedProvider.user_id ? (
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="bg-amber-100 text-amber-700 text-xs">
-                        {isRTL ? "خدمة غير مؤكدة" : "Unclaimed Service"}
-                      </Badge>
-                      {user && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-primary border-primary hover:bg-primary/10"
-                          onClick={() => setClaimDialogOpen(true)}
-                        >
-                          <UserCheck className="h-4 w-4 mr-1" />
-                          {isRTL ? "المطالبة بالخدمة" : "Claim"}
-                        </Button>
-                      )}
-                    </div>
+                    <Badge variant="secondary" className="bg-amber-100 text-amber-700 text-xs">
+                      {isRTL ? "خدمة غير مؤكدة" : "Unclaimed Service"}
+                    </Badge>
                   ) : (
                     <div />
                   )}
 
-                  <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" onClick={() => setReportDialogOpen(true)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => setReportDialogOpen(true)}
+                  >
                     <Flag className="h-4 w-4 mr-1" />
                     {isRTL ? "إبلاغ" : "Report"}
                   </Button>
@@ -458,20 +447,6 @@ export function ServiceDetailSheet({
           userId={selectedProvider.user_id}
           providerName={selectedProvider.provider_name}
         />
-
-        <ClaimServiceDialog
-          open={claimDialogOpen}
-          onOpenChange={setClaimDialogOpen}
-          service={
-            selectedProvider
-              ? { id: selectedProvider.id, title: selectedProvider.title, provider_phone: selectedProvider.provider_phone }
-              : null
-          }
-          onClaimSuccess={() => {
-            fetchProviders();
-            setSelectedProvider(null);
-          }}
-        />
       </>
     );
   }
@@ -494,7 +469,6 @@ export function ServiceDetailSheet({
           </div>
         </DrawerHeader>
 
-        {/* ✅ FIX: wrap the whole list content in ScrollArea flex-1 */}
         <ScrollArea className="flex-1">
           <div className="px-4 py-4" dir={isRTL ? "rtl" : "ltr"}>
             <h3 className="text-sm font-semibold text-muted-foreground mb-3 px-2">
