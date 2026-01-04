@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect, useState, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Bell,
@@ -167,7 +167,7 @@ function FilterSuggestionChip({
   isActive,
   onClick,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   isActive: boolean;
   onClick: () => void;
