@@ -291,8 +291,8 @@ export function ServiceDetailSheet({
     return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true, rating: r.averageRating };
   };
 
-  // ✅ Drawer height control: change 85 -> 80 if you want
-  const drawerPageClass = "h-[85dvh] max-h-[85dvh] flex flex-col overflow-hidden mt-0";
+  // ✅ Drawer height control: change 85 -> 90 if you want
+  const drawerPageClass = "h-[90dvh] max-h-[90dvh] flex flex-col overflow-hidden mt-0";
 
   // -------------------- Provider detail view --------------------
   if (selectedProvider) {
