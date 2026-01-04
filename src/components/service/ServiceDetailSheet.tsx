@@ -1,3 +1,5 @@
+Tell me what to change 
+
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -389,7 +391,8 @@ export function ServiceDetailSheet({
               <button
                 onClick={handleBack}
                 className={cn(
-                  "className={cn("absolute top-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center", isRTL ? "right-4" : "left-4", initialProviderServiceId && "hidden")}"
+                  "absolute top-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
+                  isRTL ? "right-4" : "left-4"
                 )}
               >
                 <ChevronRight
