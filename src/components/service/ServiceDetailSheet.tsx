@@ -25,6 +25,7 @@ import { useCallLogs } from "@/hooks/useCallLogs";
 import { ReviewDialog } from "./ReviewDialog";
 import { ReviewList } from "./ReviewList";
 import { ReportDialog } from "@/components/report/ReportDialog";
+import { ClaimServiceDialog } from "./ClaimServiceDialog";
 import { toast } from "sonner";
 import { SearchFiltersState } from "@/components/search/SearchFilters";
 
