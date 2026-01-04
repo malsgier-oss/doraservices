@@ -386,7 +386,7 @@ export function ServiceDetailSheet({
         >
           <DrawerContent className={drawerPageClass}>
             <DrawerHeader className="relative pb-0">
-              <button hidden
+              <button
                 onClick={handleBack}
                 className={cn(
                   "absolute top-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
@@ -648,7 +648,7 @@ export function ServiceDetailSheet({
                 {filteredProviders.map((provider) => {
                   const ratingInfo = getRatingDisplay(provider.id);
                   return (
-                    <button
+                    <button hidden
                       key={provider.id}
                       onClick={() => handleProviderClick(provider)}
                       className={cn(
