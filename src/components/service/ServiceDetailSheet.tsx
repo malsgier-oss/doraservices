@@ -56,9 +56,18 @@ interface ServiceDetailSheetProps {
     icon: LucideIcon;
   } | null;
   filters?: SearchFiltersState;
+
+  // ✅ NEW: if Hub passes a service id, open that provider directly
+  initialProviderServiceId?: string | null;
 }
 
-export function ServiceDetailSheet({ open, onOpenChange, service, filters }: ServiceDetailSheetProps) {
+export function ServiceDetailSheet({
+  open,
+  onOpenChange,
+  service,
+  filters,
+  initialProviderServiceId,
+}: ServiceDetailSheetProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { t, isRTL, language } = useLanguage();
@@ -70,6 +79,9 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
   const [providers, setProviders] = useState<ServiceProvider[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
+
+  // ✅ NEW: used for “open directly on provider”
+  const [pendingOpenProviderId, setPendingOpenProviderId] = useState<string | null>(null);
 
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
@@ -95,9 +107,13 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
   };
 
   useEffect(() => {
-    if (open && service) fetchProviders();
+    if (open && service) {
+      // ✅ capture desired provider and then fetch
+      setPendingOpenProviderId(initialProviderServiceId || null);
+      fetchProviders();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, service]);
+  }, [open, service, initialProviderServiceId]);
 
   const fetchProviders = async () => {
     if (!service) return;
@@ -170,6 +186,18 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
       setLoading(false);
     }
   };
+
+  // ✅ NEW: after providers load, auto-open the selected provider if requested
+  useEffect(() => {
+    if (!open) return;
+    if (!pendingOpenProviderId) return;
+    if (!providers.length) return;
+
+    const match = providers.find((p) => p.id === pendingOpenProviderId);
+    if (match) setSelectedProvider(match);
+
+    setPendingOpenProviderId(null);
+  }, [open, pendingOpenProviderId, providers]);
 
   const filteredProviders = useMemo(() => {
     let result = providers;
@@ -293,7 +321,10 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
         <Drawer
           open={open}
           onOpenChange={(isOpen) => {
-            if (!isOpen) setSelectedProvider(null);
+            if (!isOpen) {
+              setSelectedProvider(null);
+              setPendingOpenProviderId(null);
+            }
             onOpenChange(isOpen);
           }}
         >
@@ -433,7 +464,16 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
 
   // ---------------- Providers list view ----------------
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
+    <Drawer
+      open={open}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) {
+          setSelectedProvider(null);
+          setPendingOpenProviderId(null);
+        }
+        onOpenChange(isOpen);
+      }}
+    >
       <DrawerContent className={drawerPageClass}>
         <DrawerHeader className="relative pb-0">
           <DrawerClose className="absolute top-0 right-4 h-8 w-8 rounded-full bg-muted flex items-center justify-center">
@@ -507,7 +547,7 @@ export function ServiceDetailSheet({ open, onOpenChange, service, filters }: Ser
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <Star className={cn("h-4 w-4", ratingInfo.hasRating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground")} />
                         <span className={cn("text-sm font-medium", ratingInfo.hasRating ? "text-foreground" : "text-muted-foreground")}>
-                          {ratingInfo.text}
+                          {ratingInfo.hasRating ? ratingInfo.text : (isRTL ? "جديد" : "New")}
                         </span>
                       </div>
                     </button>
