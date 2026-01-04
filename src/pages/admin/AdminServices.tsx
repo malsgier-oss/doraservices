@@ -80,7 +80,7 @@ export default function AdminServices() {
   const [noteOpen, setNoteOpen] = useState(false);
   const [adminNote, setAdminNote] = useState("");
 
-  // ✅ removed user_id from editForm (no provider assignment)
+  // ✅ Removed provider assignment from edit form
   const [editForm, setEditForm] = useState({
     title: "",
     description: "",
@@ -110,13 +110,15 @@ export default function AdminServices() {
 
       const ordered =
         featuredFilter === "featured"
-          ? query.order("featured_order", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false })
+          ? query
+              .order("featured_order", { ascending: true, nullsFirst: false })
+              .order("created_at", { ascending: false })
           : query.order("created_at", { ascending: false });
 
       const { data, error } = await ordered;
       if (error) throw error;
 
-      // Batch fetch provider names for any services that have user_id (display only)
+      // Keep provider name display (read-only) if user_id exists
       const userIds = Array.from(new Set((data || []).map((s: any) => s.user_id).filter(Boolean))) as string[];
       let profileMap = new Map<string, any>();
 
