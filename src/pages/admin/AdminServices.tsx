@@ -1,3 +1,4 @@
+
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -66,6 +67,12 @@ interface Service {
   };
 }
 
+type ProviderProfile = {
+  user_id: string;
+  full_name: string | null;
+  phone?: string | null;
+};
+
 export default function AdminServices() {
   const queryClient = useQueryClient();
   const { data: categories } = useCategories();
@@ -80,16 +87,21 @@ export default function AdminServices() {
   const [noteOpen, setNoteOpen] = useState(false);
   const [adminNote, setAdminNote] = useState("");
 
-  // ✅ Removed provider assignment from edit form
   const [editForm, setEditForm] = useState({
     title: "",
     description: "",
     category: "",
     city: "",
+    user_id: "" as string, // ✅ provider assignment
   });
 
   // Featured order local draft
   const [featuredOrderDraft, setFeaturedOrderDraft] = useState<Record<string, string>>({});
+
+  // Provider search in edit dialog
+  const [providerSearch, setProviderSearch] = useState("");
+  const [providerResults, setProviderResults] = useState<ProviderProfile[]>([]);
+  const [providerSearching, setProviderSearching] = useState(false);
 
   const { data: services, isLoading } = useQuery({
     queryKey: ["admin-services", categoryFilter, visibilityFilter, featuredFilter, search],
@@ -110,15 +122,13 @@ export default function AdminServices() {
 
       const ordered =
         featuredFilter === "featured"
-          ? query
-              .order("featured_order", { ascending: true, nullsFirst: false })
-              .order("created_at", { ascending: false })
+          ? query.order("featured_order", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false })
           : query.order("created_at", { ascending: false });
 
       const { data, error } = await ordered;
       if (error) throw error;
 
-      // Keep provider name display (read-only) if user_id exists
+      // Batch fetch provider names for any services that have user_id
       const userIds = Array.from(new Set((data || []).map((s: any) => s.user_id).filter(Boolean))) as string[];
       let profileMap = new Map<string, any>();
 
@@ -247,12 +257,15 @@ export default function AdminServices() {
 
   const openEditDialog = (service: Service) => {
     setSelectedService(service);
+    setProviderSearch("");
+    setProviderResults([]);
 
     setEditForm({
       title: service.title,
       description: service.description || "",
       category: service.category,
       city: service.city || "",
+      user_id: service.user_id || "",
     });
 
     setEditOpen(true);
@@ -291,6 +304,37 @@ export default function AdminServices() {
       featured_order: nextOrder,
     });
   };
+
+  const runProviderSearch = async () => {
+    const q = providerSearch.trim();
+    if (!q) {
+      setProviderResults([]);
+      return;
+    }
+
+    setProviderSearching(true);
+    try {
+      // Search providers by name (you can extend to phone later)
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .ilike("full_name", `%${q}%`)
+        .limit(10);
+
+      if (error) throw error;
+
+      setProviderResults((data || []) as ProviderProfile[]);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to search providers");
+    } finally {
+      setProviderSearching(false);
+    }
+  };
+
+  const currentProviderLabel =
+    services?.find((s) => s.id === selectedService?.id)?.provider?.full_name ||
+    (editForm.user_id ? "Selected provider" : "");
 
   return (
     <div className="space-y-6">
@@ -518,6 +562,54 @@ export default function AdminServices() {
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* ✅ Assign Provider */}
+            <div className="space-y-2">
+              <Label>Assign Provider</Label>
+
+              {editForm.user_id ? (
+                <div className="text-sm text-muted-foreground">
+                  Current: <span className="text-foreground font-medium">{currentProviderLabel || editForm.user_id}</span>
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">No provider assigned</div>
+              )}
+
+              <div className="flex gap-2">
+                <Input
+                  value={providerSearch}
+                  onChange={(e) => setProviderSearch(e.target.value)}
+                  placeholder="Search provider by name..."
+                />
+                <Button type="button" variant="outline" onClick={runProviderSearch} disabled={providerSearching}>
+                  {providerSearching ? "Searching..." : "Search"}
+                </Button>
+              </div>
+
+              {providerResults.length > 0 && (
+                <div className="border rounded-lg overflow-hidden">
+                  {providerResults.map((p) => (
+                    <button
+                      key={p.user_id}
+                      type="button"
+                      className="w-full text-left px-3 py-2 hover:bg-muted/50 transition-colors"
+                      onClick={() => {
+                        setEditForm((prev) => ({ ...prev, user_id: p.user_id }));
+                        setProviderResults([]);
+                        setProviderSearch(p.full_name || "");
+                      }}
+                    >
+                      <div className="font-medium">{p.full_name || "Unnamed provider"}</div>
+                      <div className="text-xs text-muted-foreground">{p.user_id}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground">
+                Assigning a provider sets <code>services.user_id</code>.
+              </p>
+            </div>
+
             <div>
               <Label>Title</Label>
               <Input
@@ -570,6 +662,12 @@ export default function AdminServices() {
               onClick={() => {
                 if (!selectedService) return;
 
+                // ✅ Enforce rule: provider must exist
+                if (!editForm.user_id) {
+                  toast.error("Please assign a provider");
+                  return;
+                }
+
                 updateService.mutate({
                   id: selectedService.id,
                   updates: {
@@ -577,6 +675,7 @@ export default function AdminServices() {
                     description: editForm.description,
                     category: editForm.category,
                     city: editForm.city,
+                    user_id: editForm.user_id,
                   },
                 });
               }}
