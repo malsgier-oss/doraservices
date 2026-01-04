@@ -1,6 +1,16 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { X, Phone, Star, Clock, ChevronRight, Heart, MessageSquare, MapPin, Flag } from "lucide-react";
+import {
+  X,
+  Phone,
+  Star,
+  Clock,
+  ChevronRight,
+  Heart,
+  MessageSquare,
+  MapPin,
+  Flag,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -57,7 +67,7 @@ interface ServiceDetailSheetProps {
   } | null;
   filters?: SearchFiltersState;
 
-  // ✅ NEW: if Hub passes a service id, open that provider directly
+  // ✅ if Hub passes a service id, open that provider directly
   initialProviderServiceId?: string | null;
 }
 
@@ -78,10 +88,13 @@ export function ServiceDetailSheet({
 
   const [providers, setProviders] = useState<ServiceProvider[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
+  const [selectedProvider, setSelectedProvider] =
+    useState<ServiceProvider | null>(null);
 
-  // ✅ NEW: used for “open directly on provider”
-  const [pendingOpenProviderId, setPendingOpenProviderId] = useState<string | null>(null);
+  // ✅ used for “open directly on provider”
+  const [pendingOpenProviderId, setPendingOpenProviderId] = useState<
+    string | null
+  >(null);
 
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
@@ -89,25 +102,50 @@ export function ServiceDetailSheet({
   const [isLoggingCall, setIsLoggingCall] = useState(false);
 
   // Reviews for selected provider
-  const { reviews, rating, userReview, submitReview, loading: reviewsLoading } = useReviews(selectedProvider?.id);
+  const {
+    reviews,
+    rating,
+    userReview,
+    submitReview,
+    loading: reviewsLoading,
+  } = useReviews(selectedProvider?.id);
 
   // Ratings for providers list
-  const { ratings: providerRatings } = useServiceRatings(providers.map((p) => p.id));
+  const { ratings: providerRatings } = useServiceRatings(
+    providers.map((p) => p.id)
+  );
 
   const getCityLabel = (cityId: string | null) => {
     if (!cityId) return null;
-    const city = cities?.find((c) => c.id === cityId || c.name.toLowerCase() === cityId.toLowerCase());
-    return city ? (language === "ar" && city.name_ar ? city.name_ar : city.name) : cityId;
+    const city = cities?.find(
+      (c) =>
+        c.id === cityId || c.name.toLowerCase() === cityId.toLowerCase()
+    );
+    return city
+      ? language === "ar" && city.name_ar
+        ? city.name_ar
+        : city.name
+      : cityId;
   };
 
   const getSubCityLabel = (subCityId: string | null) => {
     if (!subCityId) return null;
-    const sc = subCities?.find((x) => x.id === subCityId || x.name.toLowerCase() === subCityId.toLowerCase());
-    return sc ? (language === "ar" && sc.name_ar ? sc.name_ar : sc.name) : subCityId;
+    const sc = subCities?.find(
+      (x) =>
+        x.id === subCityId || x.name.toLowerCase() === subCityId.toLowerCase()
+    );
+    return sc
+      ? language === "ar" && sc.name_ar
+        ? sc.name_ar
+        : sc.name
+      : subCityId;
   };
 
   useEffect(() => {
     if (open && service) {
+      // ✅ IMPORTANT: reset any previous provider view when opening a new sheet
+      setSelectedProvider(null);
+
       // ✅ capture desired provider and then fetch
       setPendingOpenProviderId(initialProviderServiceId || null);
       fetchProviders();
@@ -141,7 +179,11 @@ export function ServiceDetailSheet({
         return;
       }
 
-      const userIds = Array.from(new Set(servicesData.map((s: any) => s.user_id).filter(Boolean))) as string[];
+      const userIds = Array.from(
+        new Set(
+          (servicesData as any[]).map((s) => s.user_id).filter(Boolean)
+        )
+      ) as string[];
 
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
@@ -155,7 +197,9 @@ export function ServiceDetailSheet({
         return;
       }
 
-      const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
+      const profileMap = new Map(
+        (profiles || []).map((p: any) => [p.user_id, p])
+      );
 
       // ✅ Only approved providers
       const enriched: ServiceProvider[] = (servicesData as any[])
@@ -187,7 +231,7 @@ export function ServiceDetailSheet({
     }
   };
 
-  // ✅ NEW: after providers load, auto-open the selected provider if requested
+  // ✅ after providers load, auto-open the selected provider if requested
   useEffect(() => {
     if (!open) return;
     if (!pendingOpenProviderId) return;
@@ -218,13 +262,19 @@ export function ServiceDetailSheet({
   if (!service) return null;
 
   const IconComponent = service.icon;
-  const title = t.featuredList[service.titleKey as keyof typeof t.featuredList] || service.titleKey;
+  const title =
+    t.featuredList[service.titleKey as keyof typeof t.featuredList] ||
+    service.titleKey;
+
   const categoryLabel =
     language === "ar" && service.categoryNameAr
       ? service.categoryNameAr
-      : service.categoryName || t.categories[service.category as keyof typeof t.categories] || service.category;
+      : service.categoryName ||
+        t.categories[service.category as keyof typeof t.categories] ||
+        service.category;
 
-  const handleProviderClick = (provider: ServiceProvider) => setSelectedProvider(provider);
+  const handleProviderClick = (provider: ServiceProvider) =>
+    setSelectedProvider(provider);
 
   const handleCall = async (provider: ServiceProvider) => {
     if (!user) {
@@ -242,8 +292,8 @@ export function ServiceDetailSheet({
     setIsLoggingCall(true);
     try {
       await logCall.mutateAsync({
-        service_id: provider.id,         // service id
-        provider_id: provider.user_id,   // provider user id (always exists)
+        service_id: provider.id, // service id
+        provider_id: provider.user_id, // provider user id
       });
     } catch (err) {
       console.error("Error logging call:", err);
@@ -266,8 +316,12 @@ export function ServiceDetailSheet({
     if (!result.error) {
       toast.success(
         result.added
-          ? (isRTL ? "تمت الإضافة للمفضلة" : "Added to favorites")
-          : (isRTL ? "تمت الإزالة من المفضلة" : "Removed from favorites")
+          ? isRTL
+            ? "تمت الإضافة للمفضلة"
+            : "Added to favorites"
+          : isRTL
+          ? "تمت الإزالة من المفضلة"
+          : "Removed from favorites"
       );
     }
   };
@@ -304,12 +358,14 @@ export function ServiceDetailSheet({
 
   const getRatingDisplay = (serviceId: string) => {
     const r = providerRatings.get(serviceId);
-    if (!r || r.totalReviews === 0) return { text: isRTL ? "جديد" : "New", hasRating: false };
+    if (!r || r.totalReviews === 0)
+      return { text: isRTL ? "جديد" : "New", hasRating: false };
     return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true };
   };
 
-  // 85% drawer height (you can change)
-  const drawerPageClass = "h-[85dvh] max-h-[85dvh] flex flex-col overflow-hidden mt-0";
+  // 85% drawer height
+  const drawerPageClass =
+    "h-[85dvh] max-h-[85dvh] flex flex-col overflow-hidden mt-0";
 
   // ---------------- Provider detail view ----------------
   if (selectedProvider) {
@@ -337,7 +393,12 @@ export function ServiceDetailSheet({
                   isRTL ? "right-4" : "left-4"
                 )}
               >
-                <ChevronRight className={cn("h-4 w-4 text-muted-foreground", !isRTL && "rotate-180")} />
+                <ChevronRight
+                  className={cn(
+                    "h-4 w-4 text-muted-foreground",
+                    !isRTL && "rotate-180"
+                  )}
+                />
               </button>
 
               <DrawerClose
@@ -351,23 +412,55 @@ export function ServiceDetailSheet({
 
               <div className="flex flex-col items-center pt-2">
                 <Avatar className="h-20 w-20 mb-4">
-                  <AvatarImage src={selectedProvider.provider_avatar || undefined} />
+                  <AvatarImage
+                    src={selectedProvider.provider_avatar || undefined}
+                  />
                   <AvatarFallback className="bg-primary text-primary-foreground text-xl font-medium">
-                    {selectedProvider.provider_name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                    {selectedProvider.provider_name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .slice(0, 2)}
                   </AvatarFallback>
                 </Avatar>
-                <DrawerTitle className="text-xl font-bold text-foreground">{selectedProvider.provider_name}</DrawerTitle>
-                <p className="text-sm text-muted-foreground mt-1">{selectedProvider.title}</p>
+                <DrawerTitle className="text-xl font-bold text-foreground">
+                  {selectedProvider.provider_name}
+                </DrawerTitle>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {selectedProvider.title}
+                </p>
               </div>
             </DrawerHeader>
 
             <ScrollArea className="flex-1">
-              <div className="px-6 py-6 space-y-6" dir={isRTL ? "rtl" : "ltr"}>
+              <div
+                className="px-6 py-6 space-y-6"
+                dir={isRTL ? "rtl" : "ltr"}
+              >
                 <div className="flex items-center justify-center gap-6 text-sm">
-                  <button onClick={handleOpenReviewDialog} className="flex items-center gap-1 hover:opacity-70 transition-opacity">
-                    <Star className={cn("h-4 w-4", hasRating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground")} />
-                    <span className={cn("font-medium", hasRating ? "text-foreground" : "text-muted-foreground")}>
-                      {hasRating ? `${rating.averageRating} (${rating.totalReviews})` : (isRTL ? "جديد" : "New")}
+                  <button
+                    onClick={handleOpenReviewDialog}
+                    className="flex items-center gap-1 hover:opacity-70 transition-opacity"
+                  >
+                    <Star
+                      className={cn(
+                        "h-4 w-4",
+                        hasRating
+                          ? "text-yellow-400 fill-yellow-400"
+                          : "text-muted-foreground"
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        "font-medium",
+                        hasRating ? "text-foreground" : "text-muted-foreground"
+                      )}
+                    >
+                      {hasRating
+                        ? `${rating.averageRating} (${rating.totalReviews})`
+                        : isRTL
+                        ? "جديد"
+                        : "New"}
                     </span>
                   </button>
 
@@ -386,17 +479,34 @@ export function ServiceDetailSheet({
 
                 {selectedProvider.description && (
                   <div className="bg-muted/50 rounded-2xl p-4">
-                    <h3 className="font-semibold text-foreground mb-2">{isRTL ? "عن الخدمة" : "About this service"}</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">{selectedProvider.description}</p>
+                    <h3 className="font-semibold text-foreground mb-2">
+                      {isRTL ? "عن الخدمة" : "About this service"}
+                    </h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {selectedProvider.description}
+                    </p>
                   </div>
                 )}
 
                 <div className="space-y-3">
                   <div className={cn("flex items-center justify-between", isRTL && "flex-row-reverse")}>
-                    <h3 className="font-semibold text-foreground">{isRTL ? "التقييمات" : "Reviews"}</h3>
-                    <Button variant="ghost" size="sm" onClick={handleOpenReviewDialog} className="text-primary">
+                    <h3 className="font-semibold text-foreground">
+                      {isRTL ? "التقييمات" : "Reviews"}
+                    </h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleOpenReviewDialog}
+                      className="text-primary"
+                    >
                       <MessageSquare className="h-4 w-4 mr-1" />
-                      {userReview ? (isRTL ? "تعديل تقييمك" : "Edit Review") : (isRTL ? "أضف تقييم" : "Add Review")}
+                      {userReview
+                        ? isRTL
+                          ? "تعديل تقييمك"
+                          : "Edit Review"
+                        : isRTL
+                        ? "أضف تقييم"
+                        : "Add Review"}
                     </Button>
                   </div>
                   <ReviewList reviews={reviews} loading={reviewsLoading} />
@@ -411,17 +521,38 @@ export function ServiceDetailSheet({
                     disabled={!selectedProvider.provider_phone || isLoggingCall}
                   >
                     <Phone className="h-5 w-5 mr-2" />
-                    {isLoggingCall ? (isRTL ? "جاري..." : "Calling...") : (isRTL ? "اتصل" : "Call")}
+                    {isLoggingCall
+                      ? isRTL
+                        ? "جاري..."
+                        : "Calling..."
+                      : isRTL
+                      ? "اتصل"
+                      : "Call"}
                   </Button>
 
                   <Button
                     variant={isProviderFavorite ? "default" : "outline"}
                     size="lg"
-                    className={cn("flex-1 h-14 rounded-2xl", isProviderFavorite && "bg-red-500 hover:bg-red-600 text-white")}
+                    className={cn(
+                      "flex-1 h-14 rounded-2xl",
+                      isProviderFavorite &&
+                        "bg-red-500 hover:bg-red-600 text-white"
+                    )}
                     onClick={() => handleToggleFavorite(selectedProvider.id)}
                   >
-                    <Heart className={cn("h-5 w-5 mr-2", isProviderFavorite && "fill-current")} />
-                    {isProviderFavorite ? (isRTL ? "في المفضلة" : "Favorited") : (isRTL ? "أضف للمفضلة" : "Add to Favorites")}
+                    <Heart
+                      className={cn(
+                        "h-5 w-5 mr-2",
+                        isProviderFavorite && "fill-current"
+                      )}
+                    />
+                    {isProviderFavorite
+                      ? isRTL
+                        ? "في المفضلة"
+                        : "Favorited"
+                      : isRTL
+                      ? "أضف للمفضلة"
+                      : "Add to Favorites"}
                   </Button>
                 </div>
 
@@ -446,7 +577,11 @@ export function ServiceDetailSheet({
           open={reviewDialogOpen}
           onOpenChange={setReviewDialogOpen}
           providerName={selectedProvider.provider_name}
-          existingReview={userReview ? { rating: userReview.rating, content: userReview.content } : undefined}
+          existingReview={
+            userReview
+              ? { rating: userReview.rating, content: userReview.content }
+              : undefined
+          }
           onSubmit={handleSubmitReview}
           isSubmitting={isSubmittingReview}
         />
@@ -481,10 +616,17 @@ export function ServiceDetailSheet({
           </DrawerClose>
 
           <div className="flex flex-col items-center pt-2">
-            <div className={cn("h-16 w-16 rounded-full flex items-center justify-center mb-3", service.color)}>
+            <div
+              className={cn(
+                "h-16 w-16 rounded-full flex items-center justify-center mb-3",
+                service.color
+              )}
+            >
               <IconComponent className="h-8 w-8 text-foreground" strokeWidth={1.5} />
             </div>
-            <DrawerTitle className="text-xl font-bold text-foreground">{title}</DrawerTitle>
+            <DrawerTitle className="text-xl font-bold text-foreground">
+              {title}
+            </DrawerTitle>
             <p className="text-sm text-muted-foreground mt-1">{categoryLabel}</p>
           </div>
         </DrawerHeader>
@@ -517,12 +659,18 @@ export function ServiceDetailSheet({
                       <Avatar className="h-12 w-12">
                         <AvatarImage src={provider.provider_avatar || undefined} />
                         <AvatarFallback className="bg-primary text-primary-foreground font-medium">
-                          {provider.provider_name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                          {provider.provider_name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .slice(0, 2)}
                         </AvatarFallback>
                       </Avatar>
 
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-foreground truncate">{provider.provider_name}</h4>
+                        <h4 className="font-semibold text-foreground truncate">
+                          {provider.provider_name}
+                        </h4>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <span className="truncate">{provider.title}</span>
 
@@ -545,9 +693,27 @@ export function ServiceDetailSheet({
                       </div>
 
                       <div className="flex items-center gap-1 flex-shrink-0">
-                        <Star className={cn("h-4 w-4", ratingInfo.hasRating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground")} />
-                        <span className={cn("text-sm font-medium", ratingInfo.hasRating ? "text-foreground" : "text-muted-foreground")}>
-                          {ratingInfo.hasRating ? ratingInfo.text : (isRTL ? "جديد" : "New")}
+                        <Star
+                          className={cn(
+                            "h-4 w-4",
+                            ratingInfo.hasRating
+                              ? "text-yellow-400 fill-yellow-400"
+                              : "text-muted-foreground"
+                          )}
+                        />
+                        <span
+                          className={cn(
+                            "text-sm font-medium",
+                            ratingInfo.hasRating
+                              ? "text-foreground"
+                              : "text-muted-foreground"
+                          )}
+                        >
+                          {ratingInfo.hasRating
+                            ? ratingInfo.text
+                            : isRTL
+                            ? "جديد"
+                            : "New"}
                         </span>
                       </div>
                     </button>
@@ -557,8 +723,12 @@ export function ServiceDetailSheet({
             ) : (
               <div className="text-center py-12">
                 <div className="text-4xl mb-3">🔍</div>
-                <p className="text-muted-foreground font-medium">{isRTL ? "لا يوجد مقدمي خدمة" : "No providers available"}</p>
-                <p className="text-sm text-muted-foreground mt-1">{isRTL ? "جرب تصفية مختلفة" : "Try different filters"}</p>
+                <p className="text-muted-foreground font-medium">
+                  {isRTL ? "لا يوجد مقدمي خدمة" : "No providers available"}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {isRTL ? "جرب تصفية مختلفة" : "Try different filters"}
+                </p>
               </div>
             )}
           </div>
