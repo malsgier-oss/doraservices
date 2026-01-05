@@ -43,7 +43,7 @@ export default function Favorites() {
 
   const fetchFavorites = async () => {
     if (!user) return;
-    
+
     setLoading(true);
     try {
       // Get saved services
@@ -65,7 +65,7 @@ export default function Favorites() {
       }
 
       // Get service details - include provider_name and provider_phone for bulk-uploaded services
-      const serviceIds = savedData.map(s => s.business_id);
+      const serviceIds = savedData.map((s) => s.business_id);
       const { data: services } = await supabase
         .from("services")
         .select("id, title, category, user_id, provider_name, provider_phone")
@@ -78,26 +78,29 @@ export default function Favorites() {
       }
 
       // Get provider profiles only for claimed services (those with user_id)
-      const userIds = [...new Set(services.map(s => s.user_id).filter(Boolean))] as string[];
-      let profileMap = new Map<string, { full_name: string | null; avatar_url: string | null; phone: string | null }>();
-      
+      const userIds = [...new Set(services.map((s) => s.user_id).filter(Boolean))] as string[];
+      let profileMap = new Map<
+        string,
+        { full_name: string | null; avatar_url: string | null; phone: string | null }
+      >();
+
       if (userIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")
           .select("user_id, full_name, avatar_url, phone")
           .in("user_id", userIds);
 
-        profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
+        profileMap = new Map(profiles?.map((p) => [p.user_id, p]) || []);
       }
 
-      const serviceMap = new Map(services.map(s => [s.id, s]));
+      const serviceMap = new Map(services.map((s) => [s.id, s]));
 
       const enrichedFavorites: FavoriteService[] = savedData
-        .filter(saved => serviceMap.has(saved.business_id))
-        .map(saved => {
+        .filter((saved) => serviceMap.has(saved.business_id))
+        .map((saved) => {
           const service = serviceMap.get(saved.business_id)!;
           const profile = service.user_id ? profileMap.get(service.user_id) : null;
-          
+
           // For bulk-uploaded services (user_id is null), use the service table's provider info
           // For claimed services, use the profile data
           return {
@@ -105,7 +108,10 @@ export default function Favorites() {
             service_id: service.id,
             service_title: service.title,
             service_category: service.category,
-            provider_name: profile?.full_name || service.provider_name || (isRTL ? "مقدم الخدمة" : "Provider"),
+            provider_name:
+              profile?.full_name ||
+              service.provider_name ||
+              (isRTL ? "مقدم الخدمة" : "Provider"),
             provider_avatar: profile?.avatar_url || "",
             provider_phone: profile?.phone || service.provider_phone || "",
           };
@@ -120,15 +126,12 @@ export default function Favorites() {
   };
 
   const handleRemoveFavorite = async (id: string) => {
-    const { error } = await supabase
-      .from("saved_businesses")
-      .delete()
-      .eq("id", id);
+    const { error } = await supabase.from("saved_businesses").delete().eq("id", id);
 
     if (error) {
       toast.error(isRTL ? "حدث خطأ" : "Error removing favorite");
     } else {
-      setFavorites(prev => prev.filter(f => f.id !== id));
+      setFavorites((prev) => prev.filter((f) => f.id !== id));
       toast.success(isRTL ? "تمت الإزالة من المفضلة" : "Removed from favorites");
     }
   };
@@ -145,19 +148,19 @@ export default function Favorites() {
 
   // Get unique categories from favorites
   const categories = useMemo(() => {
-    const unique = [...new Set(favorites.map(f => f.service_category))];
+    const unique = [...new Set(favorites.map((f) => f.service_category))];
     return unique;
   }, [favorites]);
 
   // Filter favorites by category
   const filteredFavorites = useMemo(() => {
     if (categoryFilter === "all") return favorites;
-    return favorites.filter(f => f.service_category === categoryFilter);
+    return favorites.filter((f) => f.service_category === categoryFilter);
   }, [favorites, categoryFilter]);
 
   if (loading) {
     return (
-      <Layout hideHeader>
+      <Layout showHeader={false}>
         <div className="min-h-screen flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
@@ -166,17 +169,13 @@ export default function Favorites() {
   }
 
   return (
-    <Layout>
+    <Layout showHeader={false}>
       <div className="container py-6 space-y-6">
         {/* Header with Filter */}
-        <div className={cn(
-          "flex items-center justify-between gap-4",
-          isRTL && "flex-row-reverse"
-        )}>
-          <h1 className={cn(
-            "text-2xl font-bold text-foreground",
-            isRTL ? "text-right" : "text-left"
-          )}>
+        <div
+          className={cn("flex items-center justify-between gap-4", isRTL && "flex-row-reverse")}
+        >
+          <h1 className={cn("text-2xl font-bold text-foreground", isRTL ? "text-right" : "text-left")}>
             {t.favorites?.title || (isRTL ? "المفضلة" : "Favorites")}
           </h1>
 
@@ -189,9 +188,7 @@ export default function Favorites() {
                   <SelectValue placeholder={isRTL ? "كل الفئات" : "All categories"} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">
-                    {isRTL ? "كل الفئات" : "All categories"}
-                  </SelectItem>
+                  <SelectItem value="all">{isRTL ? "كل الفئات" : "All categories"}</SelectItem>
                   {categories.map((cat) => (
                     <SelectItem key={cat} value={cat}>
                       {t.categories[cat as keyof typeof t.categories] || cat}
@@ -206,10 +203,11 @@ export default function Favorites() {
         {/* Results count when filtered */}
         {categoryFilter !== "all" && (
           <p className="text-sm text-muted-foreground">
-            {isRTL 
+            {isRTL
               ? `${filteredFavorites.length} نتيجة`
-              : `${filteredFavorites.length} result${filteredFavorites.length !== 1 ? 's' : ''}`
-            }
+              : `${filteredFavorites.length} result${
+                  filteredFavorites.length !== 1 ? "s" : ""
+                }`}
           </p>
         )}
 
@@ -227,19 +225,20 @@ export default function Favorites() {
                 <Avatar className="h-14 w-14">
                   <AvatarImage src={fav.provider_avatar || undefined} />
                   <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                    {fav.provider_name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                    {fav.provider_name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .slice(0, 2)}
                   </AvatarFallback>
                 </Avatar>
-                
+
                 <div className={cn("flex-1 min-w-0", isRTL && "text-right")}>
-                  <h3 className="font-semibold text-foreground truncate">
-                    {fav.provider_name}
-                  </h3>
-                  <p className="text-sm text-muted-foreground truncate">
-                    {fav.service_title}
-                  </p>
+                  <h3 className="font-semibold text-foreground truncate">{fav.provider_name}</h3>
+                  <p className="text-sm text-muted-foreground truncate">{fav.service_title}</p>
                   <p className="text-xs text-muted-foreground/70">
-                    {t.categories[fav.service_category as keyof typeof t.categories] || fav.service_category}
+                    {t.categories[fav.service_category as keyof typeof t.categories] ||
+                      fav.service_category}
                   </p>
                 </div>
 
@@ -271,7 +270,7 @@ export default function Favorites() {
               <p className="text-muted-foreground">
                 {isRTL ? "لا توجد نتائج لهذه الفئة" : "No results for this category"}
               </p>
-              <Button 
+              <Button
                 variant="outline"
                 onClick={() => setCategoryFilter("all")}
                 className="mt-4 rounded-full"
@@ -288,12 +287,12 @@ export default function Favorites() {
                 {t.favorites?.noFavorites || (isRTL ? "لا توجد مفضلات" : "No favorites yet")}
               </h3>
               <p className="text-sm text-muted-foreground mb-4">
-                {t.favorites?.noFavoritesDesc || (isRTL ? "أضف خدمات إلى المفضلة من الصفحة الرئيسية" : "Add services to favorites from the home page")}
+                {t.favorites?.noFavoritesDesc ||
+                  (isRTL
+                    ? "أضف خدمات إلى المفضلة من الصفحة الرئيسية"
+                    : "Add services to favorites from the home page")}
               </p>
-              <Button 
-                onClick={() => navigate("/")}
-                className="rounded-full"
-              >
+              <Button onClick={() => navigate("/")} className="rounded-full">
                 {t.services?.backToHub || (isRTL ? "العودة للرئيسية" : "Browse Services")}
               </Button>
             </div>
