@@ -39,10 +39,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
-import {
-  ActiveFilterChips,
-  SearchFiltersState,
-} from "@/components/search/SearchFilters";
 import { ReviewPromptBanner } from "@/components/review/ReviewPromptBanner";
 
 import {
@@ -194,7 +190,6 @@ function FilterSuggestionChip({
     <button
       onClick={onClick}
       className={cn(
-        // ✅ slightly larger text + padding for readability
         "flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-full text-[13px] font-semibold transition-all border",
         isActive
           ? "bg-[#111] text-white border-[#111]"
@@ -216,7 +211,6 @@ function SectionHeader({
 }) {
   return (
     <div className="flex items-center justify-between gap-3 mb-3">
-      {/* ✅ slightly larger section title */}
       <h2 className="text-[18px] font-semibold text-[#111]">{title}</h2>
       {action}
     </div>
@@ -230,6 +224,12 @@ type AppNotification = {
   body: string | null;
   created_at: string | null;
   is_read: boolean;
+};
+
+type SearchFiltersState = {
+  city: string | null;
+  subCity: string | null;
+  minRating: boolean; // kept for ServiceDetailSheet compatibility, no UI on Hub
 };
 
 export default function Hub() {
@@ -290,7 +290,7 @@ export default function Hub() {
     string | null
   >(null);
 
-  // Filters
+  // Filters (UI: ONLY city chips in header; no rating chip)
   const [searchFilters, setSearchFilters] = useState<SearchFiltersState>({
     city: null,
     subCity: null,
@@ -310,13 +310,6 @@ export default function Hub() {
   const { ratings: featuredRatings } = useServiceRatings(
     featuredProviders.map((fp) => fp.service_id)
   );
-
-  const initials =
-    profile?.full_name
-      ?.split(" ")
-      .map((n) => n[0])
-      .join("")
-      .slice(0, 2) || (isRTL ? "م" : "U");
 
   // ✅ Convert city id -> name
   const getCityLabel = (cityIdOrName: string | null) => {
@@ -453,17 +446,6 @@ export default function Hub() {
       return an.localeCompare(bn);
     });
   }, [drawerCategoryId, serviceItems, language]);
-
-  const handleRemoveFilter = (key: keyof SearchFiltersState) => {
-    if (key === "city") {
-      setSearchFilters((prev) => ({ ...prev, city: null, subCity: null }));
-    } else {
-      setSearchFilters((prev) => ({
-        ...prev,
-        [key]: key === "minRating" ? false : null,
-      }));
-    }
-  };
 
   const openServiceSheetFromSubcategory = (service: ServiceItem) => {
     setInitialProviderServiceId(null);
@@ -698,6 +680,15 @@ export default function Hub() {
     })).filter((x) => Boolean(x.target));
   }, [serviceItems]);
 
+  // initials (kept in case you use it later)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const initials =
+    profile?.full_name
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2) || (isRTL ? "م" : "U");
+
   return (
     <div className="min-h-screen bg-[#F7F7F8] pb-24" dir={isRTL ? "rtl" : "ltr"}>
       {/* Sticky Top Bar */}
@@ -736,11 +727,7 @@ export default function Hub() {
                   >
                     <Bell className="h-5 w-5 text-[#111]" />
                     {unreadCount > 0 && (
-                      <span
-                        className={cn(
-                          "absolute -top-1 -right-1 h-5 min-w-[20px] px-1 rounded-full bg-red-600 text-white text-[11px] font-bold flex items-center justify-center"
-                        )}
-                      >
+                      <span className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 rounded-full bg-red-600 text-white text-[11px] font-bold flex items-center justify-center">
                         {unreadCount > 99 ? "99+" : unreadCount}
                       </span>
                     )}
@@ -855,7 +842,7 @@ export default function Hub() {
             </div>
           </div>
 
-          {/* City chips + rating */}
+          {/* City chips ONLY (no rating chip) */}
           <div className="mt-4 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
             <FilterSuggestionChip
               icon={<MapPin className="h-4 w-4" />}
@@ -893,29 +880,7 @@ export default function Hub() {
                 }))
               }
             />
-            <FilterSuggestionChip
-              icon={<Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />}
-              label={isRTL ? "4+ نجوم" : "4+ Stars"}
-              isActive={Boolean(searchFilters.minRating)}
-              onClick={() =>
-                setSearchFilters((prev) => ({
-                  ...prev,
-                  minRating: !prev.minRating,
-                }))
-              }
-            />
           </div>
-
-          {(searchFilters.city ||
-            searchFilters.subCity ||
-            searchFilters.minRating) && (
-            <div className="mt-2">
-              <ActiveFilterChips
-                filters={searchFilters}
-                onRemoveFilter={handleRemoveFilter}
-              />
-            </div>
-          )}
         </div>
       </header>
 
@@ -923,7 +888,7 @@ export default function Hub() {
       <main className="px-4 pt-5 pb-10">
         <ReviewPromptBanner />
 
-        {/* Categories */}
+        {/* Categories FIRST */}
         <section className="mt-5">
           <SectionHeader title={isRTL ? "الفئات" : "Categories"} />
           {categoriesLoading ? (
@@ -956,7 +921,6 @@ export default function Hub() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/70" />
 
-                    {/* ✅ bigger icon container */}
                     <div
                       className={cn(
                         "relative h-14 w-14 rounded-2xl flex items-center justify-center",
@@ -969,7 +933,6 @@ export default function Hub() {
                       />
                     </div>
 
-                    {/* ✅ more readable label */}
                     <span className="relative text-[12px] font-semibold text-[#111] text-center px-1 leading-tight line-clamp-1">
                       {displayName}
                     </span>
@@ -980,7 +943,7 @@ export default function Hub() {
           )}
         </section>
 
-        {/* Featured Providers */}
+        {/* Featured Providers UNDER Categories */}
         <section className="mt-8">
           <SectionHeader
             title={isRTL ? "مقدمي خدمة مختارين" : "Featured providers"}
@@ -1009,7 +972,6 @@ export default function Hub() {
                     )}
                   >
                     <div className="flex items-center gap-3">
-                      {/* ✅ slightly bigger avatar */}
                       <Avatar className="h-14 w-14">
                         <AvatarImage src={fp.provider_avatar || undefined} />
                         <AvatarFallback className="bg-[#111] text-white font-semibold">
@@ -1139,194 +1101,7 @@ export default function Hub() {
         {/* Popular Services */}
         {popularServices.length > 0 && (
           <section className="mt-8">
-            <SectionHeader title={isRTL ? "الخدمات الأكثر طلباً" : "Popular services"} />
-            <div className="grid grid-cols-2 gap-3">
-              {popularServices.map((service) => {
-                const IconComponent = service.icon;
-                const displayName =
-                  language === "ar" && service.name_ar ? service.name_ar : service.name;
-
-                return (
-                  <button
-                    key={service.id}
-                    onClick={() => openServiceSheetFromSubcategory(service)}
-                    className={cn(
-                      "relative overflow-hidden h-[102px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
-                      isRTL && "text-right"
-                    )}
-                  >
-                    <div className={cn("absolute inset-0 opacity-10", service.color)} />
-                    <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
-
-                    <div className="relative flex items-center gap-3">
-                      {/* ✅ bigger icon */}
-                      <div
-                        className={cn(
-                          "h-14 w-14 rounded-2xl flex items-center justify-center",
-                          service.color
-                        )}
-                      >
-                        <IconComponent className="h-7 w-7 text-[#111]" strokeWidth={1.7} />
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-[15px] font-semibold text-[#111] line-clamp-1">
-                          {displayName}
-                        </h3>
-                        <p className="text-[12px] text-[#777] mt-1">
-                          {isRTL ? "عرض مقدمي الخدمة" : "View providers"}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        {/* Bottom line / links */}
-        <section className="mt-10">
-          <div className="border-t border-gray-200 pt-4 pb-2 text-[12px] text-[#777] flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-            <button
-              onClick={() => window.alert(isRTL ? "قريباً" : "Coming soon")}
-              className="hover:text-[#111] transition-colors"
-            >
-              {isRTL ? "من نحن" : "About"}
-            </button>
-            <button
-              onClick={() => (window.location.href = "mailto:support@dora.ly")}
-              className="hover:text-[#111] transition-colors"
-            >
-              {isRTL ? "تواصل معنا" : "Contact"}
-            </button>
-            <button
-              onClick={() =>
-                window.alert(isRTL ? "سيتم إضافة الشروط قريباً" : "Terms will be added soon")
-              }
-              className="hover:text-[#111] transition-colors"
-            >
-              {isRTL ? "الشروط" : "Terms"}
-            </button>
-            <button
-              onClick={() =>
-                window.alert(isRTL ? "سيتم إضافة الخصوصية قريباً" : "Privacy will be added soon")
-              }
-              className="hover:text-[#111] transition-colors"
-            >
-              {isRTL ? "الخصوصية" : "Privacy"}
-            </button>
-
-            <span className="text-[#AAA]">•</span>
-            <span className="text-[#999]">© {new Date().getFullYear()} Dora</span>
-          </div>
-        </section>
-      </main>
-
-      <MobileNav />
-
-      {/* Category Drawer */}
-      <Drawer open={categoryDrawerOpen} onOpenChange={setCategoryDrawerOpen}>
-        <DrawerContent className="h-[90vh] flex flex-col overflow-hidden rounded-t-3xl p-0">
-          <DrawerHeader className="relative pb-2 px-4 pt-4">
-            <DrawerClose
-              className={cn(
-                "absolute top-4 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
-                isRTL ? "left-4" : "right-4"
-              )}
-            >
-              <X className="h-4 w-4 text-muted-foreground" />
-            </DrawerClose>
-
-            <div className="flex flex-col items-center pt-2">
-              <DrawerTitle className="text-lg font-bold text-foreground">
-                {drawerCategory
-                  ? language === "ar" && drawerCategory.name_ar
-                    ? drawerCategory.name_ar
-                    : drawerCategory.name
-                  : isRTL
-                  ? "الفئة"
-                  : "Category"}
-              </DrawerTitle>
-              <p className="text-sm text-muted-foreground mt-1">
-                {isRTL ? "اختر خدمة" : "Choose a service"}
-              </p>
-            </div>
-          </DrawerHeader>
-
-          <ScrollArea className="flex-1">
-            <div className="px-4 pb-5" dir={isRTL ? "rtl" : "ltr"}>
-              {drawerSubcategories.length > 0 ? (
-                <div className="space-y-2">
-                  {drawerSubcategories.map((service) => {
-                    const IconComponent = service.icon;
-                    const displayName =
-                      language === "ar" && service.name_ar ? service.name_ar : service.name;
-
-                    return (
-                      <button
-                        key={service.id}
-                        onClick={() => {
-                          setCategoryDrawerOpen(false);
-                          openServiceSheetFromSubcategory(service);
-                        }}
-                        className={cn(
-                          "relative overflow-hidden w-full flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-200 transition-colors hover:bg-gray-50 active:bg-gray-100",
-                          isRTL && "flex-row-reverse text-right"
-                        )}
-                      >
-                        <div className={cn("absolute inset-0 opacity-10", service.color)} />
-                        <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
-
-                        {/* ✅ bigger icon */}
-                        <div
-                          className={cn(
-                            "relative h-14 w-14 rounded-2xl flex items-center justify-center flex-shrink-0",
-                            service.color
-                          )}
-                        >
-                          <IconComponent className="h-7 w-7 text-[#111]" strokeWidth={1.7} />
-                        </div>
-
-                        <div className="relative flex-1 min-w-0">
-                          <h3 className="text-[16px] font-semibold text-[#111] line-clamp-1">
-                            {displayName}
-                          </h3>
-                          <p className="text-[13px] text-[#777] mt-1">
-                            {isRTL ? "عرض مقدمي الخدمة" : "View providers"}
-                          </p>
-                        </div>
-
-                        <ChevronRight
-                          className={cn(
-                            "relative h-6 w-6 text-[#C9C9C9] flex-shrink-0",
-                            isRTL && "rotate-180"
-                          )}
-                        />
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-10 text-sm text-muted-foreground">
-                  {isRTL ? "لا توجد خدمات في هذه الفئة" : "No services in this category"}
-                </div>
-              )}
-            </div>
-          </ScrollArea>
-        </DrawerContent>
-      </Drawer>
-
-      <ServiceDetailSheet
-        open={sheetOpen}
-        onOpenChange={(o) => {
-          setSheetOpen(o);
-          if (!o) setInitialProviderServiceId(null);
-        }}
-        service={selectedService}
-        filters={searchFilters}
-        initialProviderServiceId={initialProviderServiceId}
-      />
-    </div>
-  );
-}
+            <SectionHeader
+              title={isRTL ? "الخدمات الأكثر طلباً" : "Popular services"}
+            />
+            <div className="grid grid-cols-2
