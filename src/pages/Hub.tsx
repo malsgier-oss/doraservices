@@ -1,7 +1,7 @@
 import { useMemo, useEffect, useState, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Bell,
+  AlertCircle,
   User,
   Home,
   Car,
@@ -42,7 +42,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
-import { ActiveFilterChips, SearchFiltersState } from "@/components/search/SearchFilters";
+import {
+  ActiveFilterChips,
+  SearchFiltersState,
+} from "@/components/search/SearchFilters";
 import { ReviewPromptBanner } from "@/components/review/ReviewPromptBanner";
 
 import {
@@ -231,7 +234,9 @@ export default function Hub() {
   } | null>(null);
 
   // If set, sheet opens directly to provider detail (used by Featured Providers)
-  const [initialProviderServiceId, setInitialProviderServiceId] = useState<string | null>(null);
+  const [initialProviderServiceId, setInitialProviderServiceId] = useState<
+    string | null
+  >(null);
 
   // Filters (simple)
   const [searchFilters, setSearchFilters] = useState<SearchFiltersState>({
@@ -244,7 +249,9 @@ export default function Hub() {
   const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
   const [drawerCategoryId, setDrawerCategoryId] = useState<string | null>(null);
 
-  const [featuredProviders, setFeaturedProviders] = useState<FeaturedProviderCard[]>([]);
+  const [featuredProviders, setFeaturedProviders] = useState<
+    FeaturedProviderCard[]
+  >([]);
   const [featuredLoading, setFeaturedLoading] = useState(false);
 
   // Ratings ONLY for featured cards (fast)
@@ -270,15 +277,89 @@ export default function Hub() {
     );
 
     return found
-      ? (language === "ar" && found.name_ar ? found.name_ar : found.name)
+      ? language === "ar" && found.name_ar
+        ? found.name_ar
+        : found.name
       : cityIdOrName;
   };
 
   const getFeaturedRatingDisplay = (serviceId: string) => {
     const r = featuredRatings.get(serviceId);
-    if (!r || r.totalReviews === 0) return { text: isRTL ? "جديد" : "New", hasRating: false };
+    if (!r || r.totalReviews === 0)
+      return { text: isRTL ? "جديد" : "New", hasRating: false };
     return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true };
   };
+
+  // Helper: find a city's ID by common label (used for better matching)
+  const findCityIdByLabels = (labels: string[]) => {
+    const norm = (s: string) => (s || "").toLowerCase().trim();
+    const wanted = new Set(labels.map(norm));
+    const found = cities?.find((c: any) => {
+      const en = norm(c?.name || "");
+      const ar = norm(c?.name_ar || "");
+      return wanted.has(en) || wanted.has(ar);
+    });
+    return found?.id || null;
+  };
+
+  // Featured city matching:
+  // - supports chips using slugs (tripoli/benghazi/misrata)
+  // - supports provider city stored as UUID or name/ar name
+  const matchesSelectedCity = (providerCity: string | null) => {
+    if (!searchFilters.city) return true;
+    if (!providerCity) return false;
+
+    const selectedRaw = String(searchFilters.city).toLowerCase().trim();
+    const providerRaw = String(providerCity).toLowerCase().trim();
+
+    // Direct match (id==id or name==name)
+    if (providerRaw === selectedRaw) return true;
+
+    // Match by label (UUID -> label)
+    const providerLabel = getCityLabel(providerCity);
+    if (providerLabel && String(providerLabel).toLowerCase().trim() === selectedRaw)
+      return true;
+
+    // If selected is UUID, compare selected label to provider raw/label
+    const selectedLabel = getCityLabel(searchFilters.city as any);
+    if (selectedLabel) {
+      const sl = String(selectedLabel).toLowerCase().trim();
+      if (providerRaw === sl) return true;
+      if (providerLabel && String(providerLabel).toLowerCase().trim() === sl)
+        return true;
+    }
+
+    // Slug aliases (because chips currently set: tripoli/benghazi/misrata)
+    const aliasMap: Record<string, { labels: string[] }> = {
+      tripoli: { labels: ["tripoli", "طرابلس", "طرابلس المركز"] },
+      benghazi: { labels: ["benghazi", "بنغازي"] },
+      misrata: { labels: ["misrata", "مصراتة"] },
+    };
+
+    const alias = aliasMap[selectedRaw];
+    if (alias) {
+      const providerLabelNorm = providerLabel
+        ? String(providerLabel).toLowerCase().trim()
+        : "";
+      const providerMatchesAlias =
+        alias.labels.some((l) => providerRaw.includes(l.toLowerCase())) ||
+        alias.labels.some((l) => providerLabelNorm.includes(l.toLowerCase()));
+
+      if (providerMatchesAlias) return true;
+
+      // If provider has UUID, try comparing with the alias city ID (if cities loaded)
+      const aliasCityId = findCityIdByLabels(alias.labels);
+      if (aliasCityId && providerRaw === String(aliasCityId).toLowerCase()) return true;
+    }
+
+    return false;
+  };
+
+  const featuredProvidersFiltered = useMemo(() => {
+    return featuredProviders.filter((fp) => matchesSelectedCity(fp.provider_city));
+    // cities/language impact label matching
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [featuredProviders, searchFilters.city, language, cities]);
 
   // Map subcategories -> service items
   const serviceItems: ServiceItem[] = useMemo(() => {
@@ -403,7 +484,9 @@ export default function Hub() {
         // ✅ Select only needed fields (faster than select "*")
         const { data: servicesData, error } = await supabase
           .from("services")
-          .select("id, category, title, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused, is_featured, featured_order, created_at")
+          .select(
+            "id, category, title, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused, is_featured, featured_order, created_at"
+          )
           .eq("is_active", true)
           .eq("is_featured", true)
           .or("is_paused.is.null,is_paused.eq.false")
@@ -423,13 +506,17 @@ export default function Hub() {
           return;
         }
 
-        const userIds = [...new Set(featured.map((s: any) => s.user_id).filter(Boolean))];
+        const userIds = [
+          ...new Set(featured.map((s: any) => s.user_id).filter(Boolean)),
+        ];
         let profileMap = new Map<string, any>();
 
         if (userIds.length > 0) {
           const { data: profiles } = await supabase
             .from("profiles")
-            .select("user_id, full_name, avatar_url, phone, city, sub_city, provider_status")
+            .select(
+              "user_id, full_name, avatar_url, phone, city, sub_city, provider_status"
+            )
             .in("user_id", userIds)
             .eq("provider_status", "approved");
 
@@ -450,7 +537,9 @@ export default function Hub() {
               category: svc.category,
               service_title: svc.title || (isRTL ? "خدمة" : "Service"),
               provider_name:
-                p?.full_name || svc.provider_name || (isRTL ? "مقدم الخدمة" : "Provider"),
+                p?.full_name ||
+                svc.provider_name ||
+                (isRTL ? "مقدم الخدمة" : "Provider"),
               provider_phone: p?.phone || svc.provider_phone || "",
               provider_avatar: p?.avatar_url || null,
               provider_city: p?.city || svc.city || null,
@@ -516,7 +605,10 @@ export default function Hub() {
   }, [serviceItems]);
 
   return (
-    <div className="min-h-screen bg-[#F7F7F8] pb-24" dir={isRTL ? "rtl" : "ltr"}>
+    <div
+      className="min-h-screen bg-[#F7F7F8] pb-24"
+      dir={isRTL ? "rtl" : "ltr"}
+    >
       {/* Sticky Top Bar (no logo) */}
       <header className="sticky top-0 z-40 bg-[#F7F7F8]/90 backdrop-blur supports-[backdrop-filter]:bg-[#F7F7F8]/75 border-b border-gray-100">
         <div className="px-4 pt-4 pb-3">
@@ -540,7 +632,9 @@ export default function Hub() {
 
             {/* Center title */}
             <div className="flex flex-col items-center leading-none">
-              <span className="text-[13px] font-semibold text-[#111]">{t.appName}</span>
+              <span className="text-[13px] font-semibold text-[#111]">
+                {t.appName}
+              </span>
               <span className="text-[11px] text-[#777]">
                 {isRTL ? "خدمات قريبة منك" : "Local services"}
               </span>
@@ -549,8 +643,13 @@ export default function Hub() {
             {/* Actions */}
             <div className="flex items-center gap-2">
               <LanguageToggle />
-              <button className="h-10 w-10 rounded-full bg-white border border-gray-200 flex items-center justify-center">
-                <Bell className="h-5 w-5 text-[#111]" />
+              <button
+                onClick={() =>
+                  window.alert(isRTL ? "قريباً" : "Coming soon")
+                }
+                className="h-10 w-10 rounded-full bg-white border border-gray-200 flex items-center justify-center"
+              >
+                <AlertCircle className="h-5 w-5 text-[#111]" />
               </button>
             </div>
           </div>
@@ -567,7 +666,11 @@ export default function Hub() {
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={isRTL ? "ابحث: كهربائي، سباك، تكييف…" : "Search: electrician, plumber, AC…"}
+                placeholder={
+                  isRTL
+                    ? "ابحث: كهربائي، سباك، تكييف…"
+                    : "Search: electrician, plumber, AC…"
+                }
                 className={cn(
                   "h-12 rounded-2xl bg-white border border-gray-200 shadow-none text-base placeholder:text-[#8F8F8F]",
                   isRTL ? "pr-12 pl-10" : "pl-12 pr-10"
@@ -627,18 +730,26 @@ export default function Hub() {
               }
             />
             <FilterSuggestionChip
-              icon={<Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />}
+              icon={
+                <Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />
+              }
               label={isRTL ? "4+ نجوم" : "4+ Stars"}
               isActive={Boolean(searchFilters.minRating)}
               onClick={() =>
-                setSearchFilters((prev) => ({ ...prev, minRating: !prev.minRating }))
+                setSearchFilters((prev) => ({
+                  ...prev,
+                  minRating: !prev.minRating,
+                }))
               }
             />
           </div>
 
           {(searchFilters.city || searchFilters.subCity || searchFilters.minRating) && (
             <div className="mt-2">
-              <ActiveFilterChips filters={searchFilters} onRemoveFilter={handleRemoveFilter} />
+              <ActiveFilterChips
+                filters={searchFilters}
+                onRemoveFilter={handleRemoveFilter}
+              />
             </div>
           )}
         </div>
@@ -654,25 +765,46 @@ export default function Hub() {
           {categoriesLoading ? (
             <div className="grid grid-cols-4 gap-3">
               {[...Array(8)].map((_, i) => (
-                <div key={i} className="h-[102px] rounded-2xl bg-gray-200 animate-pulse" />
+                <div
+                  key={i}
+                  className="h-[102px] rounded-2xl bg-gray-200 animate-pulse"
+                />
               ))}
             </div>
           ) : (
             <div className="grid grid-cols-4 gap-3">
               {categoryGrid.map((cat: any) => {
                 const IconComponent = ICON_MAP[cat.icon] || Home;
-                const displayName = language === "ar" && cat.name_ar ? cat.name_ar : cat.name;
+                const displayName =
+                  language === "ar" && cat.name_ar ? cat.name_ar : cat.name;
 
                 return (
                   <button
                     key={cat.id}
                     onClick={() => openCategoryDrawer(cat.id)}
-                    className="h-[102px] rounded-2xl border bg-white border-gray-200 flex flex-col items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                    className="relative overflow-hidden h-[102px] rounded-2xl border bg-white border-gray-200 flex flex-col items-center justify-center gap-2 transition-all active:scale-[0.98]"
                   >
-                    <div className={cn("h-12 w-12 rounded-2xl flex items-center justify-center", cat.color || "bg-[#F2F2F2]")}>
-                      <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
+                    {/* Soft full-card tint (Option B) */}
+                    <div
+                      className={cn(
+                        "absolute inset-0 opacity-10",
+                        cat.color || "bg-[#F2F2F2]"
+                      )}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/70" />
+
+                    <div
+                      className={cn(
+                        "relative h-12 w-12 rounded-2xl flex items-center justify-center",
+                        cat.color || "bg-[#F2F2F2]"
+                      )}
+                    >
+                      <IconComponent
+                        className="h-6 w-6 text-[#111]"
+                        strokeWidth={1.7}
+                      />
                     </div>
-                    <span className="text-[11px] font-semibold text-[#111] text-center px-1 leading-tight line-clamp-1">
+                    <span className="relative text-[11px] font-semibold text-[#111] text-center px-1 leading-tight line-clamp-1">
                       {displayName}
                     </span>
                   </button>
@@ -702,22 +834,40 @@ export default function Hub() {
               {searchedServices.length > 0 ? (
                 searchedServices.map((service, index) => {
                   const IconComponent = service.icon;
-                  const displayName = language === "ar" && service.name_ar ? service.name_ar : service.name;
+                  const displayName =
+                    language === "ar" && service.name_ar
+                      ? service.name_ar
+                      : service.name;
 
                   return (
                     <button
                       key={service.id}
                       onClick={() => openServiceSheetFromSubcategory(service)}
                       className={cn(
-                        "w-full flex items-center gap-4 p-5 text-left transition-colors hover:bg-gray-50 active:bg-gray-100",
+                        "relative overflow-hidden w-full flex items-center gap-4 p-5 text-left transition-colors hover:bg-gray-50 active:bg-gray-100",
                         isRTL && "text-right flex-row-reverse",
-                        index < searchedServices.length - 1 && "border-b border-gray-100"
+                        index < searchedServices.length - 1 &&
+                          "border-b border-gray-100"
                       )}
                     >
-                      <div className={cn("h-14 w-14 rounded-2xl flex items-center justify-center flex-shrink-0", service.color)}>
-                        <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
+                      {/* Soft full-card tint (Option B) */}
+                      <div
+                        className={cn("absolute inset-0 opacity-10", service.color)}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
+
+                      <div
+                        className={cn(
+                          "relative h-14 w-14 rounded-2xl flex items-center justify-center flex-shrink-0",
+                          service.color
+                        )}
+                      >
+                        <IconComponent
+                          className="h-6 w-6 text-[#111]"
+                          strokeWidth={1.7}
+                        />
                       </div>
-                      <div className="flex-1 min-w-0">
+                      <div className="relative flex-1 min-w-0">
                         <h3 className="text-[16px] font-semibold text-[#111] line-clamp-1">
                           {displayName}
                         </h3>
@@ -725,7 +875,12 @@ export default function Hub() {
                           {isRTL ? "اضغط لعرض مقدمي الخدمة" : "Tap to view providers"}
                         </p>
                       </div>
-                      <ChevronRight className={cn("h-5 w-5 text-[#C9C9C9] flex-shrink-0", isRTL && "rotate-180")} />
+                      <ChevronRight
+                        className={cn(
+                          "relative h-5 w-5 text-[#C9C9C9] flex-shrink-0",
+                          isRTL && "rotate-180"
+                        )}
+                      />
                     </button>
                   );
                 })
@@ -750,12 +905,15 @@ export default function Hub() {
               {featuredLoading ? (
                 <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
                   {[...Array(3)].map((_, i) => (
-                    <div key={i} className="flex-shrink-0 w-[310px] h-[120px] rounded-2xl bg-gray-200 animate-pulse" />
+                    <div
+                      key={i}
+                      className="flex-shrink-0 w-[310px] h-[120px] rounded-2xl bg-gray-200 animate-pulse"
+                    />
                   ))}
                 </div>
-              ) : featuredProviders.length > 0 ? (
-                <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-                  {featuredProviders.map((fp) => {
+              ) : featuredProvidersFiltered.length > 0 ? (
+                <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 snap-x snap-mandatory">
+                  {featuredProvidersFiltered.map((fp) => {
                     const r = getFeaturedRatingDisplay(fp.service_id);
 
                     return (
@@ -763,7 +921,7 @@ export default function Hub() {
                         key={fp.service_id}
                         onClick={() => openProviderDetailsFromFeatured(fp)}
                         className={cn(
-                          "flex-shrink-0 w-[310px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
+                          "snap-start flex-shrink-0 w-[310px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
                           isRTL && "text-right"
                         )}
                       >
@@ -793,23 +951,37 @@ export default function Hub() {
                               <Star
                                 className={cn(
                                   "h-3.5 w-3.5",
-                                  r.hasRating ? "text-yellow-500 fill-yellow-500" : "text-[#999]"
+                                  r.hasRating
+                                    ? "text-yellow-500 fill-yellow-500"
+                                    : "text-[#999]"
                                 )}
                               />
-                              <span className={cn(r.hasRating ? "text-[#111] font-semibold" : "text-[#777]")}>
+                              <span
+                                className={cn(
+                                  r.hasRating
+                                    ? "text-[#111] font-semibold"
+                                    : "text-[#777]"
+                                )}
+                              >
                                 {r.text}
                               </span>
                             </div>
                           </div>
 
-                          <ChevronRight className={cn("h-5 w-5 text-[#C9C9C9]", isRTL && "rotate-180")} />
+                          <ChevronRight
+                            className={cn(
+                              "h-5 w-5 text-[#C9C9C9]",
+                              isRTL && "rotate-180"
+                            )}
+                          />
                         </div>
 
                         {/* ✅ City label fixed (no UUID) */}
                         <div className="mt-3 text-xs text-[#777]">
                           {fp.provider_city ? (isRTL ? "المدينة: " : "City: ") : ""}
                           <span className="text-[#111] font-semibold">
-                            {getCityLabel(fp.provider_city) || (isRTL ? "غير محدد" : "Not set")}
+                            {getCityLabel(fp.provider_city) ||
+                              (isRTL ? "غير محدد" : "Not set")}
                           </span>
                         </div>
                       </button>
@@ -818,7 +990,13 @@ export default function Hub() {
                 </div>
               ) : (
                 <div className="rounded-2xl bg-white border border-gray-200 p-5 text-sm text-[#777]">
-                  {isRTL ? "لا يوجد مزودين مختارين حالياً." : "No featured providers yet."}
+                  {featuredProviders.length > 0 && featuredProvidersFiltered.length === 0
+                    ? isRTL
+                      ? "لا يوجد مزودين مختارين لهذه المدينة."
+                      : "No featured providers for this city."
+                    : isRTL
+                    ? "لا يوجد مزودين مختارين حالياً."
+                    : "No featured providers yet."}
                 </div>
               )}
             </section>
@@ -837,12 +1015,21 @@ export default function Hub() {
                         key={suggestion.id}
                         onClick={() => openServiceSheetFromSubcategory(targetService)}
                         className={cn(
-                          "w-full rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.99]",
+                          "relative overflow-hidden w-full rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.99]",
                           isRTL && "text-right"
                         )}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="h-12 w-12 rounded-2xl bg-[#F3F3F3] flex items-center justify-center flex-shrink-0">
+                        {/* Soft tint based on target service color */}
+                        <div
+                          className={cn(
+                            "absolute inset-0 opacity-10",
+                            targetService.color
+                          )}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
+
+                        <div className="relative flex items-center gap-3">
+                          <div className="h-12 w-12 rounded-2xl bg-white/70 border border-gray-200 flex items-center justify-center flex-shrink-0">
                             <Icon className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
                           </div>
 
@@ -855,7 +1042,12 @@ export default function Hub() {
                             </p>
                           </div>
 
-                          <ChevronRight className={cn("h-5 w-5 text-[#C9C9C9] flex-shrink-0", isRTL && "rotate-180")} />
+                          <ChevronRight
+                            className={cn(
+                              "h-5 w-5 text-[#C9C9C9] flex-shrink-0",
+                              isRTL && "rotate-180"
+                            )}
+                          />
                         </div>
                       </button>
                     );
@@ -871,20 +1063,35 @@ export default function Hub() {
                 <div className="grid grid-cols-2 gap-3">
                   {popularServices.map((service) => {
                     const IconComponent = service.icon;
-                    const displayName = language === "ar" && service.name_ar ? service.name_ar : service.name;
+                    const displayName =
+                      language === "ar" && service.name_ar
+                        ? service.name_ar
+                        : service.name;
 
                     return (
                       <button
                         key={service.id}
                         onClick={() => openServiceSheetFromSubcategory(service)}
                         className={cn(
-                          "h-[96px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
+                          "relative overflow-hidden h-[96px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
                           isRTL && "text-right"
                         )}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className={cn("h-12 w-12 rounded-2xl flex items-center justify-center", service.color)}>
-                            <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
+                        {/* Soft full-card tint (Option B) */}
+                        <div className={cn("absolute inset-0 opacity-10", service.color)} />
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
+
+                        <div className="relative flex items-center gap-3">
+                          <div
+                            className={cn(
+                              "h-12 w-12 rounded-2xl flex items-center justify-center",
+                              service.color
+                            )}
+                          >
+                            <IconComponent
+                              className="h-6 w-6 text-[#111]"
+                              strokeWidth={1.7}
+                            />
                           </div>
                           <div className="flex-1 min-w-0">
                             <h3 className="text-[15px] font-semibold text-[#111] line-clamp-1">
@@ -984,7 +1191,10 @@ export default function Hub() {
                 <div className="space-y-2">
                   {drawerSubcategories.map((service) => {
                     const IconComponent = service.icon;
-                    const displayName = language === "ar" && service.name_ar ? service.name_ar : service.name;
+                    const displayName =
+                      language === "ar" && service.name_ar
+                        ? service.name_ar
+                        : service.name;
 
                     return (
                       <button
@@ -994,15 +1204,27 @@ export default function Hub() {
                           openServiceSheetFromSubcategory(service);
                         }}
                         className={cn(
-                          "w-full flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-200 transition-colors hover:bg-gray-50 active:bg-gray-100",
+                          "relative overflow-hidden w-full flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-200 transition-colors hover:bg-gray-50 active:bg-gray-100",
                           isRTL && "flex-row-reverse text-right"
                         )}
                       >
-                        <div className={cn("h-12 w-12 rounded-2xl flex items-center justify-center flex-shrink-0", service.color)}>
-                          <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
+                        {/* Soft full-card tint (Option B) */}
+                        <div className={cn("absolute inset-0 opacity-10", service.color)} />
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
+
+                        <div
+                          className={cn(
+                            "relative h-12 w-12 rounded-2xl flex items-center justify-center flex-shrink-0",
+                            service.color
+                          )}
+                        >
+                          <IconComponent
+                            className="h-6 w-6 text-[#111]"
+                            strokeWidth={1.7}
+                          />
                         </div>
 
-                        <div className="flex-1 min-w-0">
+                        <div className="relative flex-1 min-w-0">
                           <h3 className="text-[15px] font-semibold text-[#111] line-clamp-1">
                             {displayName}
                           </h3>
@@ -1011,7 +1233,12 @@ export default function Hub() {
                           </p>
                         </div>
 
-                        <ChevronRight className={cn("h-5 w-5 text-[#C9C9C9] flex-shrink-0", isRTL && "rotate-180")} />
+                        <ChevronRight
+                          className={cn(
+                            "relative h-5 w-5 text-[#C9C9C9] flex-shrink-0",
+                            isRTL && "rotate-180"
+                          )}
+                        />
                       </button>
                     );
                   })}
