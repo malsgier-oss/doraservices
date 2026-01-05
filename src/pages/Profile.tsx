@@ -398,7 +398,7 @@ const Profile = () => {
   }
 
   return (
-    <Layout>
+    <Layout hideHeader>
       {/* Profile Header */}
       <section className="bg-background py-8">
         <div className="container">
