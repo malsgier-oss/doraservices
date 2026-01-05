@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import doraLogo from "@/assets/dora-logo.png";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
