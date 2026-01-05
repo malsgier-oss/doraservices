@@ -80,7 +80,6 @@ type ProviderProfile = {
 type CityRow = {
   id: string;
   name?: string | null;
-  name_en?: string | null;
   name_ar?: string | null;
 };
 
@@ -124,7 +123,7 @@ export default function AdminServices() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("cities")
-        .select("id, name, name_en, name_ar")
+        .select("id, name, name_ar")
         .order("name", { ascending: true });
       if (error) throw error;
       return (data || []) as CityRow[];
@@ -138,7 +137,7 @@ export default function AdminServices() {
   }, [cities]);
 
   const cityLabel = (c?: CityRow | null) =>
-    c?.name_en || c?.name || c?.name_ar || "";
+    c?.name || c?.name_ar || "";
 
   const {
     data: services,
