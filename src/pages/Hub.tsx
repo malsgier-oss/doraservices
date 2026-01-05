@@ -1,7 +1,6 @@
-import { useMemo, useEffect, useState, ReactNode } from "react";
+import React, { useMemo, useEffect, useState, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  AlertCircle,
   User,
   Home,
   Car,
@@ -118,13 +117,12 @@ interface ServiceItem {
   name_ar: string | null;
   category_id: string;
 
-  // Admin-picked later
   is_popular?: boolean;
   popular_order?: number | null;
 }
 
 type FeaturedProviderCard = {
-  service_id: string; // services.id (important for opening provider details)
+  service_id: string; // services.id
   category: string; // services.category
   service_title: string;
   provider_name: string;
@@ -145,7 +143,7 @@ type DoraSuggestion = {
   icon?: LucideIcon;
 };
 
-// ✅ Suggested by Dora (manual-curated now, auto-maps to real subcategories)
+// ✅ Suggested by Dora
 const DORA_SUGGESTIONS: DoraSuggestion[] = [
   {
     id: "power-cuts",
@@ -236,7 +234,7 @@ export default function Hub() {
   // Notifications
   const [notifOpen, setNotifOpen] = useState(false);
 
-  // Sheet service (subcategory context OR category context for featured provider open)
+  // Sheet service
   const [selectedService, setSelectedService] = useState<{
     id: string;
     titleKey: string;
@@ -253,14 +251,14 @@ export default function Hub() {
     string | null
   >(null);
 
-  // Filters (simple)
+  // Filters
   const [searchFilters, setSearchFilters] = useState<SearchFiltersState>({
     city: null,
     subCity: null,
     minRating: false,
   });
 
-  // Category drawer (full subcategories list)
+  // Category drawer
   const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
   const [drawerCategoryId, setDrawerCategoryId] = useState<string | null>(null);
 
@@ -269,7 +267,7 @@ export default function Hub() {
   >([]);
   const [featuredLoading, setFeaturedLoading] = useState(false);
 
-  // Ratings ONLY for featured cards (fast)
+  // Ratings ONLY for featured cards
   const { ratings: featuredRatings } = useServiceRatings(
     featuredProviders.map((fp) => fp.service_id)
   );
@@ -281,7 +279,7 @@ export default function Hub() {
       .join("")
       .slice(0, 2) || (isRTL ? "م" : "U");
 
-  // ✅ Convert city id -> name (fix UUID showing)
+  // ✅ Convert city id -> name
   const getCityLabel = (cityIdOrName: string | null) => {
     if (!cityIdOrName) return null;
 
@@ -305,7 +303,6 @@ export default function Hub() {
     return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true };
   };
 
-  // Helper: find a city's ID by common label
   const findCityIdByLabels = (labels: string[]) => {
     const norm = (s: string) => (s || "").toLowerCase().trim();
     const wanted = new Set(labels.map(norm));
@@ -374,9 +371,7 @@ export default function Hub() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cities, searchFilters.city]);
 
-  // Featured city matching:
-  // - supports chips using slugs (tripoli/benghazi/misrata)
-  // - supports provider city stored as UUID or name/ar name
+  // Featured city matching
   const matchesSelectedCity = (providerCity: string | null) => {
     if (!searchFilters.city) return true;
     if (!providerCity) return false;
@@ -384,15 +379,15 @@ export default function Hub() {
     const selectedRaw = String(searchFilters.city).toLowerCase().trim();
     const providerRaw = String(providerCity).toLowerCase().trim();
 
-    // Direct match (id==id or name==name)
     if (providerRaw === selectedRaw) return true;
 
-    // Match by label (UUID -> label)
     const providerLabel = getCityLabel(providerCity);
-    if (providerLabel && String(providerLabel).toLowerCase().trim() === selectedRaw)
+    if (
+      providerLabel &&
+      String(providerLabel).toLowerCase().trim() === selectedRaw
+    )
       return true;
 
-    // If selected is UUID, compare selected label to provider raw/label
     const selectedLabel = getCityLabel(searchFilters.city as any);
     if (selectedLabel) {
       const sl = String(selectedLabel).toLowerCase().trim();
@@ -401,7 +396,6 @@ export default function Hub() {
         return true;
     }
 
-    // Slug aliases (backward compatibility)
     const aliasMap: Record<string, { labels: string[] }> = {
       tripoli: { labels: ["tripoli", "طرابلس", "طرابلس المركز"] },
       benghazi: { labels: ["benghazi", "بنغازي"] },
@@ -413,22 +407,23 @@ export default function Hub() {
       const providerLabelNorm = providerLabel
         ? String(providerLabel).toLowerCase().trim()
         : "";
-
       const providerMatchesAlias =
         alias.labels.some((l) => providerRaw.includes(l.toLowerCase())) ||
         alias.labels.some((l) => providerLabelNorm.includes(l.toLowerCase()));
-
       if (providerMatchesAlias) return true;
 
       const aliasCityId = findCityIdByLabels(alias.labels);
-      if (aliasCityId && providerRaw === String(aliasCityId).toLowerCase()) return true;
+      if (aliasCityId && providerRaw === String(aliasCityId).toLowerCase())
+        return true;
     }
 
     return false;
   };
 
   const featuredProvidersFiltered = useMemo(() => {
-    return featuredProviders.filter((fp) => matchesSelectedCity(fp.provider_city));
+    return featuredProviders.filter((fp) =>
+      matchesSelectedCity(fp.provider_city)
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [featuredProviders, searchFilters.city, language, cities]);
 
@@ -513,7 +508,6 @@ export default function Hub() {
 
   const openServiceSheetFromSubcategory = (service: ServiceItem) => {
     setInitialProviderServiceId(null);
-
     const category = categories?.find((c: any) => c.id === service.category_id);
 
     setSelectedService({
@@ -531,18 +525,17 @@ export default function Hub() {
   };
 
   const openProviderDetailsFromFeatured = (fp: FeaturedProviderCard) => {
-  setInitialProviderServiceId(fp.service_id);
-  setSelectedService(null);
-  setSheetOpen(true);
-};
-    
+    setInitialProviderServiceId(fp.service_id);
+    setSelectedService(null);
+    setSheetOpen(true);
+  };
 
   const openCategoryDrawer = (categoryId: string) => {
     setDrawerCategoryId(categoryId);
     setCategoryDrawerOpen(true);
   };
 
-  // Featured Providers (from services table; uses is_featured)
+  // Featured Providers
   useEffect(() => {
     const fetchFeaturedProviders = async () => {
       setFeaturedLoading(true);
@@ -574,8 +567,8 @@ export default function Hub() {
         const userIds = [
           ...new Set(featured.map((s: any) => s.user_id).filter(Boolean)),
         ];
-        let profileMap = new Map<string, any>();
 
+        let profileMap = new Map<string, any>();
         if (userIds.length > 0) {
           const { data: profiles } = await supabase
             .from("profiles")
@@ -623,7 +616,7 @@ export default function Hub() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Popular services = admin-picked only (no fallback)
+  // Popular services (admin-picked only)
   const popularServices: ServiceItem[] = useMemo(() => {
     const flagged = serviceItems.filter((s) => s.is_popular);
     if (flagged.length === 0) return [];
@@ -632,7 +625,7 @@ export default function Hub() {
       .slice(0, 12);
   }, [serviceItems]);
 
-  // Suggested by Dora -> map each suggestion to an actual ServiceItem (subcategory) if possible
+  // Suggested by Dora -> map to actual subcategory
   const findBestMatchingSubcategory = (s: DoraSuggestion): ServiceItem | null => {
     const candidates = serviceItems;
 
@@ -641,17 +634,13 @@ export default function Hub() {
       return keys.some((k) => t.includes(k.toLowerCase()));
     };
 
-    for (const item of candidates) {
-      if (matchAny(item.name, s.match_en)) return item;
-    }
-    for (const item of candidates) {
+    for (const item of candidates) if (matchAny(item.name, s.match_en)) return item;
+    for (const item of candidates)
       if (item.name_ar && matchAny(item.name_ar, s.match_ar)) return item;
-    }
     for (const item of candidates) {
       if (item.name_ar && matchAny(item.name_ar, s.match_en)) return item;
       if (matchAny(item.name, s.match_ar)) return item;
     }
-
     return null;
   };
 
@@ -667,11 +656,25 @@ export default function Hub() {
     return getCityLabel(String(searchFilters.city)) || null;
   }, [searchFilters.city, cities, language]);
 
+  const isCityActive = (labels: string[]) => {
+    const current = searchFilters.city;
+    if (!current) return false;
+
+    const currentRaw = String(current).toLowerCase().trim();
+    const currentLabel = getCityLabel(String(current));
+    const currentLabelRaw = currentLabel
+      ? String(currentLabel).toLowerCase().trim()
+      : "";
+
+    const normLabels = labels.map((x) => x.toLowerCase().trim());
+    return (
+      normLabels.includes(currentRaw) ||
+      (currentLabelRaw ? normLabels.includes(currentLabelRaw) : false)
+    );
+  };
+
   return (
-    <div
-      className="min-h-screen bg-[#F7F7F8] pb-24"
-      dir={isRTL ? "rtl" : "ltr"}
-    >
+    <div className="min-h-screen bg-[#F7F7F8] pb-24" dir={isRTL ? "rtl" : "ltr"}>
       {/* Sticky Top Bar */}
       <header className="sticky top-0 z-40 bg-[#F7F7F8]/90 backdrop-blur supports-[backdrop-filter]:bg-[#F7F7F8]/75 border-b border-gray-100">
         <div className="px-4 pt-4 pb-3">
@@ -695,9 +698,7 @@ export default function Hub() {
 
             {/* Center title */}
             <div className="flex flex-col items-center leading-none">
-              <span className="text-[13px] font-semibold text-[#111]">
-                {t.appName}
-              </span>
+              <span className="text-[13px] font-semibold text-[#111]">{t.appName}</span>
               <span className="text-[11px] text-[#777]">
                 {isRTL ? "خدمات قريبة منك" : "Local services"}
               </span>
@@ -706,8 +707,6 @@ export default function Hub() {
             {/* Actions */}
             <div className="flex items-center gap-2">
               <LanguageToggle />
-
-              {/* Notifications (bell) */}
               <button
                 onClick={() => setNotifOpen(true)}
                 className="h-10 w-10 rounded-full bg-white border border-gray-200 flex items-center justify-center"
@@ -715,10 +714,10 @@ export default function Hub() {
               >
                 <Bell className="h-5 w-5 text-[#111]" />
               </button>
+            </div>
+          </div>
 
- 
-
-          {/* City selector (real IDs) */}
+          {/* City selector */}
           <div className="mt-4 flex items-center justify-between gap-3">
             <div className={cn("flex items-center gap-2", isRTL && "flex-row-reverse")}>
               <MapPin className="h-4 w-4 text-[#777]" />
@@ -759,7 +758,17 @@ export default function Hub() {
 
           {/* Search */}
           <div className="mt-4">
-   
+            <div className="relative">
+              <Search
+                className={cn(
+                  "absolute top-1/2 -translate-y-1/2 h-4 w-4 text-[#777]",
+                  isRTL ? "right-4" : "left-4"
+                )}
+              />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={
                   isRTL
                     ? "ابحث: كهربائي، سباك، تكييف…"
                     : "Search: electrician, plumber, AC…"
@@ -777,6 +786,7 @@ export default function Hub() {
                     "absolute top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-[#EFEFEF] flex items-center justify-center",
                     isRTL ? "left-3" : "right-3"
                   )}
+                  aria-label={isRTL ? "مسح" : "Clear"}
                 >
                   <X className="h-3.5 w-3.5 text-[#666]" />
                 </button>
@@ -789,18 +799,13 @@ export default function Hub() {
             <FilterSuggestionChip
               icon={<MapPin className="h-3.5 w-3.5" />}
               label={isRTL ? "طرابلس" : "Tripoli"}
-              isActive={
-                String(searchFilters.city || "").toLowerCase() === "tripoli" ||
-                getCityLabel(searchFilters.city as any) === (isRTL ? "طرابلس" : "Tripoli")
-              }
+              isActive={isCityActive(["tripoli", "طرابلس", "طرابلس المركز"])}
               onClick={() => {
                 const id = findCityIdByLabels(["Tripoli", "طرابلس"]);
-                const next = searchFilters.city ? null : id || "tripoli";
-                setSearchFilters((prev) => ({
-                  ...prev,
-                  city: next,
-                  subCity: null,
-                }));
+                const next = isCityActive(["tripoli", "طرابلس", "طرابلس المركز"])
+                  ? null
+                  : id || "tripoli";
+                setSearchFilters((prev) => ({ ...prev, city: next, subCity: null }));
                 try {
                   if (next && typeof next === "string" && next !== "tripoli")
                     localStorage.setItem(CITY_STORAGE_KEY, String(next));
@@ -811,18 +816,11 @@ export default function Hub() {
             <FilterSuggestionChip
               icon={<MapPin className="h-3.5 w-3.5" />}
               label={isRTL ? "بنغازي" : "Benghazi"}
-              isActive={
-                String(searchFilters.city || "").toLowerCase() === "benghazi" ||
-                getCityLabel(searchFilters.city as any) === (isRTL ? "بنغازي" : "Benghazi")
-              }
+              isActive={isCityActive(["benghazi", "بنغازي"])}
               onClick={() => {
                 const id = findCityIdByLabels(["Benghazi", "بنغازي"]);
-                const next = searchFilters.city ? null : id || "benghazi";
-                setSearchFilters((prev) => ({
-                  ...prev,
-                  city: next,
-                  subCity: null,
-                }));
+                const next = isCityActive(["benghazi", "بنغازي"]) ? null : id || "benghazi";
+                setSearchFilters((prev) => ({ ...prev, city: next, subCity: null }));
                 try {
                   if (next && typeof next === "string" && next !== "benghazi")
                     localStorage.setItem(CITY_STORAGE_KEY, String(next));
@@ -833,18 +831,11 @@ export default function Hub() {
             <FilterSuggestionChip
               icon={<MapPin className="h-3.5 w-3.5" />}
               label={isRTL ? "مصراتة" : "Misrata"}
-              isActive={
-                String(searchFilters.city || "").toLowerCase() === "misrata" ||
-                getCityLabel(searchFilters.city as any) === (isRTL ? "مصراتة" : "Misrata")
-              }
+              isActive={isCityActive(["misrata", "مصراتة"])}
               onClick={() => {
                 const id = findCityIdByLabels(["Misrata", "مصراتة"]);
-                const next = searchFilters.city ? null : id || "misrata";
-                setSearchFilters((prev) => ({
-                  ...prev,
-                  city: next,
-                  subCity: null,
-                }));
+                const next = isCityActive(["misrata", "مصراتة"]) ? null : id || "misrata";
+                setSearchFilters((prev) => ({ ...prev, city: next, subCity: null }));
                 try {
                   if (next && typeof next === "string" && next !== "misrata")
                     localStorage.setItem(CITY_STORAGE_KEY, String(next));
@@ -853,26 +844,18 @@ export default function Hub() {
               }}
             />
             <FilterSuggestionChip
-              icon={
-                <Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />
-              }
+              icon={<Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />}
               label={isRTL ? "4+ نجوم" : "4+ Stars"}
               isActive={Boolean(searchFilters.minRating)}
               onClick={() =>
-                setSearchFilters((prev) => ({
-                  ...prev,
-                  minRating: !prev.minRating,
-                }))
+                setSearchFilters((prev) => ({ ...prev, minRating: !prev.minRating }))
               }
             />
           </div>
 
           {(searchFilters.city || searchFilters.subCity || searchFilters.minRating) && (
             <div className="mt-2">
-              <ActiveFilterChips
-                filters={searchFilters}
-                onRemoveFilter={handleRemoveFilter}
-              />
+              <ActiveFilterChips filters={searchFilters} onRemoveFilter={handleRemoveFilter} />
             </div>
           )}
         </div>
@@ -888,10 +871,7 @@ export default function Hub() {
           {categoriesLoading ? (
             <div className="grid grid-cols-4 gap-3">
               {[...Array(8)].map((_, i) => (
-                <div
-                  key={i}
-                  className="h-[102px] rounded-2xl bg-gray-200 animate-pulse"
-                />
+                <div key={i} className="h-[102px] rounded-2xl bg-gray-200 animate-pulse" />
               ))}
             </div>
           ) : (
@@ -907,13 +887,7 @@ export default function Hub() {
                     onClick={() => openCategoryDrawer(cat.id)}
                     className="relative overflow-hidden h-[102px] rounded-2xl border bg-white border-gray-200 flex flex-col items-center justify-center gap-2 transition-all active:scale-[0.98]"
                   >
-                    {/* Soft tint */}
-                    <div
-                      className={cn(
-                        "absolute inset-0 opacity-10",
-                        cat.color || "bg-[#F2F2F2]"
-                      )}
-                    />
+                    <div className={cn("absolute inset-0 opacity-10", cat.color || "bg-[#F2F2F2]")} />
                     <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/70" />
 
                     <div
@@ -922,10 +896,7 @@ export default function Hub() {
                         cat.color || "bg-[#F2F2F2]"
                       )}
                     >
-                      <IconComponent
-                        className="h-6 w-6 text-[#111]"
-                        strokeWidth={1.7}
-                      />
+                      <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
                     </div>
                     <span className="relative text-[11px] font-semibold text-[#111] text-center px-1 leading-tight line-clamp-1">
                       {displayName}
@@ -958,9 +929,7 @@ export default function Hub() {
                 searchedServices.map((service, index) => {
                   const IconComponent = service.icon;
                   const displayName =
-                    language === "ar" && service.name_ar
-                      ? service.name_ar
-                      : service.name;
+                    language === "ar" && service.name_ar ? service.name_ar : service.name;
 
                   return (
                     <button
@@ -969,8 +938,7 @@ export default function Hub() {
                       className={cn(
                         "relative overflow-hidden w-full flex items-center gap-4 p-5 text-left transition-colors hover:bg-gray-50 active:bg-gray-100",
                         isRTL && "text-right flex-row-reverse",
-                        index < searchedServices.length - 1 &&
-                          "border-b border-gray-100"
+                        index < searchedServices.length - 1 && "border-b border-gray-100"
                       )}
                     >
                       <div className={cn("absolute inset-0 opacity-10", service.color)} />
@@ -982,10 +950,7 @@ export default function Hub() {
                           service.color
                         )}
                       >
-                        <IconComponent
-                          className="h-6 w-6 text-[#111]"
-                          strokeWidth={1.7}
-                        />
+                        <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
                       </div>
                       <div className="relative flex-1 min-w-0">
                         <h3 className="text-[16px] font-semibold text-[#111] line-clamp-1">
@@ -1061,7 +1026,6 @@ export default function Hub() {
                             <h3 className="text-[16px] font-semibold text-[#111] truncate">
                               {fp.provider_name}
                             </h3>
-
                             <p className="text-xs text-[#777] mt-1 truncate">
                               {fp.service_title}
                             </p>
@@ -1077,9 +1041,7 @@ export default function Hub() {
                               />
                               <span
                                 className={cn(
-                                  r.hasRating
-                                    ? "text-[#111] font-semibold"
-                                    : "text-[#777]"
+                                  r.hasRating ? "text-[#111] font-semibold" : "text-[#777]"
                                 )}
                               >
                                 {r.text}
@@ -1088,11 +1050,13 @@ export default function Hub() {
                           </div>
 
                           <ChevronRight
-                            className={cn("h-5 w-5 text-[#C9C9C9]", isRTL && "rotate-180")}
+                            className={cn(
+                              "h-5 w-5 text-[#C9C9C9]",
+                              isRTL && "rotate-180"
+                            )}
                           />
                         </div>
 
-                        {/* City label fixed */}
                         <div className="mt-3 text-xs text-[#777]">
                           {fp.provider_city ? (isRTL ? "المدينة: " : "City: ") : ""}
                           <span className="text-[#111] font-semibold">
@@ -1153,7 +1117,10 @@ export default function Hub() {
                           </div>
 
                           <ChevronRight
-                            className={cn("h-5 w-5 text-[#C9C9C9] flex-shrink-0", isRTL && "rotate-180")}
+                            className={cn(
+                              "h-5 w-5 text-[#C9C9C9] flex-shrink-0",
+                              isRTL && "rotate-180"
+                            )}
                           />
                         </div>
                       </button>
@@ -1171,9 +1138,7 @@ export default function Hub() {
                   {popularServices.map((service) => {
                     const IconComponent = service.icon;
                     const displayName =
-                      language === "ar" && service.name_ar
-                        ? service.name_ar
-                        : service.name;
+                      language === "ar" && service.name_ar ? service.name_ar : service.name;
 
                     return (
                       <button
@@ -1259,7 +1224,7 @@ export default function Hub() {
 
       <MobileNav />
 
-      {/* Notifications Drawer (FIXED SHAPE) */}
+      {/* Notifications Drawer */}
       <Drawer open={notifOpen} onOpenChange={setNotifOpen}>
         <DrawerContent className="mx-auto w-[92vw] max-w-md max-h-[80vh] overflow-hidden rounded-t-3xl rounded-b-none p-0">
           <DrawerHeader className="relative pb-2 px-4 pt-4">
@@ -1328,9 +1293,7 @@ export default function Hub() {
                   {drawerSubcategories.map((service) => {
                     const IconComponent = service.icon;
                     const displayName =
-                      language === "ar" && service.name_ar
-                        ? service.name_ar
-                        : service.name;
+                      language === "ar" && service.name_ar ? service.name_ar : service.name;
 
                     return (
                       <button
