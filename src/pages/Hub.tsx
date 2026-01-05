@@ -54,6 +54,12 @@ import {
 } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
@@ -188,7 +194,8 @@ function FilterSuggestionChip({
     <button
       onClick={onClick}
       className={cn(
-        "flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold transition-all border",
+        // ✅ slightly larger text + padding for readability
+        "flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-full text-[13px] font-semibold transition-all border",
         isActive
           ? "bg-[#111] text-white border-[#111]"
           : "bg-white text-[#111] border-gray-200 hover:bg-gray-50"
@@ -209,7 +216,8 @@ function SectionHeader({
 }) {
   return (
     <div className="flex items-center justify-between gap-3 mb-3">
-      <h2 className="text-lg font-semibold text-[#111]">{title}</h2>
+      {/* ✅ slightly larger section title */}
+      <h2 className="text-[18px] font-semibold text-[#111]">{title}</h2>
       {action}
     </div>
   );
@@ -235,7 +243,7 @@ export default function Hub() {
 
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  // ✅ Notifications drawer open state only (data comes from hooks now)
+  // ✅ Notifications popover open state
   const [notifOpen, setNotifOpen] = useState(false);
 
   // ✅ Hook-based notifications (same as other pages)
@@ -243,7 +251,6 @@ export default function Hub() {
   const unreadHook = useUnreadCount();
   const notifMutations = useNotificationMutations();
 
-  // ✅ Correct: read ONLY notifQuery.data (array) + map message.title/content
   const notifLoading = Boolean(notifQuery.isLoading || notifQuery.isFetching);
 
   const notifications: AppNotification[] = useMemo(() => {
@@ -459,7 +466,6 @@ export default function Hub() {
   };
 
   const openServiceSheetFromSubcategory = (service: ServiceItem) => {
-    // NOTE: used for normal flows. For featured flow, we don't use this to avoid resetting provider id.
     setInitialProviderServiceId(null);
 
     const category = categories?.find((c: any) => c.id === service.category_id);
@@ -498,7 +504,6 @@ export default function Hub() {
       const hay = `${fp.category || ""} ${fp.service_title || ""}`;
       const H = norm(hay);
 
-      // 1) direct contains match
       let found =
         serviceItems.find((s) => {
           const en = norm(s.name);
@@ -508,7 +513,6 @@ export default function Hub() {
 
       if (found) return found.id;
 
-      // 2) reverse contains (subcategory contains the service title/category)
       found =
         serviceItems.find((s) => {
           const en = norm(s.name);
@@ -529,13 +533,11 @@ export default function Hub() {
     (fp: FeaturedProviderCard) => {
       const subId = resolveFeaturedSubcategoryId(fp);
 
-      // pick icon/color from known subcategory if possible
       const sc = subId ? serviceItems.find((s) => s.id === subId) : null;
       const category = sc
         ? categories?.find((c: any) => c.id === sc.category_id)
         : null;
 
-      // set both states deterministically (no reset in between)
       setInitialProviderServiceId(fp.service_id);
 
       setSelectedService({
@@ -554,7 +556,7 @@ export default function Hub() {
     [resolveFeaturedSubcategoryId, serviceItems, categories]
   );
 
-  // Featured Providers (fetch stays the same; subcategory_id will be used if available)
+  // Featured Providers fetch
   useEffect(() => {
     const fetchFeaturedProviders = async () => {
       setFeaturedLoading(true);
@@ -702,7 +704,7 @@ export default function Hub() {
       <header className="sticky top-0 z-40 bg-[#F7F7F8]/90 backdrop-blur supports-[backdrop-filter]:bg-[#F7F7F8]/75 border-b border-gray-100">
         <div className="px-4 pt-4 pb-3">
           <div className="flex items-center justify-between">
-            {/* ✅ Removed avatar/profile button (left spacer keeps layout balanced) */}
+            {/* left spacer */}
             <div className="h-10 w-10" />
 
             {/* Center title */}
@@ -712,10 +714,10 @@ export default function Hub() {
               className="flex flex-col items-center leading-none"
               aria-label={t.appName}
             >
-              <span className="text-[13px] font-semibold text-[#111]">
+              <span className="text-[14px] font-semibold text-[#111]">
                 {t.appName}
               </span>
-              <span className="text-[11px] text-[#777]">
+              <span className="text-[12px] text-[#777] mt-0.5">
                 {isRTL ? "خدمات قريبة منك" : "Local services"}
               </span>
             </button>
@@ -724,32 +726,139 @@ export default function Hub() {
             <div className="flex items-center gap-2">
               <LanguageToggle />
 
-              {/* ✅ Bell notifications (hook-based) */}
-              <button
-                onClick={() => setNotifOpen(true)}
-                className="relative h-10 w-10 rounded-full bg-white border border-gray-200 flex items-center justify-center"
-                aria-label={isRTL ? "الإشعارات" : "Notifications"}
-              >
-                <Bell className="h-5 w-5 text-[#111]" />
-                {unreadCount > 0 && (
-                  <span
-                    className={cn(
-                      "absolute -top-1 -right-1 h-5 min-w-[20px] px-1 rounded-full bg-red-600 text-white text-[11px] font-bold flex items-center justify-center"
-                    )}
+              {/* ✅ Notifications fall from bell */}
+              <Popover open={notifOpen} onOpenChange={setNotifOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="relative h-10 w-10 rounded-full bg-white border border-gray-200 flex items-center justify-center"
+                    aria-label={isRTL ? "الإشعارات" : "Notifications"}
                   >
-                    {unreadCount > 99 ? "99+" : unreadCount}
-                  </span>
-                )}
-              </button>
+                    <Bell className="h-5 w-5 text-[#111]" />
+                    {unreadCount > 0 && (
+                      <span
+                        className={cn(
+                          "absolute -top-1 -right-1 h-5 min-w-[20px] px-1 rounded-full bg-red-600 text-white text-[11px] font-bold flex items-center justify-center"
+                        )}
+                      >
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
+                  </button>
+                </PopoverTrigger>
+
+                <PopoverContent
+                  align={isRTL ? "start" : "end"}
+                  side="bottom"
+                  sideOffset={10}
+                  className="w-[92vw] max-w-sm p-0 overflow-hidden rounded-2xl border border-gray-200 bg-white"
+                >
+                  <div className="px-4 pt-4 pb-3 border-b border-gray-100">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className={cn("min-w-0", isRTL && "text-right")}>
+                        <p className="text-[14px] font-bold text-[#111]">
+                          {isRTL ? "الإشعارات" : "Notifications"}
+                        </p>
+                        <p className="text-[12px] text-[#777] mt-1">
+                          {user
+                            ? isRTL
+                              ? "آخر التحديثات"
+                              : "Latest updates"
+                            : isRTL
+                            ? "سجّل الدخول لعرض الإشعارات"
+                            : "Sign in to see notifications"}
+                        </p>
+                      </div>
+
+                      {user && unreadCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => markAllAsRead()}
+                          className="text-[12px] font-semibold text-[#111] underline underline-offset-4"
+                        >
+                          {isRTL ? "تمييز الكل كمقروء" : "Mark all as read"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="max-h-[55vh]">
+                    <ScrollArea className="h-[55vh] px-4 py-4">
+                      {!user ? (
+                        <div className="rounded-2xl bg-white border border-gray-200 p-4 text-[13px] text-[#777]">
+                          {isRTL
+                            ? "سجّل الدخول لعرض إشعاراتك."
+                            : "Please sign in to view your notifications."}
+                        </div>
+                      ) : notifLoading ? (
+                        <div className="space-y-2">
+                          {[...Array(4)].map((_, i) => (
+                            <div
+                              key={i}
+                              className="h-16 rounded-2xl bg-gray-200 animate-pulse"
+                            />
+                          ))}
+                        </div>
+                      ) : notifications.length === 0 ? (
+                        <div className="rounded-2xl bg-white border border-gray-200 p-4 text-[13px] text-[#777]">
+                          {isRTL
+                            ? "لا توجد إشعارات حالياً."
+                            : "No notifications yet."}
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {notifications.map((n) => (
+                            <button
+                              key={n.id}
+                              type="button"
+                              onClick={() => {
+                                if (!n.is_read) markAsRead(n.id);
+                              }}
+                              className={cn(
+                                "w-full text-left rounded-2xl bg-white border border-gray-200 p-4 transition-all active:scale-[0.99]",
+                                !n.is_read && "border-[#111]",
+                                isRTL && "text-right"
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-[14px] font-semibold text-[#111] truncate">
+                                    {n.title ||
+                                      (isRTL ? "إشعار" : "Notification")}
+                                  </p>
+                                  <p className="text-[12px] text-[#777] mt-1 whitespace-pre-wrap">
+                                    {n.body ||
+                                      (isRTL
+                                        ? "تفاصيل الإشعار"
+                                        : "Notification details")}
+                                  </p>
+                                  {n.created_at && (
+                                    <p className="text-[11px] text-[#999] mt-2">
+                                      {new Date(
+                                        n.created_at
+                                      ).toLocaleString()}
+                                    </p>
+                                  )}
+                                </div>
+                                {!n.is_read && (
+                                  <span className="h-2.5 w-2.5 rounded-full bg-red-600 mt-1 flex-shrink-0" />
+                                )}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </ScrollArea>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
-
-          {/* Search bar removed */}
 
           {/* City chips + rating */}
           <div className="mt-4 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
             <FilterSuggestionChip
-              icon={<MapPin className="h-3.5 w-3.5" />}
+              icon={<MapPin className="h-4 w-4" />}
               label={isRTL ? "طرابلس" : "Tripoli"}
               isActive={searchFilters.city === "tripoli"}
               onClick={() =>
@@ -761,7 +870,7 @@ export default function Hub() {
               }
             />
             <FilterSuggestionChip
-              icon={<MapPin className="h-3.5 w-3.5" />}
+              icon={<MapPin className="h-4 w-4" />}
               label={isRTL ? "بنغازي" : "Benghazi"}
               isActive={searchFilters.city === "benghazi"}
               onClick={() =>
@@ -773,7 +882,7 @@ export default function Hub() {
               }
             />
             <FilterSuggestionChip
-              icon={<MapPin className="h-3.5 w-3.5" />}
+              icon={<MapPin className="h-4 w-4" />}
               label={isRTL ? "مصراتة" : "Misrata"}
               isActive={searchFilters.city === "misrata"}
               onClick={() =>
@@ -785,9 +894,7 @@ export default function Hub() {
               }
             />
             <FilterSuggestionChip
-              icon={
-                <Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />
-              }
+              icon={<Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />}
               label={isRTL ? "4+ نجوم" : "4+ Stars"}
               isActive={Boolean(searchFilters.minRating)}
               onClick={() =>
@@ -824,7 +931,7 @@ export default function Hub() {
               {[...Array(8)].map((_, i) => (
                 <div
                   key={i}
-                  className="h-[102px] rounded-2xl bg-gray-200 animate-pulse"
+                  className="h-[108px] rounded-2xl bg-gray-200 animate-pulse"
                 />
               ))}
             </div>
@@ -839,7 +946,7 @@ export default function Hub() {
                   <button
                     key={cat.id}
                     onClick={() => openCategoryDrawer(cat.id)}
-                    className="relative overflow-hidden h-[102px] rounded-2xl border bg-white border-gray-200 flex flex-col items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                    className="relative overflow-hidden h-[108px] rounded-2xl border bg-white border-gray-200 flex flex-col items-center justify-center gap-2 transition-all active:scale-[0.98]"
                   >
                     <div
                       className={cn(
@@ -849,18 +956,21 @@ export default function Hub() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/70" />
 
+                    {/* ✅ bigger icon container */}
                     <div
                       className={cn(
-                        "relative h-12 w-12 rounded-2xl flex items-center justify-center",
+                        "relative h-14 w-14 rounded-2xl flex items-center justify-center",
                         cat.color || "bg-[#F2F2F2]"
                       )}
                     >
                       <IconComponent
-                        className="h-6 w-6 text-[#111]"
+                        className="h-7 w-7 text-[#111]"
                         strokeWidth={1.7}
                       />
                     </div>
-                    <span className="relative text-[11px] font-semibold text-[#111] text-center px-1 leading-tight line-clamp-1">
+
+                    {/* ✅ more readable label */}
+                    <span className="relative text-[12px] font-semibold text-[#111] text-center px-1 leading-tight line-clamp-1">
                       {displayName}
                     </span>
                   </button>
@@ -880,7 +990,7 @@ export default function Hub() {
               {[...Array(3)].map((_, i) => (
                 <div
                   key={i}
-                  className="flex-shrink-0 w-[310px] h-[120px] rounded-2xl bg-gray-200 animate-pulse"
+                  className="flex-shrink-0 w-[330px] h-[128px] rounded-2xl bg-gray-200 animate-pulse"
                 />
               ))}
             </div>
@@ -894,12 +1004,13 @@ export default function Hub() {
                     key={`${fp.service_id}-${fp.provider_phone || fp.provider_name}`}
                     onClick={() => openProviderDetailsFromFeatured(fp)}
                     className={cn(
-                      "snap-start flex-shrink-0 w-[310px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
+                      "snap-start flex-shrink-0 w-[330px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
                       isRTL && "text-right"
                     )}
                   >
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-12 w-12">
+                      {/* ✅ slightly bigger avatar */}
+                      <Avatar className="h-14 w-14">
                         <AvatarImage src={fp.provider_avatar || undefined} />
                         <AvatarFallback className="bg-[#111] text-white font-semibold">
                           {(fp.provider_name || (isRTL ? "م" : "P"))
@@ -914,14 +1025,14 @@ export default function Hub() {
                         <h3 className="text-[16px] font-semibold text-[#111] truncate">
                           {fp.provider_name}
                         </h3>
-                        <p className="text-xs text-[#777] mt-1 truncate">
+                        <p className="text-[13px] text-[#777] mt-1 truncate">
                           {fp.service_title}
                         </p>
 
-                        <div className="mt-1 flex items-center gap-1 text-xs">
+                        <div className="mt-1.5 flex items-center gap-1 text-[12px]">
                           <Star
                             className={cn(
-                              "h-3.5 w-3.5",
+                              "h-4 w-4",
                               r.hasRating
                                 ? "text-yellow-500 fill-yellow-500"
                                 : "text-[#999]"
@@ -941,13 +1052,13 @@ export default function Hub() {
 
                       <ChevronRight
                         className={cn(
-                          "h-5 w-5 text-[#C9C9C9]",
+                          "h-6 w-6 text-[#C9C9C9]",
                           isRTL && "rotate-180"
                         )}
                       />
                     </div>
 
-                    <div className="mt-3 text-xs text-[#777]">
+                    <div className="mt-3 text-[12px] text-[#777]">
                       {fp.provider_city ? (isRTL ? "المدينة: " : "City: ") : ""}
                       <span className="text-[#111] font-semibold">
                         {getCityLabel(fp.provider_city) ||
@@ -959,9 +1070,8 @@ export default function Hub() {
               })}
             </div>
           ) : (
-            <div className="rounded-2xl bg-white border border-gray-200 p-5 text-sm text-[#777]">
-              {featuredProviders.length > 0 &&
-              featuredProvidersFiltered.length === 0
+            <div className="rounded-2xl bg-white border border-gray-200 p-5 text-[13px] text-[#777]">
+              {featuredProviders.length > 0 && featuredProvidersFiltered.length === 0
                 ? isRTL
                   ? "لا يوجد مزودين مختارين لهذه المدينة."
                   : "No featured providers for this city."
@@ -984,9 +1094,7 @@ export default function Hub() {
                 return (
                   <button
                     key={suggestion.id}
-                    onClick={() =>
-                      openServiceSheetFromSubcategory(targetService)
-                    }
+                    onClick={() => openServiceSheetFromSubcategory(targetService)}
                     className={cn(
                       "relative overflow-hidden w-full rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.99]",
                       isRTL && "text-right"
@@ -1001,25 +1109,22 @@ export default function Hub() {
                     <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
 
                     <div className="relative flex items-center gap-3">
-                      <div className="h-12 w-12 rounded-2xl bg-white/70 border border-gray-200 flex items-center justify-center flex-shrink-0">
-                        <Icon
-                          className="h-6 w-6 text-[#111]"
-                          strokeWidth={1.7}
-                        />
+                      <div className="h-14 w-14 rounded-2xl bg-white/70 border border-gray-200 flex items-center justify-center flex-shrink-0">
+                        <Icon className="h-7 w-7 text-[#111]" strokeWidth={1.7} />
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-[15px] font-semibold text-[#111]">
+                        <h3 className="text-[16px] font-semibold text-[#111]">
                           {isRTL ? suggestion.title_ar : suggestion.title_en}
                         </h3>
-                        <p className="text-xs text-[#777] mt-1 line-clamp-2">
+                        <p className="text-[13px] text-[#777] mt-1 line-clamp-2">
                           {isRTL ? suggestion.hint_ar : suggestion.hint_en}
                         </p>
                       </div>
 
                       <ChevronRight
                         className={cn(
-                          "h-5 w-5 text-[#C9C9C9]",
+                          "h-6 w-6 text-[#C9C9C9]",
                           isRTL && "rotate-180"
                         )}
                       />
@@ -1034,51 +1139,41 @@ export default function Hub() {
         {/* Popular Services */}
         {popularServices.length > 0 && (
           <section className="mt-8">
-            <SectionHeader
-              title={isRTL ? "الخدمات الأكثر طلباً" : "Popular services"}
-            />
+            <SectionHeader title={isRTL ? "الخدمات الأكثر طلباً" : "Popular services"} />
             <div className="grid grid-cols-2 gap-3">
               {popularServices.map((service) => {
                 const IconComponent = service.icon;
                 const displayName =
-                  language === "ar" && service.name_ar
-                    ? service.name_ar
-                    : service.name;
+                  language === "ar" && service.name_ar ? service.name_ar : service.name;
 
                 return (
                   <button
                     key={service.id}
                     onClick={() => openServiceSheetFromSubcategory(service)}
                     className={cn(
-                      "relative overflow-hidden h-[96px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
+                      "relative overflow-hidden h-[102px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
                       isRTL && "text-right"
                     )}
                   >
-                    <div
-                      className={cn(
-                        "absolute inset-0 opacity-10",
-                        service.color
-                      )}
-                    />
+                    <div className={cn("absolute inset-0 opacity-10", service.color)} />
                     <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
 
                     <div className="relative flex items-center gap-3">
+                      {/* ✅ bigger icon */}
                       <div
                         className={cn(
-                          "h-12 w-12 rounded-2xl flex items-center justify-center",
+                          "h-14 w-14 rounded-2xl flex items-center justify-center",
                           service.color
                         )}
                       >
-                        <IconComponent
-                          className="h-6 w-6 text-[#111]"
-                          strokeWidth={1.7}
-                        />
+                        <IconComponent className="h-7 w-7 text-[#111]" strokeWidth={1.7} />
                       </div>
+
                       <div className="flex-1 min-w-0">
                         <h3 className="text-[15px] font-semibold text-[#111] line-clamp-1">
                           {displayName}
                         </h3>
-                        <p className="text-xs text-[#777] mt-1">
+                        <p className="text-[12px] text-[#777] mt-1">
                           {isRTL ? "عرض مقدمي الخدمة" : "View providers"}
                         </p>
                       </div>
@@ -1092,7 +1187,7 @@ export default function Hub() {
 
         {/* Bottom line / links */}
         <section className="mt-10">
-          <div className="border-t border-gray-200 pt-4 pb-2 text-xs text-[#777] flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+          <div className="border-t border-gray-200 pt-4 pb-2 text-[12px] text-[#777] flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
             <button
               onClick={() => window.alert(isRTL ? "قريباً" : "Coming soon")}
               className="hover:text-[#111] transition-colors"
@@ -1107,9 +1202,7 @@ export default function Hub() {
             </button>
             <button
               onClick={() =>
-                window.alert(
-                  isRTL ? "سيتم إضافة الشروط قريباً" : "Terms will be added soon"
-                )
+                window.alert(isRTL ? "سيتم إضافة الشروط قريباً" : "Terms will be added soon")
               }
               className="hover:text-[#111] transition-colors"
             >
@@ -1117,11 +1210,7 @@ export default function Hub() {
             </button>
             <button
               onClick={() =>
-                window.alert(
-                  isRTL
-                    ? "سيتم إضافة الخصوصية قريباً"
-                    : "Privacy will be added soon"
-                )
+                window.alert(isRTL ? "سيتم إضافة الخصوصية قريباً" : "Privacy will be added soon")
               }
               className="hover:text-[#111] transition-colors"
             >
@@ -1135,109 +1224,6 @@ export default function Hub() {
       </main>
 
       <MobileNav />
-
-      {/* ✅ Notifications Drawer (hook-based) */}
-      <Drawer open={notifOpen} onOpenChange={setNotifOpen}>
-        <DrawerContent className="mx-auto w-[92vw] max-w-md max-h-[80vh] overflow-hidden rounded-t-3xl rounded-b-none p-0">
-          <DrawerHeader className="relative pb-2 px-4 pt-4">
-            <DrawerClose
-              className={cn(
-                "absolute top-4 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
-                isRTL ? "left-4" : "right-4"
-              )}
-            >
-              <X className="h-4 w-4 text-muted-foreground" />
-            </DrawerClose>
-
-            <div className="flex flex-col items-center">
-              <DrawerTitle className="text-lg font-bold text-foreground">
-                {isRTL ? "الإشعارات" : "Notifications"}
-              </DrawerTitle>
-              <p className="text-sm text-muted-foreground mt-1">
-                {user
-                  ? isRTL
-                    ? "آخر التحديثات"
-                    : "Latest updates"
-                  : isRTL
-                  ? "سجّل الدخول لعرض الإشعارات"
-                  : "Sign in to see notifications"}
-              </p>
-
-              {user && unreadCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => markAllAsRead()}
-                  className="mt-3 text-xs font-semibold text-[#111] underline underline-offset-4"
-                >
-                  {isRTL ? "تمييز الكل كمقروء" : "Mark all as read"}
-                </button>
-              )}
-            </div>
-          </DrawerHeader>
-
-          <ScrollArea className="px-4 pb-6">
-            {!user ? (
-              <div className="rounded-2xl bg-white border border-gray-200 p-4 text-sm text-[#777]">
-                {isRTL
-                  ? "سجّل الدخول لعرض إشعاراتك."
-                  : "Please sign in to view your notifications."}
-              </div>
-            ) : notifLoading ? (
-              <div className="space-y-2">
-                {[...Array(4)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-16 rounded-2xl bg-gray-200 animate-pulse"
-                  />
-                ))}
-              </div>
-            ) : notifications.length === 0 ? (
-              <div className="rounded-2xl bg-white border border-gray-200 p-4 text-sm text-[#777]">
-                {isRTL ? "لا توجد إشعارات حالياً." : "No notifications yet."}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {notifications.map((n) => (
-                  <button
-                    key={n.id}
-                    type="button"
-                    onClick={() => {
-                      if (!n.is_read) markAsRead(n.id);
-                    }}
-                    className={cn(
-                      "w-full text-left rounded-2xl bg-white border border-gray-200 p-4 transition-all active:scale-[0.99]",
-                      !n.is_read && "border-[#111]",
-                      isRTL && "text-right"
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-[#111] truncate">
-                          {n.title || (isRTL ? "إشعار" : "Notification")}
-                        </p>
-                        <p className="text-xs text-[#777] mt-1 whitespace-pre-wrap">
-                          {n.body ||
-                            (isRTL
-                              ? "تفاصيل الإشعار"
-                              : "Notification details")}
-                        </p>
-                        {n.created_at && (
-                          <p className="text-[11px] text-[#999] mt-2">
-                            {new Date(n.created_at).toLocaleString()}
-                          </p>
-                        )}
-                      </div>
-                      {!n.is_read && (
-                        <span className="h-2.5 w-2.5 rounded-full bg-red-600 mt-1 flex-shrink-0" />
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </ScrollArea>
-        </DrawerContent>
-      </Drawer>
 
       {/* Category Drawer */}
       <Drawer open={categoryDrawerOpen} onOpenChange={setCategoryDrawerOpen}>
@@ -1275,9 +1261,7 @@ export default function Hub() {
                   {drawerSubcategories.map((service) => {
                     const IconComponent = service.icon;
                     const displayName =
-                      language === "ar" && service.name_ar
-                        ? service.name_ar
-                        : service.name;
+                      language === "ar" && service.name_ar ? service.name_ar : service.name;
 
                     return (
                       <button
@@ -1291,38 +1275,31 @@ export default function Hub() {
                           isRTL && "flex-row-reverse text-right"
                         )}
                       >
-                        <div
-                          className={cn(
-                            "absolute inset-0 opacity-10",
-                            service.color
-                          )}
-                        />
+                        <div className={cn("absolute inset-0 opacity-10", service.color)} />
                         <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
 
+                        {/* ✅ bigger icon */}
                         <div
                           className={cn(
-                            "relative h-12 w-12 rounded-2xl flex items-center justify-center flex-shrink-0",
+                            "relative h-14 w-14 rounded-2xl flex items-center justify-center flex-shrink-0",
                             service.color
                           )}
                         >
-                          <IconComponent
-                            className="h-6 w-6 text-[#111]"
-                            strokeWidth={1.7}
-                          />
+                          <IconComponent className="h-7 w-7 text-[#111]" strokeWidth={1.7} />
                         </div>
 
                         <div className="relative flex-1 min-w-0">
-                          <h3 className="text-[15px] font-semibold text-[#111] line-clamp-1">
+                          <h3 className="text-[16px] font-semibold text-[#111] line-clamp-1">
                             {displayName}
                           </h3>
-                          <p className="text-xs text-[#777] mt-1">
+                          <p className="text-[13px] text-[#777] mt-1">
                             {isRTL ? "عرض مقدمي الخدمة" : "View providers"}
                           </p>
                         </div>
 
                         <ChevronRight
                           className={cn(
-                            "relative h-5 w-5 text-[#C9C9C9] flex-shrink-0",
+                            "relative h-6 w-6 text-[#C9C9C9] flex-shrink-0",
                             isRTL && "rotate-180"
                           )}
                         />
@@ -1332,9 +1309,7 @@ export default function Hub() {
                 </div>
               ) : (
                 <div className="text-center py-10 text-sm text-muted-foreground">
-                  {isRTL
-                    ? "لا توجد خدمات في هذه الفئة"
-                    : "No services in this category"}
+                  {isRTL ? "لا توجد خدمات في هذه الفئة" : "No services in this category"}
                 </div>
               )}
             </div>
