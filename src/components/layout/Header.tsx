@@ -1,13 +1,12 @@
-import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
 import { Bell, CheckCheck } from "lucide-react";
 import {
   useNotifications,
@@ -19,7 +18,7 @@ import { LanguageToggle } from "@/components/LanguageToggle";
 
 export function Header() {
   const { user } = useAuth();
-  const { t, isRTL } = useLanguage();
+  const { isRTL } = useLanguage();
 
   const { data: notifications } = useNotifications();
   const { data: unreadCount } = useUnreadCount();
@@ -27,36 +26,8 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-40 bg-[#F9F9F9] border-b border-gray-100">
-      <div className="container flex h-14 items-center justify-between">
-        {/* Logo */}
-        <Link to="/" className="flex items-center gap-2">
-          <img
-            src={doraLogo}
-            alt="Dora Logo"
-            className="h-9 w-9 rounded-full object-cover"
-          />
-          <span className="font-bold text-lg text-[#333] hidden sm:block">
-            {t.appName}
-          </span>
-        </Link>
-
-        {/* Desktop Nav */}
-        <nav className="hidden md:flex items-center gap-6">
-          <Link
-            to="/"
-            className="text-sm font-medium text-[#777] hover:text-[#333] transition-colors"
-          >
-            {t.nav.home}
-          </Link>
-          <Link
-            to="/activity"
-            className="text-sm font-medium text-[#777] hover:text-[#333] transition-colors"
-          >
-            {t.nav.activity}
-          </Link>
-        </nav>
-
-        {/* Actions: ONLY Language + Bell */}
+      <div className="container flex h-14 items-center justify-end">
+        {/* Actions: ONLY Language + Notifications */}
         <div className="flex items-center gap-2">
           <LanguageToggle />
 
@@ -65,7 +36,6 @@ export function Header() {
               <button className="relative h-9 w-9 rounded-full bg-white shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors">
                 <Bell className="h-4 w-4 text-[#333]" />
 
-                {/* Badge only when logged in */}
                 {user && unreadCount && unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
                     {unreadCount > 9 ? "9+" : unreadCount}
@@ -74,7 +44,6 @@ export function Header() {
               </button>
             </PopoverTrigger>
 
-            {/* Show list only when logged in */}
             {user && (
               <PopoverContent
                 align={isRTL ? "start" : "end"}
