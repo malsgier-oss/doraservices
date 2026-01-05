@@ -1104,4 +1104,216 @@ export default function Hub() {
             <SectionHeader
               title={isRTL ? "الخدمات الأكثر طلباً" : "Popular services"}
             />
-            <div className="grid grid-cols-2
+            <div className="grid grid-cols-2 gap-3">
+              {popularServices.map((service) => {
+                const IconComponent = service.icon;
+                const displayName =
+                  language === "ar" && service.name_ar
+                    ? service.name_ar
+                    : service.name;
+
+                return (
+                  <button
+                    key={service.id}
+                    onClick={() => openServiceSheetFromSubcategory(service)}
+                    className={cn(
+                      "relative overflow-hidden h-[102px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
+                      isRTL && "text-right"
+                    )}
+                  >
+                    <div
+                      className={cn("absolute inset-0 opacity-10", service.color)}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
+
+                    <div className="relative flex items-center gap-3">
+                      <div
+                        className={cn(
+                          "h-14 w-14 rounded-2xl flex items-center justify-center",
+                          service.color
+                        )}
+                      >
+                        <IconComponent
+                          className="h-7 w-7 text-[#111]"
+                          strokeWidth={1.7}
+                        />
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-[15px] font-semibold text-[#111] line-clamp-1">
+                          {displayName}
+                        </h3>
+                        <p className="text-[12px] text-[#777] mt-1">
+                          {isRTL ? "عرض مقدمي الخدمة" : "View providers"}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Bottom line / links */}
+        <section className="mt-10">
+          <div className="border-t border-gray-200 pt-4 pb-2 text-[12px] text-[#777] flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+            <button
+              onClick={() => window.alert(isRTL ? "قريباً" : "Coming soon")}
+              className="hover:text-[#111] transition-colors"
+            >
+              {isRTL ? "من نحن" : "About"}
+            </button>
+            <button
+              onClick={() => (window.location.href = "mailto:support@dora.ly")}
+              className="hover:text-[#111] transition-colors"
+            >
+              {isRTL ? "تواصل معنا" : "Contact"}
+            </button>
+            <button
+              onClick={() =>
+                window.alert(
+                  isRTL ? "سيتم إضافة الشروط قريباً" : "Terms will be added soon"
+                )
+              }
+              className="hover:text-[#111] transition-colors"
+            >
+              {isRTL ? "الشروط" : "Terms"}
+            </button>
+            <button
+              onClick={() =>
+                window.alert(
+                  isRTL
+                    ? "سيتم إضافة الخصوصية قريباً"
+                    : "Privacy will be added soon"
+                )
+              }
+              className="hover:text-[#111] transition-colors"
+            >
+              {isRTL ? "الخصوصية" : "Privacy"}
+            </button>
+
+            <span className="text-[#AAA]">•</span>
+            <span className="text-[#999]">© {new Date().getFullYear()} Dora</span>
+          </div>
+        </section>
+      </main>
+
+      <MobileNav />
+
+      {/* Category Drawer */}
+      <Drawer open={categoryDrawerOpen} onOpenChange={setCategoryDrawerOpen}>
+        <DrawerContent className="h-[90vh] flex flex-col overflow-hidden rounded-t-3xl p-0">
+          <DrawerHeader className="relative pb-2 px-4 pt-4">
+            <DrawerClose
+              className={cn(
+                "absolute top-4 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
+                isRTL ? "left-4" : "right-4"
+              )}
+            >
+              <X className="h-4 w-4 text-muted-foreground" />
+            </DrawerClose>
+
+            <div className="flex flex-col items-center pt-2">
+              <DrawerTitle className="text-lg font-bold text-foreground">
+                {drawerCategory
+                  ? language === "ar" && drawerCategory.name_ar
+                    ? drawerCategory.name_ar
+                    : drawerCategory.name
+                  : isRTL
+                  ? "الفئة"
+                  : "Category"}
+              </DrawerTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                {isRTL ? "اختر خدمة" : "Choose a service"}
+              </p>
+            </div>
+          </DrawerHeader>
+
+          <ScrollArea className="flex-1">
+            <div className="px-4 pb-5" dir={isRTL ? "rtl" : "ltr"}>
+              {drawerSubcategories.length > 0 ? (
+                <div className="space-y-2">
+                  {drawerSubcategories.map((service) => {
+                    const IconComponent = service.icon;
+                    const displayName =
+                      language === "ar" && service.name_ar
+                        ? service.name_ar
+                        : service.name;
+
+                    return (
+                      <button
+                        key={service.id}
+                        onClick={() => {
+                          setCategoryDrawerOpen(false);
+                          openServiceSheetFromSubcategory(service);
+                        }}
+                        className={cn(
+                          "relative overflow-hidden w-full flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-200 transition-colors hover:bg-gray-50 active:bg-gray-100",
+                          isRTL && "flex-row-reverse text-right"
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "absolute inset-0 opacity-10",
+                            service.color
+                          )}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
+
+                        <div
+                          className={cn(
+                            "relative h-14 w-14 rounded-2xl flex items-center justify-center flex-shrink-0",
+                            service.color
+                          )}
+                        >
+                          <IconComponent
+                            className="h-7 w-7 text-[#111]"
+                            strokeWidth={1.7}
+                          />
+                        </div>
+
+                        <div className="relative flex-1 min-w-0">
+                          <h3 className="text-[16px] font-semibold text-[#111] line-clamp-1">
+                            {displayName}
+                          </h3>
+                          <p className="text-[13px] text-[#777] mt-1">
+                            {isRTL ? "عرض مقدمي الخدمة" : "View providers"}
+                          </p>
+                        </div>
+
+                        <ChevronRight
+                          className={cn(
+                            "relative h-6 w-6 text-[#C9C9C9] flex-shrink-0",
+                            isRTL && "rotate-180"
+                          )}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-10 text-sm text-muted-foreground">
+                  {isRTL
+                    ? "لا توجد خدمات في هذه الفئة"
+                    : "No services in this category"}
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </DrawerContent>
+      </Drawer>
+
+      <ServiceDetailSheet
+        open={sheetOpen}
+        onOpenChange={(o) => {
+          setSheetOpen(o);
+          if (!o) setInitialProviderServiceId(null);
+        }}
+        service={selectedService}
+        filters={searchFilters}
+        initialProviderServiceId={initialProviderServiceId}
+      />
+    </div>
+  );
+}
