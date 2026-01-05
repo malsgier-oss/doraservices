@@ -380,7 +380,7 @@ const Profile = () => {
 
   if (loading || roleLoading) {
     return (
-      <Layout showHeader={true}>
+      <Layout>
         <div className="min-h-screen flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
@@ -389,7 +389,7 @@ const Profile = () => {
   }
 
   return (
-    <Layout showHeader={false}>
+    <Layout>
       {/* Profile Header */}
       <section className="bg-background py-8">
         <div className="container">
