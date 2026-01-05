@@ -531,21 +531,11 @@ export default function Hub() {
   };
 
   const openProviderDetailsFromFeatured = (fp: FeaturedProviderCard) => {
-    setInitialProviderServiceId(fp.service_id);
-
-    setSelectedService({
-      id: fp.service_id,
-      icon: Wrench,
-      color: "bg-[#F2F2F2]",
-      titleKey: fp.service_title,
-      descKey: "",
-      category: fp.category,
-      categoryName: fp.category,
-      categoryNameAr: fp.category,
-    });
-
-    setSheetOpen(true);
-  };
+  setInitialProviderServiceId(fp.service_id);
+  setSelectedService(null);
+  ssetSheetOpen(true);
+};
+    
 
   const openCategoryDrawer = (categoryId: string) => {
     setDrawerCategoryId(categoryId);
@@ -726,15 +716,7 @@ export default function Hub() {
                 <Bell className="h-5 w-5 text-[#111]" />
               </button>
 
-              {/* Temporary icon (your existing) */}
-              <button
-                onClick={() => window.alert(isRTL ? "قريباً" : "Coming soon")}
-                className="h-10 w-10 rounded-full bg-white border border-gray-200 flex items-center justify-center"
-              >
-                <AlertCircle className="h-5 w-5 text-[#111]" />
-              </button>
-            </div>
-          </div>
+ 
 
           {/* City selector (real IDs) */}
           <div className="mt-4 flex items-center justify-between gap-3">
@@ -777,17 +759,7 @@ export default function Hub() {
 
           {/* Search */}
           <div className="mt-4">
-            <div className="relative">
-              <Search
-                className={cn(
-                  "absolute top-1/2 -translate-y-1/2 h-5 w-5 text-[#8F8F8F]",
-                  isRTL ? "right-4" : "left-4"
-                )}
-              />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={
+   
                   isRTL
                     ? "ابحث: كهربائي، سباك، تكييف…"
                     : "Search: electrician, plumber, AC…"
