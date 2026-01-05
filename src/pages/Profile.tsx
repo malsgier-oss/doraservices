@@ -2,7 +2,6 @@ import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Calendar,
-  Settings,
   Edit2,
   Save,
   X,
@@ -13,7 +12,6 @@ import {
   Trash2,
   Camera,
   AlertCircle,
-  Heart,
   MapPin,
   Phone,
   Clock,
@@ -25,7 +23,6 @@ import {
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -70,7 +67,6 @@ const Profile = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [activeTab, setActiveTab] = useState("account");
   const [isEditing, setIsEditing] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
 
@@ -78,17 +74,12 @@ const Profile = () => {
   const { profile, loading, updateProfile } = useProfile();
   const { isBusiness, loading: roleLoading, upgradeToBusiness } = useUserRole();
   const { t, isRTL, language } = useLanguage();
+
   const servicesApi = useServices();
   const { myServices, deleteService, updateService } = servicesApi;
+
   const { uploadAvatar, uploading } = useAvatarUpload();
   const { data: cities } = useCities();
-  const { data: subCities } = useSubCities(profile?.city || null);
-
-  // ✅ Fix TS typing for editingService safely
-  type MyService = ReturnType<typeof useServices>["myServices"][number];
-  const [editingService, setEditingService] = useState<MyService | null>(null);
-  const [isSavingService, setIsSavingService] = useState(false);
-  const [togglingPauseId, setTogglingPauseId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -99,8 +90,17 @@ const Profile = () => {
     sub_city: "",
   });
 
-  const providerMissingPhone = isBusiness && !profile?.phone;
+  // Sub-cities should follow the "currently selected" city while editing
+  const selectedCityId = (isEditing ? formData.city : profile?.city) || null;
+  const { data: subCities } = useSubCities(selectedCityId);
 
+  // ✅ Fix TS typing for editingService safely
+  type MyService = ReturnType<typeof useServices>["myServices"][number];
+  const [editingService, setEditingService] = useState<MyService | null>(null);
+  const [isSavingService, setIsSavingService] = useState(false);
+  const [togglingPauseId, setTogglingPauseId] = useState<string | null>(null);
+
+  const providerMissingPhone = isBusiness && !profile?.phone;
   const isPendingApproval = isBusiness && profile?.provider_status === "pending";
 
   const displayName = profile?.full_name || user?.email?.split("@")[0] || "User";
@@ -108,6 +108,20 @@ const Profile = () => {
   const memberSince = profile?.created_at
     ? format(new Date(profile.created_at), "MMMM yyyy")
     : "Recently";
+
+  const cityLabel =
+    profile?.city && cities?.length
+      ? (cities.find((c) => c.id === profile.city)?.[
+          language === "ar" ? "name_ar" : "name"
+        ] as string) || null
+      : null;
+
+  const subCityLabel =
+    profile?.sub_city && subCities?.length
+      ? (subCities.find((sc) => sc.id === profile.sub_city)?.[
+          language === "ar" ? "name_ar" : "name"
+        ] as string) || null
+      : null;
 
   const handleEdit = () => {
     if (profile) {
@@ -121,7 +135,21 @@ const Profile = () => {
       });
     }
     setIsEditing(true);
-    setActiveTab("account");
+  };
+
+  const handleCancelEdit = () => {
+    // Reset form so next edit starts clean
+    if (profile) {
+      setFormData({
+        full_name: profile.full_name || "",
+        bio: profile.bio || "",
+        avatar_url: profile.avatar_url || "",
+        phone: profile.phone ? formatLibyanPhone(profile.phone) : "",
+        city: profile.city || "",
+        sub_city: profile.sub_city || "",
+      });
+    }
+    setIsEditing(false);
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -144,7 +172,7 @@ const Profile = () => {
     if (error) {
       toast({
         title: t.common.error,
-        description: "Failed to update profile",
+        description: isRTL ? "فشل تحديث الملف" : "Failed to update profile",
         variant: "destructive",
       });
       return;
@@ -154,13 +182,15 @@ const Profile = () => {
       title: t.profile.profileUpdated,
       description: t.profile.profileUpdatedDesc,
     });
+
     setIsEditing(false);
   };
 
   const handleAvatarUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
-    const file = event.target.files?.[0];
+    const input = event.target;
+    const file = input.files?.[0];
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
@@ -169,6 +199,7 @@ const Profile = () => {
         description: isRTL ? "يرجى اختيار صورة" : "Please select an image file",
         variant: "destructive",
       });
+      input.value = "";
       return;
     }
 
@@ -180,6 +211,7 @@ const Profile = () => {
           : "Image too large (max 5MB)",
         variant: "destructive",
       });
+      input.value = "";
       return;
     }
 
@@ -191,6 +223,7 @@ const Profile = () => {
         description: isRTL ? "فشل رفع الصورة" : "Failed to upload image",
         variant: "destructive",
       });
+      input.value = "";
       return;
     }
 
@@ -201,9 +234,12 @@ const Profile = () => {
         description: isRTL ? "تم تحديث الصورة بنجاح" : "Avatar updated successfully",
       });
     }
+
+    // allow re-uploading same file
+    input.value = "";
   };
 
-  // ✅ Remove avatar only in edit mode
+  // ✅ Delete photo (available for users & providers) in edit mode
   const handleRemoveAvatar = async () => {
     const { error } = await updateProfile({ avatar_url: null });
     if (error) {
@@ -228,7 +264,9 @@ const Profile = () => {
     if (error) {
       toast({
         title: t.common.error,
-        description: "Failed to upgrade to provider account",
+        description: isRTL
+          ? "فشل الترقية إلى حساب مقدم خدمة"
+          : "Failed to upgrade to provider account",
         variant: "destructive",
       });
       return;
@@ -240,9 +278,6 @@ const Profile = () => {
         ? "يمكنك الآن إضافة خدماتك. حسابك قيد المراجعة."
         : "You can now add your services. Your account is pending approval.",
     });
-
-    // Keep them in profile; they need phone first anyway
-    setActiveTab("account");
   };
 
   const handleSignOut = async () => {
@@ -263,7 +298,7 @@ const Profile = () => {
     if (error) {
       toast({
         title: t.common.error,
-        description: "Failed to delete service",
+        description: isRTL ? "فشل حذف الخدمة" : "Failed to delete service",
         variant: "destructive",
       });
       return;
@@ -345,7 +380,7 @@ const Profile = () => {
 
   if (loading || roleLoading) {
     return (
-      <Layout>
+      <Layout showHeader={false}>
         <div className="min-h-screen flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
@@ -353,21 +388,8 @@ const Profile = () => {
     );
   }
 
-  const cityLabel = profile?.city
-    ? cities?.find((c) => c.id === profile.city)?.[
-        language === "ar" ? "name_ar" : "name"
-      ] || null
-    : null;
-
-  const subCityLabel =
-    profile?.sub_city && subCities?.length
-      ? subCities.find((sc) => sc.id === profile.sub_city)?.[
-          language === "ar" ? "name_ar" : "name"
-        ] || null
-      : null;
-
   return (
-    <Layout>
+    <Layout showHeader={false}>
       {/* Profile Header */}
       <section className="bg-background py-8">
         <div className="container">
@@ -520,7 +542,7 @@ const Profile = () => {
                     </div>
                   )}
 
-                  {/* Remove avatar (edit mode only) */}
+                  {/* Remove avatar (edit mode for everyone) */}
                   {!!profile?.avatar_url && (
                     <Button
                       type="button"
@@ -539,7 +561,7 @@ const Profile = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setIsEditing(false)}
+                      onClick={handleCancelEdit}
                       className="rounded-full flex-1"
                     >
                       <X className="h-4 w-4" />
@@ -691,229 +713,136 @@ const Profile = () => {
         </section>
       )}
 
-      {/* Tabs */}
-      <section className="py-6">
-        <div className="container">
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList
-              className={`grid w-full max-w-md ${
-                isBusiness ? "grid-cols-3" : "grid-cols-2"
-              } mx-auto mb-6 rounded-full p-1`}
-            >
-              <TabsTrigger value="account" className="flex items-center gap-1.5 rounded-full">
-                <Edit2 className="h-4 w-4" />
-                {isRTL ? "الحساب" : "Account"}
-              </TabsTrigger>
+      {/* Provider: My Services only */}
+      {isBusiness && (
+        <section className="py-6">
+          <div className="container">
+            <div className="max-w-2xl mx-auto space-y-4">
+              <div className={`flex items-center justify-between ${isRTL ? "flex-row-reverse" : ""}`}>
+                <h2 className="font-display text-lg font-semibold">{t.profile.myServices}</h2>
+                <Button
+                  size="sm"
+                  className="rounded-full"
+                  onClick={() => navigate("/create-service")}
+                  disabled={providerMissingPhone}
+                >
+                  <Plus className="h-4 w-4" />
+                  <span className={isRTL ? "mr-1" : "ml-1"}>{t.profile.addService}</span>
+                </Button>
+              </div>
 
-              {isBusiness && (
-                <TabsTrigger value="services" className="flex items-center gap-1.5 rounded-full">
-                  <Briefcase className="h-4 w-4" />
-                  {t.profile.myServices}
-                </TabsTrigger>
+              {providerMissingPhone && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    {isRTL
+                      ? "أضف رقم هاتفك من (تعديل الملف) ثم يمكنك إضافة خدمة."
+                      : "Add your phone number in (Edit profile) then you can add a service."}
+                  </AlertDescription>
+                </Alert>
               )}
 
-              <TabsTrigger value="settings" className="flex items-center gap-1.5 rounded-full">
-                <Settings className="h-4 w-4" />
-                {t.profile.settings}
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Account Tab */}
-            <TabsContent value="account" className="animate-fade-in">
-              <div className="max-w-2xl mx-auto space-y-4">
-                {/* Favorites card */}
-                <div className="bg-card rounded-2xl p-4 shadow-card flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-                      <Heart className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground">
-                        {t.favorites?.title || (isRTL ? "المفضلة" : "Favorites")}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {isRTL ? "اعرض خدماتك المفضلة بسرعة" : "Quick access to your saved services"}
-                      </p>
-                    </div>
-                  </div>
-                  <Button className="rounded-full" onClick={() => navigate("/favorites")}>
-                    {isRTL ? "فتح" : "Open"}
-                  </Button>
-                </div>
-
-                {/* Provider quick note */}
-                {isBusiness && (
-                  <div className="bg-card rounded-2xl p-4 shadow-card">
-                    <p className="font-medium text-foreground">
-                      {isRTL ? "حساب مقدم خدمة" : "Provider account"}
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {isPendingApproval
-                        ? isRTL
-                          ? "حسابك قيد المراجعة حالياً."
-                          : "Your account is currently under review."
-                        : isRTL
-                        ? "حسابك مفعل ويمكن للعملاء مشاهدة خدماتك."
-                        : "Your account is active and visible to customers."}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-
-            {/* Services Tab */}
-            {isBusiness && (
-              <TabsContent value="services" className="animate-fade-in">
-                <div className="max-w-2xl mx-auto space-y-4">
-                  <div className={`flex items-center justify-between ${isRTL ? "flex-row-reverse" : ""}`}>
-                    <h2 className="font-display text-lg font-semibold">{t.profile.myServices}</h2>
-                    <Button
-                      size="sm"
-                      className="rounded-full"
-                      onClick={() => navigate("/create-service")}
-                      disabled={providerMissingPhone}
+              {myServices.length > 0 ? (
+                <div className="space-y-4">
+                  {myServices.map((service) => (
+                    <div
+                      key={service.id}
+                      className={`bg-card rounded-2xl p-4 shadow-card ${
+                        service.is_paused ? "opacity-60" : ""
+                      }`}
                     >
-                      <Plus className="h-4 w-4" />
-                      <span className={isRTL ? "mr-1" : "ml-1"}>{t.profile.addService}</span>
-                    </Button>
-                  </div>
-
-                  {providerMissingPhone && (
-                    <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        {isRTL
-                          ? "أضف رقم هاتفك من (تعديل الملف) ثم يمكنك إضافة خدمة."
-                          : "Add your phone number in (Edit profile) then you can add a service."}
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
-                  {myServices.length > 0 ? (
-                    <div className="space-y-4">
-                      {myServices.map((service) => (
-                        <div
-                          key={service.id}
-                          className={`bg-card rounded-2xl p-4 shadow-card ${
-                            service.is_paused ? "opacity-60" : ""
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <h3 className="font-semibold text-foreground">{service.title}</h3>
-                                {service.is_paused && (
-                                  <Badge
-                                    variant="secondary"
-                                    className="bg-gray-200 text-gray-600 text-xs"
-                                  >
-                                    <Pause className="h-3 w-3 mr-1" />
-                                    {isRTL ? "متوقف" : "Paused"}
-                                  </Badge>
-                                )}
-                              </div>
-
-                              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                                {service.description}
-                              </p>
-
-                              <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                <Badge variant="outline">
-                                  {t.categories[service.category as keyof typeof t.categories] ||
-                                    service.category}
-                                </Badge>
-                                {isPendingApproval && (
-                                  <Badge variant="secondary" className="bg-amber-100 text-amber-700">
-                                    {isRTL ? "قيد المراجعة" : "Pending"}
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="flex gap-2">
-                              <Button
-                                size="icon"
-                                variant="outline"
-                                className="h-8 w-8 rounded-full"
-                                onClick={() => handleTogglePause(service)}
-                                disabled={togglingPauseId === service.id}
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-foreground">{service.title}</h3>
+                            {service.is_paused && (
+                              <Badge
+                                variant="secondary"
+                                className="bg-gray-200 text-gray-600 text-xs"
                               >
-                                {togglingPauseId === service.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : service.is_paused ? (
-                                  <Play className="h-4 w-4 text-green-600" />
-                                ) : (
-                                  <Pause className="h-4 w-4 text-orange-500" />
-                                )}
-                              </Button>
+                                <Pause className="h-3 w-3 mr-1" />
+                                {isRTL ? "متوقف" : "Paused"}
+                              </Badge>
+                            )}
+                          </div>
 
-                              <Button
-                                size="icon"
-                                variant="outline"
-                                className="h-8 w-8 rounded-full"
-                                onClick={() => handleEditService(service)}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
+                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                            {service.description}
+                          </p>
 
-                              <Button
-                                size="icon"
-                                variant="outline"
-                                className="h-8 w-8 rounded-full"
-                                onClick={() => handleDeleteService(service.id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
+                          <div className="flex items-center gap-2 mt-2 flex-wrap">
+                            <Badge variant="outline">
+                              {t.categories[service.category as keyof typeof t.categories] ||
+                                service.category}
+                            </Badge>
+                            {isPendingApproval && (
+                              <Badge variant="secondary" className="bg-amber-100 text-amber-700">
+                                {isRTL ? "قيد المراجعة" : "Pending"}
+                              </Badge>
+                            )}
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-12 bg-muted/30 rounded-3xl">
-                      <div className="h-16 w-16 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
-                        <Briefcase className="h-8 w-8 text-muted-foreground" />
+
+                        <div className="flex gap-2">
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-8 w-8 rounded-full"
+                            onClick={() => handleTogglePause(service)}
+                            disabled={togglingPauseId === service.id}
+                          >
+                            {togglingPauseId === service.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : service.is_paused ? (
+                              <Play className="h-4 w-4 text-green-600" />
+                            ) : (
+                              <Pause className="h-4 w-4 text-orange-500" />
+                            )}
+                          </Button>
+
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-8 w-8 rounded-full"
+                            onClick={() => handleEditService(service)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-8 w-8 rounded-full"
+                            onClick={() => handleDeleteService(service.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
                       </div>
-                      <p className="text-muted-foreground font-medium">{t.profile.noServices}</p>
-                      <p className="text-sm text-muted-foreground mt-1">{t.profile.noServicesDesc}</p>
-                      <Button
-                        className="mt-4 rounded-full"
-                        onClick={() => navigate("/create-service")}
-                        disabled={providerMissingPhone}
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        {t.profile.createService}
-                      </Button>
                     </div>
-                  )}
+                  ))}
                 </div>
-              </TabsContent>
-            )}
-
-            {/* Settings Tab (minimal but not dead) */}
-            <TabsContent value="settings" className="animate-fade-in">
-              <div className="max-w-md mx-auto space-y-4">
-                <h2 className="font-display text-lg font-semibold">{t.profile.settings}</h2>
-
-                <div className="bg-card rounded-2xl p-4 shadow-card space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    {isRTL ? "إعدادات الحساب الأساسية" : "Basic account settings"}
-                  </p>
-
+              ) : (
+                <div className="text-center py-12 bg-muted/30 rounded-3xl">
+                  <div className="h-16 w-16 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
+                    <Briefcase className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <p className="text-muted-foreground font-medium">{t.profile.noServices}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{t.profile.noServicesDesc}</p>
                   <Button
-                    variant="outline"
-                    className="rounded-full w-full justify-center"
-                    onClick={handleSignOut}
+                    className="mt-4 rounded-full"
+                    onClick={() => navigate("/create-service")}
+                    disabled={providerMissingPhone}
                   >
-                    <LogOut className="h-4 w-4" />
-                    <span className={isRTL ? "mr-1" : "ml-1"}>{t.profile.logout}</span>
+                    <Plus className="h-4 w-4 mr-1" />
+                    {t.profile.createService}
                   </Button>
                 </div>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </div>
-      </section>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Edit Service Dialog */}
       <EditServiceDialog
