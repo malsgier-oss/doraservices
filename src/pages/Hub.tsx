@@ -35,6 +35,7 @@ import {
   Sparkles,
   ChevronRight,
   LucideIcon,
+  Bell,
 } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
@@ -221,6 +222,9 @@ export default function Hub() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
 
+  // Notifications
+  const [notifOpen, setNotifOpen] = useState(false);
+
   // Sheet service (subcategory context OR category context for featured provider open)
   const [selectedService, setSelectedService] = useState<{
     id: string;
@@ -254,10 +258,14 @@ export default function Hub() {
   >([]);
   const [featuredLoading, setFeaturedLoading] = useState(false);
 
-  // Ratings ONLY for featured cards (fast)
-  const { ratings: featuredRatings } = useServiceRatings(
-    featuredProviders.map((fp) => fp.service_id)
+  // ✅ Stabilize ids for ratings hook
+  const featuredServiceIds = useMemo(
+    () => featuredProviders.map((fp) => fp.service_id).filter(Boolean),
+    [featuredProviders]
   );
+
+  // Ratings ONLY for featured cards (fast)
+  const { ratings: featuredRatings } = useServiceRatings(featuredServiceIds);
 
   const initials =
     profile?.full_name
@@ -266,21 +274,23 @@ export default function Hub() {
       .join("")
       .slice(0, 2) || (isRTL ? "م" : "U");
 
-  // ✅ Convert city id -> name (fix UUID showing)
+  // ✅ Convert city id -> name (fix UUID showing) — made safer
   const getCityLabel = (cityIdOrName: string | null) => {
     if (!cityIdOrName) return null;
+    const raw = String(cityIdOrName);
 
     const found = cities?.find(
       (c: any) =>
-        c.id === cityIdOrName ||
-        c.name?.toLowerCase() === cityIdOrName.toLowerCase()
+        c.id === raw ||
+        String(c.name || "").toLowerCase() === raw.toLowerCase() ||
+        String(c.name_ar || "").toLowerCase() === raw.toLowerCase()
     );
 
     return found
       ? language === "ar" && found.name_ar
         ? found.name_ar
         : found.name
-      : cityIdOrName;
+      : raw;
   };
 
   const getFeaturedRatingDisplay = (serviceId: string) => {
@@ -312,15 +322,12 @@ export default function Hub() {
     const selectedRaw = String(searchFilters.city).toLowerCase().trim();
     const providerRaw = String(providerCity).toLowerCase().trim();
 
-    // Direct match (id==id or name==name)
     if (providerRaw === selectedRaw) return true;
 
-    // Match by label (UUID -> label)
     const providerLabel = getCityLabel(providerCity);
     if (providerLabel && String(providerLabel).toLowerCase().trim() === selectedRaw)
       return true;
 
-    // If selected is UUID, compare selected label to provider raw/label
     const selectedLabel = getCityLabel(searchFilters.city as any);
     if (selectedLabel) {
       const sl = String(selectedLabel).toLowerCase().trim();
@@ -329,7 +336,6 @@ export default function Hub() {
         return true;
     }
 
-    // Slug aliases (because chips currently set: tripoli/benghazi/misrata)
     const aliasMap: Record<string, { labels: string[] }> = {
       tripoli: { labels: ["tripoli", "طرابلس", "طرابلس المركز"] },
       benghazi: { labels: ["benghazi", "بنغازي"] },
@@ -341,13 +347,13 @@ export default function Hub() {
       const providerLabelNorm = providerLabel
         ? String(providerLabel).toLowerCase().trim()
         : "";
+
       const providerMatchesAlias =
         alias.labels.some((l) => providerRaw.includes(l.toLowerCase())) ||
         alias.labels.some((l) => providerLabelNorm.includes(l.toLowerCase()));
 
       if (providerMatchesAlias) return true;
 
-      // If provider has UUID, try comparing with the alias city ID (if cities loaded)
       const aliasCityId = findCityIdByLabels(alias.labels);
       if (aliasCityId && providerRaw === String(aliasCityId).toLowerCase()) return true;
     }
@@ -357,7 +363,6 @@ export default function Hub() {
 
   const featuredProvidersFiltered = useMemo(() => {
     return featuredProviders.filter((fp) => matchesSelectedCity(fp.provider_city));
-    // cities/language impact label matching
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [featuredProviders, searchFilters.city, language, cities]);
 
@@ -453,21 +458,10 @@ export default function Hub() {
     setSheetOpen(true);
   };
 
+  // ✅ FIX: Featured click should open provider details (not list)
   const openProviderDetailsFromFeatured = (fp: FeaturedProviderCard) => {
     setInitialProviderServiceId(fp.service_id);
-
-    // IMPORTANT: ServiceDetailSheet fetches by services.category, so we pass that as category
-    setSelectedService({
-      id: fp.service_id,
-      icon: Wrench,
-      color: "bg-[#F2F2F2]",
-      titleKey: fp.service_title,
-      descKey: "",
-      category: fp.category,
-      categoryName: fp.category,
-      categoryNameAr: fp.category,
-    });
-
+    setSelectedService(null); // <-- IMPORTANT
     setSheetOpen(true);
   };
 
@@ -481,7 +475,6 @@ export default function Hub() {
     const fetchFeaturedProviders = async () => {
       setFeaturedLoading(true);
       try {
-        // ✅ Select only needed fields (faster than select "*")
         const { data: servicesData, error } = await supabase
           .from("services")
           .select(
@@ -525,9 +518,7 @@ export default function Hub() {
 
         const cards: FeaturedProviderCard[] = featured
           .filter((svc: any) => {
-            // Bulk uploaded service (unclaimed)
             if (!svc.user_id) return svc.provider_name && svc.provider_phone;
-            // Claimed -> only approved provider
             return profileMap.has(svc.user_id);
           })
           .map((svc: any) => {
@@ -578,17 +569,12 @@ export default function Hub() {
       return keys.some((k) => t.includes(k.toLowerCase()));
     };
 
-    // 1) Try EN name
     for (const item of candidates) {
       if (matchAny(item.name, s.match_en)) return item;
     }
-
-    // 2) Try AR name
     for (const item of candidates) {
       if (item.name_ar && matchAny(item.name_ar, s.match_ar)) return item;
     }
-
-    // 3) Cross matching just in case
     for (const item of candidates) {
       if (item.name_ar && matchAny(item.name_ar, s.match_en)) return item;
       if (matchAny(item.name, s.match_ar)) return item;
@@ -605,11 +591,8 @@ export default function Hub() {
   }, [serviceItems]);
 
   return (
-    <div
-      className="min-h-screen bg-[#F7F7F8] pb-24"
-      dir={isRTL ? "rtl" : "ltr"}
-    >
-      {/* Sticky Top Bar (no logo) */}
+    <div className="min-h-screen bg-[#F7F7F8] pb-24" dir={isRTL ? "rtl" : "ltr"}>
+      {/* Sticky Top Bar */}
       <header className="sticky top-0 z-40 bg-[#F7F7F8]/90 backdrop-blur supports-[backdrop-filter]:bg-[#F7F7F8]/75 border-b border-gray-100">
         <div className="px-4 pt-4 pb-3">
           <div className="flex items-center justify-between">
@@ -632,9 +615,7 @@ export default function Hub() {
 
             {/* Center title */}
             <div className="flex flex-col items-center leading-none">
-              <span className="text-[13px] font-semibold text-[#111]">
-                {t.appName}
-              </span>
+              <span className="text-[13px] font-semibold text-[#111]">{t.appName}</span>
               <span className="text-[11px] text-[#777]">
                 {isRTL ? "خدمات قريبة منك" : "Local services"}
               </span>
@@ -643,13 +624,14 @@ export default function Hub() {
             {/* Actions */}
             <div className="flex items-center gap-2">
               <LanguageToggle />
+
+              {/* Notifications */}
               <button
-                onClick={() =>
-                  window.alert(isRTL ? "قريباً" : "Coming soon")
-                }
+                onClick={() => setNotifOpen(true)}
                 className="h-10 w-10 rounded-full bg-white border border-gray-200 flex items-center justify-center"
+                aria-label={isRTL ? "الإشعارات" : "Notifications"}
               >
-                <AlertCircle className="h-5 w-5 text-[#111]" />
+                <Bell className="h-5 w-5 text-[#111]" />
               </button>
             </div>
           </div>
@@ -667,9 +649,7 @@ export default function Hub() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={
-                  isRTL
-‎                    ? "ابحث: كهربائي، سباك، تكييف…"
-                    : "Search: electrician, plumber, AC…"
+                  isRTL ? "ابحث: كهربائي، سباك، تكييف…" : "Search: electrician, plumber, AC…"
                 }
                 className={cn(
                   "h-12 rounded-2xl bg-white border border-gray-200 shadow-none text-base placeholder:text-[#8F8F8F]",
@@ -691,7 +671,7 @@ export default function Hub() {
             </div>
           </div>
 
-          {/* Simple chips only */}
+          {/* Chips */}
           <div className="mt-4 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
             <FilterSuggestionChip
               icon={<MapPin className="h-3.5 w-3.5" />}
@@ -730,9 +710,7 @@ export default function Hub() {
               }
             />
             <FilterSuggestionChip
-              icon={
-                <Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />
-              }
+              icon={<Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />}
               label={isRTL ? "4+ نجوم" : "4+ Stars"}
               isActive={Boolean(searchFilters.minRating)}
               onClick={() =>
@@ -746,10 +724,7 @@ export default function Hub() {
 
           {(searchFilters.city || searchFilters.subCity || searchFilters.minRating) && (
             <div className="mt-2">
-              <ActiveFilterChips
-                filters={searchFilters}
-                onRemoveFilter={handleRemoveFilter}
-              />
+              <ActiveFilterChips filters={searchFilters} onRemoveFilter={handleRemoveFilter} />
             </div>
           )}
         </div>
@@ -765,18 +740,14 @@ export default function Hub() {
           {categoriesLoading ? (
             <div className="grid grid-cols-4 gap-3">
               {[...Array(8)].map((_, i) => (
-                <div
-                  key={i}
-                  className="h-[102px] rounded-2xl bg-gray-200 animate-pulse"
-                />
+                <div key={i} className="h-[102px] rounded-2xl bg-gray-200 animate-pulse" />
               ))}
             </div>
           ) : (
             <div className="grid grid-cols-4 gap-3">
               {categoryGrid.map((cat: any) => {
                 const IconComponent = ICON_MAP[cat.icon] || Home;
-                const displayName =
-                  language === "ar" && cat.name_ar ? cat.name_ar : cat.name;
+                const displayName = language === "ar" && cat.name_ar ? cat.name_ar : cat.name;
 
                 return (
                   <button
@@ -784,13 +755,7 @@ export default function Hub() {
                     onClick={() => openCategoryDrawer(cat.id)}
                     className="relative overflow-hidden h-[102px] rounded-2xl border bg-white border-gray-200 flex flex-col items-center justify-center gap-2 transition-all active:scale-[0.98]"
                   >
-                    {/* Soft full-card tint (Option B) */}
-                    <div
-                      className={cn(
-                        "absolute inset-0 opacity-10",
-                        cat.color || "bg-[#F2F2F2]"
-                      )}
-                    />
+                    <div className={cn("absolute inset-0 opacity-10", cat.color || "bg-[#F2F2F2]")} />
                     <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/70" />
 
                     <div
@@ -799,10 +764,7 @@ export default function Hub() {
                         cat.color || "bg-[#F2F2F2]"
                       )}
                     >
-                      <IconComponent
-                        className="h-6 w-6 text-[#111]"
-                        strokeWidth={1.7}
-                      />
+                      <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
                     </div>
                     <span className="relative text-[11px] font-semibold text-[#111] text-center px-1 leading-tight line-clamp-1">
                       {displayName}
@@ -814,7 +776,7 @@ export default function Hub() {
           )}
         </section>
 
-        {/* Search results only when typing */}
+        {/* Search results */}
         {searchQuery.trim() ? (
           <section className="mt-8">
             <SectionHeader
@@ -835,9 +797,7 @@ export default function Hub() {
                 searchedServices.map((service, index) => {
                   const IconComponent = service.icon;
                   const displayName =
-                    language === "ar" && service.name_ar
-                      ? service.name_ar
-                      : service.name;
+                    language === "ar" && service.name_ar ? service.name_ar : service.name;
 
                   return (
                     <button
@@ -846,14 +806,10 @@ export default function Hub() {
                       className={cn(
                         "relative overflow-hidden w-full flex items-center gap-4 p-5 text-left transition-colors hover:bg-gray-50 active:bg-gray-100",
                         isRTL && "text-right flex-row-reverse",
-                        index < searchedServices.length - 1 &&
-                          "border-b border-gray-100"
+                        index < searchedServices.length - 1 && "border-b border-gray-100"
                       )}
                     >
-                      {/* Soft full-card tint (Option B) */}
-                      <div
-                        className={cn("absolute inset-0 opacity-10", service.color)}
-                      />
+                      <div className={cn("absolute inset-0 opacity-10", service.color)} />
                       <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
 
                       <div
@@ -862,10 +818,7 @@ export default function Hub() {
                           service.color
                         )}
                       >
-                        <IconComponent
-                          className="h-6 w-6 text-[#111]"
-                          strokeWidth={1.7}
-                        />
+                        <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
                       </div>
                       <div className="relative flex-1 min-w-0">
                         <h3 className="text-[16px] font-semibold text-[#111] line-clamp-1">
@@ -946,21 +899,16 @@ export default function Hub() {
                               {fp.service_title}
                             </p>
 
-                            {/* ✅ Rating on card */}
                             <div className="mt-1 flex items-center gap-1 text-xs">
                               <Star
                                 className={cn(
                                   "h-3.5 w-3.5",
-                                  r.hasRating
-                                    ? "text-yellow-500 fill-yellow-500"
-                                    : "text-[#999]"
+                                  r.hasRating ? "text-yellow-500 fill-yellow-500" : "text-[#999]"
                                 )}
                               />
                               <span
                                 className={cn(
-                                  r.hasRating
-                                    ? "text-[#111] font-semibold"
-                                    : "text-[#777]"
+                                  r.hasRating ? "text-[#111] font-semibold" : "text-[#777]"
                                 )}
                               >
                                 {r.text}
@@ -969,19 +917,14 @@ export default function Hub() {
                           </div>
 
                           <ChevronRight
-                            className={cn(
-                              "h-5 w-5 text-[#C9C9C9]",
-                              isRTL && "rotate-180"
-                            )}
+                            className={cn("h-5 w-5 text-[#C9C9C9]", isRTL && "rotate-180")}
                           />
                         </div>
 
-                        {/* ✅ City label fixed (no UUID) */}
                         <div className="mt-3 text-xs text-[#777]">
                           {fp.provider_city ? (isRTL ? "المدينة: " : "City: ") : ""}
                           <span className="text-[#111] font-semibold">
-                            {getCityLabel(fp.provider_city) ||
-                              (isRTL ? "غير محدد" : "Not set")}
+                            {getCityLabel(fp.provider_city) || (isRTL ? "غير محدد" : "Not set")}
                           </span>
                         </div>
                       </button>
@@ -992,16 +935,16 @@ export default function Hub() {
                 <div className="rounded-2xl bg-white border border-gray-200 p-5 text-sm text-[#777]">
                   {featuredProviders.length > 0 && featuredProvidersFiltered.length === 0
                     ? isRTL
-‎                      ? "لا يوجد مزودين مختارين لهذه المدينة."
+                      ? "لا يوجد مزودين مختارين لهذه المدينة."
                       : "No featured providers for this city."
                     : isRTL
-‎                    ? "لا يوجد مزودين مختارين حالياً."
+                    ? "لا يوجد مزودين مختارين حالياً."
                     : "No featured providers yet."}
                 </div>
               )}
             </section>
 
-            {/* ✅ Suggested by Dora */}
+            {/* Suggested by Dora */}
             {suggestedByDora.length > 0 && (
               <section className="mt-8">
                 <SectionHeader title={isRTL ? "مقترحات دورة" : "Suggested by Dora"} />
@@ -1019,13 +962,7 @@ export default function Hub() {
                           isRTL && "text-right"
                         )}
                       >
-                        {/* Soft tint based on target service color */}
-                        <div
-                          className={cn(
-                            "absolute inset-0 opacity-10",
-                            targetService.color
-                          )}
-                        />
+                        <div className={cn("absolute inset-0 opacity-10", targetService.color)} />
                         <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
 
                         <div className="relative flex items-center gap-3">
@@ -1043,10 +980,7 @@ export default function Hub() {
                           </div>
 
                           <ChevronRight
-                            className={cn(
-                              "h-5 w-5 text-[#C9C9C9] flex-shrink-0",
-                              isRTL && "rotate-180"
-                            )}
+                            className={cn("h-5 w-5 text-[#C9C9C9] flex-shrink-0", isRTL && "rotate-180")}
                           />
                         </div>
                       </button>
@@ -1056,7 +990,7 @@ export default function Hub() {
               </section>
             )}
 
-            {/* Popular Services (admin-picked only) */}
+            {/* Popular Services */}
             {popularServices.length > 0 && (
               <section className="mt-8">
                 <SectionHeader title={isRTL ? "الخدمات الأكثر طلباً" : "Popular services"} />
@@ -1064,9 +998,7 @@ export default function Hub() {
                   {popularServices.map((service) => {
                     const IconComponent = service.icon;
                     const displayName =
-                      language === "ar" && service.name_ar
-                        ? service.name_ar
-                        : service.name;
+                      language === "ar" && service.name_ar ? service.name_ar : service.name;
 
                     return (
                       <button
@@ -1077,7 +1009,6 @@ export default function Hub() {
                           isRTL && "text-right"
                         )}
                       >
-                        {/* Soft full-card tint (Option B) */}
                         <div className={cn("absolute inset-0 opacity-10", service.color)} />
                         <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
 
@@ -1088,10 +1019,7 @@ export default function Hub() {
                               service.color
                             )}
                           >
-                            <IconComponent
-                              className="h-6 w-6 text-[#111]"
-                              strokeWidth={1.7}
-                            />
+                            <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
                           </div>
                           <div className="flex-1 min-w-0">
                             <h3 className="text-[15px] font-semibold text-[#111] line-clamp-1">
@@ -1108,55 +1036,46 @@ export default function Hub() {
                 </div>
               </section>
             )}
-
-            {/* Footer */}
-            <section className="mt-10">
-              <div className="rounded-2xl bg-white border border-gray-200 p-5">
-                <h3 className="text-[15px] font-semibold text-[#111]">
-                  {isRTL ? "عن دورة" : "About Dora"}
-                </h3>
-                <p className="text-sm text-[#777] mt-2 leading-relaxed">
-                  {isRTL
-‎                    ? "دورة يساعدك توصل لمزود خدمة بسرعة — اتصال مباشر، بدون تعقيد."
-                    : "Dora helps you reach local providers fast — direct calling, no hassle."}
-                </p>
-
-                <div className="mt-4 grid grid-cols-1 gap-2">
-                  <button
-                    onClick={() => (window.location.href = "mailto:support@dora.ly")}
-                    className="w-full h-11 rounded-xl bg-[#111] text-white text-sm font-semibold"
-                  >
-                    {isRTL ? "تواصل معنا" : "Contact us"}
-                  </button>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() =>
-                        window.alert(isRTL ? "سيتم إضافة الشروط قريباً" : "Terms will be added soon")
-                      }
-                      className="h-11 rounded-xl bg-[#F3F3F3] text-[#111] text-sm font-semibold"
-                    >
-                      {isRTL ? "الشروط" : "Terms"}
-                    </button>
-                    <button
-                      onClick={() =>
-                        window.alert(isRTL ? "سيتم إضافة الخصوصية قريباً" : "Privacy will be added soon")
-                      }
-                      className="h-11 rounded-xl bg-[#F3F3F3] text-[#111] text-sm font-semibold"
-                    >
-                      {isRTL ? "الخصوصية" : "Privacy"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </section>
           </>
         )}
       </main>
 
       <MobileNav />
 
-      {/* Category Drawer (full subcategories list) */}
+      {/* Notifications Drawer */}
+      <Drawer open={notifOpen} onOpenChange={setNotifOpen}>
+        <DrawerContent className="mx-auto w-[92vw] max-w-md max-h-[80vh] overflow-hidden rounded-t-3xl rounded-b-none p-0">
+          <DrawerHeader className="relative pb-2 px-4 pt-4">
+            <DrawerClose
+              className={cn(
+                "absolute top-4 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
+                isRTL ? "left-4" : "right-4"
+              )}
+            >
+              <X className="h-4 w-4 text-muted-foreground" />
+            </DrawerClose>
+
+            <div className="flex flex-col items-center">
+              <DrawerTitle className="text-lg font-bold text-foreground">
+                {isRTL ? "الإشعارات" : "Notifications"}
+              </DrawerTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                {isRTL ? "قريباً" : "Coming soon"}
+              </p>
+            </div>
+          </DrawerHeader>
+
+          <div className="px-4 pb-6 overflow-auto">
+            <div className="rounded-2xl bg-white border border-gray-200 p-4 text-sm text-[#777]">
+              {isRTL
+                ? "سيتم إضافة إشعارات النظام والمراجعات قريباً."
+                : "System notifications and review prompts will be added soon."}
+            </div>
+          </div>
+        </DrawerContent>
+      </Drawer>
+
+      {/* Category Drawer */}
       <Drawer open={categoryDrawerOpen} onOpenChange={setCategoryDrawerOpen}>
         <DrawerContent className="h-[90vh] flex flex-col overflow-hidden">
           <DrawerHeader className="relative pb-2">
@@ -1176,7 +1095,7 @@ export default function Hub() {
                     ? drawerCategory.name_ar
                     : drawerCategory.name
                   : isRTL
-‎                  ? "الفئة"
+                  ? "الفئة"
                   : "Category"}
               </DrawerTitle>
               <p className="text-sm text-muted-foreground mt-1">
@@ -1192,9 +1111,7 @@ export default function Hub() {
                   {drawerSubcategories.map((service) => {
                     const IconComponent = service.icon;
                     const displayName =
-                      language === "ar" && service.name_ar
-                        ? service.name_ar
-                        : service.name;
+                      language === "ar" && service.name_ar ? service.name_ar : service.name;
 
                     return (
                       <button
@@ -1208,7 +1125,6 @@ export default function Hub() {
                           isRTL && "flex-row-reverse text-right"
                         )}
                       >
-                        {/* Soft full-card tint (Option B) */}
                         <div className={cn("absolute inset-0 opacity-10", service.color)} />
                         <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
 
@@ -1218,10 +1134,7 @@ export default function Hub() {
                             service.color
                           )}
                         >
-                          <IconComponent
-                            className="h-6 w-6 text-[#111]"
-                            strokeWidth={1.7}
-                          />
+                          <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
                         </div>
 
                         <div className="relative flex-1 min-w-0">
