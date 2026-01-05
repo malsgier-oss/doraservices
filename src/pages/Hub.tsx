@@ -62,12 +62,13 @@ import { useAllSubcategories } from "@/hooks/useSubcategories";
 import { useCities } from "@/hooks/useCities";
 import { useServiceRatings } from "@/hooks/useReviews";
 
-// ✅ Use the same notifications system used in other pages
+// ✅ Notifications hooks (same system used elsewhere)
 import {
   useNotifications,
   useUnreadCount,
   useNotificationMutations,
 } from "@/hooks/useNotifications";
+import type { Notification } from "@/hooks/useNotifications";
 
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -214,13 +215,13 @@ function SectionHeader({
   );
 }
 
-// -------------------- Notifications types (safe fallback) --------------------
+// -------------------- Notifications UI type (flattened for rendering) --------------------
 type AppNotification = {
   id: string;
-  title?: string | null;
-  body?: string | null;
-  created_at?: string | null;
-  is_read?: boolean | null;
+  title: string | null;
+  body: string | null;
+  created_at: string | null;
+  is_read: boolean;
 };
 
 export default function Hub() {
@@ -242,38 +243,28 @@ export default function Hub() {
   const unreadHook = useUnreadCount();
   const notifMutations = useNotificationMutations();
 
-  // Normalize hook outputs safely (so Hub doesn't crash if signatures differ)
-  const notifications: AppNotification[] = useMemo(() => {
-    const d: any = (notifQuery as any)?.data ?? (notifQuery as any) ?? [];
-    return Array.isArray(d) ? d : [];
-  }, [notifQuery]);
+  // ✅ Correct: read ONLY notifQuery.data (array) + map message.title/content
+  const notifLoading = Boolean(notifQuery.isLoading || notifQuery.isFetching);
 
-  const notifLoading: boolean = Boolean(
-    (notifQuery as any)?.isLoading ?? (notifQuery as any)?.isFetching ?? false
-  );
+  const notifications: AppNotification[] = useMemo(() => {
+    const data: Notification[] = notifQuery.data ?? [];
+    return data.map((n) => ({
+      id: n.id,
+      title: n.message?.title ?? null,
+      body: n.message?.content ?? null,
+      created_at: n.created_at ?? null,
+      is_read: Boolean(n.is_read),
+    }));
+  }, [notifQuery.data]);
 
   const unreadCount: number = useMemo(() => {
-    const u: any = (unreadHook as any)?.data ?? (unreadHook as any);
+    const u: any = unreadHook.data;
     if (typeof u === "number") return u;
-    // fallback if hook returns nothing: compute from list
-    return notifications.filter((n) => !n?.is_read).length;
-  }, [unreadHook, notifications]);
+    return notifications.filter((n) => !n.is_read).length;
+  }, [unreadHook.data, notifications]);
 
-  const markAsRead = (id: string) => {
-    const fn = (notifMutations as any)?.markAsRead?.mutateAsync
-      ? (notifMutations as any).markAsRead.mutateAsync
-      : (notifMutations as any)?.markAsRead;
-    if (typeof fn === "function") return fn(id);
-    return Promise.resolve();
-  };
-
-  const markAllAsRead = () => {
-    const fn = (notifMutations as any)?.markAllAsRead?.mutateAsync
-      ? (notifMutations as any).markAllAsRead.mutateAsync
-      : (notifMutations as any)?.markAllAsRead;
-    if (typeof fn === "function") return fn();
-    return Promise.resolve();
-  };
+  const markAsRead = (id: string) => notifMutations.markAsRead.mutateAsync(id);
+  const markAllAsRead = () => notifMutations.markAllAsRead.mutateAsync();
 
   // Sheet service
   const [selectedService, setSelectedService] = useState<{
@@ -327,7 +318,8 @@ export default function Hub() {
     const found = cities?.find(
       (c: any) =>
         c.id === cityIdOrName ||
-        String(c.name || "").toLowerCase() === String(cityIdOrName).toLowerCase()
+        String(c.name || "").toLowerCase() ===
+          String(cityIdOrName).toLowerCase()
     );
 
     return found
@@ -408,7 +400,9 @@ export default function Hub() {
   };
 
   const featuredProvidersFiltered = useMemo(() => {
-    return featuredProviders.filter((fp) => matchesSelectedCity(fp.provider_city));
+    return featuredProviders.filter((fp) =>
+      matchesSelectedCity(fp.provider_city)
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [featuredProviders, searchFilters.city, language, cities]);
 
@@ -519,7 +513,10 @@ export default function Hub() {
         serviceItems.find((s) => {
           const en = norm(s.name);
           const ar = norm(s.name_ar || "");
-          return (en && en.includes(norm(fp.service_title))) || (ar && ar.includes(norm(fp.service_title)));
+          return (
+            (en && en.includes(norm(fp.service_title))) ||
+            (ar && ar.includes(norm(fp.service_title)))
+          );
         }) || null;
 
       return found?.id || null;
@@ -802,7 +799,9 @@ export default function Hub() {
             />
           </div>
 
-          {(searchFilters.city || searchFilters.subCity || searchFilters.minRating) && (
+          {(searchFilters.city ||
+            searchFilters.subCity ||
+            searchFilters.minRating) && (
             <div className="mt-2">
               <ActiveFilterChips
                 filters={searchFilters}
@@ -873,7 +872,9 @@ export default function Hub() {
 
         {/* Featured Providers */}
         <section className="mt-8">
-          <SectionHeader title={isRTL ? "مقدمي خدمة مختارين" : "Featured providers"} />
+          <SectionHeader
+            title={isRTL ? "مقدمي خدمة مختارين" : "Featured providers"}
+          />
           {featuredLoading ? (
             <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
               {[...Array(3)].map((_, i) => (
@@ -959,7 +960,8 @@ export default function Hub() {
             </div>
           ) : (
             <div className="rounded-2xl bg-white border border-gray-200 p-5 text-sm text-[#777]">
-              {featuredProviders.length > 0 && featuredProvidersFiltered.length === 0
+              {featuredProviders.length > 0 &&
+              featuredProvidersFiltered.length === 0
                 ? isRTL
                   ? "لا يوجد مزودين مختارين لهذه المدينة."
                   : "No featured providers for this city."
@@ -982,18 +984,28 @@ export default function Hub() {
                 return (
                   <button
                     key={suggestion.id}
-                    onClick={() => openServiceSheetFromSubcategory(targetService)}
+                    onClick={() =>
+                      openServiceSheetFromSubcategory(targetService)
+                    }
                     className={cn(
                       "relative overflow-hidden w-full rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.99]",
                       isRTL && "text-right"
                     )}
                   >
-                    <div className={cn("absolute inset-0 opacity-10", targetService.color)} />
+                    <div
+                      className={cn(
+                        "absolute inset-0 opacity-10",
+                        targetService.color
+                      )}
+                    />
                     <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
 
                     <div className="relative flex items-center gap-3">
                       <div className="h-12 w-12 rounded-2xl bg-white/70 border border-gray-200 flex items-center justify-center flex-shrink-0">
-                        <Icon className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
+                        <Icon
+                          className="h-6 w-6 text-[#111]"
+                          strokeWidth={1.7}
+                        />
                       </div>
 
                       <div className="flex-1 min-w-0">
@@ -1005,7 +1017,12 @@ export default function Hub() {
                         </p>
                       </div>
 
-                      <ChevronRight className={cn("h-5 w-5 text-[#C9C9C9]", isRTL && "rotate-180")} />
+                      <ChevronRight
+                        className={cn(
+                          "h-5 w-5 text-[#C9C9C9]",
+                          isRTL && "rotate-180"
+                        )}
+                      />
                     </div>
                   </button>
                 );
@@ -1017,12 +1034,16 @@ export default function Hub() {
         {/* Popular Services */}
         {popularServices.length > 0 && (
           <section className="mt-8">
-            <SectionHeader title={isRTL ? "الخدمات الأكثر طلباً" : "Popular services"} />
+            <SectionHeader
+              title={isRTL ? "الخدمات الأكثر طلباً" : "Popular services"}
+            />
             <div className="grid grid-cols-2 gap-3">
               {popularServices.map((service) => {
                 const IconComponent = service.icon;
                 const displayName =
-                  language === "ar" && service.name_ar ? service.name_ar : service.name;
+                  language === "ar" && service.name_ar
+                    ? service.name_ar
+                    : service.name;
 
                 return (
                   <button
@@ -1033,12 +1054,25 @@ export default function Hub() {
                       isRTL && "text-right"
                     )}
                   >
-                    <div className={cn("absolute inset-0 opacity-10", service.color)} />
+                    <div
+                      className={cn(
+                        "absolute inset-0 opacity-10",
+                        service.color
+                      )}
+                    />
                     <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
 
                     <div className="relative flex items-center gap-3">
-                      <div className={cn("h-12 w-12 rounded-2xl flex items-center justify-center", service.color)}>
-                        <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
+                      <div
+                        className={cn(
+                          "h-12 w-12 rounded-2xl flex items-center justify-center",
+                          service.color
+                        )}
+                      >
+                        <IconComponent
+                          className="h-6 w-6 text-[#111]"
+                          strokeWidth={1.7}
+                        />
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="text-[15px] font-semibold text-[#111] line-clamp-1">
@@ -1073,7 +1107,9 @@ export default function Hub() {
             </button>
             <button
               onClick={() =>
-                window.alert(isRTL ? "سيتم إضافة الشروط قريباً" : "Terms will be added soon")
+                window.alert(
+                  isRTL ? "سيتم إضافة الشروط قريباً" : "Terms will be added soon"
+                )
               }
               className="hover:text-[#111] transition-colors"
             >
@@ -1081,7 +1117,11 @@ export default function Hub() {
             </button>
             <button
               onClick={() =>
-                window.alert(isRTL ? "سيتم إضافة الخصوصية قريباً" : "Privacy will be added soon")
+                window.alert(
+                  isRTL
+                    ? "سيتم إضافة الخصوصية قريباً"
+                    : "Privacy will be added soon"
+                )
               }
               className="hover:text-[#111] transition-colors"
             >
@@ -1145,7 +1185,10 @@ export default function Hub() {
             ) : notifLoading ? (
               <div className="space-y-2">
                 {[...Array(4)].map((_, i) => (
-                  <div key={i} className="h-16 rounded-2xl bg-gray-200 animate-pulse" />
+                  <div
+                    key={i}
+                    className="h-16 rounded-2xl bg-gray-200 animate-pulse"
+                  />
                 ))}
               </div>
             ) : notifications.length === 0 ? (
@@ -1173,7 +1216,10 @@ export default function Hub() {
                           {n.title || (isRTL ? "إشعار" : "Notification")}
                         </p>
                         <p className="text-xs text-[#777] mt-1 whitespace-pre-wrap">
-                          {n.body || (isRTL ? "تفاصيل الإشعار" : "Notification details")}
+                          {n.body ||
+                            (isRTL
+                              ? "تفاصيل الإشعار"
+                              : "Notification details")}
                         </p>
                         {n.created_at && (
                           <p className="text-[11px] text-[#999] mt-2">
@@ -1229,7 +1275,9 @@ export default function Hub() {
                   {drawerSubcategories.map((service) => {
                     const IconComponent = service.icon;
                     const displayName =
-                      language === "ar" && service.name_ar ? service.name_ar : service.name;
+                      language === "ar" && service.name_ar
+                        ? service.name_ar
+                        : service.name;
 
                     return (
                       <button
@@ -1243,7 +1291,12 @@ export default function Hub() {
                           isRTL && "flex-row-reverse text-right"
                         )}
                       >
-                        <div className={cn("absolute inset-0 opacity-10", service.color)} />
+                        <div
+                          className={cn(
+                            "absolute inset-0 opacity-10",
+                            service.color
+                          )}
+                        />
                         <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
 
                         <div
@@ -1252,7 +1305,10 @@ export default function Hub() {
                             service.color
                           )}
                         >
-                          <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
+                          <IconComponent
+                            className="h-6 w-6 text-[#111]"
+                            strokeWidth={1.7}
+                          />
                         </div>
 
                         <div className="relative flex-1 min-w-0">
@@ -1276,7 +1332,9 @@ export default function Hub() {
                 </div>
               ) : (
                 <div className="text-center py-10 text-sm text-muted-foreground">
-                  {isRTL ? "لا توجد خدمات في هذه الفئة" : "No services in this category"}
+                  {isRTL
+                    ? "لا توجد خدمات في هذه الفئة"
+                    : "No services in this category"}
                 </div>
               )}
             </div>
