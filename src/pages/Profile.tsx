@@ -229,6 +229,9 @@ const Profile = () => {
 
     const { error: updateError } = await updateProfile({ avatar_url: url });
     if (!updateError) {
+      // keep edit form consistent (if user is editing)
+      setFormData((prev) => ({ ...prev, avatar_url: url }));
+
       toast({
         title: t.profile.profileUpdated,
         description: isRTL ? "تم تحديث الصورة بنجاح" : "Avatar updated successfully",
@@ -239,7 +242,7 @@ const Profile = () => {
     input.value = "";
   };
 
-  // ✅ Delete photo (available for users & providers) in edit mode
+  // ✅ Delete photo (available for ALL users) in edit mode
   const handleRemoveAvatar = async () => {
     const { error } = await updateProfile({ avatar_url: null });
     if (error) {
@@ -250,6 +253,10 @@ const Profile = () => {
       });
       return;
     }
+
+    // keep local edit form consistent
+    setFormData((prev) => ({ ...prev, avatar_url: "" }));
+
     toast({
       title: isRTL ? "تم حذف الصورة" : "Avatar removed",
       description: isRTL ? "تمت إعادة الصورة الافتراضية" : "Default avatar restored",
@@ -288,7 +295,9 @@ const Profile = () => {
   const handleDeleteService = async (id: string) => {
     if (
       !confirm(
-        isRTL ? "هل أنت متأكد من حذف هذه الخدمة؟" : "Are you sure you want to delete this service?"
+        isRTL
+          ? "هل أنت متأكد من حذف هذه الخدمة؟"
+          : "Are you sure you want to delete this service?"
       )
     ) {
       return;
@@ -543,7 +552,7 @@ const Profile = () => {
                   )}
 
                   {/* Remove avatar (edit mode for everyone) */}
-                  {!!profile?.avatar_url && (
+                  {!!(isEditing ? formData.avatar_url : profile?.avatar_url) && (
                     <Button
                       type="button"
                       variant="outline"
@@ -569,7 +578,11 @@ const Profile = () => {
                         {t.profile.cancelEdit}
                       </span>
                     </Button>
-                    <Button size="sm" onClick={handleSave} className="rounded-full flex-1">
+                    <Button
+                      size="sm"
+                      onClick={handleSave}
+                      className="rounded-full flex-1"
+                    >
                       <Save className="h-4 w-4" />
                       <span className={isRTL ? "mr-1" : "ml-1"}>
                         {t.profile.saveChanges}
@@ -651,9 +664,16 @@ const Profile = () => {
             {/* Action Buttons */}
             {!isEditing && (
               <div className="flex flex-wrap justify-center gap-2">
-                <Button variant="outline" size="sm" onClick={handleEdit} className="rounded-full">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleEdit}
+                  className="rounded-full"
+                >
                   <Edit2 className="h-4 w-4" />
-                  <span className={isRTL ? "mr-1" : "ml-1"}>{t.profile.editProfile}</span>
+                  <span className={isRTL ? "mr-1" : "ml-1"}>
+                    {t.profile.editProfile}
+                  </span>
                 </Button>
 
                 {!isBusiness && (
@@ -668,7 +688,9 @@ const Profile = () => {
                     ) : (
                       <Briefcase className="h-4 w-4" />
                     )}
-                    <span className={isRTL ? "mr-1" : "ml-1"}>{t.profile.becomeProvider}</span>
+                    <span className={isRTL ? "mr-1" : "ml-1"}>
+                      {t.profile.becomeProvider}
+                    </span>
                   </Button>
                 )}
 
@@ -681,7 +703,9 @@ const Profile = () => {
                     disabled={providerMissingPhone}
                   >
                     <Plus className="h-4 w-4" />
-                    <span className={isRTL ? "mr-1" : "ml-1"}>{t.profile.addService}</span>
+                    <span className={isRTL ? "mr-1" : "ml-1"}>
+                      {t.profile.addService}
+                    </span>
                   </Button>
                 )}
 
@@ -692,7 +716,9 @@ const Profile = () => {
                   className="rounded-full text-destructive hover:text-destructive hover:bg-destructive/10"
                 >
                   <LogOut className="h-4 w-4" />
-                  <span className={isRTL ? "mr-1" : "ml-1"}>{t.profile.logout}</span>
+                  <span className={isRTL ? "mr-1" : "ml-1"}>
+                    {t.profile.logout}
+                  </span>
                 </Button>
               </div>
             )}
@@ -718,17 +744,15 @@ const Profile = () => {
         <section className="py-6">
           <div className="container">
             <div className="max-w-2xl mx-auto space-y-4">
-              <div className={`flex items-center justify-between ${isRTL ? "flex-row-reverse" : ""}`}>
-                <h2 className="font-display text-lg font-semibold">{t.profile.myServices}</h2>
-                <Button
-                  size="sm"
-                  className="rounded-full"
-                  onClick={() => navigate("/create-service")}
-                  disabled={providerMissingPhone}
-                >
-                  <Plus className="h-4 w-4" />
-                  <span className={isRTL ? "mr-1" : "ml-1"}>{t.profile.addService}</span>
-                </Button>
+              {/* ✅ Removed the "Add Service" button beside "My Services" */}
+              <div
+                className={`flex items-center justify-between ${
+                  isRTL ? "flex-row-reverse" : ""
+                }`}
+              >
+                <h2 className="font-display text-lg font-semibold">
+                  {t.profile.myServices}
+                </h2>
               </div>
 
               {providerMissingPhone && (
@@ -754,7 +778,9 @@ const Profile = () => {
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <h3 className="font-semibold text-foreground">{service.title}</h3>
+                            <h3 className="font-semibold text-foreground">
+                              {service.title}
+                            </h3>
                             {service.is_paused && (
                               <Badge
                                 variant="secondary"
@@ -772,11 +798,15 @@ const Profile = () => {
 
                           <div className="flex items-center gap-2 mt-2 flex-wrap">
                             <Badge variant="outline">
-                              {t.categories[service.category as keyof typeof t.categories] ||
-                                service.category}
+                              {t.categories[
+                                service.category as keyof typeof t.categories
+                              ] || service.category}
                             </Badge>
                             {isPendingApproval && (
-                              <Badge variant="secondary" className="bg-amber-100 text-amber-700">
+                              <Badge
+                                variant="secondary"
+                                className="bg-amber-100 text-amber-700"
+                              >
                                 {isRTL ? "قيد المراجعة" : "Pending"}
                               </Badge>
                             )}
@@ -827,8 +857,12 @@ const Profile = () => {
                   <div className="h-16 w-16 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
                     <Briefcase className="h-8 w-8 text-muted-foreground" />
                   </div>
-                  <p className="text-muted-foreground font-medium">{t.profile.noServices}</p>
-                  <p className="text-sm text-muted-foreground mt-1">{t.profile.noServicesDesc}</p>
+                  <p className="text-muted-foreground font-medium">
+                    {t.profile.noServices}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {t.profile.noServicesDesc}
+                  </p>
                   <Button
                     className="mt-4 rounded-full"
                     onClick={() => navigate("/create-service")}
