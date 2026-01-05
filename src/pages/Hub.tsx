@@ -1,7 +1,6 @@
-import { useMemo, useEffect, useState, ReactNode } from "react";
+import { useMemo, useEffect, useState, ReactNode, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  User,
   Home,
   Car,
   Zap,
@@ -63,6 +62,13 @@ import { useAllSubcategories } from "@/hooks/useSubcategories";
 import { useCities } from "@/hooks/useCities";
 import { useServiceRatings } from "@/hooks/useReviews";
 
+// ✅ Use the same notifications system used in other pages
+import {
+  useNotifications,
+  useUnreadCount,
+  useNotificationMutations,
+} from "@/hooks/useNotifications";
+
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -117,7 +123,7 @@ type FeaturedProviderCard = {
   provider_city: string | null;
   provider_sub_city: string | null;
 
-  // ✅ IMPORTANT: to open ServiceDetailSheet correctly, we need subcategory id
+  // IMPORTANT: to open ServiceDetailSheet correctly, we need subcategory id
   subcategory_id: string | null;
 };
 
@@ -228,10 +234,46 @@ export default function Hub() {
 
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  // Notifications
+  // ✅ Notifications drawer open state only (data comes from hooks now)
   const [notifOpen, setNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [notifLoading, setNotifLoading] = useState(false);
+
+  // ✅ Hook-based notifications (same as other pages)
+  const notifQuery = useNotifications();
+  const unreadHook = useUnreadCount();
+  const notifMutations = useNotificationMutations();
+
+  // Normalize hook outputs safely (so Hub doesn't crash if signatures differ)
+  const notifications: AppNotification[] = useMemo(() => {
+    const d: any = (notifQuery as any)?.data ?? (notifQuery as any) ?? [];
+    return Array.isArray(d) ? d : [];
+  }, [notifQuery]);
+
+  const notifLoading: boolean = Boolean(
+    (notifQuery as any)?.isLoading ?? (notifQuery as any)?.isFetching ?? false
+  );
+
+  const unreadCount: number = useMemo(() => {
+    const u: any = (unreadHook as any)?.data ?? (unreadHook as any);
+    if (typeof u === "number") return u;
+    // fallback if hook returns nothing: compute from list
+    return notifications.filter((n) => !n?.is_read).length;
+  }, [unreadHook, notifications]);
+
+  const markAsRead = (id: string) => {
+    const fn = (notifMutations as any)?.markAsRead?.mutateAsync
+      ? (notifMutations as any).markAsRead.mutateAsync
+      : (notifMutations as any)?.markAsRead;
+    if (typeof fn === "function") return fn(id);
+    return Promise.resolve();
+  };
+
+  const markAllAsRead = () => {
+    const fn = (notifMutations as any)?.markAllAsRead?.mutateAsync
+      ? (notifMutations as any).markAllAsRead.mutateAsync
+      : (notifMutations as any)?.markAllAsRead;
+    if (typeof fn === "function") return fn();
+    return Promise.resolve();
+  };
 
   // Sheet service
   const [selectedService, setSelectedService] = useState<{
@@ -277,10 +319,6 @@ export default function Hub() {
       .map((n) => n[0])
       .join("")
       .slice(0, 2) || (isRTL ? "م" : "U");
-
-  const unreadCount = useMemo(() => {
-    return notifications.filter((n) => !n.is_read).length;
-  }, [notifications]);
 
   // ✅ Convert city id -> name
   const getCityLabel = (cityIdOrName: string | null) => {
@@ -427,6 +465,7 @@ export default function Hub() {
   };
 
   const openServiceSheetFromSubcategory = (service: ServiceItem) => {
+    // NOTE: used for normal flows. For featured flow, we don't use this to avoid resetting provider id.
     setInitialProviderServiceId(null);
 
     const category = categories?.find((c: any) => c.id === service.category_id);
@@ -445,64 +484,84 @@ export default function Hub() {
     setSheetOpen(true);
   };
 
-  // ✅ FIX (2): Featured click must open provider page
-  // We do that by:
-  // - opening ServiceDetailSheet for the service’s SUBCATEGORY (if available)
-  // - and passing initialProviderServiceId so it jumps to that provider
-  const openProviderDetailsFromFeatured = (fp: FeaturedProviderCard) => {
-    setInitialProviderServiceId(fp.service_id);
-
-    // If we have subcategory_id, ServiceDetailSheet will be in correct service context
-    if (fp.subcategory_id) {
-      const sc = serviceItems.find((s) => s.id === fp.subcategory_id) || null;
-      if (sc) {
-        openServiceSheetFromSubcategory(sc);
-        // openServiceSheetFromSubcategory sets initialProviderServiceId(null), so re-set it:
-        setInitialProviderServiceId(fp.service_id);
-        return;
-      }
-
-      // fallback: create a minimal selectedService with that subcategory id
-      setSelectedService({
-        id: fp.subcategory_id,
-        icon: Wrench,
-        color: "bg-[#F2F2F2]",
-        titleKey: fp.service_title,
-        descKey: "",
-        category: fp.category,
-        categoryName: fp.category,
-        categoryNameAr: fp.category,
-      });
-      setSheetOpen(true);
-      return;
-    }
-
-    // Last fallback (still opens sheet; provider deep-link may work depending on sheet implementation)
-    setSelectedService({
-      id: fp.service_id,
-      icon: Wrench,
-      color: "bg-[#F2F2F2]",
-      titleKey: fp.service_title,
-      descKey: "",
-      category: fp.category,
-      categoryName: fp.category,
-      categoryNameAr: fp.category,
-    });
-    setSheetOpen(true);
-  };
-
   const openCategoryDrawer = (categoryId: string) => {
     setDrawerCategoryId(categoryId);
     setCategoryDrawerOpen(true);
   };
 
-  // Featured Providers
+  // ✅ Best-effort resolver for missing featured subcategory_id
+  const resolveFeaturedSubcategoryId = useCallback(
+    (fp: FeaturedProviderCard): string | null => {
+      if (fp.subcategory_id) return fp.subcategory_id;
+      if (!serviceItems.length) return null;
+
+      const norm = (s: string) =>
+        String(s || "")
+          .toLowerCase()
+          .replace(/\s+/g, " ")
+          .trim();
+
+      const hay = `${fp.category || ""} ${fp.service_title || ""}`;
+      const H = norm(hay);
+
+      // 1) direct contains match
+      let found =
+        serviceItems.find((s) => {
+          const en = norm(s.name);
+          const ar = norm(s.name_ar || "");
+          return (en && H.includes(en)) || (ar && H.includes(ar));
+        }) || null;
+
+      if (found) return found.id;
+
+      // 2) reverse contains (subcategory contains the service title/category)
+      found =
+        serviceItems.find((s) => {
+          const en = norm(s.name);
+          const ar = norm(s.name_ar || "");
+          return (en && en.includes(norm(fp.service_title))) || (ar && ar.includes(norm(fp.service_title)));
+        }) || null;
+
+      return found?.id || null;
+    },
+    [serviceItems]
+  );
+
+  // ✅ Featured click: open ServiceDetailSheet in correct subcategory context + deep-link provider
+  const openProviderDetailsFromFeatured = useCallback(
+    (fp: FeaturedProviderCard) => {
+      const subId = resolveFeaturedSubcategoryId(fp);
+
+      // pick icon/color from known subcategory if possible
+      const sc = subId ? serviceItems.find((s) => s.id === subId) : null;
+      const category = sc
+        ? categories?.find((c: any) => c.id === sc.category_id)
+        : null;
+
+      // set both states deterministically (no reset in between)
+      setInitialProviderServiceId(fp.service_id);
+
+      setSelectedService({
+        id: subId || fp.service_id,
+        icon: sc?.icon || Wrench,
+        color: sc?.color || "bg-[#F2F2F2]",
+        titleKey: sc ? sc.name : fp.service_title,
+        descKey: "",
+        category: sc ? sc.name : fp.category,
+        categoryName: category?.name || fp.category,
+        categoryNameAr: category?.name_ar || fp.category,
+      });
+
+      setSheetOpen(true);
+    },
+    [resolveFeaturedSubcategoryId, serviceItems, categories]
+  );
+
+  // Featured Providers (fetch stays the same; subcategory_id will be used if available)
   useEffect(() => {
     const fetchFeaturedProviders = async () => {
       setFeaturedLoading(true);
       try {
-        // ✅ NOTE: we try to read subcategory_id if it exists in your services table.
-        // If it doesn't exist, supabase will error. We handle that safely by retrying without it.
         const selectWithSubcategory =
           "id, category, title, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused, is_featured, featured_order, created_at, subcategory_id";
 
@@ -521,7 +580,6 @@ export default function Hub() {
         if (!firstTry.error) {
           servicesData = firstTry.data || [];
         } else {
-          // retry without subcategory_id
           const secondTry = await supabase
             .from("services")
             .select(
@@ -600,7 +658,7 @@ export default function Hub() {
 
     fetchFeaturedProviders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isRTL]);
 
   // Popular services = admin-picked only
   const popularServices: ServiceItem[] = useMemo(() => {
@@ -641,103 +699,35 @@ export default function Hub() {
     })).filter((x) => Boolean(x.target));
   }, [serviceItems]);
 
-  // ✅ FIX (4): Notifications fetch + realtime
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      if (!user?.id) {
-        setNotifications([]);
-        return;
-      }
-
-      setNotifLoading(true);
-      try {
-        // Assumed table/columns (safe if it exists):
-        // notifications: id, user_id, title, body, created_at, is_read
-        const { data, error } = await supabase
-          .from("notifications")
-          .select("id, title, body, created_at, is_read")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(30);
-
-        if (error) {
-          // If table doesn't exist or mismatch, do NOT break the page.
-          console.warn("Notifications fetch failed:", error.message);
-          setNotifications([]);
-          return;
-        }
-
-        setNotifications((data as any) || []);
-      } catch (e) {
-        console.warn("Notifications fetch exception:", e);
-        setNotifications([]);
-      } finally {
-        setNotifLoading(false);
-      }
-    };
-
-    fetchNotifications();
-
-    if (!user?.id) return;
-
-    // realtime updates (if enabled in your supabase)
-    const channel = supabase
-      .channel("hub-notifications")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${user.id}`,
-        },
-        () => {
-          fetchNotifications();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.id]);
-
   return (
     <div className="min-h-screen bg-[#F7F7F8] pb-24" dir={isRTL ? "rtl" : "ltr"}>
       {/* Sticky Top Bar */}
       <header className="sticky top-0 z-40 bg-[#F7F7F8]/90 backdrop-blur supports-[backdrop-filter]:bg-[#F7F7F8]/75 border-b border-gray-100">
         <div className="px-4 pt-4 pb-3">
           <div className="flex items-center justify-between">
-            {/* Profile */}
-            <button
-              onClick={() => (user ? navigate("/profile") : navigate("/auth"))}
-              className="h-10 w-10 rounded-full bg-white border border-gray-200 flex items-center justify-center"
-            >
-              {user ? (
-                <Avatar className="h-10 w-10">
-                  <AvatarImage src={profile?.avatar_url || undefined} />
-                  <AvatarFallback className="bg-[#111] text-white text-sm font-medium">
-                    {initials}
-                  </AvatarFallback>
-                </Avatar>
-              ) : (
-                <User className="h-5 w-5 text-[#111]" />
-              )}
-            </button>
+            {/* ✅ Removed avatar/profile button (left spacer keeps layout balanced) */}
+            <div className="h-10 w-10" />
 
             {/* Center title */}
-            <div className="flex flex-col items-center leading-none">
-              <span className="text-[13px] font-semibold text-[#111]">{t.appName}</span>
+            <button
+              type="button"
+              onClick={() => navigate("/")}
+              className="flex flex-col items-center leading-none"
+              aria-label={t.appName}
+            >
+              <span className="text-[13px] font-semibold text-[#111]">
+                {t.appName}
+              </span>
               <span className="text-[11px] text-[#777]">
                 {isRTL ? "خدمات قريبة منك" : "Local services"}
               </span>
-            </div>
+            </button>
 
             {/* Actions */}
             <div className="flex items-center gap-2">
               <LanguageToggle />
 
-              {/* ✅ Bell notifications */}
+              {/* ✅ Bell notifications (hook-based) */}
               <button
                 onClick={() => setNotifOpen(true)}
                 className="relative h-10 w-10 rounded-full bg-white border border-gray-200 flex items-center justify-center"
@@ -757,7 +747,7 @@ export default function Hub() {
             </div>
           </div>
 
-          {/* ✅ (1) Search bar removed بالكامل */}
+          {/* Search bar removed */}
 
           {/* City chips + rating */}
           <div className="mt-4 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
@@ -798,18 +788,26 @@ export default function Hub() {
               }
             />
             <FilterSuggestionChip
-              icon={<Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />}
+              icon={
+                <Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />
+              }
               label={isRTL ? "4+ نجوم" : "4+ Stars"}
               isActive={Boolean(searchFilters.minRating)}
               onClick={() =>
-                setSearchFilters((prev) => ({ ...prev, minRating: !prev.minRating }))
+                setSearchFilters((prev) => ({
+                  ...prev,
+                  minRating: !prev.minRating,
+                }))
               }
             />
           </div>
 
           {(searchFilters.city || searchFilters.subCity || searchFilters.minRating) && (
             <div className="mt-2">
-              <ActiveFilterChips filters={searchFilters} onRemoveFilter={handleRemoveFilter} />
+              <ActiveFilterChips
+                filters={searchFilters}
+                onRemoveFilter={handleRemoveFilter}
+              />
             </div>
           )}
         </div>
@@ -825,14 +823,18 @@ export default function Hub() {
           {categoriesLoading ? (
             <div className="grid grid-cols-4 gap-3">
               {[...Array(8)].map((_, i) => (
-                <div key={i} className="h-[102px] rounded-2xl bg-gray-200 animate-pulse" />
+                <div
+                  key={i}
+                  className="h-[102px] rounded-2xl bg-gray-200 animate-pulse"
+                />
               ))}
             </div>
           ) : (
             <div className="grid grid-cols-4 gap-3">
               {categoryGrid.map((cat: any) => {
                 const IconComponent = ICON_MAP[cat.icon] || Home;
-                const displayName = language === "ar" && cat.name_ar ? cat.name_ar : cat.name;
+                const displayName =
+                  language === "ar" && cat.name_ar ? cat.name_ar : cat.name;
 
                 return (
                   <button
@@ -840,7 +842,12 @@ export default function Hub() {
                     onClick={() => openCategoryDrawer(cat.id)}
                     className="relative overflow-hidden h-[102px] rounded-2xl border bg-white border-gray-200 flex flex-col items-center justify-center gap-2 transition-all active:scale-[0.98]"
                   >
-                    <div className={cn("absolute inset-0 opacity-10", cat.color || "bg-[#F2F2F2]")} />
+                    <div
+                      className={cn(
+                        "absolute inset-0 opacity-10",
+                        cat.color || "bg-[#F2F2F2]"
+                      )}
+                    />
                     <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/70" />
 
                     <div
@@ -849,7 +856,10 @@ export default function Hub() {
                         cat.color || "bg-[#F2F2F2]"
                       )}
                     >
-                      <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
+                      <IconComponent
+                        className="h-6 w-6 text-[#111]"
+                        strokeWidth={1.7}
+                      />
                     </div>
                     <span className="relative text-[11px] font-semibold text-[#111] text-center px-1 leading-tight line-clamp-1">
                       {displayName}
@@ -880,7 +890,7 @@ export default function Hub() {
 
                 return (
                   <button
-                    key={fp.service_id}
+                    key={`${fp.service_id}-${fp.provider_phone || fp.provider_name}`}
                     onClick={() => openProviderDetailsFromFeatured(fp)}
                     className={cn(
                       "snap-start flex-shrink-0 w-[310px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
@@ -903,28 +913,44 @@ export default function Hub() {
                         <h3 className="text-[16px] font-semibold text-[#111] truncate">
                           {fp.provider_name}
                         </h3>
-                        <p className="text-xs text-[#777] mt-1 truncate">{fp.service_title}</p>
+                        <p className="text-xs text-[#777] mt-1 truncate">
+                          {fp.service_title}
+                        </p>
 
                         <div className="mt-1 flex items-center gap-1 text-xs">
                           <Star
                             className={cn(
                               "h-3.5 w-3.5",
-                              r.hasRating ? "text-yellow-500 fill-yellow-500" : "text-[#999]"
+                              r.hasRating
+                                ? "text-yellow-500 fill-yellow-500"
+                                : "text-[#999]"
                             )}
                           />
-                          <span className={cn(r.hasRating ? "text-[#111] font-semibold" : "text-[#777]")}>
+                          <span
+                            className={cn(
+                              r.hasRating
+                                ? "text-[#111] font-semibold"
+                                : "text-[#777]"
+                            )}
+                          >
                             {r.text}
                           </span>
                         </div>
                       </div>
 
-                      <ChevronRight className={cn("h-5 w-5 text-[#C9C9C9]", isRTL && "rotate-180")} />
+                      <ChevronRight
+                        className={cn(
+                          "h-5 w-5 text-[#C9C9C9]",
+                          isRTL && "rotate-180"
+                        )}
+                      />
                     </div>
 
                     <div className="mt-3 text-xs text-[#777]">
                       {fp.provider_city ? (isRTL ? "المدينة: " : "City: ") : ""}
                       <span className="text-[#111] font-semibold">
-                        {getCityLabel(fp.provider_city) || (isRTL ? "غير محدد" : "Not set")}
+                        {getCityLabel(fp.provider_city) ||
+                          (isRTL ? "غير محدد" : "Not set")}
                       </span>
                     </div>
                   </button>
@@ -995,7 +1021,8 @@ export default function Hub() {
             <div className="grid grid-cols-2 gap-3">
               {popularServices.map((service) => {
                 const IconComponent = service.icon;
-                const displayName = language === "ar" && service.name_ar ? service.name_ar : service.name;
+                const displayName =
+                  language === "ar" && service.name_ar ? service.name_ar : service.name;
 
                 return (
                   <button
@@ -1029,7 +1056,7 @@ export default function Hub() {
           </section>
         )}
 
-        {/* ✅ (3) Bottom line / links (simple, premium, non-clutter) */}
+        {/* Bottom line / links */}
         <section className="mt-10">
           <div className="border-t border-gray-200 pt-4 pb-2 text-xs text-[#777] flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
             <button
@@ -1045,13 +1072,17 @@ export default function Hub() {
               {isRTL ? "تواصل معنا" : "Contact"}
             </button>
             <button
-              onClick={() => window.alert(isRTL ? "سيتم إضافة الشروط قريباً" : "Terms will be added soon")}
+              onClick={() =>
+                window.alert(isRTL ? "سيتم إضافة الشروط قريباً" : "Terms will be added soon")
+              }
               className="hover:text-[#111] transition-colors"
             >
               {isRTL ? "الشروط" : "Terms"}
             </button>
             <button
-              onClick={() => window.alert(isRTL ? "سيتم إضافة الخصوصية قريباً" : "Privacy will be added soon")}
+              onClick={() =>
+                window.alert(isRTL ? "سيتم إضافة الخصوصية قريباً" : "Privacy will be added soon")
+              }
               className="hover:text-[#111] transition-colors"
             >
               {isRTL ? "الخصوصية" : "Privacy"}
@@ -1065,7 +1096,7 @@ export default function Hub() {
 
       <MobileNav />
 
-      {/* ✅ Notifications Drawer */}
+      {/* ✅ Notifications Drawer (hook-based) */}
       <Drawer open={notifOpen} onOpenChange={setNotifOpen}>
         <DrawerContent className="mx-auto w-[92vw] max-w-md max-h-[80vh] overflow-hidden rounded-t-3xl rounded-b-none p-0">
           <DrawerHeader className="relative pb-2 px-4 pt-4">
@@ -1083,15 +1114,33 @@ export default function Hub() {
                 {isRTL ? "الإشعارات" : "Notifications"}
               </DrawerTitle>
               <p className="text-sm text-muted-foreground mt-1">
-                {user ? (isRTL ? "آخر التحديثات" : "Latest updates") : (isRTL ? "سجّل الدخول لعرض الإشعارات" : "Sign in to see notifications")}
+                {user
+                  ? isRTL
+                    ? "آخر التحديثات"
+                    : "Latest updates"
+                  : isRTL
+                  ? "سجّل الدخول لعرض الإشعارات"
+                  : "Sign in to see notifications"}
               </p>
+
+              {user && unreadCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => markAllAsRead()}
+                  className="mt-3 text-xs font-semibold text-[#111] underline underline-offset-4"
+                >
+                  {isRTL ? "تمييز الكل كمقروء" : "Mark all as read"}
+                </button>
+              )}
             </div>
           </DrawerHeader>
 
           <ScrollArea className="px-4 pb-6">
             {!user ? (
               <div className="rounded-2xl bg-white border border-gray-200 p-4 text-sm text-[#777]">
-                {isRTL ? "سجّل الدخول لعرض إشعاراتك." : "Please sign in to view your notifications."}
+                {isRTL
+                  ? "سجّل الدخول لعرض إشعاراتك."
+                  : "Please sign in to view your notifications."}
               </div>
             ) : notifLoading ? (
               <div className="space-y-2">
@@ -1106,16 +1155,21 @@ export default function Hub() {
             ) : (
               <div className="space-y-2">
                 {notifications.map((n) => (
-                  <div
+                  <button
                     key={n.id}
+                    type="button"
+                    onClick={() => {
+                      if (!n.is_read) markAsRead(n.id);
+                    }}
                     className={cn(
-                      "rounded-2xl bg-white border border-gray-200 p-4",
-                      !n.is_read && "border-[#111]"
+                      "w-full text-left rounded-2xl bg-white border border-gray-200 p-4 transition-all active:scale-[0.99]",
+                      !n.is_read && "border-[#111]",
+                      isRTL && "text-right"
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className={cn("text-sm font-semibold text-[#111] truncate")}>
+                        <p className="text-sm font-semibold text-[#111] truncate">
                           {n.title || (isRTL ? "إشعار" : "Notification")}
                         </p>
                         <p className="text-xs text-[#777] mt-1 whitespace-pre-wrap">
@@ -1131,7 +1185,7 @@ export default function Hub() {
                         <span className="h-2.5 w-2.5 rounded-full bg-red-600 mt-1 flex-shrink-0" />
                       )}
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -1192,7 +1246,12 @@ export default function Hub() {
                         <div className={cn("absolute inset-0 opacity-10", service.color)} />
                         <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
 
-                        <div className={cn("relative h-12 w-12 rounded-2xl flex items-center justify-center flex-shrink-0", service.color)}>
+                        <div
+                          className={cn(
+                            "relative h-12 w-12 rounded-2xl flex items-center justify-center flex-shrink-0",
+                            service.color
+                          )}
+                        >
                           <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
                         </div>
 
@@ -1205,7 +1264,12 @@ export default function Hub() {
                           </p>
                         </div>
 
-                        <ChevronRight className={cn("relative h-5 w-5 text-[#C9C9C9] flex-shrink-0", isRTL && "rotate-180")} />
+                        <ChevronRight
+                          className={cn(
+                            "relative h-5 w-5 text-[#C9C9C9] flex-shrink-0",
+                            isRTL && "rotate-180"
+                          )}
+                        />
                       </button>
                     );
                   })}
