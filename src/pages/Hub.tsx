@@ -1,7 +1,6 @@
 import { useMemo, useEffect, useState, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  AlertCircle,
   User,
   Home,
   Car,
@@ -24,8 +23,6 @@ import {
   UtensilsCrossed,
   Stethoscope,
   Activity,
-  X,
-  Search,
   Star,
   MapPin,
   Hammer,
@@ -36,9 +33,9 @@ import {
   ChevronRight,
   LucideIcon,
   Bell,
+  X,
 } from "lucide-react";
 
-import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { MobileNav } from "@/components/layout/MobileNav";
@@ -106,14 +103,12 @@ interface ServiceItem {
   name: string;
   name_ar: string | null;
   category_id: string;
-
-  // Admin-picked later
   is_popular?: boolean;
   popular_order?: number | null;
 }
 
 type FeaturedProviderCard = {
-  service_id: string; // services.id (important for opening provider details)
+  service_id: string; // services.id
   category: string; // services.category
   service_title: string;
   provider_name: string;
@@ -121,6 +116,9 @@ type FeaturedProviderCard = {
   provider_avatar: string | null;
   provider_city: string | null;
   provider_sub_city: string | null;
+
+  // ✅ IMPORTANT: to open ServiceDetailSheet correctly, we need subcategory id
+  subcategory_id: string | null;
 };
 
 type DoraSuggestion = {
@@ -134,7 +132,7 @@ type DoraSuggestion = {
   icon?: LucideIcon;
 };
 
-// ✅ Suggested by Dora (manual-curated now, auto-maps to real subcategories)
+// Suggested by Dora
 const DORA_SUGGESTIONS: DoraSuggestion[] = [
   {
     id: "power-cuts",
@@ -210,6 +208,15 @@ function SectionHeader({
   );
 }
 
+// -------------------- Notifications types (safe fallback) --------------------
+type AppNotification = {
+  id: string;
+  title?: string | null;
+  body?: string | null;
+  created_at?: string | null;
+  is_read?: boolean | null;
+};
+
 export default function Hub() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -219,15 +226,16 @@ export default function Hub() {
   const { data: subcategories } = useAllSubcategories();
   const { data: cities } = useCities();
 
-  const [searchQuery, setSearchQuery] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
 
   // Notifications
   const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [notifLoading, setNotifLoading] = useState(false);
 
-  // Sheet service (subcategory context OR category context for featured provider open)
+  // Sheet service
   const [selectedService, setSelectedService] = useState<{
-    id: string;
+    id: string; // subcategory id
     titleKey: string;
     descKey: string;
     category: string;
@@ -242,14 +250,14 @@ export default function Hub() {
     string | null
   >(null);
 
-  // Filters (simple)
+  // Filters
   const [searchFilters, setSearchFilters] = useState<SearchFiltersState>({
     city: null,
     subCity: null,
     minRating: false,
   });
 
-  // Category drawer (full subcategories list)
+  // Category drawer
   const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
   const [drawerCategoryId, setDrawerCategoryId] = useState<string | null>(null);
 
@@ -258,14 +266,10 @@ export default function Hub() {
   >([]);
   const [featuredLoading, setFeaturedLoading] = useState(false);
 
-  // ✅ Stabilize ids for ratings hook
-  const featuredServiceIds = useMemo(
-    () => featuredProviders.map((fp) => fp.service_id).filter(Boolean),
-    [featuredProviders]
+  // Ratings for featured
+  const { ratings: featuredRatings } = useServiceRatings(
+    featuredProviders.map((fp) => fp.service_id)
   );
-
-  // Ratings ONLY for featured cards (fast)
-  const { ratings: featuredRatings } = useServiceRatings(featuredServiceIds);
 
   const initials =
     profile?.full_name
@@ -274,23 +278,25 @@ export default function Hub() {
       .join("")
       .slice(0, 2) || (isRTL ? "م" : "U");
 
-  // ✅ Convert city id -> name (fix UUID showing) — made safer
+  const unreadCount = useMemo(() => {
+    return notifications.filter((n) => !n.is_read).length;
+  }, [notifications]);
+
+  // ✅ Convert city id -> name
   const getCityLabel = (cityIdOrName: string | null) => {
     if (!cityIdOrName) return null;
-    const raw = String(cityIdOrName);
 
     const found = cities?.find(
       (c: any) =>
-        c.id === raw ||
-        String(c.name || "").toLowerCase() === raw.toLowerCase() ||
-        String(c.name_ar || "").toLowerCase() === raw.toLowerCase()
+        c.id === cityIdOrName ||
+        String(c.name || "").toLowerCase() === String(cityIdOrName).toLowerCase()
     );
 
     return found
       ? language === "ar" && found.name_ar
         ? found.name_ar
         : found.name
-      : raw;
+      : cityIdOrName;
   };
 
   const getFeaturedRatingDisplay = (serviceId: string) => {
@@ -300,7 +306,7 @@ export default function Hub() {
     return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true };
   };
 
-  // Helper: find a city's ID by common label (used for better matching)
+  // Helper: find a city's ID by labels
   const findCityIdByLabels = (labels: string[]) => {
     const norm = (s: string) => (s || "").toLowerCase().trim();
     const wanted = new Set(labels.map(norm));
@@ -312,9 +318,7 @@ export default function Hub() {
     return found?.id || null;
   };
 
-  // Featured city matching:
-  // - supports chips using slugs (tripoli/benghazi/misrata)
-  // - supports provider city stored as UUID or name/ar name
+  // City matching for featured providers
   const matchesSelectedCity = (providerCity: string | null) => {
     if (!searchFilters.city) return true;
     if (!providerCity) return false;
@@ -325,7 +329,10 @@ export default function Hub() {
     if (providerRaw === selectedRaw) return true;
 
     const providerLabel = getCityLabel(providerCity);
-    if (providerLabel && String(providerLabel).toLowerCase().trim() === selectedRaw)
+    if (
+      providerLabel &&
+      String(providerLabel).toLowerCase().trim() === selectedRaw
+    )
       return true;
 
     const selectedLabel = getCityLabel(searchFilters.city as any);
@@ -355,7 +362,8 @@ export default function Hub() {
       if (providerMatchesAlias) return true;
 
       const aliasCityId = findCityIdByLabels(alias.labels);
-      if (aliasCityId && providerRaw === String(aliasCityId).toLowerCase()) return true;
+      if (aliasCityId && providerRaw === String(aliasCityId).toLowerCase())
+        return true;
     }
 
     return false;
@@ -407,27 +415,6 @@ export default function Hub() {
     });
   }, [drawerCategoryId, serviceItems, language]);
 
-  // Search results (only when typing)
-  const searchedServices = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    const q = searchQuery.toLowerCase();
-    const list = serviceItems.filter((s) => {
-      const en = (s.name || "").toLowerCase();
-      const ar = (s.name_ar || "").toLowerCase();
-      return en.includes(q) || ar.includes(q);
-    });
-    return [...list].sort((a, b) => {
-      const an = (language === "ar" && a.name_ar ? a.name_ar : a.name) || "";
-      const bn = (language === "ar" && b.name_ar ? b.name_ar : b.name) || "";
-      return an.localeCompare(bn);
-    });
-  }, [serviceItems, searchQuery, language]);
-
-  const clearFilters = () => {
-    setSearchQuery("");
-    setSearchFilters({ city: null, subCity: null, minRating: false });
-  };
-
   const handleRemoveFilter = (key: keyof SearchFiltersState) => {
     if (key === "city") {
       setSearchFilters((prev) => ({ ...prev, city: null, subCity: null }));
@@ -458,10 +445,49 @@ export default function Hub() {
     setSheetOpen(true);
   };
 
-  // ✅ FIX: Featured click should open provider details (not list)
+  // ✅ FIX (2): Featured click must open provider page
+  // We do that by:
+  // - opening ServiceDetailSheet for the service’s SUBCATEGORY (if available)
+  // - and passing initialProviderServiceId so it jumps to that provider
   const openProviderDetailsFromFeatured = (fp: FeaturedProviderCard) => {
     setInitialProviderServiceId(fp.service_id);
-    setSelectedService(null); // <-- IMPORTANT
+
+    // If we have subcategory_id, ServiceDetailSheet will be in correct service context
+    if (fp.subcategory_id) {
+      const sc = serviceItems.find((s) => s.id === fp.subcategory_id) || null;
+      if (sc) {
+        openServiceSheetFromSubcategory(sc);
+        // openServiceSheetFromSubcategory sets initialProviderServiceId(null), so re-set it:
+        setInitialProviderServiceId(fp.service_id);
+        return;
+      }
+
+      // fallback: create a minimal selectedService with that subcategory id
+      setSelectedService({
+        id: fp.subcategory_id,
+        icon: Wrench,
+        color: "bg-[#F2F2F2]",
+        titleKey: fp.service_title,
+        descKey: "",
+        category: fp.category,
+        categoryName: fp.category,
+        categoryNameAr: fp.category,
+      });
+      setSheetOpen(true);
+      return;
+    }
+
+    // Last fallback (still opens sheet; provider deep-link may work depending on sheet implementation)
+    setSelectedService({
+      id: fp.service_id,
+      icon: Wrench,
+      color: "bg-[#F2F2F2]",
+      titleKey: fp.service_title,
+      descKey: "",
+      category: fp.category,
+      categoryName: fp.category,
+      categoryNameAr: fp.category,
+    });
     setSheetOpen(true);
   };
 
@@ -470,16 +496,21 @@ export default function Hub() {
     setCategoryDrawerOpen(true);
   };
 
-  // Featured Providers (from services table; uses is_featured)
+  // Featured Providers
   useEffect(() => {
     const fetchFeaturedProviders = async () => {
       setFeaturedLoading(true);
       try {
-        const { data: servicesData, error } = await supabase
+        // ✅ NOTE: we try to read subcategory_id if it exists in your services table.
+        // If it doesn't exist, supabase will error. We handle that safely by retrying without it.
+        const selectWithSubcategory =
+          "id, category, title, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused, is_featured, featured_order, created_at, subcategory_id";
+
+        let servicesData: any[] | null = null;
+
+        const firstTry = await supabase
           .from("services")
-          .select(
-            "id, category, title, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused, is_featured, featured_order, created_at"
-          )
+          .select(selectWithSubcategory)
           .eq("is_active", true)
           .eq("is_featured", true)
           .or("is_paused.is.null,is_paused.eq.false")
@@ -487,10 +518,29 @@ export default function Hub() {
           .order("created_at", { ascending: false })
           .limit(50);
 
-        if (error) {
-          console.error("Error fetching featured services:", error);
-          setFeaturedProviders([]);
-          return;
+        if (!firstTry.error) {
+          servicesData = firstTry.data || [];
+        } else {
+          // retry without subcategory_id
+          const secondTry = await supabase
+            .from("services")
+            .select(
+              "id, category, title, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused, is_featured, featured_order, created_at"
+            )
+            .eq("is_active", true)
+            .eq("is_featured", true)
+            .or("is_paused.is.null,is_paused.eq.false")
+            .order("featured_order", { ascending: true })
+            .order("created_at", { ascending: false })
+            .limit(50);
+
+          if (secondTry.error) {
+            console.error("Error fetching featured services:", secondTry.error);
+            setFeaturedProviders([]);
+            return;
+          }
+
+          servicesData = secondTry.data || [];
         }
 
         const featured = servicesData || [];
@@ -535,6 +585,7 @@ export default function Hub() {
               provider_avatar: p?.avatar_url || null,
               provider_city: p?.city || svc.city || null,
               provider_sub_city: p?.sub_city || svc.sub_city || null,
+              subcategory_id: svc.subcategory_id || null,
             };
           });
 
@@ -551,7 +602,7 @@ export default function Hub() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Popular services = admin-picked only (no fallback)
+  // Popular services = admin-picked only
   const popularServices: ServiceItem[] = useMemo(() => {
     const flagged = serviceItems.filter((s) => s.is_popular);
     if (flagged.length === 0) return [];
@@ -560,7 +611,7 @@ export default function Hub() {
       .slice(0, 12);
   }, [serviceItems]);
 
-  // Suggested by Dora -> map each suggestion to an actual ServiceItem (subcategory) if possible
+  // Suggested by Dora mapping
   const findBestMatchingSubcategory = (s: DoraSuggestion): ServiceItem | null => {
     const candidates = serviceItems;
 
@@ -589,6 +640,67 @@ export default function Hub() {
       target: findBestMatchingSubcategory(s),
     })).filter((x) => Boolean(x.target));
   }, [serviceItems]);
+
+  // ✅ FIX (4): Notifications fetch + realtime
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      if (!user?.id) {
+        setNotifications([]);
+        return;
+      }
+
+      setNotifLoading(true);
+      try {
+        // Assumed table/columns (safe if it exists):
+        // notifications: id, user_id, title, body, created_at, is_read
+        const { data, error } = await supabase
+          .from("notifications")
+          .select("id, title, body, created_at, is_read")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(30);
+
+        if (error) {
+          // If table doesn't exist or mismatch, do NOT break the page.
+          console.warn("Notifications fetch failed:", error.message);
+          setNotifications([]);
+          return;
+        }
+
+        setNotifications((data as any) || []);
+      } catch (e) {
+        console.warn("Notifications fetch exception:", e);
+        setNotifications([]);
+      } finally {
+        setNotifLoading(false);
+      }
+    };
+
+    fetchNotifications();
+
+    if (!user?.id) return;
+
+    // realtime updates (if enabled in your supabase)
+    const channel = supabase
+      .channel("hub-notifications")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchNotifications();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   return (
     <div className="min-h-screen bg-[#F7F7F8] pb-24" dir={isRTL ? "rtl" : "ltr"}>
@@ -625,53 +737,29 @@ export default function Hub() {
             <div className="flex items-center gap-2">
               <LanguageToggle />
 
-              {/* Notifications */}
+              {/* ✅ Bell notifications */}
               <button
                 onClick={() => setNotifOpen(true)}
-                className="h-10 w-10 rounded-full bg-white border border-gray-200 flex items-center justify-center"
+                className="relative h-10 w-10 rounded-full bg-white border border-gray-200 flex items-center justify-center"
                 aria-label={isRTL ? "الإشعارات" : "Notifications"}
               >
                 <Bell className="h-5 w-5 text-[#111]" />
+                {unreadCount > 0 && (
+                  <span
+                    className={cn(
+                      "absolute -top-1 -right-1 h-5 min-w-[20px] px-1 rounded-full bg-red-600 text-white text-[11px] font-bold flex items-center justify-center"
+                    )}
+                  >
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
               </button>
             </div>
           </div>
 
-          {/* Search */}
-          <div className="mt-4">
-            <div className="relative">
-              <Search
-                className={cn(
-                  "absolute top-1/2 -translate-y-1/2 h-5 w-5 text-[#8F8F8F]",
-                  isRTL ? "right-4" : "left-4"
-                )}
-              />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={
-                  isRTL ? "ابحث: كهربائي، سباك، تكييف…" : "Search: electrician, plumber, AC…"
-                }
-                className={cn(
-                  "h-12 rounded-2xl bg-white border border-gray-200 shadow-none text-base placeholder:text-[#8F8F8F]",
-                  isRTL ? "pr-12 pl-10" : "pl-12 pr-10"
-                )}
-                dir={isRTL ? "rtl" : "ltr"}
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className={cn(
-                    "absolute top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-[#EFEFEF] flex items-center justify-center",
-                    isRTL ? "left-3" : "right-3"
-                  )}
-                >
-                  <X className="h-3.5 w-3.5 text-[#666]" />
-                </button>
-              )}
-            </div>
-          </div>
+          {/* ✅ (1) Search bar removed بالكامل */}
 
-          {/* Chips */}
+          {/* City chips + rating */}
           <div className="mt-4 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
             <FilterSuggestionChip
               icon={<MapPin className="h-3.5 w-3.5" />}
@@ -714,10 +802,7 @@ export default function Hub() {
               label={isRTL ? "4+ نجوم" : "4+ Stars"}
               isActive={Boolean(searchFilters.minRating)}
               onClick={() =>
-                setSearchFilters((prev) => ({
-                  ...prev,
-                  minRating: !prev.minRating,
-                }))
+                setSearchFilters((prev) => ({ ...prev, minRating: !prev.minRating }))
               }
             />
           </div>
@@ -776,273 +861,211 @@ export default function Hub() {
           )}
         </section>
 
-        {/* Search results */}
-        {searchQuery.trim() ? (
+        {/* Featured Providers */}
+        <section className="mt-8">
+          <SectionHeader title={isRTL ? "مقدمي خدمة مختارين" : "Featured providers"} />
+          {featuredLoading ? (
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
+              {[...Array(3)].map((_, i) => (
+                <div
+                  key={i}
+                  className="flex-shrink-0 w-[310px] h-[120px] rounded-2xl bg-gray-200 animate-pulse"
+                />
+              ))}
+            </div>
+          ) : featuredProvidersFiltered.length > 0 ? (
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 snap-x snap-mandatory">
+              {featuredProvidersFiltered.map((fp) => {
+                const r = getFeaturedRatingDisplay(fp.service_id);
+
+                return (
+                  <button
+                    key={fp.service_id}
+                    onClick={() => openProviderDetailsFromFeatured(fp)}
+                    className={cn(
+                      "snap-start flex-shrink-0 w-[310px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
+                      isRTL && "text-right"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-12 w-12">
+                        <AvatarImage src={fp.provider_avatar || undefined} />
+                        <AvatarFallback className="bg-[#111] text-white font-semibold">
+                          {(fp.provider_name || (isRTL ? "م" : "P"))
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .slice(0, 2)}
+                        </AvatarFallback>
+                      </Avatar>
+
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-[16px] font-semibold text-[#111] truncate">
+                          {fp.provider_name}
+                        </h3>
+                        <p className="text-xs text-[#777] mt-1 truncate">{fp.service_title}</p>
+
+                        <div className="mt-1 flex items-center gap-1 text-xs">
+                          <Star
+                            className={cn(
+                              "h-3.5 w-3.5",
+                              r.hasRating ? "text-yellow-500 fill-yellow-500" : "text-[#999]"
+                            )}
+                          />
+                          <span className={cn(r.hasRating ? "text-[#111] font-semibold" : "text-[#777]")}>
+                            {r.text}
+                          </span>
+                        </div>
+                      </div>
+
+                      <ChevronRight className={cn("h-5 w-5 text-[#C9C9C9]", isRTL && "rotate-180")} />
+                    </div>
+
+                    <div className="mt-3 text-xs text-[#777]">
+                      {fp.provider_city ? (isRTL ? "المدينة: " : "City: ") : ""}
+                      <span className="text-[#111] font-semibold">
+                        {getCityLabel(fp.provider_city) || (isRTL ? "غير محدد" : "Not set")}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-white border border-gray-200 p-5 text-sm text-[#777]">
+              {featuredProviders.length > 0 && featuredProvidersFiltered.length === 0
+                ? isRTL
+                  ? "لا يوجد مزودين مختارين لهذه المدينة."
+                  : "No featured providers for this city."
+                : isRTL
+                ? "لا يوجد مزودين مختارين حالياً."
+                : "No featured providers yet."}
+            </div>
+          )}
+        </section>
+
+        {/* Suggested by Dora */}
+        {suggestedByDora.length > 0 && (
           <section className="mt-8">
-            <SectionHeader
-              title={isRTL ? "نتائج البحث" : "Search results"}
-              action={
-                <button
-                  onClick={clearFilters}
-                  className="flex items-center gap-1 text-sm text-[#777] hover:text-[#111] transition-colors"
-                >
-                  <X className="h-4 w-4" />
-                  {isRTL ? "مسح" : "Clear"}
-                </button>
-              }
-            />
+            <SectionHeader title={isRTL ? "مقترحات دورة" : "Suggested by Dora"} />
+            <div className="grid grid-cols-1 gap-3">
+              {suggestedByDora.map(({ suggestion, target }) => {
+                const targetService = target as ServiceItem;
+                const Icon = suggestion.icon || Sparkles;
 
-            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-              {searchedServices.length > 0 ? (
-                searchedServices.map((service, index) => {
-                  const IconComponent = service.icon;
-                  const displayName =
-                    language === "ar" && service.name_ar ? service.name_ar : service.name;
+                return (
+                  <button
+                    key={suggestion.id}
+                    onClick={() => openServiceSheetFromSubcategory(targetService)}
+                    className={cn(
+                      "relative overflow-hidden w-full rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.99]",
+                      isRTL && "text-right"
+                    )}
+                  >
+                    <div className={cn("absolute inset-0 opacity-10", targetService.color)} />
+                    <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
 
-                  return (
-                    <button
-                      key={service.id}
-                      onClick={() => openServiceSheetFromSubcategory(service)}
-                      className={cn(
-                        "relative overflow-hidden w-full flex items-center gap-4 p-5 text-left transition-colors hover:bg-gray-50 active:bg-gray-100",
-                        isRTL && "text-right flex-row-reverse",
-                        index < searchedServices.length - 1 && "border-b border-gray-100"
-                      )}
-                    >
-                      <div className={cn("absolute inset-0 opacity-10", service.color)} />
-                      <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
+                    <div className="relative flex items-center gap-3">
+                      <div className="h-12 w-12 rounded-2xl bg-white/70 border border-gray-200 flex items-center justify-center flex-shrink-0">
+                        <Icon className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
+                      </div>
 
-                      <div
-                        className={cn(
-                          "relative h-14 w-14 rounded-2xl flex items-center justify-center flex-shrink-0",
-                          service.color
-                        )}
-                      >
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-[15px] font-semibold text-[#111]">
+                          {isRTL ? suggestion.title_ar : suggestion.title_en}
+                        </h3>
+                        <p className="text-xs text-[#777] mt-1 line-clamp-2">
+                          {isRTL ? suggestion.hint_ar : suggestion.hint_en}
+                        </p>
+                      </div>
+
+                      <ChevronRight className={cn("h-5 w-5 text-[#C9C9C9]", isRTL && "rotate-180")} />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Popular Services */}
+        {popularServices.length > 0 && (
+          <section className="mt-8">
+            <SectionHeader title={isRTL ? "الخدمات الأكثر طلباً" : "Popular services"} />
+            <div className="grid grid-cols-2 gap-3">
+              {popularServices.map((service) => {
+                const IconComponent = service.icon;
+                const displayName = language === "ar" && service.name_ar ? service.name_ar : service.name;
+
+                return (
+                  <button
+                    key={service.id}
+                    onClick={() => openServiceSheetFromSubcategory(service)}
+                    className={cn(
+                      "relative overflow-hidden h-[96px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
+                      isRTL && "text-right"
+                    )}
+                  >
+                    <div className={cn("absolute inset-0 opacity-10", service.color)} />
+                    <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
+
+                    <div className="relative flex items-center gap-3">
+                      <div className={cn("h-12 w-12 rounded-2xl flex items-center justify-center", service.color)}>
                         <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
                       </div>
-                      <div className="relative flex-1 min-w-0">
-                        <h3 className="text-[16px] font-semibold text-[#111] line-clamp-1">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-[15px] font-semibold text-[#111] line-clamp-1">
                           {displayName}
                         </h3>
                         <p className="text-xs text-[#777] mt-1">
-                          {isRTL ? "اضغط لعرض مقدمي الخدمة" : "Tap to view providers"}
+                          {isRTL ? "عرض مقدمي الخدمة" : "View providers"}
                         </p>
                       </div>
-                      <ChevronRight
-                        className={cn(
-                          "relative h-5 w-5 text-[#C9C9C9] flex-shrink-0",
-                          isRTL && "rotate-180"
-                        )}
-                      />
-                    </button>
-                  );
-                })
-              ) : (
-                <div className="py-12 text-center">
-                  <div className="text-4xl mb-3">🔍</div>
-                  <p className="text-[#777] font-medium">
-                    {isRTL ? "لم نجد خدمات مطابقة" : "No matching services found"}
-                  </p>
-                  <p className="text-sm text-[#999] mt-1">
-                    {isRTL ? "جرّب كلمات مختلفة" : "Try different search terms"}
-                  </p>
-                </div>
-              )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </section>
-        ) : (
-          <>
-            {/* Featured Providers */}
-            <section className="mt-8">
-              <SectionHeader title={isRTL ? "مقدمي خدمة مختارين" : "Featured providers"} />
-              {featuredLoading ? (
-                <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-                  {[...Array(3)].map((_, i) => (
-                    <div
-                      key={i}
-                      className="flex-shrink-0 w-[310px] h-[120px] rounded-2xl bg-gray-200 animate-pulse"
-                    />
-                  ))}
-                </div>
-              ) : featuredProvidersFiltered.length > 0 ? (
-                <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 snap-x snap-mandatory">
-                  {featuredProvidersFiltered.map((fp) => {
-                    const r = getFeaturedRatingDisplay(fp.service_id);
-
-                    return (
-                      <button
-                        key={fp.service_id}
-                        onClick={() => openProviderDetailsFromFeatured(fp)}
-                        className={cn(
-                          "snap-start flex-shrink-0 w-[310px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
-                          isRTL && "text-right"
-                        )}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-12 w-12">
-                            <AvatarImage src={fp.provider_avatar || undefined} />
-                            <AvatarFallback className="bg-[#111] text-white font-semibold">
-                              {(fp.provider_name || (isRTL ? "م" : "P"))
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")
-                                .slice(0, 2)}
-                            </AvatarFallback>
-                          </Avatar>
-
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-[16px] font-semibold text-[#111] truncate">
-                              {fp.provider_name}
-                            </h3>
-
-                            <p className="text-xs text-[#777] mt-1 truncate">
-                              {fp.service_title}
-                            </p>
-
-                            <div className="mt-1 flex items-center gap-1 text-xs">
-                              <Star
-                                className={cn(
-                                  "h-3.5 w-3.5",
-                                  r.hasRating ? "text-yellow-500 fill-yellow-500" : "text-[#999]"
-                                )}
-                              />
-                              <span
-                                className={cn(
-                                  r.hasRating ? "text-[#111] font-semibold" : "text-[#777]"
-                                )}
-                              >
-                                {r.text}
-                              </span>
-                            </div>
-                          </div>
-
-                          <ChevronRight
-                            className={cn("h-5 w-5 text-[#C9C9C9]", isRTL && "rotate-180")}
-                          />
-                        </div>
-
-                        <div className="mt-3 text-xs text-[#777]">
-                          {fp.provider_city ? (isRTL ? "المدينة: " : "City: ") : ""}
-                          <span className="text-[#111] font-semibold">
-                            {getCityLabel(fp.provider_city) || (isRTL ? "غير محدد" : "Not set")}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="rounded-2xl bg-white border border-gray-200 p-5 text-sm text-[#777]">
-                  {featuredProviders.length > 0 && featuredProvidersFiltered.length === 0
-                    ? isRTL
-                      ? "لا يوجد مزودين مختارين لهذه المدينة."
-                      : "No featured providers for this city."
-                    : isRTL
-                    ? "لا يوجد مزودين مختارين حالياً."
-                    : "No featured providers yet."}
-                </div>
-              )}
-            </section>
-
-            {/* Suggested by Dora */}
-            {suggestedByDora.length > 0 && (
-              <section className="mt-8">
-                <SectionHeader title={isRTL ? "مقترحات دورة" : "Suggested by Dora"} />
-                <div className="grid grid-cols-1 gap-3">
-                  {suggestedByDora.map(({ suggestion, target }) => {
-                    const targetService = target as ServiceItem;
-                    const Icon = suggestion.icon || Sparkles;
-
-                    return (
-                      <button
-                        key={suggestion.id}
-                        onClick={() => openServiceSheetFromSubcategory(targetService)}
-                        className={cn(
-                          "relative overflow-hidden w-full rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.99]",
-                          isRTL && "text-right"
-                        )}
-                      >
-                        <div className={cn("absolute inset-0 opacity-10", targetService.color)} />
-                        <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
-
-                        <div className="relative flex items-center gap-3">
-                          <div className="h-12 w-12 rounded-2xl bg-white/70 border border-gray-200 flex items-center justify-center flex-shrink-0">
-                            <Icon className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
-                          </div>
-
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-[15px] font-semibold text-[#111]">
-                              {isRTL ? suggestion.title_ar : suggestion.title_en}
-                            </h3>
-                            <p className="text-xs text-[#777] mt-1 line-clamp-2">
-                              {isRTL ? suggestion.hint_ar : suggestion.hint_en}
-                            </p>
-                          </div>
-
-                          <ChevronRight
-                            className={cn("h-5 w-5 text-[#C9C9C9] flex-shrink-0", isRTL && "rotate-180")}
-                          />
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
-
-            {/* Popular Services */}
-            {popularServices.length > 0 && (
-              <section className="mt-8">
-                <SectionHeader title={isRTL ? "الخدمات الأكثر طلباً" : "Popular services"} />
-                <div className="grid grid-cols-2 gap-3">
-                  {popularServices.map((service) => {
-                    const IconComponent = service.icon;
-                    const displayName =
-                      language === "ar" && service.name_ar ? service.name_ar : service.name;
-
-                    return (
-                      <button
-                        key={service.id}
-                        onClick={() => openServiceSheetFromSubcategory(service)}
-                        className={cn(
-                          "relative overflow-hidden h-[96px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
-                          isRTL && "text-right"
-                        )}
-                      >
-                        <div className={cn("absolute inset-0 opacity-10", service.color)} />
-                        <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
-
-                        <div className="relative flex items-center gap-3">
-                          <div
-                            className={cn(
-                              "h-12 w-12 rounded-2xl flex items-center justify-center",
-                              service.color
-                            )}
-                          >
-                            <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-[15px] font-semibold text-[#111] line-clamp-1">
-                              {displayName}
-                            </h3>
-                            <p className="text-xs text-[#777] mt-1">
-                              {isRTL ? "عرض مقدمي الخدمة" : "View providers"}
-                            </p>
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
-          </>
         )}
+
+        {/* ✅ (3) Bottom line / links (simple, premium, non-clutter) */}
+        <section className="mt-10">
+          <div className="border-t border-gray-200 pt-4 pb-2 text-xs text-[#777] flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+            <button
+              onClick={() => window.alert(isRTL ? "قريباً" : "Coming soon")}
+              className="hover:text-[#111] transition-colors"
+            >
+              {isRTL ? "من نحن" : "About"}
+            </button>
+            <button
+              onClick={() => (window.location.href = "mailto:support@dora.ly")}
+              className="hover:text-[#111] transition-colors"
+            >
+              {isRTL ? "تواصل معنا" : "Contact"}
+            </button>
+            <button
+              onClick={() => window.alert(isRTL ? "سيتم إضافة الشروط قريباً" : "Terms will be added soon")}
+              className="hover:text-[#111] transition-colors"
+            >
+              {isRTL ? "الشروط" : "Terms"}
+            </button>
+            <button
+              onClick={() => window.alert(isRTL ? "سيتم إضافة الخصوصية قريباً" : "Privacy will be added soon")}
+              className="hover:text-[#111] transition-colors"
+            >
+              {isRTL ? "الخصوصية" : "Privacy"}
+            </button>
+
+            <span className="text-[#AAA]">•</span>
+            <span className="text-[#999]">© {new Date().getFullYear()} Dora</span>
+          </div>
+        </section>
       </main>
 
       <MobileNav />
 
-      {/* Notifications Drawer */}
+      {/* ✅ Notifications Drawer */}
       <Drawer open={notifOpen} onOpenChange={setNotifOpen}>
         <DrawerContent className="mx-auto w-[92vw] max-w-md max-h-[80vh] overflow-hidden rounded-t-3xl rounded-b-none p-0">
           <DrawerHeader className="relative pb-2 px-4 pt-4">
@@ -1060,28 +1083,69 @@ export default function Hub() {
                 {isRTL ? "الإشعارات" : "Notifications"}
               </DrawerTitle>
               <p className="text-sm text-muted-foreground mt-1">
-                {isRTL ? "قريباً" : "Coming soon"}
+                {user ? (isRTL ? "آخر التحديثات" : "Latest updates") : (isRTL ? "سجّل الدخول لعرض الإشعارات" : "Sign in to see notifications")}
               </p>
             </div>
           </DrawerHeader>
 
-          <div className="px-4 pb-6 overflow-auto">
-            <div className="rounded-2xl bg-white border border-gray-200 p-4 text-sm text-[#777]">
-              {isRTL
-                ? "سيتم إضافة إشعارات النظام والمراجعات قريباً."
-                : "System notifications and review prompts will be added soon."}
-            </div>
-          </div>
+          <ScrollArea className="px-4 pb-6">
+            {!user ? (
+              <div className="rounded-2xl bg-white border border-gray-200 p-4 text-sm text-[#777]">
+                {isRTL ? "سجّل الدخول لعرض إشعاراتك." : "Please sign in to view your notifications."}
+              </div>
+            ) : notifLoading ? (
+              <div className="space-y-2">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="h-16 rounded-2xl bg-gray-200 animate-pulse" />
+                ))}
+              </div>
+            ) : notifications.length === 0 ? (
+              <div className="rounded-2xl bg-white border border-gray-200 p-4 text-sm text-[#777]">
+                {isRTL ? "لا توجد إشعارات حالياً." : "No notifications yet."}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {notifications.map((n) => (
+                  <div
+                    key={n.id}
+                    className={cn(
+                      "rounded-2xl bg-white border border-gray-200 p-4",
+                      !n.is_read && "border-[#111]"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className={cn("text-sm font-semibold text-[#111] truncate")}>
+                          {n.title || (isRTL ? "إشعار" : "Notification")}
+                        </p>
+                        <p className="text-xs text-[#777] mt-1 whitespace-pre-wrap">
+                          {n.body || (isRTL ? "تفاصيل الإشعار" : "Notification details")}
+                        </p>
+                        {n.created_at && (
+                          <p className="text-[11px] text-[#999] mt-2">
+                            {new Date(n.created_at).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                      {!n.is_read && (
+                        <span className="h-2.5 w-2.5 rounded-full bg-red-600 mt-1 flex-shrink-0" />
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
         </DrawerContent>
       </Drawer>
 
       {/* Category Drawer */}
       <Drawer open={categoryDrawerOpen} onOpenChange={setCategoryDrawerOpen}>
-        <DrawerContent className="h-[90vh] flex flex-col overflow-hidden">
-          <DrawerHeader className="relative pb-2">
+        <DrawerContent className="h-[90vh] flex flex-col overflow-hidden rounded-t-3xl p-0">
+          <DrawerHeader className="relative pb-2 px-4 pt-4">
             <DrawerClose
               className={cn(
-                "absolute top-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
+                "absolute top-4 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
                 isRTL ? "left-4" : "right-4"
               )}
             >
@@ -1128,12 +1192,7 @@ export default function Hub() {
                         <div className={cn("absolute inset-0 opacity-10", service.color)} />
                         <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
 
-                        <div
-                          className={cn(
-                            "relative h-12 w-12 rounded-2xl flex items-center justify-center flex-shrink-0",
-                            service.color
-                          )}
-                        >
+                        <div className={cn("relative h-12 w-12 rounded-2xl flex items-center justify-center flex-shrink-0", service.color)}>
                           <IconComponent className="h-6 w-6 text-[#111]" strokeWidth={1.7} />
                         </div>
 
@@ -1146,12 +1205,7 @@ export default function Hub() {
                           </p>
                         </div>
 
-                        <ChevronRight
-                          className={cn(
-                            "relative h-5 w-5 text-[#C9C9C9] flex-shrink-0",
-                            isRTL && "rotate-180"
-                          )}
-                        />
+                        <ChevronRight className={cn("relative h-5 w-5 text-[#C9C9C9] flex-shrink-0", isRTL && "rotate-180")} />
                       </button>
                     );
                   })}
