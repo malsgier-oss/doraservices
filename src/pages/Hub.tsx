@@ -533,7 +533,7 @@ export default function Hub() {
   const openProviderDetailsFromFeatured = (fp: FeaturedProviderCard) => {
   setInitialProviderServiceId(fp.service_id);
   setSelectedService(null);
-  ssetSheetOpen(true);
+  setSheetOpen(true);
 };
     
 
