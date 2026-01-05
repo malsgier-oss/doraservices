@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -51,9 +51,7 @@ interface Service {
   price: number | null;
 
   /**
-   * NOTE:
-   * In your schema this column is named `city`, and it stores a UUID (cities.id).
-   * We keep it as string so it can store the city id.
+   * Column name is `city` and it stores UUID (cities.id)
    */
   city: string | null;
 
@@ -70,14 +68,6 @@ interface Service {
 
   provider?: {
     full_name: string | null;
-  } | null;
-
-  // Joined city record (aliased in the query)
-  city_rel?: {
-    id: string;
-    name?: string | null;
-    name_en?: string | null;
-    name_ar?: string | null;
   } | null;
 }
 
@@ -150,7 +140,12 @@ export default function AdminServices() {
   const cityLabel = (c?: CityRow | null) =>
     c?.name_en || c?.name || c?.name_ar || "";
 
-  const { data: services, isLoading } = useQuery({
+  const {
+    data: services,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
     queryKey: [
       "admin-services",
       categoryFilter,
@@ -159,17 +154,8 @@ export default function AdminServices() {
       search,
     ],
     queryFn: async () => {
-      // Join the cities record using the FK column `city` (services.city -> cities.id)
-      // Requires a FK relationship in Supabase to work.
-      let query = supabase.from("services").select(`
-          *,
-          city_rel:city (
-            id,
-            name,
-            name_en,
-            name_ar
-          )
-        `);
+      // ✅ IMPORTANT: no join here. Joins fail if FK is not defined in Supabase.
+      let query = supabase.from("services").select("*");
 
       if (categoryFilter !== "all") query = query.eq("category", categoryFilter);
       if (visibilityFilter !== "all")
@@ -180,7 +166,9 @@ export default function AdminServices() {
         query = query.or("is_featured.is.null,is_featured.eq.false");
 
       if (search) {
-        query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+        query = query.or(
+          `title.ilike.%${search}%,description.ilike.%${search}%`
+        );
       }
 
       const ordered =
@@ -197,6 +185,7 @@ export default function AdminServices() {
       const userIds = Array.from(
         new Set((data || []).map((s: any) => s.user_id).filter(Boolean))
       ) as string[];
+
       let profileMap = new Map<string, any>();
 
       if (userIds.length) {
@@ -210,11 +199,12 @@ export default function AdminServices() {
       }
 
       const servicesWithProvider = (data || []).map((service: any) => {
-        if (service.user_id)
+        if (service.user_id) {
           return {
             ...service,
             provider: profileMap.get(service.user_id) || null,
           };
+        }
         return { ...service, provider: null };
       });
 
@@ -222,8 +212,8 @@ export default function AdminServices() {
     },
   });
 
-  // Initialize featured order drafts
-  useMemo(() => {
+  // ✅ FIX: useEffect (not useMemo) for setting state from services
+  useEffect(() => {
     if (!services) return;
     const map: Record<string, string> = {};
     services.forEach((s) => {
@@ -233,8 +223,7 @@ export default function AdminServices() {
           : String(s.featured_order);
     });
     setFeaturedOrderDraft(map);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [services?.length]);
+  }, [services]);
 
   const toggleVisibility = useMutation({
     mutationFn: async ({
@@ -319,7 +308,6 @@ export default function AdminServices() {
     onError: () => toast.error("Failed to save note"),
   });
 
-  // Featured toggle / order
   const updateFeatured = useMutation({
     mutationFn: async (payload: {
       id: string;
@@ -362,7 +350,7 @@ export default function AdminServices() {
       title: service.title,
       description: service.description || "",
       category: service.category,
-      city: service.city || "", // keep UUID
+      city: service.city || "",
       user_id: service.user_id || "",
     });
 
@@ -384,7 +372,11 @@ export default function AdminServices() {
     updateFeatured.mutate({
       id: service.id,
       is_featured: next,
-      featured_order: next ? (Number.isFinite(parsed as any) ? parsed : 999) : null,
+      featured_order: next
+        ? Number.isFinite(parsed as any)
+          ? parsed
+          : 999
+        : null,
     });
   };
 
@@ -419,7 +411,6 @@ export default function AdminServices() {
         .limit(10);
 
       if (error) throw error;
-
       setProviderResults((data || []) as ProviderProfile[]);
     } catch (e) {
       console.error(e);
@@ -496,6 +487,13 @@ export default function AdminServices() {
         </CardHeader>
 
         <CardContent>
+          {/* ✅ Show real error instead of silent "empty" */}
+          {isError && (
+            <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              Failed to load services: {(error as any)?.message ?? "Unknown error"}
+            </div>
+          )}
+
           {isLoading ? (
             <div className="space-y-2">
               {[...Array(5)].map((_, i) => (
@@ -512,10 +510,8 @@ export default function AdminServices() {
                   <TableHead>Category</TableHead>
                   <TableHead>City</TableHead>
                   <TableHead>Provider</TableHead>
-
                   <TableHead>Featured</TableHead>
                   <TableHead>Order</TableHead>
-
                   <TableHead>Views</TableHead>
                   <TableHead>Visibility</TableHead>
                   <TableHead>Created</TableHead>
@@ -527,18 +523,8 @@ export default function AdminServices() {
                 {services?.map((service) => {
                   const isFeatured = service.is_featured === true;
 
-                  const joinedCityLabel =
-                    service.city_rel?.name_en ||
-                    service.city_rel?.name ||
-                    service.city_rel?.name_ar ||
-                    "";
-
-                  // If join fails (no FK), fall back to local map (cities query), then raw id
                   const mappedCity = service.city ? cityMap.get(service.city) : null;
-                  const mappedCityLabel = mappedCity ? cityLabel(mappedCity) : "";
-
-                  const displayCity =
-                    joinedCityLabel || mappedCityLabel || service.city || "—";
+                  const displayCity = mappedCity ? cityLabel(mappedCity) : service.city || "—";
 
                   return (
                     <TableRow key={service.id}>
@@ -741,9 +727,7 @@ export default function AdminServices() {
               <Label>Title</Label>
               <Input
                 value={editForm.title}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, title: e.target.value })
-                }
+                onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
               />
             </div>
 
@@ -776,7 +760,7 @@ export default function AdminServices() {
               </Select>
             </div>
 
-            {/* FIXED: City is now a Select (stores UUID, shows name) */}
+            {/* City Select (stores UUID) */}
             <div>
               <Label>City</Label>
               <Select
@@ -809,13 +793,11 @@ export default function AdminServices() {
               onClick={() => {
                 if (!selectedService) return;
 
-                // Enforce rule: provider must exist
                 if (!editForm.user_id) {
                   toast.error("Please assign a provider");
                   return;
                 }
 
-                // Optional: enforce city selection
                 if (!editForm.city) {
                   toast.error("Please select a city");
                   return;
@@ -827,7 +809,7 @@ export default function AdminServices() {
                     title: editForm.title,
                     description: editForm.description,
                     category: editForm.category,
-                    city: editForm.city, // UUID
+                    city: editForm.city,
                     user_id: editForm.user_id,
                   },
                 });
@@ -862,8 +844,9 @@ export default function AdminServices() {
             </Button>
             <Button
               onClick={() => {
-                if (selectedService)
+                if (selectedService) {
                   saveAdminNote.mutate({ id: selectedService.id, note: adminNote });
+                }
               }}
             >
               Save Note
