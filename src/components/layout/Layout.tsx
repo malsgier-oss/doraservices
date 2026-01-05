@@ -5,19 +5,32 @@ import { useLanguage } from "@/contexts/LanguageContext";
 
 interface LayoutProps {
   children: React.ReactNode;
-  showHeader?: boolean;
+  showHeader?: boolean; // default: true
+  hideHeader?: boolean; // optional override
 }
 
-export function Layout({ children, showHeader = true }: LayoutProps) {
+export function Layout({
+  children,
+  showHeader = true,
+  hideHeader = false,
+}: LayoutProps) {
   const { t, isRTL } = useLanguage();
 
+  const shouldShowHeader = showHeader && !hideHeader;
+
   return (
-    <div className="min-h-screen flex flex-col touch-manipulation no-tap-highlight bg-[#F9F9F9] pb-16" dir={isRTL ? "rtl" : "ltr"}>
-      {showHeader && <Header />}
+    <div
+      className="min-h-screen flex flex-col touch-manipulation no-tap-highlight bg-[#F9F9F9] pb-16"
+      dir={isRTL ? "rtl" : "ltr"}
+    >
+      {shouldShowHeader && <Header />}
+
       <main className="flex-1">
         <PageTransition>{children}</PageTransition>
       </main>
+
       <MobileNav />
+
       <footer className="hidden md:block border-t border-border bg-white py-6">
         <div className="container">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
