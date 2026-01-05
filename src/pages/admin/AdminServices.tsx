@@ -1,4 +1,3 @@
-
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,7 +49,14 @@ interface Service {
   description: string | null;
   category: string;
   price: number | null;
+
+  /**
+   * NOTE:
+   * In your schema this column is named `city`, and it stores a UUID (cities.id).
+   * We keep it as string so it can store the city id.
+   */
   city: string | null;
+
   is_visible: boolean;
   is_active: boolean;
   admin_note: string | null;
@@ -64,13 +70,28 @@ interface Service {
 
   provider?: {
     full_name: string | null;
-  };
+  } | null;
+
+  // Joined city record (aliased in the query)
+  city_rel?: {
+    id: string;
+    name?: string | null;
+    name_en?: string | null;
+    name_ar?: string | null;
+  } | null;
 }
 
 type ProviderProfile = {
   user_id: string;
   full_name: string | null;
   phone?: string | null;
+};
+
+type CityRow = {
+  id: string;
+  name?: string | null;
+  name_en?: string | null;
+  name_ar?: string | null;
 };
 
 export default function AdminServices() {
@@ -91,45 +112,91 @@ export default function AdminServices() {
     title: "",
     description: "",
     category: "",
-    city: "",
-    user_id: "" as string, // ✅ provider assignment
+    city: "", // stores city UUID
+    user_id: "" as string, // provider assignment
   });
 
   // Featured order local draft
-  const [featuredOrderDraft, setFeaturedOrderDraft] = useState<Record<string, string>>({});
+  const [featuredOrderDraft, setFeaturedOrderDraft] = useState<
+    Record<string, string>
+  >({});
 
   // Provider search in edit dialog
   const [providerSearch, setProviderSearch] = useState("");
   const [providerResults, setProviderResults] = useState<ProviderProfile[]>([]);
   const [providerSearching, setProviderSearching] = useState(false);
 
-  const { data: services, isLoading } = useQuery({
-    queryKey: ["admin-services", categoryFilter, visibilityFilter, featuredFilter, search],
+  /**
+   * Cities list for dropdown + mapping
+   */
+  const { data: cities } = useQuery({
+    queryKey: ["admin-cities"],
     queryFn: async () => {
-      let query = supabase.from("services").select("*");
+      const { data, error } = await supabase
+        .from("cities")
+        .select("id, name, name_en, name_ar")
+        .order("name", { ascending: true });
+      if (error) throw error;
+      return (data || []) as CityRow[];
+    },
+  });
+
+  const cityMap = useMemo(() => {
+    const m = new Map<string, CityRow>();
+    (cities || []).forEach((c) => m.set(c.id, c));
+    return m;
+  }, [cities]);
+
+  const cityLabel = (c?: CityRow | null) =>
+    c?.name_en || c?.name || c?.name_ar || "";
+
+  const { data: services, isLoading } = useQuery({
+    queryKey: [
+      "admin-services",
+      categoryFilter,
+      visibilityFilter,
+      featuredFilter,
+      search,
+    ],
+    queryFn: async () => {
+      // Join the cities record using the FK column `city` (services.city -> cities.id)
+      // Requires a FK relationship in Supabase to work.
+      let query = supabase.from("services").select(`
+          *,
+          city_rel:city (
+            id,
+            name,
+            name_en,
+            name_ar
+          )
+        `);
 
       if (categoryFilter !== "all") query = query.eq("category", categoryFilter);
-      if (visibilityFilter !== "all") query = query.eq("is_visible", visibilityFilter === "visible");
+      if (visibilityFilter !== "all")
+        query = query.eq("is_visible", visibilityFilter === "visible");
 
       if (featuredFilter === "featured") query = query.eq("is_featured", true);
-      else if (featuredFilter === "not_featured") query = query.or("is_featured.is.null,is_featured.eq.false");
+      else if (featuredFilter === "not_featured")
+        query = query.or("is_featured.is.null,is_featured.eq.false");
 
       if (search) {
-        query = query.or(
-          `title.ilike.%${search}%,description.ilike.%${search}%`
-        );
+        query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
       }
 
       const ordered =
         featuredFilter === "featured"
-          ? query.order("featured_order", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false })
+          ? query
+              .order("featured_order", { ascending: true, nullsFirst: false })
+              .order("created_at", { ascending: false })
           : query.order("created_at", { ascending: false });
 
       const { data, error } = await ordered;
       if (error) throw error;
 
       // Batch fetch provider names for any services that have user_id
-      const userIds = Array.from(new Set((data || []).map((s: any) => s.user_id).filter(Boolean))) as string[];
+      const userIds = Array.from(
+        new Set((data || []).map((s: any) => s.user_id).filter(Boolean))
+      ) as string[];
       let profileMap = new Map<string, any>();
 
       if (userIds.length) {
@@ -143,7 +210,11 @@ export default function AdminServices() {
       }
 
       const servicesWithProvider = (data || []).map((service: any) => {
-        if (service.user_id) return { ...service, provider: profileMap.get(service.user_id) || null };
+        if (service.user_id)
+          return {
+            ...service,
+            provider: profileMap.get(service.user_id) || null,
+          };
         return { ...service, provider: null };
       });
 
@@ -156,15 +227,27 @@ export default function AdminServices() {
     if (!services) return;
     const map: Record<string, string> = {};
     services.forEach((s) => {
-      map[s.id] = s.featured_order === null || s.featured_order === undefined ? "" : String(s.featured_order);
+      map[s.id] =
+        s.featured_order === null || s.featured_order === undefined
+          ? ""
+          : String(s.featured_order);
     });
     setFeaturedOrderDraft(map);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [services?.length]);
 
   const toggleVisibility = useMutation({
-    mutationFn: async ({ id, isVisible }: { id: string; isVisible: boolean }) => {
-      const { error } = await supabase.from("services").update({ is_visible: isVisible }).eq("id", id);
+    mutationFn: async ({
+      id,
+      isVisible,
+    }: {
+      id: string;
+      isVisible: boolean;
+    }) => {
+      const { error } = await supabase
+        .from("services")
+        .update({ is_visible: isVisible })
+        .eq("id", id);
       if (error) throw error;
 
       await supabase.rpc("log_admin_action", {
@@ -182,7 +265,10 @@ export default function AdminServices() {
 
   const updateService = useMutation({
     mutationFn: async (data: { id: string; updates: Partial<Service> }) => {
-      const { error } = await supabase.from("services").update(data.updates).eq("id", data.id);
+      const { error } = await supabase
+        .from("services")
+        .update(data.updates)
+        .eq("id", data.id);
       if (error) throw error;
 
       await supabase.rpc("log_admin_action", {
@@ -219,7 +305,10 @@ export default function AdminServices() {
 
   const saveAdminNote = useMutation({
     mutationFn: async ({ id, note }: { id: string; note: string }) => {
-      const { error } = await supabase.from("services").update({ admin_note: note }).eq("id", id);
+      const { error } = await supabase
+        .from("services")
+        .update({ admin_note: note })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -232,14 +321,23 @@ export default function AdminServices() {
 
   // Featured toggle / order
   const updateFeatured = useMutation({
-    mutationFn: async (payload: { id: string; is_featured?: boolean; featured_order?: number | null }) => {
+    mutationFn: async (payload: {
+      id: string;
+      is_featured?: boolean;
+      featured_order?: number | null;
+    }) => {
       const { id, ...updates } = payload;
-      const { error } = await supabase.from("services").update(updates).eq("id", id);
+      const { error } = await supabase
+        .from("services")
+        .update(updates)
+        .eq("id", id);
       if (error) throw error;
 
       const action =
         typeof updates.is_featured === "boolean"
-          ? (updates.is_featured ? "service_featured_on" : "service_featured_off")
+          ? updates.is_featured
+            ? "service_featured_on"
+            : "service_featured_off"
           : "service_featured_order";
 
       await supabase.rpc("log_admin_action", {
@@ -264,7 +362,7 @@ export default function AdminServices() {
       title: service.title,
       description: service.description || "",
       category: service.category,
-      city: service.city || "",
+      city: service.city || "", // keep UUID
       user_id: service.user_id || "",
     });
 
@@ -314,7 +412,6 @@ export default function AdminServices() {
 
     setProviderSearching(true);
     try {
-      // Search providers by name (you can extend to phone later)
       const { data, error } = await supabase
         .from("profiles")
         .select("user_id, full_name")
@@ -413,6 +510,7 @@ export default function AdminServices() {
                 <TableRow>
                   <TableHead>Title</TableHead>
                   <TableHead>Category</TableHead>
+                  <TableHead>City</TableHead>
                   <TableHead>Provider</TableHead>
 
                   <TableHead>Featured</TableHead>
@@ -429,6 +527,19 @@ export default function AdminServices() {
                 {services?.map((service) => {
                   const isFeatured = service.is_featured === true;
 
+                  const joinedCityLabel =
+                    service.city_rel?.name_en ||
+                    service.city_rel?.name ||
+                    service.city_rel?.name_ar ||
+                    "";
+
+                  // If join fails (no FK), fall back to local map (cities query), then raw id
+                  const mappedCity = service.city ? cityMap.get(service.city) : null;
+                  const mappedCityLabel = mappedCity ? cityLabel(mappedCity) : "";
+
+                  const displayCity =
+                    joinedCityLabel || mappedCityLabel || service.city || "—";
+
                   return (
                     <TableRow key={service.id}>
                       <TableCell className="font-medium max-w-48 truncate">
@@ -439,6 +550,8 @@ export default function AdminServices() {
                       </TableCell>
 
                       <TableCell>{service.category}</TableCell>
+
+                      <TableCell className="max-w-40 truncate">{displayCity}</TableCell>
 
                       <TableCell>
                         {service.user_id ? (
@@ -456,7 +569,13 @@ export default function AdminServices() {
                           onClick={() => handleToggleFeatured(service)}
                           disabled={updateFeatured.isPending}
                         >
-                          <Star className={isFeatured ? "h-4 w-4 fill-yellow-400 text-yellow-400" : "h-4 w-4"} />
+                          <Star
+                            className={
+                              isFeatured
+                                ? "h-4 w-4 fill-yellow-400 text-yellow-400"
+                                : "h-4 w-4"
+                            }
+                          />
                           <span className="ml-2">{isFeatured ? "Yes" : "No"}</span>
                         </Button>
                       </TableCell>
@@ -562,13 +681,16 @@ export default function AdminServices() {
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* ✅ Assign Provider */}
+            {/* Assign Provider */}
             <div className="space-y-2">
               <Label>Assign Provider</Label>
 
               {editForm.user_id ? (
                 <div className="text-sm text-muted-foreground">
-                  Current: <span className="text-foreground font-medium">{currentProviderLabel || editForm.user_id}</span>
+                  Current:{" "}
+                  <span className="text-foreground font-medium">
+                    {currentProviderLabel || editForm.user_id}
+                  </span>
                 </div>
               ) : (
                 <div className="text-sm text-muted-foreground">No provider assigned</div>
@@ -580,7 +702,12 @@ export default function AdminServices() {
                   onChange={(e) => setProviderSearch(e.target.value)}
                   placeholder="Search provider by name..."
                 />
-                <Button type="button" variant="outline" onClick={runProviderSearch} disabled={providerSearching}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={runProviderSearch}
+                  disabled={providerSearching}
+                >
                   {providerSearching ? "Searching..." : "Search"}
                 </Button>
               </div>
@@ -614,7 +741,9 @@ export default function AdminServices() {
               <Label>Title</Label>
               <Input
                 value={editForm.title}
-                onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, title: e.target.value })
+                }
               />
             </div>
 
@@ -622,7 +751,9 @@ export default function AdminServices() {
               <Label>Description</Label>
               <Textarea
                 value={editForm.description}
-                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, description: e.target.value })
+                }
               />
             </div>
 
@@ -645,12 +776,28 @@ export default function AdminServices() {
               </Select>
             </div>
 
+            {/* FIXED: City is now a Select (stores UUID, shows name) */}
             <div>
               <Label>City</Label>
-              <Input
+              <Select
                 value={editForm.city}
-                onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
-              />
+                onValueChange={(v) => setEditForm({ ...editForm, city: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a city" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(cities || []).map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {cityLabel(c) || c.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <p className="text-xs text-muted-foreground mt-1">
+                Stored value is the city ID (UUID); the UI shows the city name.
+              </p>
             </div>
           </div>
 
@@ -662,9 +809,15 @@ export default function AdminServices() {
               onClick={() => {
                 if (!selectedService) return;
 
-                // ✅ Enforce rule: provider must exist
+                // Enforce rule: provider must exist
                 if (!editForm.user_id) {
                   toast.error("Please assign a provider");
+                  return;
+                }
+
+                // Optional: enforce city selection
+                if (!editForm.city) {
+                  toast.error("Please select a city");
                   return;
                 }
 
@@ -674,7 +827,7 @@ export default function AdminServices() {
                     title: editForm.title,
                     description: editForm.description,
                     category: editForm.category,
-                    city: editForm.city,
+                    city: editForm.city, // UUID
                     user_id: editForm.user_id,
                   },
                 });
@@ -709,7 +862,8 @@ export default function AdminServices() {
             </Button>
             <Button
               onClick={() => {
-                if (selectedService) saveAdminNote.mutate({ id: selectedService.id, note: adminNote });
+                if (selectedService)
+                  saveAdminNote.mutate({ id: selectedService.id, note: adminNote });
               }}
             >
               Save Note
