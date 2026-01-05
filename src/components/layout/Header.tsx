@@ -3,55 +3,40 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import doraLogo from "@/assets/dora-logo.png";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { LogOut, User, Settings, Briefcase, Bell, Check, CheckCheck } from "lucide-react";
-import { useProfile } from "@/hooks/useProfile";
-import { useUserRole } from "@/hooks/useUserRole";
-import { LanguageToggle } from "@/components/LanguageToggle";
-import { useNotifications, useUnreadCount, useNotificationMutations } from "@/hooks/useNotifications";
+import { Bell, CheckCheck } from "lucide-react";
+import {
+  useNotifications,
+  useUnreadCount,
+  useNotificationMutations,
+} from "@/hooks/useNotifications";
 import { formatDistanceToNow } from "date-fns";
+import { LanguageToggle } from "@/components/LanguageToggle";
 
 export function Header() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const { t, isRTL } = useLanguage();
-  const { profile } = useProfile();
-  const { isBusiness } = useUserRole();
   const navigate = useNavigate();
-  
+
   const { data: notifications } = useNotifications();
   const { data: unreadCount } = useUnreadCount();
   const { markAsRead, markAllAsRead } = useNotificationMutations();
-
-  const initials = profile?.full_name
-    ?.split(" ")
-    .map((n) => n[0])
-    .join("")
-    .slice(0, 2) || (isRTL ? "م" : "U");
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate("/auth");
-  };
 
   return (
     <header className="sticky top-0 z-40 bg-[#F9F9F9] border-b border-gray-100">
       <div className="container flex h-14 items-center justify-between">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2">
-          <img src={doraLogo} alt="Dora Logo" className="h-9 w-9 rounded-full object-cover" />
+          <img
+            src={doraLogo}
+            alt="Dora Logo"
+            className="h-9 w-9 rounded-full object-cover"
+          />
           <span className="font-bold text-lg text-[#333] hidden sm:block">
             {t.appName}
           </span>
@@ -59,14 +44,14 @@ export function Header() {
 
         {/* Desktop Nav */}
         <nav className="hidden md:flex items-center gap-6">
-          <Link 
-            to="/" 
+          <Link
+            to="/"
             className="text-sm font-medium text-[#777] hover:text-[#333] transition-colors"
           >
             {t.nav.home}
           </Link>
-          <Link 
-            to="/activity" 
+          <Link
+            to="/activity"
             className="text-sm font-medium text-[#777] hover:text-[#333] transition-colors"
           >
             {t.nav.activity}
@@ -76,7 +61,7 @@ export function Header() {
         {/* Actions */}
         <div className="flex items-center gap-2">
           <LanguageToggle />
-          
+
           {/* Notifications */}
           {user ? (
             <Popover>
@@ -90,18 +75,20 @@ export function Header() {
                   )}
                 </button>
               </PopoverTrigger>
-              <PopoverContent 
-                align={isRTL ? "start" : "end"} 
+
+              <PopoverContent
+                align={isRTL ? "start" : "end"}
                 className="w-80 p-0 bg-white border-gray-200"
               >
                 <div className="p-3 border-b flex items-center justify-between">
                   <h3 className="font-semibold text-sm">
                     {isRTL ? "الإشعارات" : "Notifications"}
                   </h3>
+
                   {unreadCount && unreadCount > 0 && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="h-7 text-xs"
                       onClick={() => markAllAsRead.mutate()}
                     >
@@ -110,6 +97,7 @@ export function Header() {
                     </Button>
                   )}
                 </div>
+
                 <ScrollArea className="h-80">
                   {!notifications || notifications.length === 0 ? (
                     <div className="p-6 text-center text-muted-foreground text-sm">
@@ -118,7 +106,7 @@ export function Header() {
                   ) : (
                     <div className="divide-y">
                       {notifications.map((notification) => (
-                        <div 
+                        <div
                           key={notification.id}
                           className={`p-3 hover:bg-gray-50 cursor-pointer transition-colors ${
                             !notification.is_read ? "bg-blue-50/50" : ""
@@ -138,9 +126,13 @@ export function Header() {
                                 {notification.message?.content}
                               </p>
                               <p className="text-xs text-muted-foreground mt-1">
-                                {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                                {formatDistanceToNow(
+                                  new Date(notification.created_at),
+                                  { addSuffix: true }
+                                )}
                               </p>
                             </div>
+
                             {!notification.is_read && (
                               <div className="h-2 w-2 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
                             )}
@@ -157,43 +149,21 @@ export function Header() {
               <Bell className="h-4 w-4 text-[#333]" />
             </button>
           )}
-          
+
+          {/* Replace avatar dropdown with a simple Profile button */}
           {user ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={profile?.avatar_url || undefined} />
-                    <AvatarFallback className="bg-[#333] text-white text-sm">
-                      {initials}
-                    </AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align={isRTL ? "start" : "end"} className="w-48 bg-white border-gray-200 z-50">
-                <DropdownMenuItem onClick={() => navigate("/profile")}>
-                  <User className={isRTL ? "ml-2 h-4 w-4" : "mr-2 h-4 w-4"} />
-                  {t.profile.title}
-                </DropdownMenuItem>
-                {!isBusiness && (
-                  <DropdownMenuItem onClick={() => navigate("/create-service")}>
-                    <Briefcase className={isRTL ? "ml-2 h-4 w-4" : "mr-2 h-4 w-4"} />
-                    {t.profile.becomeProvider}
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={() => navigate("/settings")}>
-                  <Settings className={isRTL ? "ml-2 h-4 w-4" : "mr-2 h-4 w-4"} />
-                  {t.profile.settings}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleSignOut} className="text-red-500">
-                  <LogOut className={isRTL ? "ml-2 h-4 w-4" : "mr-2 h-4 w-4"} />
-                  {t.profile.logout}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button
+              variant="outline"
+              className="rounded-full"
+              onClick={() => navigate("/profile")}
+            >
+              {t.profile.title}
+            </Button>
           ) : (
-            <Button onClick={() => navigate("/auth")} className="rounded-full bg-[#333] hover:bg-[#555]">
+            <Button
+              onClick={() => navigate("/auth")}
+              className="rounded-full bg-[#333] hover:bg-[#555]"
+            >
               {t.auth.login}
             </Button>
           )}
