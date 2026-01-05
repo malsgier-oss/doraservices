@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import doraLogo from "@/assets/dora-logo.png";
@@ -21,7 +21,6 @@ import { LanguageToggle } from "@/components/LanguageToggle";
 export function Header() {
   const { user } = useAuth();
   const { t, isRTL } = useLanguage();
-  const navigate = useNavigate();
 
   const { data: notifications } = useNotifications();
   const { data: unreadCount } = useUnreadCount();
@@ -150,21 +149,10 @@ export function Header() {
             </button>
           )}
 
-          {/* Replace avatar dropdown with a simple Profile button */}
-          {user ? (
-            <Button
-              variant="outline"
-              className="rounded-full"
-              onClick={() => navigate("/profile")}
-            >
-              {t.profile.title}
-            </Button>
-          ) : (
-            <Button
-              onClick={() => navigate("/auth")}
-              className="rounded-full bg-[#333] hover:bg-[#555]"
-            >
-              {t.auth.login}
+          {/* Login only (no avatar, no profile button) */}
+          {!user && (
+            <Button className="rounded-full bg-[#333] hover:bg-[#555]" asChild>
+              <Link to="/auth">{t.auth.login}</Link>
             </Button>
           )}
         </div>
