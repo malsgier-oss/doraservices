@@ -8,7 +8,7 @@ export interface Category {
   icon: string;
   color: string;
   display_order: number;
-  is_active: boolean;
+  is_active: boolean | null;
   created_at: string;
   updated_at: string;
 }
@@ -19,10 +19,9 @@ export function useCategories() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("categories")
-        .select(
-          "id, name, name_ar, icon, color, display_order, is_active, created_at, updated_at"
-        )
-        .eq("is_active", true)
+        .select("id, name, name_ar, icon, color, display_order, is_active, created_at, updated_at")
+        // ✅ allow NULL or TRUE
+        .or("is_active.is.null,is_active.eq.true")
         .order("display_order", { ascending: true });
 
       if (error) {
@@ -32,7 +31,7 @@ export function useCategories() {
 
       return (data ?? []) as Category[];
     },
-    staleTime: 1000 * 60 * 5, // 5 min cache
+    staleTime: 1000 * 60 * 5,
     retry: 1,
   });
 }
