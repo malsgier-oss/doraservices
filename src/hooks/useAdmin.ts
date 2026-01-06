@@ -306,7 +306,62 @@ export function useUserMutations() {
     },
   });
 
-  return { suspendUser, reactivateUser, archiveUser, deleteUser, changeUserRole };
+  const verifyUser = useMutation({
+    mutationFn: async (userId: string) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          is_verified: true,
+          verified_at: new Date().toISOString(),
+          verified_by: user?.id,
+        })
+        .eq("user_id", userId);
+      if (error) throw error;
+
+      await supabase.rpc("log_admin_action", {
+        p_action: "verify_user",
+        p_target_type: "user",
+        p_target_id: userId,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin"] });
+      toast({ title: "User verified successfully" });
+    },
+    onError: (error) => {
+      toast({ title: "Error verifying user", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const unverifyUser = useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          is_verified: false,
+          verified_at: null,
+          verified_by: null,
+        })
+        .eq("user_id", userId);
+      if (error) throw error;
+
+      await supabase.rpc("log_admin_action", {
+        p_action: "unverify_user",
+        p_target_type: "user",
+        p_target_id: userId,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin"] });
+      toast({ title: "User verification removed" });
+    },
+    onError: (error) => {
+      toast({ title: "Error removing verification", description: error.message, variant: "destructive" });
+    },
+  });
+
+  return { suspendUser, reactivateUser, archiveUser, deleteUser, changeUserRole, verifyUser, unverifyUser };
 }
 
 // Businesses Management

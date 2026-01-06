@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
-interface Profile {
+export interface Profile {
   id: string;
   user_id: string;
   full_name: string | null;
@@ -10,8 +10,15 @@ interface Profile {
   bio: string | null;
   phone: string | null;
   city: string | null;
+  city_id: string | null;
   sub_city: string | null;
   provider_status: string | null;
+  role: string | null;
+  is_verified: boolean | null;
+  verified_at: string | null;
+  verified_by: string | null;
+  must_change_password: boolean | null;
+  status: string;
   created_at: string;
   updated_at: string;
 }

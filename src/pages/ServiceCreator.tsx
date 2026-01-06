@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,8 @@ import { useSubCities } from "@/hooks/useSubCities";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
-import { 
+import { Loader2 } from "lucide-react";
+import {
   Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper,
   Wrench, Droplets, Wind, Fuel, ClipboardCheck, Sun, Cog, Scale,
   Languages, Camera, UtensilsCrossed, Stethoscope, Activity,
@@ -44,7 +45,7 @@ export default function ServiceCreator() {
   const { user } = useAuth();
   const { t, isRTL, language } = useLanguage();
   const { createService } = useServices();
-  const { profile, updateProfile } = useProfile();
+  const { profile, loading: profileLoading, updateProfile } = useProfile();
   const { data: categories } = useCategories();
   const { data: cities } = useCities();
   
@@ -62,6 +63,24 @@ export default function ServiceCreator() {
   const selectedCategory = categories?.find(c => c.id === formData.category);
   const { data: subcategories } = useSubcategories(formData.category || undefined);
   const { data: subCities } = useSubCities(formData.city || profile?.city || null);
+
+  // Redirect unverified users
+  useEffect(() => {
+    if (!profileLoading && profile && !profile.is_verified) {
+      navigate("/pending-verification");
+    }
+  }, [profile, profileLoading, navigate]);
+
+  // Show loading while checking verification
+  if (profileLoading) {
+    return (
+      <Layout>
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </Layout>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
