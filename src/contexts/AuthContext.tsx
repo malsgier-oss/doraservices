@@ -198,6 +198,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: new Error("Signup failed: No user returned") };
     }
 
+    // IMPORTANT: We must be authenticated before writing to RLS-protected tables.
+    // If email auto-confirm is disabled, signUp may not return a session.
+    if (!data.session) {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: internalEmail,
+        password,
+      });
+
+      if (signInError) {
+        return { error: new Error("Account created but could not be fully initialized. Please contact support.") };
+      }
+    }
+
     // Step 2: Create profile (atomic with auth user)
     const { error: profileError } = await supabase
       .from("profiles")
