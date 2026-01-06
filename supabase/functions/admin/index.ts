@@ -10,7 +10,8 @@ const corsHeaders = {
 
 type AdminActionBody =
   | { action: "deleteUser"; userId: string }
-  | { action: "set_temp_password"; phone: string; password: string; requestId: string };
+  | { action: "set_temp_password"; phone: string; password: string; requestId: string }
+  | { action: "fix_admin_email"; userId: string; phone: string };
 
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
@@ -283,6 +284,49 @@ Deno.serve(async (req) => {
       console.log("Temp password set successfully for user:", targetUser.id);
 
       return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ==================== FIX ADMIN EMAIL ====================
+    if (body.action === "fix_admin_email") {
+      const { userId, phone } = body;
+
+      if (!userId || !phone) {
+        return new Response(JSON.stringify({ error: "Missing userId or phone" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Convert phone to internal email format
+      let digitsOnly = phone.replace(/\D/g, "");
+      if (digitsOnly.startsWith("0")) {
+        digitsOnly = "218" + digitsOnly.slice(1);
+      }
+      if (!digitsOnly.startsWith("218")) {
+        digitsOnly = "218" + digitsOnly;
+      }
+      const newEmail = `${digitsOnly}@phone.dora.ly`;
+
+      // Update user email
+      const { error: updateError } = await adminClient.auth.admin.updateUserById(userId, {
+        email: newEmail,
+        email_confirm: true,
+      });
+
+      if (updateError) {
+        console.error("updateUserById failed", updateError);
+        return new Response(JSON.stringify({ error: "Failed to update email", details: updateError.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      console.log("Admin email updated to:", newEmail);
+
+      return new Response(JSON.stringify({ ok: true, newEmail }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
