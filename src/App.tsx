@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AdminRoute } from "@/components/auth/AdminRoute";
+
 import Hub from "./pages/Hub";
 import Favorites from "./pages/Favorites";
 import ServiceCreator from "./pages/ServiceCreator";
@@ -17,6 +18,7 @@ import ProviderDashboard from "./pages/ProviderDashboard";
 import PendingVerification from "./pages/PendingVerification";
 import ChangePassword from "./pages/ChangePassword";
 import ForgotPassword from "./pages/ForgotPassword";
+
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
@@ -34,6 +36,9 @@ import AdminMedia from "./pages/admin/AdminMedia";
 import AdminBulkUpload from "./pages/admin/AdminBulkUpload";
 import AdminSubCities from "./pages/admin/AdminSubCities";
 import AdminPasswordResets from "./pages/admin/AdminPasswordResets";
+
+// ✅ NEW: Env Debug page (create file at src/pages/EnvDebug.tsx)
+import EnvDebug from "./pages/EnvDebug";
 
 const queryClient = new QueryClient();
 
@@ -60,7 +65,10 @@ const AppRoutes = () => {
     <Routes>
       {/* Hub is now public - no auth required to browse */}
       <Route path="/" element={<Hub />} />
-      
+
+      {/* ✅ ENV DEBUG ROUTE (for phone debugging) */}
+      <Route path="/env" element={<EnvDebug />} />
+
       {/* Protected routes - require login */}
       <Route
         path="/favorites"
@@ -94,10 +102,12 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
+
       <Route path="/auth" element={<Auth />} />
       <Route path="/pending-verification" element={<PendingVerification />} />
       <Route path="/change-password" element={<ChangePassword />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
+
       {/* Admin Routes */}
       <Route
         path="/admin"
@@ -111,7 +121,6 @@ const AppRoutes = () => {
         <Route path="users" element={<AdminUsers />} />
         <Route path="providers" element={<AdminProviders />} />
         <Route path="services" element={<AdminServices />} />
-        
         <Route path="reviews" element={<AdminReviews />} />
         <Route path="categories" element={<AdminCategories />} />
         <Route path="cities" element={<AdminCities />} />
@@ -125,6 +134,7 @@ const AppRoutes = () => {
         <Route path="audit-log" element={<AdminAuditLog />} />
         <Route path="password-resets" element={<AdminPasswordResets />} />
       </Route>
+
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
