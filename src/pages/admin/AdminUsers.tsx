@@ -29,10 +29,11 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Search, MoreHorizontal, Shield, Store, User, AlertTriangle, Trash2 } from "lucide-react";
+import { Search, MoreHorizontal, Shield, Store, User, AlertTriangle, Trash2, CheckCircle, XCircle, Phone } from "lucide-react";
 import { useAdminUsers, useUserMutations } from "@/hooks/useAdmin";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
+import { useCities } from "@/hooks/useCities";
 
 export default function AdminUsers() {
   const [search, setSearch] = useState("");
@@ -55,8 +56,15 @@ export default function AdminUsers() {
     role: roleFilter,
     search: search,
   });
+  const { data: cities } = useCities();
 
-  const { suspendUser, reactivateUser, archiveUser, deleteUser, changeUserRole } = useUserMutations();
+  const { suspendUser, reactivateUser, archiveUser, deleteUser, changeUserRole, verifyUser, unverifyUser } = useUserMutations();
+
+  const getCityName = (cityId: string | null) => {
+    if (!cityId) return "-";
+    const city = cities?.find(c => c.id === cityId);
+    return city?.name || cityId;
+  };
 
   const handleSuspend = () => {
     if (suspendDialog.userId && suspendReason) {
@@ -152,6 +160,9 @@ export default function AdminUsers() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>City</TableHead>
+                  <TableHead>Verified</TableHead>
                   <TableHead>Roles</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Joined</TableHead>
@@ -163,6 +174,9 @@ export default function AdminUsers() {
                   Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}>
                       <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
@@ -171,7 +185,7 @@ export default function AdminUsers() {
                   ))
                 ) : users?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                       No users found
                     </TableCell>
                   </TableRow>
@@ -180,6 +194,30 @@ export default function AdminUsers() {
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">
                         {user.full_name || "Unnamed User"}
+                      </TableCell>
+                      <TableCell>
+                        {user.phone ? (
+                          <div className="flex items-center gap-1 text-sm font-mono">
+                            <Phone className="h-3 w-3" />
+                            {user.phone}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>{getCityName(user.city_id)}</TableCell>
+                      <TableCell>
+                        {user.is_verified ? (
+                          <Badge variant="default" className="bg-green-600 gap-1">
+                            <CheckCircle className="h-3 w-3" />
+                            Verified
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-yellow-600 border-yellow-600 gap-1">
+                            <XCircle className="h-3 w-3" />
+                            Pending
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1 flex-wrap">
@@ -219,6 +257,30 @@ export default function AdminUsers() {
                                 Reactivate User
                               </DropdownMenuItem>
                             ) : null}
+                            <DropdownMenuSeparator />
+                            {!user.is_verified ? (
+                              <DropdownMenuItem
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  verifyUser.mutate(user.user_id);
+                                }}
+                                className="text-green-600"
+                              >
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Verify User
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  unverifyUser.mutate(user.user_id);
+                                }}
+                                className="text-yellow-600"
+                              >
+                                <XCircle className="h-4 w-4 mr-2" />
+                                Unverify User
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
                             {!user.roles.includes("business") && (
                               <DropdownMenuItem

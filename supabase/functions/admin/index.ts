@@ -9,10 +9,8 @@ const corsHeaders = {
 };
 
 type AdminActionBody =
-  | {
-      action: "deleteUser";
-      userId: string; // target user id
-    };
+  | { action: "deleteUser"; userId: string }
+  | { action: "set_temp_password"; phone: string; password: string; requestId: string };
 
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
@@ -90,6 +88,7 @@ Deno.serve(async (req) => {
     const body = (await req.json()) as AdminActionBody;
     console.log("admin action request", { callerId, action: body?.action });
 
+    // ==================== DELETE USER ====================
     if (body.action === "deleteUser") {
       const targetUserId = body.userId;
 
@@ -108,7 +107,6 @@ Deno.serve(async (req) => {
       }
 
       // Clean up app tables first (order matters for foreign key dependencies)
-      // First: delete records that reference other user data
       const firstPassResults = await Promise.all([
         adminClient.from("review_prompts").delete().eq("user_id", targetUserId),
         adminClient.from("service_reviews").delete().eq("user_id", targetUserId),
@@ -120,9 +118,9 @@ Deno.serve(async (req) => {
         adminClient.from("user_messages").delete().eq("user_id", targetUserId),
         adminClient.from("reviews").delete().eq("user_id", targetUserId),
         adminClient.from("push_tokens").delete().eq("user_id", targetUserId),
+        adminClient.from("password_reset_requests").delete().eq("user_id", targetUserId),
       ]);
 
-      // Log first pass errors but continue
       const firstPassErrors = firstPassResults.filter(r => r.error);
       if (firstPassErrors.length > 0) {
         console.warn("first pass cleanup warnings", firstPassErrors.map(r => r.error?.message));
@@ -139,13 +137,12 @@ Deno.serve(async (req) => {
         adminClient.from("posts").delete().eq("user_id", targetUserId),
       ]);
 
-      // Log second pass errors but continue
       const secondPassErrors = secondPassResults.filter(r => r.error);
       if (secondPassErrors.length > 0) {
         console.warn("second pass cleanup warnings", secondPassErrors.map(r => r.error?.message));
       }
 
-      // Final pass: delete core user records (must be last due to FK constraints)
+      // Final pass: delete core user records
       const finalResults = await Promise.all([
         adminClient.from("user_roles").delete().eq("user_id", targetUserId),
         adminClient.from("profiles").delete().eq("user_id", targetUserId),
@@ -170,8 +167,8 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Audit log (best-effort)
-      const { error: auditError } = await adminClient.from("admin_audit_log").insert({
+      // Audit log
+      await adminClient.from("admin_audit_log").insert({
         admin_id: callerId,
         action: "delete_user",
         target_type: "user",
@@ -179,9 +176,101 @@ Deno.serve(async (req) => {
         details: { deleted_by: callerId },
       });
 
-      if (auditError) {
-        console.warn("audit insert failed", auditError);
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ==================== SET TEMP PASSWORD ====================
+    if (body.action === "set_temp_password") {
+      const { phone, password, requestId } = body;
+
+      if (!phone || !password) {
+        return new Response(JSON.stringify({ error: "Missing phone or password" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
+
+      if (password.length < 6) {
+        return new Response(JSON.stringify({ error: "Password must be at least 6 characters" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Normalize phone and derive internal email
+      const digitsOnly = phone.replace(/\D/g, "");
+      const internalEmail = `${digitsOnly}@phone.dora.ly`;
+
+      console.log("Setting temp password for:", { phone, internalEmail });
+
+      // Find user by email
+      const { data: usersData, error: listError } = await adminClient.auth.admin.listUsers();
+      if (listError) {
+        console.error("listUsers failed", listError);
+        return new Response(JSON.stringify({ error: "Failed to lookup user" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const targetUser = usersData.users.find(u => u.email === internalEmail);
+      if (!targetUser) {
+        console.error("User not found for email:", internalEmail);
+        return new Response(JSON.stringify({ error: "User not found for this phone number" }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Update user password
+      const { error: updateError } = await adminClient.auth.admin.updateUserById(targetUser.id, {
+        password: password,
+      });
+
+      if (updateError) {
+        console.error("updateUserById failed", updateError);
+        return new Response(JSON.stringify({ error: "Failed to update password", details: updateError.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Set must_change_password flag
+      const { error: profileError } = await adminClient
+        .from("profiles")
+        .update({ must_change_password: true })
+        .eq("user_id", targetUser.id);
+
+      if (profileError) {
+        console.warn("Failed to set must_change_password:", profileError);
+      }
+
+      // Update reset request status
+      if (requestId) {
+        await adminClient
+          .from("password_reset_requests")
+          .update({
+            status: "completed",
+            handled_by: callerId,
+            handled_at: new Date().toISOString(),
+            user_id: targetUser.id,
+          })
+          .eq("id", requestId);
+      }
+
+      // Audit log
+      await adminClient.from("admin_audit_log").insert({
+        admin_id: callerId,
+        action: "set_temp_password",
+        target_type: "user",
+        target_id: targetUser.id,
+        details: { phone, request_id: requestId },
+      });
+
+      console.log("Temp password set successfully for user:", targetUser.id);
 
       return new Response(JSON.stringify({ ok: true }), {
         status: 200,

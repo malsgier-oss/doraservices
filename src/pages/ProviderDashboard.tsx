@@ -75,10 +75,18 @@ export default function ProviderDashboard() {
   const { data: serviceStats, isLoading: serviceStatsLoading } = useServiceStats();
 
   useEffect(() => {
-    if (!roleLoading && !isBusiness) {
-      navigate("/");
+    if (!roleLoading && !profileLoading) {
+      // Redirect non-business users
+      if (!isBusiness) {
+        navigate("/");
+        return;
+      }
+      // Redirect unverified users
+      if (profile && !profile.is_verified) {
+        navigate("/pending-verification");
+      }
     }
-  }, [isBusiness, roleLoading, navigate]);
+  }, [isBusiness, roleLoading, profileLoading, profile, navigate]);
 
   const isLoading = profileLoading || statsLoading || serviceStatsLoading || roleLoading;
   const hasServices = (serviceStats?.length || 0) > 0;
