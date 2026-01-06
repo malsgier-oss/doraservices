@@ -13,7 +13,6 @@ interface Profile {
   phone: string | null;
 
   city: string | null;
-
   sub_city: string | null;
   provider_status: string | null;
   role: string | null;
@@ -29,7 +28,12 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   profileLoading: boolean;
-  signUp: (phone: string, password: string, fullName: string, cityId: string) => Promise<{ error: Error | null }>;
+  signUp: (
+    phone: string,
+    password: string,
+    fullName: string,
+    cityId: string
+  ) => Promise<{ error: Error | null }>;
   signIn: (phone: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -44,25 +48,78 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
 
-  const fetchProfile = async (authUser: User) => {
-    setProfileLoading(true);
-    try {
-      const { data, error } = await supabase
+  // Create a profile if missing, then return the profile row
+  const ensureProfile = async (authUser: User): Promise<Profile | null> => {
+    const meta = (authUser.user_metadata || {}) as Record<string, any>;
+
+    const cleanedPhoneFromMeta =
+      typeof meta.phone === "string" ? cleanPhoneForStorage(meta.phone) : null;
+
+    const fullNameFromMeta =
+      typeof meta.full_name === "string" ? meta.full_name : null;
+
+    const cityFromMeta =
+      typeof meta.city_id === "string"
+        ? meta.city_id
+        : typeof meta.city === "string"
+        ? meta.city
+        : null;
+
+    // 1) try fetch
+    const { data: existing, error: fetchError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("user_id", authUser.id)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error("[ensureProfile] fetch error:", fetchError);
+      return null;
+    }
+
+    if (existing) return existing as Profile;
+
+    // 2) create if missing
+    // NOTE: we only insert safe minimal fields; DB defaults handle the rest.
+    const insertPayload: Record<string, any> = {
+      user_id: authUser.id,
+      full_name: fullNameFromMeta,
+      phone: cleanedPhoneFromMeta,
+      city: cityFromMeta,
+    };
+
+    const { data: created, error: insertError } = await supabase
+      .from("profiles")
+      .insert(insertPayload)
+      .select("*")
+      .single();
+
+    if (insertError) {
+      // If it already got created in parallel, re-fetch once
+      console.warn("[ensureProfile] insert error, retrying fetch:", insertError);
+
+      const { data: retry, error: retryError } = await supabase
         .from("profiles")
         .select("*")
         .eq("user_id", authUser.id)
         .maybeSingle();
 
-      if (error) {
-        console.error("[fetchProfile] error:", error);
-        setProfile(null);
-        return;
+      if (retryError) {
+        console.error("[ensureProfile] retry fetch error:", retryError);
+        return null;
       }
 
-      if (data) {
-        setProfile(data as Profile);
-        return;
-      }
+      return (retry as Profile) ?? null;
+    }
+
+    return created as Profile;
+  };
+
+  const fetchProfile = async (authUser: User) => {
+    setProfileLoading(true);
+    try {
+      const prof = await ensureProfile(authUser);
+      setProfile(prof);
     } catch (e) {
       console.error("[fetchProfile] exception:", e);
       setProfile(null);
@@ -78,22 +135,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const init = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (!mounted) return;
+
+        if (error) console.error("[getSession] error:", error);
+
+        const sess = data.session ?? null;
+        setSession(sess);
+        setUser(sess?.user ?? null);
+        setLoading(false);
+
+        if (sess?.user) {
+          // Ensure profile exists immediately
+          void fetchProfile(sess.user);
+        } else {
+          setProfile(null);
+        }
+      } catch (e) {
+        if (!mounted) return;
+        console.error("[getSession] exception:", e);
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setLoading(false);
+      }
+    };
+
+    init();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, sess) => {
       if (!mounted) return;
-      setSession(session);
-      setUser(session?.user ?? null);
+
+      setSession(sess ?? null);
+      setUser(sess?.user ?? null);
       setLoading(false);
 
-      if (session?.user) setTimeout(() => fetchProfile(session.user), 0);
-    });
+      console.log("[AUTH STATE CHANGE]", { event, hasSession: !!sess });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) return;
-      setSession(session);
-      setUser(session?.user ?? null);
-
-      if (session?.user) setTimeout(() => fetchProfile(session.user), 0);
-      else setProfile(null);
+      if (sess?.user) {
+        void fetchProfile(sess.user);
+      } else {
+        setProfile(null);
+      }
     });
 
     return () => {
@@ -102,7 +189,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signUp = async (phone: string, password: string, fullName: string, cityId: string) => {
+  const signUp = async (
+    phone: string,
+    password: string,
+    fullName: string,
+    cityId: string
+  ) => {
     const cleanedPhone = cleanPhoneForStorage(phone);
     const internalEmail = phoneToInternalEmail(cleanedPhone);
 
@@ -119,7 +211,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     });
 
-    // ✅ STEP-1 DEBUG LOG (DO NOT REMOVE YET)
     console.log("[SIGNUP RESULT]", {
       error: error?.message,
       userId: data?.user?.id,
@@ -127,12 +218,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       hasSession: !!data?.session,
     });
 
-    if (error) {
-      return { error: error as Error };
-    }
+    if (error) return { error: error as Error };
+    if (!data.user) return { error: new Error("Signup failed: No user returned") };
 
-    if (!data.user) {
-      return { error: new Error("Signup failed: No user returned") };
+    // If Supabase didn't return a session (e.g., email confirmation ON),
+    // try an immediate sign-in. If it fails due to confirmation, we return a clear error.
+    if (!data.session) {
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: internalEmail,
+        password,
+      });
+
+      if (signInErr) {
+        // Common message when email confirmation is required:
+        // "Email not confirmed"
+        return {
+          error: new Error(signInErr.message || "Signup created but auto-login failed"),
+        };
+      }
     }
 
     return { error: null };
@@ -148,7 +251,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (error) {
-      return { error: new Error("Invalid phone or password") };
+      return { error: new Error(error.message || "Invalid phone or password") };
     }
 
     return { error: null };
