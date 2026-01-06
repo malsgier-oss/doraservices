@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { cleanPhoneForStorage, phoneToInternalEmail } from "@/lib/phoneUtils";
 
 interface Profile {
@@ -13,6 +14,7 @@ interface Profile {
   phone: string | null;
 
   city: string | null;
+  city_id?: string | null;
   sub_city: string | null;
   provider_status: string | null;
   role: string | null;
@@ -50,20 +52,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Create a profile if missing, then return the profile row
   const ensureProfile = async (authUser: User): Promise<Profile | null> => {
-    const meta = (authUser.user_metadata || {}) as Record<string, any>;
+    const meta = (authUser.user_metadata || {}) as Record<string, unknown>;
 
     const cleanedPhoneFromMeta =
       typeof meta.phone === "string" ? cleanPhoneForStorage(meta.phone) : null;
 
-    const fullNameFromMeta =
-      typeof meta.full_name === "string" ? meta.full_name : null;
+    const fullNameFromMeta = typeof meta.full_name === "string" ? meta.full_name : null;
 
-    const cityFromMeta =
-      typeof meta.city_id === "string"
-        ? meta.city_id
-        : typeof meta.city === "string"
-        ? meta.city
-        : null;
+    const cityIdFromMeta = typeof meta.city_id === "string" ? meta.city_id : null;
+    const cityNameFromMeta = typeof meta.city === "string" ? meta.city : null;
 
     // 1) try fetch
     const { data: existing, error: fetchError } = await supabase
@@ -81,11 +78,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // 2) create if missing
     // NOTE: we only insert safe minimal fields; DB defaults handle the rest.
-    const insertPayload: Record<string, any> = {
+    const insertPayload: TablesInsert<"profiles"> = {
       user_id: authUser.id,
       full_name: fullNameFromMeta,
       phone: cleanedPhoneFromMeta,
-      city: cityFromMeta,
+      city_id: cityIdFromMeta,
+      city: cityNameFromMeta,
     };
 
     const { data: created, error: insertError } = await supabase
@@ -96,8 +94,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (insertError) {
       // If it already got created in parallel, re-fetch once
-      console.warn("[ensureProfile] insert error, retrying fetch:", insertError);
-
       const { data: retry, error: retryError } = await supabase
         .from("profiles")
         .select("*")
@@ -105,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
 
       if (retryError) {
-        console.error("[ensureProfile] retry fetch error:", retryError);
+        console.error("[ensureProfile] insert+retry fetch error:", insertError, retryError);
         return null;
       }
 
@@ -148,7 +144,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
 
         if (sess?.user) {
-          // Ensure profile exists immediately
           void fetchProfile(sess.user);
         } else {
           setProfile(null);
@@ -163,18 +158,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    init();
-
+    // Listener FIRST, then init (prevents missing early events)
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, sess) => {
+    } = supabase.auth.onAuthStateChange((_, sess) => {
       if (!mounted) return;
 
       setSession(sess ?? null);
       setUser(sess?.user ?? null);
       setLoading(false);
-
-      console.log("[AUTH STATE CHANGE]", { event, hasSession: !!sess });
 
       if (sess?.user) {
         void fetchProfile(sess.user);
@@ -183,18 +175,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
+    init();
+
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
   }, []);
 
-  const signUp = async (
-    phone: string,
-    password: string,
-    fullName: string,
-    cityId: string
-  ) => {
+  const signUp = async (phone: string, password: string, fullName: string, cityId: string) => {
     const cleanedPhone = cleanPhoneForStorage(phone);
     const internalEmail = phoneToInternalEmail(cleanedPhone);
 
@@ -202,27 +191,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: internalEmail,
       password,
       options: {
+        emailRedirectTo: `${window.location.origin}/`,
         data: {
           full_name: fullName,
           phone: cleanedPhone,
-          city: cityId,
           city_id: cityId,
         },
       },
     });
 
-    console.log("[SIGNUP RESULT]", {
-      error: error?.message,
-      userId: data?.user?.id,
-      email: data?.user?.email,
-      hasSession: !!data?.session,
-    });
-
     if (error) return { error: error as Error };
     if (!data.user) return { error: new Error("Signup failed: No user returned") };
 
-    // If Supabase didn't return a session (e.g., email confirmation ON),
-    // try an immediate sign-in. If it fails due to confirmation, we return a clear error.
+    // Ensure we have a session so we can safely create the profile (RLS).
     if (!data.session) {
       const { error: signInErr } = await supabase.auth.signInWithPassword({
         email: internalEmail,
@@ -230,12 +211,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (signInErr) {
-        // Common message when email confirmation is required:
-        // "Email not confirmed"
-        return {
-          error: new Error(signInErr.message || "Signup created but auto-login failed"),
-        };
+        return { error: new Error(signInErr.message || "Signup created but auto-login failed") };
       }
+    }
+
+    const { data: sessData } = await supabase.auth.getSession();
+    const sessUser = sessData.session?.user;
+
+    if (!sessUser) {
+      return { error: new Error("Signup failed: could not establish session") };
+    }
+
+    const prof = await ensureProfile(sessUser);
+    if (!prof) {
+      // Avoid leaving the user in a broken half-state.
+      await supabase.auth.signOut();
+      return { error: new Error("Signup failed: could not create your profile. Please try again.") };
     }
 
     return { error: null };
@@ -252,6 +243,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (error) {
       return { error: new Error(error.message || "Invalid phone or password") };
+    }
+
+    const { data: sessData } = await supabase.auth.getSession();
+    const sessUser = sessData.session?.user;
+
+    if (!sessUser) {
+      return { error: new Error("Sign in failed: session not available") };
+    }
+
+    const prof = await ensureProfile(sessUser);
+    if (!prof) {
+      await supabase.auth.signOut();
+      return { error: new Error("Sign in failed: profile could not be loaded. Please try again.") };
     }
 
     return { error: null };
