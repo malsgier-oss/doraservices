@@ -7,12 +7,10 @@ import { cleanPhoneForStorage, phoneToInternalEmail, isValidLibyanPhone } from "
 interface Profile {
   id: string;
   user_id: string | null;
-
   full_name: string | null;
   avatar_url: string | null;
   bio: string | null;
   phone: string | null;
-
   city: string | null;
   city_id?: string | null;
   sub_city: string | null;
@@ -82,6 +80,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .single();
 
     if (insertError) {
+      console.error("[ensureProfile] insert error:", insertError);
+
+      // retry once (in case created by trigger / race)
       const { data: retry, error: retryError } = await supabase
         .from("profiles")
         .select("*")
@@ -89,7 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
 
       if (retryError) {
-        console.error("[ensureProfile] insert+retry fetch error:", insertError, retryError);
+        console.error("[ensureProfile] retry fetch error:", retryError);
         return null;
       }
 
@@ -185,10 +186,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     });
 
-    if (error) return { error: new Error(error.message) };
-    if (!data.user) return { error: new Error("Signup failed: No user returned") };
+    if (error) {
+      console.error("[signUp] error:", error);
+      return { error: new Error(error.message) };
+    }
 
-    // If session missing (email confirmation ON, or any odd edge case), try login
+    if (!data.user) {
+      return { error: new Error("Signup failed: No user returned") };
+    }
+
+    // If session missing (email confirmation ON), signIn will fail with "Email not confirmed"
     if (!data.session) {
       const { error: signInErr } = await supabase.auth.signInWithPassword({
         email: internalEmail,
@@ -196,6 +203,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (signInErr) {
+        console.error("[signUp] auto-login failed:", signInErr);
+
+        // ✅ clearer message for your setup
+        const msg = String(signInErr.message || "").toLowerCase();
+        if (msg.includes("email not confirmed")) {
+          return {
+            error: new Error(
+              "Email confirmation is ON in Supabase. Turn it OFF (Auth → Providers → Email → Confirm email = OFF), then signup again."
+            ),
+          };
+        }
+
         return { error: new Error(signInErr.message || "Signup created but auto-login failed") };
       }
     }
@@ -227,7 +246,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
     });
 
-    if (error) return { error: new Error(error.message || "Invalid phone or password") };
+    if (error) {
+      console.error("[signIn] error:", error);
+      return { error: new Error(error.message || "Invalid phone or password") };
+    }
 
     const { data: sessData } = await supabase.auth.getSession();
     const sessUser = sessData.session?.user;
