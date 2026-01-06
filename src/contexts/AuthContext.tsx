@@ -5,13 +5,14 @@ import { cleanPhoneForStorage, phoneToInternalEmail } from "@/lib/phoneUtils";
 
 interface Profile {
   id: string;
-  user_id: string;
+  // NOTE: `user_id` might not exist in DB; keep it optional in TS only if you want
+  user_id?: string;
+
   full_name: string | null;
   avatar_url: string | null;
   bio: string | null;
   phone: string | null;
 
-  // NOTE: Your DB has `city` (text). `city_id` might not exist yet.
   city: string | null;
   city_id: string | null;
 
@@ -52,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
-        .eq("user_id", authUser.id)
+        .eq("id", authUser.id)          // ✅ FIX: profiles.id
         .maybeSingle();
 
       if (error) {
@@ -70,12 +71,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.warn("Profile missing for user, attempting auto-repair:", authUser.id);
       const metadata = authUser.user_metadata || {};
 
-      // IMPORTANT: your DB currently has `city` text, so use metadata.city first.
       const repairData: any = {
-        user_id: authUser.id,
+        id: authUser.id,               // ✅ FIX: profiles.id
         full_name: metadata.full_name || null,
         phone: metadata.phone || null,
-        city: metadata.city || null, // store city UUID string here for now
+        city: metadata.city || metadata.city_id || null, // store city UUID string in city text column for now
         role: "client",
         is_verified: false,
         must_change_password: false,
@@ -83,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const { data: repairedProfile, error: repairError } = await supabase
         .from("profiles")
-        .upsert(repairData, { onConflict: "user_id" })
+        .upsert(repairData, { onConflict: "id" })  // ✅ FIX: onConflict id
         .select()
         .single();
 
@@ -159,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log("[SIGNUP] internalEmail:", internalEmail);
     console.log("[SIGNUP] cityId:", cityId);
 
-    // Check if phone already exists in profiles (may be blocked by RLS in some setups)
+    // Check if phone already exists in profiles (may be blocked by RLS)
     const { data: existingProfile, error: existsErr } = await supabase
       .from("profiles")
       .select("id")
@@ -168,7 +168,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (existsErr) {
       console.warn("[SIGNUP] existing phone check failed (possibly RLS):", existsErr);
-      // Do not hard fail; proceed and rely on unique constraint later if you add it
     } else if (existingProfile) {
       return { error: new Error("This phone is already registered. Please sign in.") };
     }
@@ -181,9 +180,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         data: {
           full_name: fullName,
           phone: cleanedPhone,
-          // Store both keys in metadata for forward-compat:
-          city: cityId,     // current DB column
-          city_id: cityId,  // future DB column
+          city: cityId,
+          city_id: cityId, // forward-compat
         },
       },
     });
@@ -197,7 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: new Error("Signup failed: No user returned") };
     }
 
-    // If signUp returns no session (confirmations on), sign in to write profile under RLS
+    // If signUp returns no session, sign in to write profile under RLS
     if (!data.session) {
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: internalEmail,
@@ -211,20 +209,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // Step 2: Create profile
-    // IMPORTANT: Your profiles table currently uses `city` (text).
+    // ✅ FIX: use profiles.id instead of user_id
     const { error: profileError } = await supabase
       .from("profiles")
       .upsert(
         {
-          user_id: data.user.id,
+          id: data.user.id,
           full_name: fullName,
           phone: cleanedPhone,
-          city: cityId, // store city UUID string in city text column for now
+          city: cityId, // store UUID string in city text column for now
           role: "client",
           is_verified: false,
           must_change_password: false,
         } as any,
-        { onConflict: "user_id" }
+        { onConflict: "id" }
       );
 
     if (profileError) {
