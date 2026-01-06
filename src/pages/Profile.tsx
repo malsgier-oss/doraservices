@@ -48,21 +48,6 @@ import { format } from "date-fns";
 import { ProfileCompleteness } from "@/components/profile/ProfileCompleteness";
 import { EditServiceDialog } from "@/components/service/EditServiceDialog";
 
-// Format phone to Libyan style: 09x xxx xx xx
-const formatLibyanPhone = (value: string): string => {
-  const digits = value.replace(/\D/g, "");
-  const limited = digits.slice(0, 10);
-
-  if (limited.length <= 3) return limited;
-  if (limited.length <= 6) return `${limited.slice(0, 3)} ${limited.slice(3)}`;
-  if (limited.length <= 8)
-    return `${limited.slice(0, 3)} ${limited.slice(3, 6)} ${limited.slice(6)}`;
-  return `${limited.slice(0, 3)} ${limited.slice(3, 6)} ${limited.slice(
-    6,
-    8
-  )} ${limited.slice(8)}`;
-};
-
 const Profile = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -110,8 +95,8 @@ const Profile = () => {
     : "Recently";
 
   const cityLabel =
-    profile?.city && cities?.length
-      ? (cities.find((c) => c.id === profile.city)?.[
+    (profile?.city_id || profile?.city) && cities?.length
+      ? (cities.find((c) => c.id === (profile.city_id || profile.city))?.[
           language === "ar" ? "name_ar" : "name"
         ] as string) || null
       : null;
@@ -129,8 +114,8 @@ const Profile = () => {
         full_name: profile.full_name || "",
         bio: profile.bio || "",
         avatar_url: profile.avatar_url || "",
-        phone: profile.phone ? formatLibyanPhone(profile.phone) : "",
-        city: profile.city || "",
+        phone: profile.phone || "",
+        city: profile.city_id || profile.city || "",
         sub_city: profile.sub_city || "",
       });
     }
@@ -144,8 +129,8 @@ const Profile = () => {
         full_name: profile.full_name || "",
         bio: profile.bio || "",
         avatar_url: profile.avatar_url || "",
-        phone: profile.phone ? formatLibyanPhone(profile.phone) : "",
-        city: profile.city || "",
+        phone: profile.phone || "",
+        city: profile.city_id || profile.city || "",
         sub_city: profile.sub_city || "",
       });
     }
@@ -153,19 +138,19 @@ const Profile = () => {
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatLibyanPhone(e.target.value);
-    setFormData({ ...formData, phone: formatted });
+    // Only allow digits, max 10 chars for local format
+    const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+    setFormData({ ...formData, phone: val });
   };
 
   const handleSave = async () => {
-    const phoneDigits = formData.phone.replace(/\D/g, "");
-
+    // Phone is stored exactly as entered (no formatting)
     const { error } = await updateProfile({
       full_name: formData.full_name || null,
       bio: formData.bio || null,
       avatar_url: formData.avatar_url || null,
-      phone: phoneDigits || null,
-      city: formData.city || null,
+      phone: formData.phone || null,
+      city_id: formData.city || null,
       sub_city: formData.sub_city || null,
     });
 
