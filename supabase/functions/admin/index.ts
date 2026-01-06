@@ -201,23 +201,22 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Normalize phone and derive internal email
-      // Handle both local format (09XXXXXXXX) and normalized format (+218XXXXXXXXX)
+      // Clean and normalize phone for lookups
+      const cleanedPhone = phone.replace(/\s/g, "").trim();
       let digitsOnly = phone.replace(/\D/g, "");
       
-      // If starts with 0 (local format), convert to international
+      // Convert to international format for email lookup
       if (digitsOnly.startsWith("0")) {
         digitsOnly = "218" + digitsOnly.slice(1);
       }
-      // If starts with 218 already, use as-is
-      // Otherwise prepend 218
       if (!digitsOnly.startsWith("218")) {
         digitsOnly = "218" + digitsOnly;
       }
       
       const internalEmail = `${digitsOnly}@phone.dora.ly`;
+      console.log("Looking for user with email:", internalEmail, "or phone:", cleanedPhone);
 
-      // Find user by email
+      // Strategy 1: Find by internal email format
       const { data: usersData, error: listError } = await adminClient.auth.admin.listUsers();
       if (listError) {
         console.error("listUsers failed", listError);
@@ -227,10 +226,46 @@ Deno.serve(async (req) => {
         });
       }
 
-      const targetUser = usersData.users.find(u => u.email === internalEmail);
+      let targetUser = usersData.users.find(u => u.email === internalEmail);
+      
+      // Strategy 2: If not found by email, lookup profile by phone, get user_id, find auth user
       if (!targetUser) {
-        console.error("User not found for email:", internalEmail);
-        return new Response(JSON.stringify({ error: "User not found for this phone number" }), {
+        console.log("User not found by email, trying profile lookup...");
+        
+        // Try multiple phone formats
+        const phoneFormats = [
+          cleanedPhone,                                    // as-is (e.g., 0913200935)
+          cleanedPhone.replace(/^0/, "+218"),             // +218913200935
+          cleanedPhone.replace(/^0/, "218"),              // 218913200935
+          "+" + digitsOnly,                                // +218913200935
+        ];
+        
+        let profileUserId: string | null = null;
+        for (const phoneFormat of phoneFormats) {
+          const { data: profileData } = await adminClient
+            .from("profiles")
+            .select("user_id")
+            .eq("phone", phoneFormat)
+            .maybeSingle();
+          
+          if (profileData?.user_id) {
+            profileUserId = profileData.user_id;
+            console.log("Found profile with phone format:", phoneFormat, "user_id:", profileUserId);
+            break;
+          }
+        }
+        
+        if (profileUserId) {
+          targetUser = usersData.users.find(u => u.id === profileUserId);
+          if (targetUser) {
+            console.log("Found auth user by profile user_id:", targetUser.id);
+          }
+        }
+      }
+
+      if (!targetUser) {
+        console.error("User not found for phone:", cleanedPhone, "or email:", internalEmail);
+        return new Response(JSON.stringify({ error: "User not found for this phone number. Make sure the user has registered." }), {
           status: 404,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
