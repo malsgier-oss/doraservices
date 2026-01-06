@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import doraLogo from "@/assets/dora-logo.png";
 import { useRegistrationEnabled } from "@/hooks/usePlatformSettings";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { isValidLibyanPhone } from "@/lib/phoneUtils";
+import { isValidLibyanPhone, cleanPhoneForStorage, phoneToInternalEmail } from "@/lib/phoneUtils";
 
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
 const nameSchema = z.string().min(2, "Name must be at least 2 characters");
@@ -63,10 +63,11 @@ export default function Auth() {
       return;
     }
 
+    // For login, accept local format only (09XXXXXXXX)
     if (!isValidLibyanPhone(loginData.phone)) {
       toast({ 
         title: isRTL ? "رقم هاتف غير صالح" : "Invalid phone", 
-        description: isRTL ? "يرجى إدخال رقم هاتف ليبي صحيح" : "Please enter a valid Libyan phone number", 
+        description: isRTL ? "يرجى إدخال رقم هاتف ليبي صحيح (09XXXXXXXX)" : "Please enter a valid Libyan phone number (09XXXXXXXX)", 
         variant: "destructive" 
       });
       return;
@@ -135,7 +136,7 @@ export default function Auth() {
     if (!isValidLibyanPhone(signupData.phone)) {
       toast({ 
         title: isRTL ? "رقم هاتف غير صالح" : "Invalid phone", 
-        description: isRTL ? "يرجى إدخال رقم هاتف ليبي صحيح" : "Please enter a valid Libyan phone number", 
+        description: isRTL ? "يرجى إدخال رقم هاتف ليبي (09XXXXXXXX)" : "Please enter a valid Libyan phone (09XXXXXXXX)", 
         variant: "destructive" 
       });
       return;
@@ -314,13 +315,15 @@ export default function Auth() {
                       className={cn(isRTL ? "pr-10 text-left" : "pl-10")}
                       dir="ltr"
                       value={signupData.phone}
-                      onChange={(e) => setSignupData({ ...signupData, phone: e.target.value })}
+                      onChange={(e) => {
+                        // Only allow digits, max 10 chars
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                        setSignupData({ ...signupData, phone: val });
+                      }}
                       required
+                      maxLength={10}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {isRTL ? "مثال: 0912345678 أو +218912345678" : "Example: 0912345678 or +218912345678"}
-                  </p>
                 </div>
                 
                 <div className="space-y-2">

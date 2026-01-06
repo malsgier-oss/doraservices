@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { normalizePhone, phoneToInternalEmail } from "@/lib/phoneUtils";
+import { cleanPhoneForStorage, phoneToInternalEmail, normalizePhone } from "@/lib/phoneUtils";
 
 interface Profile {
   id: string;
@@ -114,15 +114,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = async (phone: string, password: string, fullName: string, cityId: string) => {
-    const normalizedPhone = normalizePhone(phone);
-    const internalEmail = phoneToInternalEmail(normalizedPhone);
+    // Clean phone - store exactly as entered (local format: 09XXXXXXXX)
+    const cleanedPhone = cleanPhoneForStorage(phone);
+    const internalEmail = phoneToInternalEmail(cleanedPhone);
     const redirectUrl = `${window.location.origin}/`;
 
-    // Check if phone already exists in profiles
+    // Check if phone already exists in profiles (check both local and normalized formats for safety)
     const { data: existingProfile } = await supabase
       .from("profiles")
       .select("id")
-      .eq("phone", normalizedPhone)
+      .eq("phone", cleanedPhone)
       .maybeSingle();
 
     if (existingProfile) {
@@ -136,7 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         emailRedirectTo: redirectUrl,
         data: {
           full_name: fullName,
-          phone: normalizedPhone,
+          phone: cleanedPhone,
           city_id: cityId,
         },
       },
@@ -146,14 +147,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: error as Error };
     }
 
-    // Create/upsert profile with phone and city
+    // Create/upsert profile with phone and city - store phone exactly as entered
     if (data.user) {
       const { error: profileError } = await supabase
         .from("profiles")
         .upsert({
           user_id: data.user.id,
           full_name: fullName,
-          phone: normalizedPhone,
+          phone: cleanedPhone,
           city_id: cityId,
           role: 'client',
           is_verified: false,
@@ -177,8 +178,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (phone: string, password: string) => {
-    const normalizedPhone = normalizePhone(phone);
-    const internalEmail = phoneToInternalEmail(normalizedPhone);
+    // Clean phone and derive internal email
+    const cleanedPhone = cleanPhoneForStorage(phone);
+    const internalEmail = phoneToInternalEmail(cleanedPhone);
 
     const { error } = await supabase.auth.signInWithPassword({
       email: internalEmail,

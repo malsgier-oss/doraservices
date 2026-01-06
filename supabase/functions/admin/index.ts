@@ -201,10 +201,20 @@ Deno.serve(async (req) => {
       }
 
       // Normalize phone and derive internal email
-      const digitsOnly = phone.replace(/\D/g, "");
+      // Handle both local format (09XXXXXXXX) and normalized format (+218XXXXXXXXX)
+      let digitsOnly = phone.replace(/\D/g, "");
+      
+      // If starts with 0 (local format), convert to international
+      if (digitsOnly.startsWith("0")) {
+        digitsOnly = "218" + digitsOnly.slice(1);
+      }
+      // If starts with 218 already, use as-is
+      // Otherwise prepend 218
+      if (!digitsOnly.startsWith("218")) {
+        digitsOnly = "218" + digitsOnly;
+      }
+      
       const internalEmail = `${digitsOnly}@phone.dora.ly`;
-
-      console.log("Setting temp password for:", { phone, internalEmail });
 
       // Find user by email
       const { data: usersData, error: listError } = await adminClient.auth.admin.listUsers();

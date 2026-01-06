@@ -12,6 +12,7 @@ import {
   ArrowLeft,
   Menu,
   MapPin,
+  KeyRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,13 +29,13 @@ const navItems = [
   { to: "/admin/users", label: "Users", icon: Users },
   { to: "/admin/providers", label: "Providers", icon: Users },
   { to: "/admin/services", label: "Services", icon: Store },
-  
   { to: "/admin/reviews", label: "Reviews", icon: MessageSquare },
   { to: "/admin/categories", label: "Categories", icon: Tag },
   { to: "/admin/cities", label: "Cities", icon: Flag },
   { to: "/admin/sub-cities", label: "Sub-Cities", icon: MapPin },
   { to: "/admin/reports", label: "Reports", icon: Flag },
   { to: "/admin/messages", label: "Messages", icon: MessageSquare },
+  { to: "/admin/password-resets", label: "Password Resets", icon: KeyRound },
   { to: "/admin/analytics", label: "Analytics", icon: LayoutDashboard },
   { to: "/admin/media", label: "Media", icon: Store },
   { to: "/admin/bulk-upload", label: "Bulk Upload", icon: Settings },
