@@ -14,11 +14,12 @@ import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import ProviderDashboard from "./pages/ProviderDashboard";
+import PendingVerification from "./pages/PendingVerification";
+import ChangePassword from "./pages/ChangePassword";
+import ForgotPassword from "./pages/ForgotPassword";
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
-
-
 import AdminReports from "./pages/admin/AdminReports";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminMessages from "./pages/admin/AdminMessages";
@@ -32,6 +33,7 @@ import AdminAnalytics from "./pages/admin/AdminAnalytics";
 import AdminMedia from "./pages/admin/AdminMedia";
 import AdminBulkUpload from "./pages/admin/AdminBulkUpload";
 import AdminSubCities from "./pages/admin/AdminSubCities";
+import AdminPasswordResets from "./pages/admin/AdminPasswordResets";
 
 const queryClient = new QueryClient();
 
@@ -92,14 +94,10 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/auth"
-        element={
-          <AuthenticatedRedirect>
-            <Auth />
-          </AuthenticatedRedirect>
-        }
-      />
+      <Route path="/auth" element={<Auth />} />
+      <Route path="/pending-verification" element={<PendingVerification />} />
+      <Route path="/change-password" element={<ChangePassword />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       {/* Admin Routes */}
       <Route
         path="/admin"
@@ -125,6 +123,7 @@ const AppRoutes = () => {
         <Route path="media" element={<AdminMedia />} />
         <Route path="bulk-upload" element={<AdminBulkUpload />} />
         <Route path="audit-log" element={<AdminAuditLog />} />
+        <Route path="password-resets" element={<AdminPasswordResets />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

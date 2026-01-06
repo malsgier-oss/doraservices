@@ -452,6 +452,50 @@ export type Database = {
         }
         Relationships: []
       }
+      password_reset_requests: {
+        Row: {
+          city_id: string | null
+          created_at: string | null
+          handled_at: string | null
+          handled_by: string | null
+          id: string
+          notes: string | null
+          phone: string
+          status: string | null
+          user_id: string | null
+        }
+        Insert: {
+          city_id?: string | null
+          created_at?: string | null
+          handled_at?: string | null
+          handled_by?: string | null
+          id?: string
+          notes?: string | null
+          phone: string
+          status?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          city_id?: string | null
+          created_at?: string | null
+          handled_at?: string | null
+          handled_by?: string | null
+          id?: string
+          notes?: string | null
+          phone?: string
+          status?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "password_reset_requests_city_id_fkey"
+            columns: ["city_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_messages: {
         Row: {
           content: string
@@ -564,12 +608,16 @@ export type Database = {
           avatar_url: string | null
           bio: string | null
           city: string | null
+          city_id: string | null
           created_at: string
           full_name: string | null
           id: string
+          is_verified: boolean | null
+          must_change_password: boolean | null
           phone: string | null
           points: number
           provider_status: string | null
+          role: string | null
           status: string
           sub_city: string | null
           suspended_at: string | null
@@ -577,17 +625,23 @@ export type Database = {
           tier: string
           updated_at: string
           user_id: string
+          verified_at: string | null
+          verified_by: string | null
         }
         Insert: {
           avatar_url?: string | null
           bio?: string | null
           city?: string | null
+          city_id?: string | null
           created_at?: string
           full_name?: string | null
           id?: string
+          is_verified?: boolean | null
+          must_change_password?: boolean | null
           phone?: string | null
           points?: number
           provider_status?: string | null
+          role?: string | null
           status?: string
           sub_city?: string | null
           suspended_at?: string | null
@@ -595,17 +649,23 @@ export type Database = {
           tier?: string
           updated_at?: string
           user_id: string
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Update: {
           avatar_url?: string | null
           bio?: string | null
           city?: string | null
+          city_id?: string | null
           created_at?: string
           full_name?: string | null
           id?: string
+          is_verified?: boolean | null
+          must_change_password?: boolean | null
           phone?: string | null
           points?: number
           provider_status?: string | null
+          role?: string | null
           status?: string
           sub_city?: string | null
           suspended_at?: string | null
@@ -613,8 +673,18 @@ export type Database = {
           tier?: string
           updated_at?: string
           user_id?: string
+          verified_at?: string | null
+          verified_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_city_id_fkey"
+            columns: ["city_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       provider_stats: {
         Row: {
