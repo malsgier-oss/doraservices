@@ -5,6 +5,8 @@ import { cleanPhoneForStorage, phoneToInternalEmail } from "@/lib/phoneUtils";
 
 interface Profile {
   id: string; // profiles.id = auth.user.id
+  user_id: string | null; // exists in your table too
+
   full_name: string | null;
   avatar_url: string | null;
   bio: string | null;
@@ -28,7 +30,12 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   profileLoading: boolean;
-  signUp: (phone: string, password: string, fullName: string, cityId: string) => Promise<{ error: Error | null }>;
+  signUp: (
+    phone: string,
+    password: string,
+    fullName: string,
+    cityId: string
+  ) => Promise<{ error: Error | null }>;
   signIn: (phone: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -67,9 +74,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const metadata = authUser.user_metadata || {};
       const repairData: any = {
         id: authUser.id,
+        user_id: authUser.id, // keep both aligned
+
         full_name: metadata.full_name || null,
         phone: metadata.phone || null,
         city: metadata.city || metadata.city_id || null,
+
         role: "client",
         is_verified: false,
         must_change_password: false,
@@ -112,7 +122,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session?.user) setTimeout(() => fetchProfile(session.user), 0);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return;
       setSession(session);
       setUser(session?.user ?? null);
@@ -127,15 +139,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signUp = async (phone: string, password: string, fullName: string, cityId: string) => {
+  const signUp = async (
+    phone: string,
+    password: string,
+    fullName: string,
+    cityId: string
+  ) => {
     const cleanedPhone = cleanPhoneForStorage(phone); // 09XXXXXXXX
-    const internalEmail = phoneToInternalEmail(cleanedPhone); // 2189XXXXXXXX@phone.dora.ly
+    const internalEmail = phoneToInternalEmail(cleanedPhone); // 091XXXXXXXX@dora.ly
 
     console.log("[SIGNUP] cleanedPhone:", cleanedPhone);
     console.log("[SIGNUP] internalEmail:", internalEmail);
     console.log("[SIGNUP] cityId:", cityId);
 
-    // 1) Create auth user (requires Email provider ENABLED)
     const { data, error } = await supabase.auth.signUp({
       email: internalEmail,
       password,
@@ -163,19 +179,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: internalEmail,
         password,
       });
+
       if (signInError) {
         console.error("[SIGNUP] signIn after signUp failed:", signInError);
-        return { error: new Error("Account created but could not be initialized. Please contact support.") };
+        return {
+          error: new Error(
+            "Account created but could not be initialized. Please contact support."
+          ),
+        };
       }
     }
 
-    // 2) Upsert profile row (requires RLS policy allowing own insert/update)
+    // IMPORTANT: RLS must allow insert where auth.uid() = id
     const { error: profileError } = await supabase.from("profiles").upsert(
       {
-        id: data.user.id,
+        id: data.user.id,      // required for RLS
+        user_id: data.user.id, // keep consistent with your schema
+
         full_name: fullName,
         phone: cleanedPhone,
         city: cityId,
+
         role: "client",
         is_verified: false,
         must_change_password: false,
@@ -194,7 +218,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (phone: string, password: string) => {
     const cleanedPhone = cleanPhoneForStorage(phone);
-    const internalEmail = phoneToInternalEmail(cleanedPhone);
+    const internalEmail = phoneToInternalEmail(cleanedPhone); // 091XXXXXXXX@dora.ly
 
     const { error } = await supabase.auth.signInWithPassword({
       email: internalEmail,
@@ -215,17 +239,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      session,
-      profile,
-      loading,
-      profileLoading,
-      signUp,
-      signIn,
-      signOut,
-      refreshProfile,
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        profile,
+        loading,
+        profileLoading,
+        signUp,
+        signIn,
+        signOut,
+        refreshProfile,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
