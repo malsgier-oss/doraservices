@@ -4,15 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { cleanPhoneForStorage, phoneToInternalEmail } from "@/lib/phoneUtils";
 
 interface Profile {
-  id: string; // profiles.id = auth.user.id
-  user_id: string | null; // exists in your table too
+  id: string;
+  user_id: string | null;
 
   full_name: string | null;
   avatar_url: string | null;
   bio: string | null;
   phone: string | null;
 
-  // current DB reality
   city: string | null;
 
   sub_city: string | null;
@@ -30,12 +29,7 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   profileLoading: boolean;
-  signUp: (
-    phone: string,
-    password: string,
-    fullName: string,
-    cityId: string
-  ) => Promise<{ error: Error | null }>;
+  signUp: (phone: string, password: string, fullName: string, cityId: string) => Promise<{ error: Error | null }>;
   signIn: (phone: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -70,34 +64,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Auto-repair profile if missing (may fail under RLS; that's OK)
+      // Profile missing - try to create it (INSERT, not UPSERT) to avoid unique collisions
       const metadata = authUser.user_metadata || {};
-      const repairData: any = {
-        id: authUser.id,
-        user_id: authUser.id, // keep both aligned
-
+      const repairInsert: any = {
+        user_id: authUser.id,
+        id: authUser.id, // keep aligned (optional but safe)
         full_name: metadata.full_name || null,
         phone: metadata.phone || null,
         city: metadata.city || metadata.city_id || null,
-
         role: "client",
         is_verified: false,
         must_change_password: false,
       };
 
-      const { data: repaired, error: repairError } = await supabase
+      const { data: inserted, error: insertError } = await supabase
         .from("profiles")
-        .upsert(repairData, { onConflict: "id" })
+        .insert(repairInsert)
         .select()
         .single();
 
-      if (repairError) {
-        console.error("[fetchProfile] auto-repair failed:", repairError);
+      if (insertError) {
+        console.error("[fetchProfile] auto-insert failed:", insertError);
         setProfile(null);
         return;
       }
 
-      setProfile(repaired as Profile);
+      setProfile(inserted as Profile);
     } catch (e) {
       console.error("[fetchProfile] exception:", e);
       setProfile(null);
@@ -122,9 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session?.user) setTimeout(() => fetchProfile(session.user), 0);
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return;
       setSession(session);
       setUser(session?.user ?? null);
@@ -139,18 +129,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signUp = async (
-    phone: string,
-    password: string,
-    fullName: string,
-    cityId: string
-  ) => {
+  const signUp = async (phone: string, password: string, fullName: string, cityId: string) => {
     const cleanedPhone = cleanPhoneForStorage(phone); // 09XXXXXXXX
     const internalEmail = phoneToInternalEmail(cleanedPhone); // 091XXXXXXXX@dora.ly
-
-    console.log("[SIGNUP] cleanedPhone:", cleanedPhone);
-    console.log("[SIGNUP] internalEmail:", internalEmail);
-    console.log("[SIGNUP] cityId:", cityId);
 
     const { data, error } = await supabase.auth.signUp({
       email: internalEmail,
@@ -160,7 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           full_name: fullName,
           phone: cleanedPhone,
           city: cityId,
-          city_id: cityId, // forward compatible
+          city_id: cityId, // forward-compatible
         },
       },
     });
@@ -173,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: new Error("Signup failed: No user returned") };
     }
 
-    // If confirmations are on, signUp might return no session.
+    // If confirmations are on, signUp might return no session
     if (!data.session) {
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: internalEmail,
@@ -182,35 +163,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (signInError) {
         console.error("[SIGNUP] signIn after signUp failed:", signInError);
-        return {
-          error: new Error(
-            "Account created but could not be initialized. Please contact support."
-          ),
-        };
+        return { error: new Error("Account created but could not be initialized. Please contact support.") };
       }
     }
 
-    // IMPORTANT: RLS must allow insert where auth.uid() = id
-    const { error: profileError } = await supabase.from("profiles").upsert(
-      {
-        id: data.user.id,      // required for RLS
-        user_id: data.user.id, // keep consistent with your schema
+    // IMPORTANT: because user_id has a UNIQUE constraint, do UPDATE first, then INSERT if missing.
+    const updatePayload: any = {
+      full_name: fullName,
+      phone: cleanedPhone,
+      city: cityId,
+      role: "client",
+      is_verified: false,
+      must_change_password: false,
+    };
 
-        full_name: fullName,
-        phone: cleanedPhone,
-        city: cityId,
+    const { data: updatedRow, error: updateErr } = await supabase
+      .from("profiles")
+      .update(updatePayload)
+      .eq("user_id", data.user.id)
+      .select("id")
+      .maybeSingle();
 
-        role: "client",
-        is_verified: false,
-        must_change_password: false,
-      } as any,
-      { onConflict: "id" }
-    );
-
-    if (profileError) {
-      console.error("[SIGNUP] profile upsert failed:", profileError);
+    if (updateErr) {
+      console.error("[SIGNUP] profile update failed:", updateErr);
       await supabase.auth.signOut();
-      return { error: profileError as any };
+      return { error: updateErr as any };
+    }
+
+    if (!updatedRow) {
+      const insertPayload: any = {
+        id: data.user.id,      // keep aligned
+        user_id: data.user.id, // UNIQUE key
+        ...updatePayload,
+      };
+
+      const { error: insertErr } = await supabase.from("profiles").insert(insertPayload);
+
+      if (insertErr) {
+        console.error("[SIGNUP] profile insert failed:", insertErr);
+        await supabase.auth.signOut();
+        return { error: insertErr as any };
+      }
     }
 
     return { error: null };
