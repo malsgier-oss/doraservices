@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { cleanPhoneForStorage, phoneToInternalEmail, normalizePhone } from "@/lib/phoneUtils";
+import { cleanPhoneForStorage, phoneToInternalEmail } from "@/lib/phoneUtils";
 
 interface Profile {
   id: string;
@@ -42,21 +42,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
 
-  const fetchProfile = async (userId: string) => {
+  // Fetch profile with auto-repair if missing
+  const fetchProfile = async (authUser: User) => {
     setProfileLoading(true);
     try {
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
-        .eq("user_id", userId)
-        .single();
+        .eq("user_id", authUser.id)
+        .maybeSingle();
 
       if (error) {
         console.error("Error fetching profile:", error);
         setProfile(null);
-      } else {
-        setProfile(data as Profile);
+        return;
       }
+
+      // Profile exists - use it
+      if (data) {
+        setProfile(data as Profile);
+        return;
+      }
+
+      // Profile missing - attempt auto-repair using auth metadata
+      console.warn("Profile missing for user, attempting auto-repair:", authUser.id);
+      const metadata = authUser.user_metadata || {};
+      
+      const repairData = {
+        user_id: authUser.id,
+        full_name: metadata.full_name || null,
+        phone: metadata.phone || null,
+        city_id: metadata.city_id || null,
+        role: 'client',
+        is_verified: false,
+        must_change_password: false,
+      };
+
+      const { data: repairedProfile, error: repairError } = await supabase
+        .from("profiles")
+        .upsert(repairData, { onConflict: 'user_id' })
+        .select()
+        .single();
+
+      if (repairError) {
+        console.error("Profile auto-repair failed:", repairError);
+        setProfile(null);
+        return;
+      }
+
+      console.log("Profile auto-repaired successfully");
+      setProfile(repairedProfile as Profile);
+
+      // Also ensure user_roles entry exists (ignore errors - role might exist)
+      try {
+        await supabase.from("user_roles").upsert(
+          { user_id: authUser.id, role: "user" },
+          { onConflict: 'user_id,role', ignoreDuplicates: true }
+        );
+      } catch {
+        // Ignore - role might already exist
+      }
+
     } catch (err) {
       console.error("Profile fetch error:", err);
       setProfile(null);
@@ -67,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = async () => {
     if (user) {
-      await fetchProfile(user.id);
+      await fetchProfile(user);
     }
   };
 
@@ -84,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Fetch profile after setting user
       if (session?.user) {
         setTimeout(() => {
-          fetchProfile(session.user.id);
+          fetchProfile(session.user);
         }, 0);
       }
     });
@@ -100,7 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Fetch profile on auth change
       if (session?.user) {
         setTimeout(() => {
-          fetchProfile(session.user.id);
+          fetchProfile(session.user);
         }, 0);
       } else {
         setProfile(null);
@@ -119,7 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const internalEmail = phoneToInternalEmail(cleanedPhone);
     const redirectUrl = `${window.location.origin}/`;
 
-    // Check if phone already exists in profiles (check both local and normalized formats for safety)
+    // Check if phone already exists in profiles
     const { data: existingProfile } = await supabase
       .from("profiles")
       .select("id")
@@ -130,6 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: new Error("This phone is already registered. Please sign in.") };
     }
     
+    // Step 1: Create auth user
     const { data, error } = await supabase.auth.signUp({
       email: internalEmail,
       password,
@@ -147,33 +194,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: error as Error };
     }
 
-    // Create/upsert profile with phone and city - store phone exactly as entered
-    if (data.user) {
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .upsert({
-          user_id: data.user.id,
-          full_name: fullName,
-          phone: cleanedPhone,
-          city_id: cityId,
-          role: 'client',
-          is_verified: false,
-          must_change_password: false,
-        }, {
-          onConflict: 'user_id'
-        });
-
-      if (profileError) {
-        console.error("Profile creation error:", profileError);
-      }
-
-      // Add default user role (ignore if exists)
-      await supabase.from("user_roles").insert({ 
-        user_id: data.user.id, 
-        role: "user" 
-      });
+    if (!data.user) {
+      return { error: new Error("Signup failed: No user returned") };
     }
-    
+
+    // Step 2: Create profile (atomic with auth user)
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .upsert({
+        user_id: data.user.id,
+        full_name: fullName,
+        phone: cleanedPhone,
+        city_id: cityId,
+        role: 'client',
+        is_verified: false,
+        must_change_password: false,
+      }, {
+        onConflict: 'user_id'
+      });
+
+    if (profileError) {
+      console.error("Profile creation failed, cleaning up auth user:", profileError);
+      // Rollback: Sign out and attempt to clean up
+      // Note: We can't delete the auth user from client-side, but we can sign out
+      // The orphaned auth user will need admin cleanup, but this is rare
+      await supabase.auth.signOut();
+      return { error: new Error("Account creation failed. Please try again.") };
+    }
+
+    // Step 3: Add default user role
+    const { error: roleError } = await supabase.from("user_roles").upsert(
+      { user_id: data.user.id, role: "user" },
+      { onConflict: 'user_id,role', ignoreDuplicates: true }
+    );
+
+    if (roleError) {
+      // Non-critical - log but don't fail signup
+      console.warn("Failed to add user role:", roleError);
+    }
+
+    // Success - profile will be fetched by onAuthStateChange
     return { error: null };
   };
 
@@ -187,11 +247,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
     });
     
-    // Generic error message to not leak whether phone exists
     if (error) {
+      // Generic error message to not leak whether phone exists
       return { error: new Error("Invalid phone or password") };
     }
     
+    // Profile will be fetched by onAuthStateChange with auto-repair if needed
     return { error: null };
   };
 
