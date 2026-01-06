@@ -161,7 +161,9 @@ export default function Auth() {
     if (!isValidLibyanPhone(cleanedPhone)) {
       toast({
         title: isRTL ? "رقم هاتف غير صالح" : "Invalid phone",
-        description: isRTL ? "يرجى إدخال رقم هاتف ليبي (09XXXXXXXX)" : "Please enter a valid Libyan phone (09XXXXXXXX)",
+        description: isRTL
+          ? "يرجى إدخال رقم هاتف ليبي (09XXXXXXXX)"
+          : "Please enter a valid Libyan phone (09XXXXXXXX)",
         variant: "destructive",
       });
       return;
@@ -195,7 +197,9 @@ export default function Auth() {
       let message = error.message;
 
       if (lower.includes("already registered") || lower.includes("user already registered")) {
-        message = isRTL ? "هذا الرقم مسجل بالفعل. يرجى تسجيل الدخول." : "This phone is already registered. Please sign in.";
+        message = isRTL
+          ? "هذا الرقم مسجل بالفعل. يرجى تسجيل الدخول."
+          : "This phone is already registered. Please sign in.";
       }
 
       toast({
@@ -361,7 +365,8 @@ export default function Auth() {
                       dir="ltr"
                       value={signupData.phone}
                       onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, "").slice(0, 15);
+                        // allow various inputs; we normalize later in handleSignup via cleanPhoneForStorage()
+                        const val = e.target.value.replace(/[^\d+]/g, "").slice(0, 20);
                         setSignupData({ ...signupData, phone: val });
                       }}
                       required
@@ -395,11 +400,24 @@ export default function Auth() {
                     <MapPin className="h-4 w-4" />
                     {isRTL ? "المدينة" : "City"} <span className="text-destructive">*</span>
                   </Label>
-                  <Select value={signupData.cityId} onValueChange={(value) => setSignupData({ ...signupData, cityId: value })}>
+
+                  {/* ✅ Mobile-safe Select */}
+                  <Select
+                    value={signupData.cityId}
+                    onValueChange={(value) => setSignupData({ ...signupData, cityId: value })}
+                    // IMPORTANT: makes the dropdown behave correctly on mobile/iOS
+                    modal
+                  >
                     <SelectTrigger className="rounded-xl h-12">
                       <SelectValue placeholder={isRTL ? "اختر مدينتك" : "Select your city"} />
                     </SelectTrigger>
-                    <SelectContent className="bg-card border-border z-50">
+
+                    <SelectContent
+                      position="popper"
+                      sideOffset={8}
+                      avoidCollisions
+                      className="z-[9999] bg-white border border-border shadow-lg"
+                    >
                       {cities?.map((city) => (
                         <SelectItem key={city.id} value={city.id}>
                           {language === "ar" && city.name_ar ? city.name_ar : city.name}
