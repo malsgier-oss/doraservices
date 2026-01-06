@@ -4,17 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { cleanPhoneForStorage, phoneToInternalEmail } from "@/lib/phoneUtils";
 
 interface Profile {
-  id: string;
-  // NOTE: `user_id` might not exist in DB; keep it optional in TS only if you want
-  user_id?: string;
-
+  id: string; // profiles.id = auth.user.id
   full_name: string | null;
   avatar_url: string | null;
   bio: string | null;
   phone: string | null;
 
+  // current DB reality
   city: string | null;
-  city_id: string | null;
 
   sub_city: string | null;
   provider_status: string | null;
@@ -46,18 +43,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
 
-  // Fetch profile with auto-repair if missing
   const fetchProfile = async (authUser: User) => {
     setProfileLoading(true);
     try {
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
-        .eq("id", authUser.id)          // ✅ FIX: profiles.id
+        .eq("id", authUser.id)
         .maybeSingle();
 
       if (error) {
-        console.error("Error fetching profile:", error);
+        console.error("[fetchProfile] error:", error);
         setProfile(null);
         return;
       }
@@ -67,46 +63,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Profile missing - attempt auto-repair using auth metadata
-      console.warn("Profile missing for user, attempting auto-repair:", authUser.id);
+      // Auto-repair profile if missing (may fail under RLS; that's OK)
       const metadata = authUser.user_metadata || {};
-
       const repairData: any = {
-        id: authUser.id,               // ✅ FIX: profiles.id
+        id: authUser.id,
         full_name: metadata.full_name || null,
         phone: metadata.phone || null,
-        city: metadata.city || metadata.city_id || null, // store city UUID string in city text column for now
+        city: metadata.city || metadata.city_id || null,
         role: "client",
         is_verified: false,
         must_change_password: false,
       };
 
-      const { data: repairedProfile, error: repairError } = await supabase
+      const { data: repaired, error: repairError } = await supabase
         .from("profiles")
-        .upsert(repairData, { onConflict: "id" })  // ✅ FIX: onConflict id
+        .upsert(repairData, { onConflict: "id" })
         .select()
         .single();
 
       if (repairError) {
-        console.error("Profile auto-repair failed:", repairError);
+        console.error("[fetchProfile] auto-repair failed:", repairError);
         setProfile(null);
         return;
       }
 
-      console.log("Profile auto-repaired successfully");
-      setProfile(repairedProfile as Profile);
-
-      // Ensure user_roles entry exists (non-critical)
-      try {
-        await supabase.from("user_roles").upsert(
-          { user_id: authUser.id, role: "user" },
-          { onConflict: "user_id,role" }
-        );
-      } catch (e) {
-        console.warn("user_roles upsert failed (non-critical):", e);
-      }
-    } catch (err) {
-      console.error("Profile fetch error:", err);
+      setProfile(repaired as Profile);
+    } catch (e) {
+      console.error("[fetchProfile] exception:", e);
       setProfile(null);
     } finally {
       setProfileLoading(false);
@@ -126,23 +109,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
       setLoading(false);
 
-      if (session?.user) {
-        setTimeout(() => fetchProfile(session.user), 0);
-      }
+      if (session?.user) setTimeout(() => fetchProfile(session.user), 0);
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return;
       setSession(session);
       setUser(session?.user ?? null);
 
-      if (session?.user) {
-        setTimeout(() => fetchProfile(session.user), 0);
-      } else {
-        setProfile(null);
-      }
+      if (session?.user) setTimeout(() => fetchProfile(session.user), 0);
+      else setProfile(null);
     });
 
     return () => {
@@ -152,27 +128,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = async (phone: string, password: string, fullName: string, cityId: string) => {
-    const cleanedPhone = cleanPhoneForStorage(phone); // local format 09XXXXXXXX
-    const internalEmail = phoneToInternalEmail(cleanedPhone);
+    const cleanedPhone = cleanPhoneForStorage(phone); // 09XXXXXXXX
+    const internalEmail = phoneToInternalEmail(cleanedPhone); // 2189XXXXXXXX@phone.dora.ly
 
     console.log("[SIGNUP] cleanedPhone:", cleanedPhone);
     console.log("[SIGNUP] internalEmail:", internalEmail);
     console.log("[SIGNUP] cityId:", cityId);
 
-    // Check if phone already exists in profiles (may be blocked by RLS)
-    const { data: existingProfile, error: existsErr } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("phone", cleanedPhone)
-      .maybeSingle();
-
-    if (existsErr) {
-      console.warn("[SIGNUP] existing phone check failed (possibly RLS):", existsErr);
-    } else if (existingProfile) {
-      return { error: new Error("This phone is already registered. Please sign in.") };
-    }
-
-    // Step 1: Create auth user
+    // 1) Create auth user (requires Email provider ENABLED)
     const { data, error } = await supabase.auth.signUp({
       email: internalEmail,
       password,
@@ -181,68 +144,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           full_name: fullName,
           phone: cleanedPhone,
           city: cityId,
-          city_id: cityId, // forward-compat
+          city_id: cityId, // forward compatible
         },
       },
     });
 
     if (error) {
-      console.error("[SIGNUP] supabase.auth.signUp error:", error);
+      console.error("[SIGNUP] auth.signUp error:", error);
       return { error: error as Error };
     }
-
     if (!data.user) {
       return { error: new Error("Signup failed: No user returned") };
     }
 
-    // If signUp returns no session, sign in to write profile under RLS
+    // If confirmations are on, signUp might return no session.
     if (!data.session) {
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: internalEmail,
         password,
       });
-
       if (signInError) {
         console.error("[SIGNUP] signIn after signUp failed:", signInError);
-        return { error: new Error("Account created but could not be fully initialized. Please contact support.") };
+        return { error: new Error("Account created but could not be initialized. Please contact support.") };
       }
     }
 
-    // Step 2: Create profile
-    // ✅ FIX: use profiles.id instead of user_id
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .upsert(
-        {
-          id: data.user.id,
-          full_name: fullName,
-          phone: cleanedPhone,
-          city: cityId, // store UUID string in city text column for now
-          role: "client",
-          is_verified: false,
-          must_change_password: false,
-        } as any,
-        { onConflict: "id" }
-      );
+    // 2) Upsert profile row (requires RLS policy allowing own insert/update)
+    const { error: profileError } = await supabase.from("profiles").upsert(
+      {
+        id: data.user.id,
+        full_name: fullName,
+        phone: cleanedPhone,
+        city: cityId,
+        role: "client",
+        is_verified: false,
+        must_change_password: false,
+      } as any,
+      { onConflict: "id" }
+    );
 
     if (profileError) {
-      console.error("[SIGNUP] Profile upsert failed:", profileError);
+      console.error("[SIGNUP] profile upsert failed:", profileError);
       await supabase.auth.signOut();
-      return { error: new Error("Account creation failed. Please try again.") };
-    }
-
-    // Step 3: Add default user role (non-critical)
-    try {
-      const { error: roleError } = await supabase.from("user_roles").upsert(
-        { user_id: data.user.id, role: "user" },
-        { onConflict: "user_id,role" }
-      );
-
-      if (roleError) {
-        console.warn("[SIGNUP] Failed to add user role (non-critical):", roleError);
-      }
-    } catch (e) {
-      console.warn("[SIGNUP] user_roles upsert threw (non-critical):", e);
+      return { error: profileError as any };
     }
 
     return { error: null };
@@ -252,15 +196,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const cleanedPhone = cleanPhoneForStorage(phone);
     const internalEmail = phoneToInternalEmail(cleanedPhone);
 
-    console.log("[SIGNIN] internalEmail:", internalEmail);
-
     const { error } = await supabase.auth.signInWithPassword({
       email: internalEmail,
       password,
     });
 
     if (error) {
-      console.warn("[SIGNIN] supabase.auth.signInWithPassword error:", error);
+      console.warn("[SIGNIN] signInWithPassword error:", error);
       return { error: new Error("Invalid phone or password") };
     }
 
@@ -273,19 +215,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        session,
-        profile,
-        loading,
-        profileLoading,
-        signUp,
-        signIn,
-        signOut,
-        refreshProfile,
-      }}
-    >
+    <AuthContext.Provider value={{
+      user,
+      session,
+      profile,
+      loading,
+      profileLoading,
+      signUp,
+      signIn,
+      signOut,
+      refreshProfile,
+    }}>
       {children}
     </AuthContext.Provider>
   );
@@ -293,8 +233,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
+  if (!context) throw new Error("useAuth must be used within an AuthProvider");
   return context;
 }
