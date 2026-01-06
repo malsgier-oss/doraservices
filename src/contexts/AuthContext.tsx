@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { TablesInsert } from "@/integrations/supabase/types";
-import { cleanPhoneForStorage, phoneToInternalEmail } from "@/lib/phoneUtils";
+import { cleanPhoneForStorage, phoneToInternalEmail, isValidLibyanPhone } from "@/lib/phoneUtils";
 
 interface Profile {
   id: string;
@@ -30,12 +30,7 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   profileLoading: boolean;
-  signUp: (
-    phone: string,
-    password: string,
-    fullName: string,
-    cityId: string
-  ) => Promise<{ error: Error | null }>;
+  signUp: (phone: string, password: string, fullName: string, cityId: string) => Promise<{ error: Error | null }>;
   signIn: (phone: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -50,7 +45,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
 
-  // Create a profile if missing, then return the profile row
   const ensureProfile = async (authUser: User): Promise<Profile | null> => {
     const meta = (authUser.user_metadata || {}) as Record<string, unknown>;
 
@@ -58,11 +52,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       typeof meta.phone === "string" ? cleanPhoneForStorage(meta.phone) : null;
 
     const fullNameFromMeta = typeof meta.full_name === "string" ? meta.full_name : null;
-
     const cityIdFromMeta = typeof meta.city_id === "string" ? meta.city_id : null;
     const cityNameFromMeta = typeof meta.city === "string" ? meta.city : null;
 
-    // 1) try fetch
     const { data: existing, error: fetchError } = await supabase
       .from("profiles")
       .select("*")
@@ -73,10 +65,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("[ensureProfile] fetch error:", fetchError);
       return null;
     }
-
     if (existing) return existing as Profile;
 
-    // 2) create if missing
     const insertPayload: TablesInsert<"profiles"> = {
       user_id: authUser.id,
       full_name: fullNameFromMeta,
@@ -92,7 +82,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .single();
 
     if (insertError) {
-      // If created in parallel, re-fetch once
       const { data: retry, error: retryError } = await supabase
         .from("profiles")
         .select("*")
@@ -142,11 +131,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(sess?.user ?? null);
         setLoading(false);
 
-        if (sess?.user) {
-          void fetchProfile(sess.user);
-        } else {
-          setProfile(null);
-        }
+        if (sess?.user) void fetchProfile(sess.user);
+        else setProfile(null);
       } catch (e) {
         if (!mounted) return;
         console.error("[getSession] exception:", e);
@@ -157,7 +143,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // Listener FIRST, then init
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_, sess) => {
@@ -167,11 +152,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(sess?.user ?? null);
       setLoading(false);
 
-      if (sess?.user) {
-        void fetchProfile(sess.user);
-      } else {
-        setProfile(null);
-      }
+      if (sess?.user) void fetchProfile(sess.user);
+      else setProfile(null);
     });
 
     init();
@@ -184,13 +166,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (phone: string, password: string, fullName: string, cityId: string) => {
     const cleanedPhone = cleanPhoneForStorage(phone);
+
+    if (!isValidLibyanPhone(cleanedPhone)) {
+      return { error: new Error("Invalid phone format (09XXXXXXXX)") };
+    }
+
     const internalEmail = phoneToInternalEmail(cleanedPhone);
 
     const { data, error } = await supabase.auth.signUp({
       email: internalEmail,
       password,
       options: {
-        // Keep metadata so profile creation has values
         data: {
           full_name: fullName,
           phone: cleanedPhone,
@@ -202,11 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) return { error: new Error(error.message) };
     if (!data.user) return { error: new Error("Signup failed: No user returned") };
 
-    /**
-     * If Supabase Email confirmation is OFF (recommended for this approach),
-     * signUp returns a session normally.
-     * But if session is missing for any reason, try logging in.
-     */
+    // If session missing (email confirmation ON, or any odd edge case), try login
     if (!data.session) {
       const { error: signInErr } = await supabase.auth.signInWithPassword({
         email: internalEmail,
@@ -220,15 +202,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: sessData } = await supabase.auth.getSession();
     const sessUser = sessData.session?.user;
-
-    if (!sessUser) {
-      return { error: new Error("Signup failed: could not establish session") };
-    }
+    if (!sessUser) return { error: new Error("Signup failed: could not establish session") };
 
     const prof = await ensureProfile(sessUser);
     if (!prof) {
       await supabase.auth.signOut();
-      return { error: new Error("Signup failed: could not create your profile. Please try again.") };
+      return { error: new Error("Signup failed: could not create profile. Please try again.") };
     }
 
     return { error: null };
@@ -236,6 +215,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (phone: string, password: string) => {
     const cleanedPhone = cleanPhoneForStorage(phone);
+
+    if (!isValidLibyanPhone(cleanedPhone)) {
+      return { error: new Error("Invalid phone format (09XXXXXXXX)") };
+    }
+
     const internalEmail = phoneToInternalEmail(cleanedPhone);
 
     const { error } = await supabase.auth.signInWithPassword({
@@ -243,16 +227,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
     });
 
-    if (error) {
-      return { error: new Error(error.message || "Invalid phone or password") };
-    }
+    if (error) return { error: new Error(error.message || "Invalid phone or password") };
 
     const { data: sessData } = await supabase.auth.getSession();
     const sessUser = sessData.session?.user;
-
-    if (!sessUser) {
-      return { error: new Error("Sign in failed: session not available") };
-    }
+    if (!sessUser) return { error: new Error("Sign in failed: session not available") };
 
     const prof = await ensureProfile(sessUser);
     if (!prof) {
