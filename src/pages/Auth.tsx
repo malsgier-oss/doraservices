@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 import doraLogo from "@/assets/dora-logo.png";
 import { useRegistrationEnabled } from "@/hooks/usePlatformSettings";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { isValidLibyanPhone } from "@/lib/phoneUtils";
+import { isValidLibyanPhone, cleanPhoneForStorage } from "@/lib/phoneUtils";
 
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
 const nameSchema = z.string().min(2, "Name must be at least 2 characters");
@@ -59,14 +59,10 @@ export default function Auth() {
     cityId: "",
   });
 
-  // ✅ Stable redirect: wait for profile to exist (AuthContext now ensures it)
+  // Redirect once profile exists
   useEffect(() => {
     if (!user) return;
-
-    // Wait while profile is being ensured/loaded
     if (profileLoading) return;
-
-    // If still no profile after loading, do nothing (shouldn't happen often)
     if (!profile) return;
 
     if (profile.must_change_password) {
@@ -88,9 +84,7 @@ export default function Auth() {
     if (!loginData.phone.trim()) {
       toast({
         title: isRTL ? "رقم الهاتف مطلوب" : "Phone required",
-        description: isRTL
-          ? "يرجى إدخال رقم الهاتف"
-          : "Please enter your phone number",
+        description: isRTL ? "يرجى إدخال رقم الهاتف" : "Please enter your phone number",
         variant: "destructive",
       });
       return;
@@ -118,23 +112,19 @@ export default function Auth() {
     }
 
     setIsLoading(true);
-    const { error } = await signIn(loginData.phone, loginData.password);
+    const { error } = await signIn(cleanPhoneForStorage(loginData.phone), loginData.password);
     setIsLoading(false);
 
     if (error) {
       toast({
         title: isRTL ? "فشل تسجيل الدخول" : "Login failed",
-        description: isRTL
-          ? "رقم الهاتف أو كلمة المرور غير صحيحة"
-          : error.message || "Invalid phone or password",
+        description: isRTL ? "رقم الهاتف أو كلمة المرور غير صحيحة" : error.message,
         variant: "destructive",
       });
     } else {
       toast({
         title: isRTL ? "مرحباً بعودتك!" : "Welcome back!",
-        description: isRTL
-          ? "تم تسجيل الدخول بنجاح"
-          : "You've successfully logged in.",
+        description: isRTL ? "تم تسجيل الدخول بنجاح" : "You've successfully logged in.",
       });
       // Redirect handled by useEffect once profile arrives
     }
@@ -167,9 +157,7 @@ export default function Auth() {
     if (!signupData.phone.trim()) {
       toast({
         title: isRTL ? "رقم الهاتف مطلوب" : "Phone required",
-        description: isRTL
-          ? "يرجى إدخال رقم الهاتف"
-          : "Please enter your phone number",
+        description: isRTL ? "يرجى إدخال رقم الهاتف" : "Please enter your phone number",
         variant: "destructive",
       });
       return;
@@ -207,7 +195,7 @@ export default function Auth() {
 
     setIsLoading(true);
     const { error } = await signUp(
-      signupData.phone,
+      cleanPhoneForStorage(signupData.phone),
       signupData.password,
       signupData.fullName,
       signupData.cityId
@@ -223,11 +211,10 @@ export default function Auth() {
           : "This phone is already registered. Please sign in.";
       }
 
-      // If email confirmation is enabled in Supabase, you might get "Email not confirmed"
       if (message.toLowerCase().includes("email not confirmed")) {
         message = isRTL
-          ? "تم إنشاء الحساب، لكن لا يمكن تسجيل الدخول قبل التحقق. راجع الإعدادات أو قم بتعطيل تأكيد البريد في Supabase."
-          : "Account created, but login is blocked until confirmation. Check Supabase auth settings (email confirmation).";
+          ? "فعّلنا تسجيل الهاتف كحساب داخلي. عطّل Email confirmation من Supabase ثم جرّب مرة أخرى."
+          : "Disable Email confirmation in Supabase (Email provider) for this phone-as-email approach.";
       }
 
       toast({
@@ -241,15 +228,14 @@ export default function Auth() {
     toast({
       title: isRTL ? "تم إنشاء الحساب!" : "Account created!",
       description: isRTL
-        ? "تم إنشاء حسابك. إذا لم يتم تسجيل الدخول تلقائياً، حاول تسجيل الدخول الآن."
-        : "Your account is created. If you weren’t logged in automatically, please try signing in now.",
+        ? "تم إنشاء حسابك بنجاح."
+        : "Your account is created successfully.",
     });
 
     // Your system uses admin verification flow
     navigate("/pending-verification");
   };
 
-  // ✅ Include profileLoading in the global spinner so it doesn’t “flash”
   if (authLoading || profileLoading || settingsLoading || citiesLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -263,12 +249,10 @@ export default function Auth() {
       className="min-h-screen bg-background flex flex-col items-center justify-center p-4"
       dir={isRTL ? "rtl" : "ltr"}
     >
-      {/* Language Toggle */}
       <div className="absolute top-4 left-4">
         <LanguageToggle />
       </div>
 
-      {/* Logo */}
       <div className="flex items-center gap-2 mb-8">
         <img
           src={doraLogo}
@@ -288,14 +272,8 @@ export default function Auth() {
           </CardHeader>
 
           <CardContent className="pt-4">
-            {/* Login Tab */}
             <TabsContent value="login" className="mt-0">
-              <div
-                className={cn(
-                  "space-y-1 mb-6",
-                  isRTL ? "text-right" : "text-left"
-                )}
-              >
+              <div className={cn("space-y-1 mb-6", isRTL ? "text-right" : "text-left")}>
                 <CardTitle className="text-xl">
                   {isRTL ? "مرحباً بعودتك" : "Welcome back"}
                 </CardTitle>
@@ -306,9 +284,7 @@ export default function Auth() {
 
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="login-phone">
-                    {isRTL ? "رقم الهاتف" : "Phone Number"}
-                  </Label>
+                  <Label htmlFor="login-phone">{isRTL ? "رقم الهاتف" : "Phone Number"}</Label>
                   <div className="relative">
                     <Phone
                       className={cn(
@@ -319,13 +295,12 @@ export default function Auth() {
                     <Input
                       id="login-phone"
                       type="tel"
+                      inputMode="numeric"
                       placeholder="0912345678"
                       className={cn(isRTL ? "pr-10 text-left" : "pl-10")}
                       dir="ltr"
                       value={loginData.phone}
-                      onChange={(e) =>
-                        setLoginData({ ...loginData, phone: e.target.value })
-                      }
+                      onChange={(e) => setLoginData({ ...loginData, phone: e.target.value })}
                       required
                     />
                   </div>
@@ -346,9 +321,7 @@ export default function Auth() {
                       placeholder="••••••••"
                       className={cn(isRTL ? "pr-10" : "pl-10")}
                       value={loginData.password}
-                      onChange={(e) =>
-                        setLoginData({ ...loginData, password: e.target.value })
-                      }
+                      onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
                       required
                     />
                   </div>
@@ -366,20 +339,12 @@ export default function Auth() {
               </form>
             </TabsContent>
 
-            {/* Signup Tab */}
             <TabsContent value="signup" className="mt-0">
-              <div
-                className={cn(
-                  "space-y-1 mb-6",
-                  isRTL ? "text-right" : "text-left"
-                )}
-              >
+              <div className={cn("space-y-1 mb-6", isRTL ? "text-right" : "text-left")}>
                 <CardTitle className="text-xl">
                   {isRTL ? "إنشاء حساب" : "Create an account"}
                 </CardTitle>
-                <CardDescription>
-                  {isRTL ? "انضم إلى دورة اليوم" : "Join Dora today"}
-                </CardDescription>
+                <CardDescription>{isRTL ? "انضم إلى دورة اليوم" : "Join Dora today"}</CardDescription>
               </div>
 
               {!registrationEnabled && (
@@ -409,18 +374,14 @@ export default function Auth() {
                       placeholder={isRTL ? "الاسم الكامل" : "Full Name"}
                       className={cn(isRTL ? "pr-10" : "pl-10")}
                       value={signupData.fullName}
-                      onChange={(e) =>
-                        setSignupData({ ...signupData, fullName: e.target.value })
-                      }
+                      onChange={(e) => setSignupData({ ...signupData, fullName: e.target.value })}
                       required
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="signup-phone">
-                    {isRTL ? "رقم الهاتف" : "Phone Number"}
-                  </Label>
+                  <Label htmlFor="signup-phone">{isRTL ? "رقم الهاتف" : "Phone Number"}</Label>
                   <div className="relative">
                     <Phone
                       className={cn(
@@ -431,6 +392,7 @@ export default function Auth() {
                     <Input
                       id="signup-phone"
                       type="tel"
+                      inputMode="numeric"
                       placeholder="0912345678"
                       className={cn(isRTL ? "pr-10 text-left" : "pl-10")}
                       dir="ltr"
@@ -460,31 +422,23 @@ export default function Auth() {
                       placeholder="••••••••"
                       className={cn(isRTL ? "pr-10" : "pl-10")}
                       value={signupData.password}
-                      onChange={(e) =>
-                        setSignupData({ ...signupData, password: e.target.value })
-                      }
+                      onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
                       required
                     />
                   </div>
                 </div>
 
-                {/* City Selection */}
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <MapPin className="h-4 w-4" />
-                    {isRTL ? "المدينة" : "City"}{" "}
-                    <span className="text-destructive">*</span>
+                    {isRTL ? "المدينة" : "City"} <span className="text-destructive">*</span>
                   </Label>
                   <Select
                     value={signupData.cityId}
-                    onValueChange={(value) =>
-                      setSignupData({ ...signupData, cityId: value })
-                    }
+                    onValueChange={(value) => setSignupData({ ...signupData, cityId: value })}
                   >
                     <SelectTrigger className="rounded-xl h-12">
-                      <SelectValue
-                        placeholder={isRTL ? "اختر مدينتك" : "Select your city"}
-                      />
+                      <SelectValue placeholder={isRTL ? "اختر مدينتك" : "Select your city"} />
                     </SelectTrigger>
                     <SelectContent className="bg-card border-border z-50">
                       {cities?.map((city) => (
@@ -501,11 +455,7 @@ export default function Auth() {
                   className="w-full rounded-full"
                   disabled={isLoading || !registrationEnabled}
                 >
-                  {isLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    t.auth.signup
-                  )}
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t.auth.signup}
                 </Button>
               </form>
             </TabsContent>
