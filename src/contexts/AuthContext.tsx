@@ -77,7 +77,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (existing) return existing as Profile;
 
     // 2) create if missing
-    // NOTE: we only insert safe minimal fields; DB defaults handle the rest.
     const insertPayload: TablesInsert<"profiles"> = {
       user_id: authUser.id,
       full_name: fullNameFromMeta,
@@ -93,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .single();
 
     if (insertError) {
-      // If it already got created in parallel, re-fetch once
+      // If created in parallel, re-fetch once
       const { data: retry, error: retryError } = await supabase
         .from("profiles")
         .select("*")
@@ -158,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // Listener FIRST, then init (prevents missing early events)
+    // Listener FIRST, then init
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_, sess) => {
@@ -191,7 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: internalEmail,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/`,
+        // Keep metadata so profile creation has values
         data: {
           full_name: fullName,
           phone: cleanedPhone,
@@ -200,10 +199,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     });
 
-    if (error) return { error: error as Error };
+    if (error) return { error: new Error(error.message) };
     if (!data.user) return { error: new Error("Signup failed: No user returned") };
 
-    // Ensure we have a session so we can safely create the profile (RLS).
+    /**
+     * If Supabase Email confirmation is OFF (recommended for this approach),
+     * signUp returns a session normally.
+     * But if session is missing for any reason, try logging in.
+     */
     if (!data.session) {
       const { error: signInErr } = await supabase.auth.signInWithPassword({
         email: internalEmail,
@@ -224,7 +227,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const prof = await ensureProfile(sessUser);
     if (!prof) {
-      // Avoid leaving the user in a broken half-state.
       await supabase.auth.signOut();
       return { error: new Error("Signup failed: could not create your profile. Please try again.") };
     }
