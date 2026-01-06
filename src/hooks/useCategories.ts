@@ -19,13 +19,21 @@ export function useCategories() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("categories")
-        .select("*")
+        .select(
+          "id, name, name_ar, icon, color, display_order, is_active, created_at, updated_at"
+        )
         .eq("is_active", true)
         .order("display_order", { ascending: true });
 
-      if (error) throw error;
-      return data as Category[];
+      if (error) {
+        console.error("[useCategories] error:", error);
+        throw error;
+      }
+
+      return (data ?? []) as Category[];
     },
+    staleTime: 1000 * 60 * 5, // 5 min cache
+    retry: 1,
   });
 }
 
@@ -38,8 +46,14 @@ export function useAllCategories() {
         .select("*")
         .order("display_order", { ascending: true });
 
-      if (error) throw error;
-      return data as Category[];
+      if (error) {
+        console.error("[useAllCategories] error:", error);
+        throw error;
+      }
+
+      return (data ?? []) as Category[];
     },
+    staleTime: 1000 * 60 * 5,
+    retry: 1,
   });
 }
