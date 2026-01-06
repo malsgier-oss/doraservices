@@ -59,7 +59,6 @@ export default function Auth() {
     cityId: "",
   });
 
-  // Redirect once profile exists
   useEffect(() => {
     if (!user) return;
     if (profileLoading) return;
@@ -81,7 +80,9 @@ export default function Auth() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!loginData.phone.trim()) {
+    const cleanedPhone = cleanPhoneForStorage(loginData.phone);
+
+    if (!cleanedPhone) {
       toast({
         title: isRTL ? "رقم الهاتف مطلوب" : "Phone required",
         description: isRTL ? "يرجى إدخال رقم الهاتف" : "Please enter your phone number",
@@ -90,7 +91,7 @@ export default function Auth() {
       return;
     }
 
-    if (!isValidLibyanPhone(loginData.phone)) {
+    if (!isValidLibyanPhone(cleanedPhone)) {
       toast({
         title: isRTL ? "رقم هاتف غير صالح" : "Invalid phone",
         description: isRTL
@@ -112,7 +113,7 @@ export default function Auth() {
     }
 
     setIsLoading(true);
-    const { error } = await signIn(cleanPhoneForStorage(loginData.phone), loginData.password);
+    const { error } = await signIn(cleanedPhone, loginData.password);
     setIsLoading(false);
 
     if (error) {
@@ -126,7 +127,6 @@ export default function Auth() {
         title: isRTL ? "مرحباً بعودتك!" : "Welcome back!",
         description: isRTL ? "تم تسجيل الدخول بنجاح" : "You've successfully logged in.",
       });
-      // Redirect handled by useEffect once profile arrives
     }
   };
 
@@ -154,7 +154,9 @@ export default function Auth() {
       return;
     }
 
-    if (!signupData.phone.trim()) {
+    const cleanedPhone = cleanPhoneForStorage(signupData.phone);
+
+    if (!cleanedPhone) {
       toast({
         title: isRTL ? "رقم الهاتف مطلوب" : "Phone required",
         description: isRTL ? "يرجى إدخال رقم الهاتف" : "Please enter your phone number",
@@ -163,7 +165,7 @@ export default function Auth() {
       return;
     }
 
-    if (!isValidLibyanPhone(signupData.phone)) {
+    if (!isValidLibyanPhone(cleanedPhone)) {
       toast({
         title: isRTL ? "رقم هاتف غير صالح" : "Invalid phone",
         description: isRTL
@@ -195,7 +197,7 @@ export default function Auth() {
 
     setIsLoading(true);
     const { error } = await signUp(
-      cleanPhoneForStorage(signupData.phone),
+      cleanedPhone,
       signupData.password,
       signupData.fullName,
       signupData.cityId
@@ -205,16 +207,17 @@ export default function Auth() {
     if (error) {
       let message = error.message;
 
-      if (message.toLowerCase().includes("already registered")) {
+      const lower = message.toLowerCase();
+      if (lower.includes("already registered") || lower.includes("user already registered")) {
         message = isRTL
           ? "هذا الرقم مسجل بالفعل. يرجى تسجيل الدخول."
           : "This phone is already registered. Please sign in.";
       }
 
-      if (message.toLowerCase().includes("email not confirmed")) {
+      if (lower.includes("email not confirmed")) {
         message = isRTL
-          ? "فعّلنا تسجيل الهاتف كحساب داخلي. عطّل Email confirmation من Supabase ثم جرّب مرة أخرى."
-          : "Disable Email confirmation in Supabase (Email provider) for this phone-as-email approach.";
+          ? "عطّل Email confirmation من Supabase (Auth > Providers > Email) ثم جرّب."
+          : "Disable Email confirmation in Supabase (Auth > Providers > Email) then try again.";
       }
 
       toast({
@@ -227,12 +230,9 @@ export default function Auth() {
 
     toast({
       title: isRTL ? "تم إنشاء الحساب!" : "Account created!",
-      description: isRTL
-        ? "تم إنشاء حسابك بنجاح."
-        : "Your account is created successfully.",
+      description: isRTL ? "تم إنشاء حسابك بنجاح." : "Your account is created successfully.",
     });
 
-    // Your system uses admin verification flow
     navigate("/pending-verification");
   };
 
