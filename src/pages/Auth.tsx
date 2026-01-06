@@ -36,20 +36,12 @@ const nameSchema = z.string().min(2, "Name must be at least 2 characters");
 
 export default function Auth() {
   const navigate = useNavigate();
-  const {
-    user,
-    profile,
-    signIn,
-    signUp,
-    loading: authLoading,
-    profileLoading,
-  } = useAuth();
+  const { user, profile, signIn, signUp, loading: authLoading, profileLoading } = useAuth();
 
   const { t, isRTL, language } = useLanguage();
   const { data: cities, isLoading: citiesLoading } = useCities();
   const [isLoading, setIsLoading] = useState(false);
-  const { isEnabled: registrationEnabled, isLoading: settingsLoading } =
-    useRegistrationEnabled();
+  const { isEnabled: registrationEnabled, isLoading: settingsLoading } = useRegistrationEnabled();
 
   const [loginData, setLoginData] = useState({ phone: "", password: "" });
   const [signupData, setSignupData] = useState({
@@ -122,12 +114,13 @@ export default function Auth() {
         description: isRTL ? "رقم الهاتف أو كلمة المرور غير صحيحة" : error.message,
         variant: "destructive",
       });
-    } else {
-      toast({
-        title: isRTL ? "مرحباً بعودتك!" : "Welcome back!",
-        description: isRTL ? "تم تسجيل الدخول بنجاح" : "You've successfully logged in.",
-      });
+      return;
     }
+
+    toast({
+      title: isRTL ? "مرحباً بعودتك!" : "Welcome back!",
+      description: isRTL ? "تم تسجيل الدخول بنجاح" : "You've successfully logged in.",
+    });
   };
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -168,9 +161,7 @@ export default function Auth() {
     if (!isValidLibyanPhone(cleanedPhone)) {
       toast({
         title: isRTL ? "رقم هاتف غير صالح" : "Invalid phone",
-        description: isRTL
-          ? "يرجى إدخال رقم هاتف ليبي (09XXXXXXXX)"
-          : "Please enter a valid Libyan phone (09XXXXXXXX)",
+        description: isRTL ? "يرجى إدخال رقم هاتف ليبي (09XXXXXXXX)" : "Please enter a valid Libyan phone (09XXXXXXXX)",
         variant: "destructive",
       });
       return;
@@ -196,28 +187,15 @@ export default function Auth() {
     }
 
     setIsLoading(true);
-    const { error } = await signUp(
-      cleanedPhone,
-      signupData.password,
-      signupData.fullName,
-      signupData.cityId
-    );
+    const { error } = await signUp(cleanedPhone, signupData.password, signupData.fullName, signupData.cityId);
     setIsLoading(false);
 
     if (error) {
+      const lower = error.message.toLowerCase();
       let message = error.message;
 
-      const lower = message.toLowerCase();
       if (lower.includes("already registered") || lower.includes("user already registered")) {
-        message = isRTL
-          ? "هذا الرقم مسجل بالفعل. يرجى تسجيل الدخول."
-          : "This phone is already registered. Please sign in.";
-      }
-
-      if (lower.includes("email not confirmed")) {
-        message = isRTL
-          ? "عطّل Email confirmation من Supabase (Auth > Providers > Email) ثم جرّب."
-          : "Disable Email confirmation in Supabase (Auth > Providers > Email) then try again.";
+        message = isRTL ? "هذا الرقم مسجل بالفعل. يرجى تسجيل الدخول." : "This phone is already registered. Please sign in.";
       }
 
       toast({
@@ -245,20 +223,13 @@ export default function Auth() {
   }
 
   return (
-    <div
-      className="min-h-screen bg-background flex flex-col items-center justify-center p-4"
-      dir={isRTL ? "rtl" : "ltr"}
-    >
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4" dir={isRTL ? "rtl" : "ltr"}>
       <div className="absolute top-4 left-4">
         <LanguageToggle />
       </div>
 
       <div className="flex items-center gap-2 mb-8">
-        <img
-          src={doraLogo}
-          alt="Dora Logo"
-          className="w-10 h-10 rounded-full object-cover"
-        />
+        <img src={doraLogo} alt="Dora Logo" className="w-10 h-10 rounded-full object-cover" />
         <span className="text-2xl font-bold text-foreground">{t.appName}</span>
       </div>
 
@@ -274,12 +245,8 @@ export default function Auth() {
           <CardContent className="pt-4">
             <TabsContent value="login" className="mt-0">
               <div className={cn("space-y-1 mb-6", isRTL ? "text-right" : "text-left")}>
-                <CardTitle className="text-xl">
-                  {isRTL ? "مرحباً بعودتك" : "Welcome back"}
-                </CardTitle>
-                <CardDescription>
-                  {isRTL ? "أدخل رقم هاتفك وكلمة المرور" : "Enter your phone and password"}
-                </CardDescription>
+                <CardTitle className="text-xl">{isRTL ? "مرحباً بعودتك" : "Welcome back"}</CardTitle>
+                <CardDescription>{isRTL ? "أدخل رقم هاتفك وكلمة المرور" : "Enter your phone and password"}</CardDescription>
               </div>
 
               <form onSubmit={handleLogin} className="space-y-4">
@@ -341,9 +308,7 @@ export default function Auth() {
 
             <TabsContent value="signup" className="mt-0">
               <div className={cn("space-y-1 mb-6", isRTL ? "text-right" : "text-left")}>
-                <CardTitle className="text-xl">
-                  {isRTL ? "إنشاء حساب" : "Create an account"}
-                </CardTitle>
+                <CardTitle className="text-xl">{isRTL ? "إنشاء حساب" : "Create an account"}</CardTitle>
                 <CardDescription>{isRTL ? "انضم إلى دورة اليوم" : "Join Dora today"}</CardDescription>
               </div>
 
@@ -351,9 +316,7 @@ export default function Auth() {
                 <Alert variant="destructive" className="mb-4">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    {isRTL
-                      ? "التسجيل مغلق حالياً. يرجى المحاولة لاحقاً."
-                      : "Registration is currently disabled. Please try again later."}
+                    {isRTL ? "التسجيل مغلق حالياً. يرجى المحاولة لاحقاً." : "Registration is currently disabled. Please try again later."}
                   </AlertDescription>
                 </Alert>
               )}
@@ -398,11 +361,10 @@ export default function Auth() {
                       dir="ltr"
                       value={signupData.phone}
                       onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                        const val = e.target.value.replace(/\D/g, "").slice(0, 15);
                         setSignupData({ ...signupData, phone: val });
                       }}
                       required
-                      maxLength={10}
                     />
                   </div>
                 </div>
@@ -433,10 +395,7 @@ export default function Auth() {
                     <MapPin className="h-4 w-4" />
                     {isRTL ? "المدينة" : "City"} <span className="text-destructive">*</span>
                   </Label>
-                  <Select
-                    value={signupData.cityId}
-                    onValueChange={(value) => setSignupData({ ...signupData, cityId: value })}
-                  >
+                  <Select value={signupData.cityId} onValueChange={(value) => setSignupData({ ...signupData, cityId: value })}>
                     <SelectTrigger className="rounded-xl h-12">
                       <SelectValue placeholder={isRTL ? "اختر مدينتك" : "Select your city"} />
                     </SelectTrigger>
@@ -450,11 +409,7 @@ export default function Auth() {
                   </Select>
                 </div>
 
-                <Button
-                  type="submit"
-                  className="w-full rounded-full"
-                  disabled={isLoading || !registrationEnabled}
-                >
+                <Button type="submit" className="w-full rounded-full" disabled={isLoading || !registrationEnabled}>
                   {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t.auth.signup}
                 </Button>
               </form>
