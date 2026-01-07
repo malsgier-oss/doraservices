@@ -5,31 +5,58 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { 
-  Plus, Edit, Trash2, ArrowUp, ArrowDown, ChevronDown, ChevronRight,
-  Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper,
-  Wrench, Droplets, Wind, Fuel, ClipboardCheck, Sun, Cog, Scale,
-  Languages, Camera, UtensilsCrossed, Stethoscope, Activity, Dog,
-  Scissors, Laptop, PawPrint, Sparkles, Dumbbell, Utensils, Music,
-  Plane, ShoppingCart, Baby, Paintbrush, Hammer, Battery, Calculator,
+import {
+  Plus,
+  Edit,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+  ChevronDown,
+  ChevronRight,
+  Home,
+  Car,
+  Zap,
+  Briefcase,
+  Building2,
+  GraduationCap,
+  Heart,
+  PartyPopper,
+  Wrench,
+  Droplets,
+  Wind,
+  Fuel,
+  ClipboardCheck,
+  Sun,
+  Cog,
+  Scale,
+  Languages,
+  Camera,
+  UtensilsCrossed,
+  Stethoscope,
+  Activity,
+  Dog,
+  Scissors,
+  Laptop,
+  PawPrint,
+  Sparkles,
+  Dumbbell,
+  Utensils,
+  Music,
+  Plane,
+  ShoppingCart,
+  Baby,
+  Paintbrush,
+  Hammer,
+  Battery,
+  Calculator,
   LucideIcon,
-  Star
+  Star,
 } from "lucide-react";
 import { Category, useAllCategories } from "@/hooks/useCategories";
 import { Subcategory, useAllSubcategories, useSubcategoryMutations } from "@/hooks/useSubcategories";
@@ -37,11 +64,42 @@ import { cn } from "@/lib/utils";
 
 // Icon mapping for rendering actual icons
 const ICON_MAP: Record<string, LucideIcon> = {
-  Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper,
-  Wrench, Droplets, Wind, Fuel, ClipboardCheck, Sun, Cog, Scale,
-  Languages, Camera, UtensilsCrossed, Stethoscope, Activity, Dog,
-  Scissors, Laptop, PawPrint, Sparkles, Dumbbell, Utensils, Music,
-  Plane, ShoppingCart, Baby, Paintbrush, Hammer, Battery, Calculator
+  Home,
+  Car,
+  Zap,
+  Briefcase,
+  Building2,
+  GraduationCap,
+  Heart,
+  PartyPopper,
+  Wrench,
+  Droplets,
+  Wind,
+  Fuel,
+  ClipboardCheck,
+  Sun,
+  Cog,
+  Scale,
+  Languages,
+  Camera,
+  UtensilsCrossed,
+  Stethoscope,
+  Activity,
+  Dog,
+  Scissors,
+  Laptop,
+  PawPrint,
+  Sparkles,
+  Dumbbell,
+  Utensils,
+  Music,
+  Plane,
+  ShoppingCart,
+  Baby,
+  Paintbrush,
+  Hammer,
+  Battery,
+  Calculator,
 };
 
 const ICON_OPTIONS = Object.keys(ICON_MAP);
@@ -66,7 +124,7 @@ export default function AdminCategories() {
   const { data: categories, isLoading } = useAllCategories();
   const { data: subcategories } = useAllSubcategories();
   const { createSubcategory, updateSubcategory, deleteSubcategory } = useSubcategoryMutations();
-  
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [form, setForm] = useState({
@@ -99,10 +157,7 @@ export default function AdminCategories() {
   useEffect(() => {
     const map: Record<string, string> = {};
     (subcategories || []).forEach((s) => {
-      map[s.id] =
-        s.popular_order === null || s.popular_order === undefined
-          ? ""
-          : String(s.popular_order);
+      map[s.id] = s.popular_order === null || s.popular_order === undefined ? "" : String(s.popular_order);
     });
     setPopularOrderDraft(map);
   }, [subcategories]);
@@ -263,10 +318,7 @@ export default function AdminCategories() {
       icon: sub.icon,
       is_active: sub.is_active ?? true,
       is_popular: Boolean(sub.is_popular),
-      popular_order:
-        sub.popular_order === null || sub.popular_order === undefined
-          ? ""
-          : String(sub.popular_order),
+      popular_order: sub.popular_order === null || sub.popular_order === undefined ? "" : String(sub.popular_order),
     });
     setSubDialogOpen(true);
   };
@@ -302,8 +354,8 @@ export default function AdminCategories() {
     if (editingSubcategory) {
       updateSubcategory.mutate({ id: editingSubcategory.id, ...payload });
     } else if (selectedCategoryId) {
-      const categorySubcats = subcategories?.filter(s => s.category_id === selectedCategoryId) || [];
-      const maxOrder = Math.max(...categorySubcats.map(s => s.display_order ?? 0), 0);
+      const categorySubcats = subcategories?.filter((s) => s.category_id === selectedCategoryId) || [];
+      const maxOrder = Math.max(...categorySubcats.map((s) => s.display_order ?? 0), 0);
       createSubcategory.mutate({
         category_id: selectedCategoryId,
         ...payload,
@@ -314,7 +366,7 @@ export default function AdminCategories() {
   };
 
   const toggleExpanded = (categoryId: string) => {
-    setExpandedCategories(prev => {
+    setExpandedCategories((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(categoryId)) {
         newSet.delete(categoryId);
@@ -329,7 +381,7 @@ export default function AdminCategories() {
 
   const getSubcategoriesForCategory = (categoryId: string) => {
     return (subcategories || [])
-      .filter(s => s.category_id === categoryId)
+      .filter((s) => s.category_id === categoryId)
       .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
   };
 
@@ -365,7 +417,9 @@ export default function AdminCategories() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-display font-bold">Categories & Subcategories</h1>
-          <p className="text-muted-foreground">Manage main categories and their subcategories (e.g., Electrician under Home Maintenance)</p>
+          <p className="text-muted-foreground">
+            Manage main categories and their subcategories (e.g., Electrician under Home Maintenance)
+          </p>
         </div>
         <Button onClick={openCreateDialog}>
           <Plus className="h-4 w-4 mr-2" />
@@ -389,23 +443,25 @@ export default function AdminCategories() {
             <p className="text-center text-muted-foreground py-8">No categories found</p>
           ) : (
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {sortedCategories.filter(c => c.is_active).map((category) => {
-                const IconComponent = ICON_MAP[category.icon] || Home;
-                return (
-                  <div
-                    key={category.id}
-                    className={cn(
-                      "flex-shrink-0 w-[100px] h-[100px] rounded-[20px] flex flex-col items-center justify-center gap-2",
-                      category.color
-                    )}
-                  >
-                    <IconComponent className="h-7 w-7 text-[#333]" strokeWidth={1.5} />
-                    <span className="text-[10px] font-medium text-[#333] text-center px-1 leading-tight">
-                      {category.name}
-                    </span>
-                  </div>
-                );
-              })}
+              {sortedCategories
+                .filter((c) => c.is_active)
+                .map((category) => {
+                  const IconComponent = ICON_MAP[category.icon] || Home;
+                  return (
+                    <div
+                      key={category.id}
+                      className={cn(
+                        "flex-shrink-0 w-[100px] h-[100px] rounded-[20px] flex flex-col items-center justify-center gap-2",
+                        category.color,
+                      )}
+                    >
+                      <IconComponent className="h-7 w-7 text-[#333]" strokeWidth={1.5} />
+                      <span className="text-[10px] font-medium text-[#333] text-center px-1 leading-tight">
+                        {category.name}
+                      </span>
+                    </div>
+                  );
+                })}
             </div>
           )}
         </CardContent>
@@ -433,24 +489,15 @@ export default function AdminCategories() {
                 const isExpanded = expandedCategories.has(category.id);
 
                 return (
-                  <Collapsible
-                    key={category.id}
-                    open={isExpanded}
-                    onOpenChange={() => toggleExpanded(category.id)}
-                  >
-                    <div
-                      className={cn(
-                        "rounded-xl border transition-all",
-                        !category.is_active && "opacity-50"
-                      )}
-                    >
+                  <Collapsible key={category.id} open={isExpanded} onOpenChange={() => toggleExpanded(category.id)}>
+                    <div className={cn("rounded-xl border transition-all", !category.is_active && "opacity-50")}>
                       {/* Category Header */}
                       <div className="p-4">
                         <div className="flex items-start gap-3">
                           <div
                             className={cn(
                               "h-14 w-14 rounded-xl flex items-center justify-center flex-shrink-0",
-                              category.color
+                              category.color,
                             )}
                           >
                             <IconComponent className="h-7 w-7 text-[#333]" strokeWidth={1.5} />
@@ -459,7 +506,9 @@ export default function AdminCategories() {
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-sm truncate">{category.name}</span>
                               {!category.is_active && (
-                                <Badge variant="secondary" className="text-xs">Inactive</Badge>
+                                <Badge variant="secondary" className="text-xs">
+                                  Inactive
+                                </Badge>
                               )}
                               <Badge variant="outline" className="text-xs">
                                 {categorySubs.length} subcategories
@@ -490,7 +539,12 @@ export default function AdminCategories() {
                             >
                               <ArrowDown className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(category)}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => openEditDialog(category)}
+                            >
                               <Edit className="h-4 w-4" />
                             </Button>
                             <Button
@@ -514,11 +568,7 @@ export default function AdminCategories() {
                             <span className="text-sm text-muted-foreground">
                               {isExpanded ? "Hide" : "Show"} Subcategories
                             </span>
-                            {isExpanded ? (
-                              <ChevronDown className="h-4 w-4" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4" />
-                            )}
+                            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           </Button>
                         </CollapsibleTrigger>
                       </div>
@@ -547,7 +597,7 @@ export default function AdminCategories() {
                                     key={sub.id}
                                     className={cn(
                                       "flex items-center gap-2 p-2 rounded-lg border bg-background",
-                                      !sub.is_active && "opacity-50"
+                                      !sub.is_active && "opacity-50",
                                     )}
                                   >
                                     <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center">
@@ -575,7 +625,7 @@ export default function AdminCategories() {
                                         size="icon"
                                         className={cn(
                                           "h-7 w-7",
-                                          sub.is_popular === true ? "text-yellow-600" : "text-muted-foreground"
+                                          sub.is_popular === true ? "text-yellow-600" : "text-muted-foreground",
                                         )}
                                         onClick={() => togglePopular(sub)}
                                         title={sub.is_popular === true ? "Unmark popular" : "Mark popular"}
@@ -583,7 +633,7 @@ export default function AdminCategories() {
                                         <Star
                                           className={cn(
                                             "h-3.5 w-3.5",
-                                            sub.is_popular === true && "fill-yellow-400 text-yellow-400"
+                                            sub.is_popular === true && "fill-yellow-400 text-yellow-400",
                                           )}
                                         />
                                       </Button>
@@ -646,13 +696,13 @@ export default function AdminCategories() {
           <DialogHeader>
             <DialogTitle>{editingCategory ? "Edit Category" : "Add Category"}</DialogTitle>
           </DialogHeader>
-          
+
           {/* Live Preview */}
           <div className="flex justify-center py-4">
             <div
               className={cn(
                 "w-[100px] h-[100px] rounded-[20px] flex flex-col items-center justify-center gap-2 transition-all",
-                form.color
+                form.color,
               )}
             >
               {(() => {
@@ -698,7 +748,7 @@ export default function AdminCategories() {
                         "h-9 w-9 rounded-lg flex items-center justify-center border transition-all",
                         form.icon === iconName
                           ? "border-primary bg-primary/10 ring-2 ring-primary ring-offset-1"
-                          : "border-border hover:border-primary/50"
+                          : "border-border hover:border-primary/50",
                       )}
                       onClick={() => setForm({ ...form, icon: iconName })}
                       title={iconName}
@@ -721,9 +771,7 @@ export default function AdminCategories() {
                     className={cn(
                       "h-9 w-9 rounded-lg transition-all",
                       colorOpt.value,
-                      form.color === colorOpt.value
-                        ? "ring-2 ring-primary ring-offset-2"
-                        : "hover:scale-105"
+                      form.color === colorOpt.value ? "ring-2 ring-primary ring-offset-2" : "hover:scale-105",
                     )}
                     onClick={() => setForm({ ...form, color: colorOpt.value })}
                     title={colorOpt.label}
@@ -758,7 +806,7 @@ export default function AdminCategories() {
           <DialogHeader>
             <DialogTitle>{editingSubcategory ? "Edit Subcategory" : "Add Subcategory"}</DialogTitle>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             <div>
               <Label>Name (English)</Label>
@@ -792,7 +840,7 @@ export default function AdminCategories() {
                         "h-9 w-9 rounded-lg flex items-center justify-center border transition-all",
                         subForm.icon === iconName
                           ? "border-primary bg-primary/10 ring-2 ring-primary ring-offset-1"
-                          : "border-border hover:border-primary/50"
+                          : "border-border hover:border-primary/50",
                       )}
                       onClick={() => setSubForm({ ...subForm, icon: iconName })}
                       title={iconName}
@@ -815,9 +863,7 @@ export default function AdminCategories() {
             <div className="flex items-center gap-2">
               <Switch
                 checked={Boolean(subForm.is_popular)}
-                onCheckedChange={(checked) =>
-                  setSubForm({ ...subForm, is_popular: checked })
-                }
+                onCheckedChange={(checked) => setSubForm({ ...subForm, is_popular: checked })}
               />
               <Label>Popular (shows in Hub)</Label>
             </div>
@@ -827,15 +873,11 @@ export default function AdminCategories() {
                 <Label>Popular Order</Label>
                 <Input
                   value={subForm.popular_order}
-                  onChange={(e) =>
-                    setSubForm({ ...subForm, popular_order: e.target.value })
-                  }
+                  onChange={(e) => setSubForm({ ...subForm, popular_order: e.target.value })}
                   placeholder="e.g., 1"
                   inputMode="numeric"
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Lower numbers appear first.
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">Lower numbers appear first.</p>
               </div>
             )}
           </div>
@@ -844,9 +886,7 @@ export default function AdminCategories() {
             <Button variant="outline" onClick={closeSubDialog}>
               Cancel
             </Button>
-            <Button onClick={handleSubSubmit}>
-              {editingSubcategory ? "Save Changes" : "Add Subcategory"}
-            </Button>
+            <Button onClick={handleSubSubmit}>{editingSubcategory ? "Save Changes" : "Add Subcategory"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
