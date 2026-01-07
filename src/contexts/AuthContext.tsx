@@ -28,7 +28,16 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   profileLoading: boolean;
-  signUp: (phone: string, password: string, fullName: string, cityId: string) => Promise<{ error: Error | null }>;
+
+  // ✅ UPDATED: includes cityName
+  signUp: (
+    phone: string,
+    password: string,
+    fullName: string,
+    cityId: string,
+    cityName: string,
+  ) => Promise<{ error: Error | null }>;
+
   signIn: (phone: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -47,7 +56,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * ✅ Idempotent profile ensure:
    * - Always UPSERT by user_id
    * - Then read back the row
-   * This prevents “signup failed” due to duplicate key / race conditions.
    */
   const ensureProfile = async (authUser: User): Promise<Profile | null> => {
     const meta = (authUser.user_metadata || {}) as Record<string, unknown>;
@@ -56,6 +64,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const fullNameFromMeta = typeof meta.full_name === "string" ? meta.full_name : null;
     const cityIdFromMeta = typeof meta.city_id === "string" ? meta.city_id : null;
+
+    // ✅ This depends on you sending `city` in metadata (we do in signUp)
     const cityNameFromMeta = typeof meta.city === "string" ? meta.city : null;
 
     const payload: TablesInsert<"profiles"> = {
@@ -64,11 +74,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       phone: cleanedPhoneFromMeta,
       city_id: cityIdFromMeta,
       city: cityNameFromMeta,
-      // do NOT set required fields here unless you want to override defaults
-      // (points/tier/status/role/is_active should be handled by DB defaults)
     };
 
-    // 1) UPSERT (safe if row already exists)
     const { error: upsertError } = await supabase.from("profiles").upsert(payload, { onConflict: "user_id" });
 
     if (upsertError) {
@@ -76,7 +83,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return null;
     }
 
-    // 2) Read back the profile
     const { data: prof, error: fetchError } = await supabase
       .from("profiles")
       .select("*")
@@ -156,7 +162,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signUp = async (phone: string, password: string, fullName: string, cityId: string) => {
+  // ✅ UPDATED: receives cityName and stores it in auth metadata
+  const signUp = async (phone: string, password: string, fullName: string, cityId: string, cityName: string) => {
     const cleanedPhone = cleanPhoneForStorage(phone);
 
     if (!isValidLibyanPhone(cleanedPhone)) {
@@ -173,6 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           full_name: fullName,
           phone: cleanedPhone,
           city_id: cityId,
+          city: cityName, // ✅ ADD THIS (this is what fixes city=null)
         },
       },
     });
