@@ -2,7 +2,11 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { TablesInsert } from "@/integrations/supabase/types";
-import { cleanPhoneForStorage, phoneToInternalEmail, isValidLibyanPhone } from "@/lib/phoneUtils";
+import {
+  cleanPhoneForStorage,
+  phoneToInternalEmail,
+  isValidLibyanPhone,
+} from "@/lib/phoneUtils";
 
 interface Profile {
   id: string;
@@ -29,13 +33,12 @@ interface AuthContextType {
   loading: boolean;
   profileLoading: boolean;
 
-  // ✅ UPDATED: includes cityName
   signUp: (
     phone: string,
     password: string,
     fullName: string,
     cityId: string,
-    cityName: string,
+    cityName: string
   ) => Promise<{ error: Error | null }>;
 
   signIn: (phone: string, password: string) => Promise<{ error: Error | null }>;
@@ -44,6 +47,13 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+type EnsureOverrides = {
+  fullName?: string | null;
+  phone?: string | null;
+  cityId?: string | null;
+  cityName?: string | null;
+};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -56,27 +66,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * ✅ Idempotent profile ensure:
    * - Always UPSERT by user_id
    * - Then read back the row
+   *
+   * ✅ Important: accept overrides so we don't rely on auth metadata timing
    */
-  const ensureProfile = async (authUser: User): Promise<Profile | null> => {
+  const ensureProfile = async (
+    authUser: User,
+    overrides?: EnsureOverrides
+  ): Promise<Profile | null> => {
     const meta = (authUser.user_metadata || {}) as Record<string, unknown>;
 
-    const cleanedPhoneFromMeta = typeof meta.phone === "string" ? cleanPhoneForStorage(meta.phone) : null;
+    const metaPhone =
+      typeof meta.phone === "string" ? cleanPhoneForStorage(meta.phone) : null;
 
-    const fullNameFromMeta = typeof meta.full_name === "string" ? meta.full_name : null;
-    const cityIdFromMeta = typeof meta.city_id === "string" ? meta.city_id : null;
+    const metaFullName =
+      typeof meta.full_name === "string" ? meta.full_name : null;
 
-    // ✅ This depends on you sending `city` in metadata (we do in signUp)
-    const cityNameFromMeta = typeof meta.city === "string" ? meta.city : null;
+    const metaCityId =
+      typeof meta.city_id === "string" ? meta.city_id : null;
+
+    const metaCityName =
+      typeof meta.city === "string" ? meta.city : null;
 
     const payload: TablesInsert<"profiles"> = {
       user_id: authUser.id,
-      full_name: fullNameFromMeta,
-      phone: cleanedPhoneFromMeta,
-      city_id: cityIdFromMeta,
-      city: cityNameFromMeta,
+      full_name: overrides?.fullName ?? metaFullName,
+      phone: overrides?.phone ?? metaPhone,
+      city_id: overrides?.cityId ?? metaCityId,
+      city: overrides?.cityName ?? metaCityName,
     };
 
-    const { error: upsertError } = await supabase.from("profiles").upsert(payload, { onConflict: "user_id" });
+    const { error: upsertError } = await supabase
+      .from("profiles")
+      .upsert(payload, { onConflict: "user_id" });
 
     if (upsertError) {
       console.error("[ensureProfile] upsert error:", upsertError);
@@ -162,8 +183,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // ✅ UPDATED: receives cityName and stores it in auth metadata
-  const signUp = async (phone: string, password: string, fullName: string, cityId: string, cityName: string) => {
+  const signUp = async (
+    phone: string,
+    password: string,
+    fullName: string,
+    cityId: string,
+    cityName: string
+  ) => {
     const cleanedPhone = cleanPhoneForStorage(phone);
 
     if (!isValidLibyanPhone(cleanedPhone)) {
@@ -180,7 +206,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           full_name: fullName,
           phone: cleanedPhone,
           city_id: cityId,
-          city: cityName, // ✅ ADD THIS (this is what fixes city=null)
+          city: cityName, // ✅ keep metadata too
         },
       },
     });
@@ -208,23 +234,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (msg.includes("email not confirmed")) {
           return {
             error: new Error(
-              "Email confirmation is ON in Supabase. Turn it OFF (Auth → Providers → Email → Confirm email = OFF), then signup again.",
+              "Email confirmation is ON in Supabase. Turn it OFF (Auth → Providers → Email → Confirm email = OFF), then signup again."
             ),
           };
         }
 
-        return { error: new Error(signInErr.message || "Signup created but auto-login failed") };
+        return {
+          error: new Error(signInErr.message || "Signup created but auto-login failed"),
+        };
       }
     }
 
     const { data: sessData } = await supabase.auth.getSession();
     const sessUser = sessData.session?.user;
-    if (!sessUser) return { error: new Error("Signup failed: could not establish session") };
+    if (!sessUser) {
+      return { error: new Error("Signup failed: could not establish session") };
+    }
 
-    const prof = await ensureProfile(sessUser);
+    // ✅ CRITICAL: do not depend on metadata timing
+    const prof = await ensureProfile(sessUser, {
+      fullName,
+      phone: cleanedPhone,
+      cityId,
+      cityName,
+    });
+
     if (!prof) {
       await supabase.auth.signOut();
-      return { error: new Error("Signup failed: profile could not be created/loaded. Please try again.") };
+      return {
+        error: new Error("Signup failed: profile could not be created/loaded. Please try again."),
+      };
     }
 
     return { error: null };
