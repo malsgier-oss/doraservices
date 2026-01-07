@@ -33,6 +33,7 @@ import {
   LucideIcon,
   Bell,
   X,
+  Search,
 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -64,7 +65,6 @@ import { useAllSubcategories } from "@/hooks/useSubcategories";
 import { useCities } from "@/hooks/useCities";
 import { useServiceRatings } from "@/hooks/useReviews";
 
-// ✅ Notifications hooks (same system used elsewhere)
 import {
   useNotifications,
   useUnreadCount,
@@ -125,53 +125,74 @@ type FeaturedProviderCard = {
   provider_avatar: string | null;
   provider_city: string | null;
   provider_sub_city: string | null;
-
-  // IMPORTANT: to open ServiceDetailSheet correctly, we need subcategory id
   subcategory_id: string | null;
 };
 
-type DoraSuggestion = {
+type AppNotification = {
+  id: string;
+  title: string | null;
+  body: string | null;
+  created_at: string | null;
+  is_read: boolean;
+};
+
+type SearchFiltersState = {
+  city: string | null;     // "tripoli" | "benghazi" | "misrata" | null
+  subCity: string | null;
+  minRating: boolean;      // kept for ServiceDetailSheet compatibility
+};
+
+// -------- Header suggestion chips (static for now; connect to control panel later) ----------
+type HubSuggestionChip = {
   id: string;
   title_en: string;
   title_ar: string;
-  hint_en: string;
-  hint_ar: string;
-  match_en: string[];
-  match_ar: string[];
+  subcategory_match: string[]; // used to find a subcategory by name
   icon?: LucideIcon;
 };
 
-// Suggested by Dora
-const DORA_SUGGESTIONS: DoraSuggestion[] = [
+const HUB_SUGGESTIONS: HubSuggestionChip[] = [
   {
-    id: "power-cuts",
-    title_en: "Electricity cuts?",
-    title_ar: "انقطاع الكهرباء؟",
-    hint_en: "Generator technicians & wiring help",
-    hint_ar: "فني مولدات + صيانة كهرباء",
-    match_en: ["generator", "electric", "electrician", "wiring"],
-    match_ar: ["مولد", "كهرباء", "كهربائي", "تمديد"],
-    icon: Zap,
+    id: "ac",
+    title_en: "Fix AC",
+    title_ar: "تصليح مكيف",
+    subcategory_match: ["ac", "air", "conditioning", "تكييف", "مكيف"],
+    icon: Wind,
   },
   {
-    id: "water-issue",
-    title_en: "Water pressure / leaks",
-    title_ar: "ضعف الماء / تسريب",
-    hint_en: "Plumber & pump specialists",
-    hint_ar: "سباك + فني مضخات",
-    match_en: ["plumb", "plumber", "pump", "leak", "pipes"],
-    match_ar: ["سباك", "سباكة", "مضخة", "تسريب", "مواسير"],
+    id: "washing",
+    title_en: "Washing machine broke",
+    title_ar: "غسالة خربت",
+    subcategory_match: ["washing", "washer", "غسالة"],
+    icon: Wrench,
+  },
+  {
+    id: "water",
+    title_en: "Water leaking",
+    title_ar: "تسريب ماء",
+    subcategory_match: ["plumb", "plumber", "water", "leak", "سباك", "تسريب", "سباكة"],
     icon: Droplets,
   },
   {
-    id: "ac-season",
-    title_en: "AC not cooling?",
-    title_ar: "المكيف ما يبرد؟",
-    hint_en: "AC maintenance & gas refill",
-    hint_ar: "صيانة تكييف + شحن غاز",
-    match_en: ["ac", "air", "conditioning", "hvac", "cooling"],
-    match_ar: ["تكييف", "مكيف", "تبريد", "مكيفات"],
-    icon: Wind,
+    id: "electric",
+    title_en: "Electricity issue",
+    title_ar: "مشكلة كهرباء",
+    subcategory_match: ["electric", "electrician", "كهرباء", "كهربائي"],
+    icon: Zap,
+  },
+  {
+    id: "car",
+    title_en: "Car issue",
+    title_ar: "مشكلة سيارة",
+    subcategory_match: ["car", "auto", "سيارة"],
+    icon: Car,
+  },
+  {
+    id: "cleaning",
+    title_en: "Home cleaning",
+    title_ar: "تنظيف منزل",
+    subcategory_match: ["clean", "cleaning", "تنظيف"],
+    icon: Home,
   },
 ];
 
@@ -190,7 +211,7 @@ function FilterSuggestionChip({
     <button
       onClick={onClick}
       className={cn(
-        "flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-full text-[13px] font-semibold transition-all border",
+        "flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-full text-[13px] font-semibold transition-all border",
         isActive
           ? "bg-[#111] text-white border-[#111]"
           : "bg-white text-[#111] border-gray-200 hover:bg-gray-50"
@@ -217,21 +238,6 @@ function SectionHeader({
   );
 }
 
-// -------------------- Notifications UI type (flattened for rendering) --------------------
-type AppNotification = {
-  id: string;
-  title: string | null;
-  body: string | null;
-  created_at: string | null;
-  is_read: boolean;
-};
-
-type SearchFiltersState = {
-  city: string | null;
-  subCity: string | null;
-  minRating: boolean; // kept for ServiceDetailSheet compatibility, no UI on Hub
-};
-
 export default function Hub() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -242,11 +248,8 @@ export default function Hub() {
   const { data: cities } = useCities();
 
   const [sheetOpen, setSheetOpen] = useState(false);
-
-  // ✅ Notifications popover open state
   const [notifOpen, setNotifOpen] = useState(false);
 
-  // ✅ Hook-based notifications (same as other pages)
   const notifQuery = useNotifications();
   const unreadHook = useUnreadCount();
   const notifMutations = useNotificationMutations();
@@ -273,60 +276,105 @@ export default function Hub() {
   const markAsRead = (id: string) => notifMutations.markAsRead.mutateAsync(id);
   const markAllAsRead = () => notifMutations.markAllAsRead.mutateAsync();
 
-  // Sheet service
   const [selectedService, setSelectedService] = useState<{
-    id: string; // subcategory id
+    id: string; // subcategory id or fallback
     titleKey: string;
     descKey: string;
-    category: string;
+    category: string; // MUST match services.category in DB (you already use it this way)
     categoryName?: string;
     categoryNameAr?: string;
     color: string;
     icon: LucideIcon;
   } | null>(null);
 
-  // If set, sheet opens directly to provider detail (used by Featured Providers)
-  const [initialProviderServiceId, setInitialProviderServiceId] = useState<
-    string | null
-  >(null);
+  const [initialProviderServiceId, setInitialProviderServiceId] = useState<string | null>(null);
 
-  // Filters (UI: ONLY city chips in header; no rating chip)
   const [searchFilters, setSearchFilters] = useState<SearchFiltersState>({
     city: null,
     subCity: null,
     minRating: false,
   });
 
-  // Category drawer
   const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
   const [drawerCategoryId, setDrawerCategoryId] = useState<string | null>(null);
 
-  const [featuredProviders, setFeaturedProviders] = useState<
-    FeaturedProviderCard[]
-  >([]);
+  const [featuredProviders, setFeaturedProviders] = useState<FeaturedProviderCard[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(false);
 
-  // Ratings for featured
   const { ratings: featuredRatings } = useServiceRatings(
     featuredProviders.map((fp) => fp.service_id)
   );
 
-  // ✅ Convert city id -> name
+  // ---------- Search UI state ----------
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  type SearchResult = {
+    id: string; // service id
+    kind: "provider" | "service";
+    title: string;
+    subtitle: string;
+    avatar?: string | null;
+    category: string; // services.category
+    provider_name?: string;
+    provider_city?: string | null;
+  };
+
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+
+  // ---------- Recently viewed ----------
+  const [recentCards, setRecentCards] = useState<FeaturedProviderCard[]>([]);
+  const [recentLoading, setRecentLoading] = useState(false);
+
   const getCityLabel = (cityIdOrName: string | null) => {
     if (!cityIdOrName) return null;
-
     const found = cities?.find(
       (c: any) =>
         c.id === cityIdOrName ||
-        String(c.name || "").toLowerCase() ===
-          String(cityIdOrName).toLowerCase()
+        String(c.name || "").toLowerCase() === String(cityIdOrName).toLowerCase()
     );
-
     return found
       ? language === "ar" && found.name_ar
         ? found.name_ar
         : found.name
       : cityIdOrName;
+  };
+
+  const norm = (s: string | null | undefined) => String(s || "").toLowerCase().trim();
+
+  const cityAliasMap: Record<string, string[]> = {
+    tripoli: ["tripoli", "طرابلس", "طرابلس المركز"],
+    benghazi: ["benghazi", "بنغازي"],
+    misrata: ["misrata", "مصراتة"],
+  };
+
+  const matchesSelectedCity = (providerCity: string | null) => {
+    if (!searchFilters.city) return true;
+    if (!providerCity) return false;
+
+    const selected = norm(searchFilters.city);
+    const providerRaw = norm(providerCity);
+
+    if (providerRaw === selected) return true;
+
+    const providerLabel = getCityLabel(providerCity);
+    if (providerLabel && norm(providerLabel) === selected) return true;
+
+    const selectedLabel = getCityLabel(searchFilters.city);
+    if (selectedLabel) {
+      const sl = norm(selectedLabel);
+      if (providerRaw === sl) return true;
+      if (providerLabel && norm(providerLabel) === sl) return true;
+    }
+
+    const labels = cityAliasMap[selected];
+    if (labels) {
+      const pl = providerLabel ? norm(providerLabel) : "";
+      return labels.some((l) => providerRaw.includes(norm(l)) || pl.includes(norm(l)));
+    }
+
+    return false;
   };
 
   const getFeaturedRatingDisplay = (serviceId: string) => {
@@ -335,76 +383,6 @@ export default function Hub() {
       return { text: isRTL ? "جديد" : "New", hasRating: false };
     return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true };
   };
-
-  // Helper: find a city's ID by labels
-  const findCityIdByLabels = (labels: string[]) => {
-    const norm = (s: string) => (s || "").toLowerCase().trim();
-    const wanted = new Set(labels.map(norm));
-    const found = cities?.find((c: any) => {
-      const en = norm(c?.name || "");
-      const ar = norm(c?.name_ar || "");
-      return wanted.has(en) || wanted.has(ar);
-    });
-    return found?.id || null;
-  };
-
-  // City matching for featured providers
-  const matchesSelectedCity = (providerCity: string | null) => {
-    if (!searchFilters.city) return true;
-    if (!providerCity) return false;
-
-    const selectedRaw = String(searchFilters.city).toLowerCase().trim();
-    const providerRaw = String(providerCity).toLowerCase().trim();
-
-    if (providerRaw === selectedRaw) return true;
-
-    const providerLabel = getCityLabel(providerCity);
-    if (
-      providerLabel &&
-      String(providerLabel).toLowerCase().trim() === selectedRaw
-    )
-      return true;
-
-    const selectedLabel = getCityLabel(searchFilters.city as any);
-    if (selectedLabel) {
-      const sl = String(selectedLabel).toLowerCase().trim();
-      if (providerRaw === sl) return true;
-      if (providerLabel && String(providerLabel).toLowerCase().trim() === sl)
-        return true;
-    }
-
-    const aliasMap: Record<string, { labels: string[] }> = {
-      tripoli: { labels: ["tripoli", "طرابلس", "طرابلس المركز"] },
-      benghazi: { labels: ["benghazi", "بنغازي"] },
-      misrata: { labels: ["misrata", "مصراتة"] },
-    };
-
-    const alias = aliasMap[selectedRaw];
-    if (alias) {
-      const providerLabelNorm = providerLabel
-        ? String(providerLabel).toLowerCase().trim()
-        : "";
-
-      const providerMatchesAlias =
-        alias.labels.some((l) => providerRaw.includes(l.toLowerCase())) ||
-        alias.labels.some((l) => providerLabelNorm.includes(l.toLowerCase()));
-
-      if (providerMatchesAlias) return true;
-
-      const aliasCityId = findCityIdByLabels(alias.labels);
-      if (aliasCityId && providerRaw === String(aliasCityId).toLowerCase())
-        return true;
-    }
-
-    return false;
-  };
-
-  const featuredProvidersFiltered = useMemo(() => {
-    return featuredProviders.filter((fp) =>
-      matchesSelectedCity(fp.provider_city)
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [featuredProviders, searchFilters.city, language, cities]);
 
   // Map subcategories -> service items
   const serviceItems: ServiceItem[] = useMemo(() => {
@@ -452,6 +430,8 @@ export default function Hub() {
 
     const category = categories?.find((c: any) => c.id === service.category_id);
 
+    // IMPORTANT: service.category must match services.category string in DB.
+    // In your project, services.category seems to be subcategory name.
     setSelectedService({
       id: service.id,
       icon: service.icon,
@@ -471,25 +451,18 @@ export default function Hub() {
     setCategoryDrawerOpen(true);
   };
 
-  // ✅ Best-effort resolver for missing featured subcategory_id
   const resolveFeaturedSubcategoryId = useCallback(
     (fp: FeaturedProviderCard): string | null => {
       if (fp.subcategory_id) return fp.subcategory_id;
       if (!serviceItems.length) return null;
 
-      const norm = (s: string) =>
-        String(s || "")
-          .toLowerCase()
-          .replace(/\s+/g, " ")
-          .trim();
-
-      const hay = `${fp.category || ""} ${fp.service_title || ""}`;
-      const H = norm(hay);
+      const n = (s: string) => String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
+      const H = n(`${fp.category || ""} ${fp.service_title || ""}`);
 
       let found =
         serviceItems.find((s) => {
-          const en = norm(s.name);
-          const ar = norm(s.name_ar || "");
+          const en = n(s.name);
+          const ar = n(s.name_ar || "");
           return (en && H.includes(en)) || (ar && H.includes(ar));
         }) || null;
 
@@ -497,12 +470,9 @@ export default function Hub() {
 
       found =
         serviceItems.find((s) => {
-          const en = norm(s.name);
-          const ar = norm(s.name_ar || "");
-          return (
-            (en && en.includes(norm(fp.service_title))) ||
-            (ar && ar.includes(norm(fp.service_title)))
-          );
+          const en = n(s.name);
+          const ar = n(s.name_ar || "");
+          return (en && en.includes(n(fp.service_title))) || (ar && ar.includes(n(fp.service_title)));
         }) || null;
 
       return found?.id || null;
@@ -510,15 +480,12 @@ export default function Hub() {
     [serviceItems]
   );
 
-  // ✅ Featured click: open ServiceDetailSheet in correct subcategory context + deep-link provider
+  // Featured click: open ServiceDetailSheet + deep-link provider (provider profile)
   const openProviderDetailsFromFeatured = useCallback(
     (fp: FeaturedProviderCard) => {
       const subId = resolveFeaturedSubcategoryId(fp);
-
       const sc = subId ? serviceItems.find((s) => s.id === subId) : null;
-      const category = sc
-        ? categories?.find((c: any) => c.id === sc.category_id)
-        : null;
+      const category = sc ? categories?.find((c: any) => c.id === sc.category_id) : null;
 
       setInitialProviderServiceId(fp.service_id);
 
@@ -546,9 +513,7 @@ export default function Hub() {
         const selectWithSubcategory =
           "id, category, title, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused, is_featured, featured_order, created_at, subcategory_id";
 
-        let servicesData: any[] | null = null;
-
-        const firstTry = await supabase
+        const { data: servicesData, error } = await supabase
           .from("services")
           .select(selectWithSubcategory)
           .eq("is_active", true)
@@ -558,28 +523,10 @@ export default function Hub() {
           .order("created_at", { ascending: false })
           .limit(50);
 
-        if (!firstTry.error) {
-          servicesData = firstTry.data || [];
-        } else {
-          const secondTry = await supabase
-            .from("services")
-            .select(
-              "id, category, title, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused, is_featured, featured_order, created_at"
-            )
-            .eq("is_active", true)
-            .eq("is_featured", true)
-            .or("is_paused.is.null,is_paused.eq.false")
-            .order("featured_order", { ascending: true })
-            .order("created_at", { ascending: false })
-            .limit(50);
-
-          if (secondTry.error) {
-            console.error("Error fetching featured services:", secondTry.error);
-            setFeaturedProviders([]);
-            return;
-          }
-
-          servicesData = secondTry.data || [];
+        if (error) {
+          console.error("Error fetching featured services:", error);
+          setFeaturedProviders([]);
+          return;
         }
 
         const featured = servicesData || [];
@@ -588,17 +535,13 @@ export default function Hub() {
           return;
         }
 
-        const userIds = [
-          ...new Set(featured.map((s: any) => s.user_id).filter(Boolean)),
-        ];
+        const userIds = [...new Set(featured.map((s: any) => s.user_id).filter(Boolean))];
         let profileMap = new Map<string, any>();
 
         if (userIds.length > 0) {
           const { data: profiles } = await supabase
             .from("profiles")
-            .select(
-              "user_id, full_name, avatar_url, phone, city, sub_city, provider_status"
-            )
+            .select("user_id, full_name, avatar_url, phone, city, sub_city, provider_status")
             .in("user_id", userIds)
             .eq("provider_status", "approved");
 
@@ -606,21 +549,15 @@ export default function Hub() {
         }
 
         const cards: FeaturedProviderCard[] = featured
-          .filter((svc: any) => {
-            if (!svc.user_id) return svc.provider_name && svc.provider_phone;
-            return profileMap.has(svc.user_id);
-          })
+          .filter((svc: any) => svc.user_id && profileMap.has(svc.user_id))
           .map((svc: any) => {
-            const p = svc.user_id ? profileMap.get(svc.user_id) : null;
+            const p = profileMap.get(svc.user_id);
             return {
               service_id: svc.id,
               category: svc.category,
               service_title: svc.title || (isRTL ? "خدمة" : "Service"),
-              provider_name:
-                p?.full_name ||
-                svc.provider_name ||
-                (isRTL ? "مقدم الخدمة" : "Provider"),
-              provider_phone: p?.phone || svc.provider_phone || "",
+              provider_name: p?.full_name || (isRTL ? "مقدم الخدمة" : "Provider"),
+              provider_phone: p?.phone || "",
               provider_avatar: p?.avatar_url || null,
               provider_city: p?.city || svc.city || null,
               provider_sub_city: p?.sub_city || svc.sub_city || null,
@@ -638,8 +575,11 @@ export default function Hub() {
     };
 
     fetchFeaturedProviders();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRTL]);
+
+  const featuredProvidersFiltered = useMemo(() => {
+    return featuredProviders.filter((fp) => matchesSelectedCity(fp.provider_city));
+  }, [featuredProviders, searchFilters.city, language, cities]);
 
   // Popular services = admin-picked only
   const popularServices: ServiceItem[] = useMemo(() => {
@@ -650,44 +590,168 @@ export default function Hub() {
       .slice(0, 12);
   }, [serviceItems]);
 
-  // Suggested by Dora mapping
-  const findBestMatchingSubcategory = (s: DoraSuggestion): ServiceItem | null => {
-    const candidates = serviceItems;
+  // ---------- Header suggestions -> resolve to subcategory ----------
+  const resolveSuggestionTarget = useCallback(
+    (chip: HubSuggestionChip): ServiceItem | null => {
+      const keys = chip.subcategory_match.map((k) => norm(k));
+      const matchAny = (txt: string | null) => {
+        const t = norm(txt);
+        return keys.some((k) => t.includes(k));
+      };
 
-    const matchAny = (text: string, keys: string[]) => {
-      const t = (text || "").toLowerCase();
-      return keys.some((k) => t.includes(k.toLowerCase()));
+      for (const item of serviceItems) {
+        if (matchAny(item.name)) return item;
+      }
+      for (const item of serviceItems) {
+        if (item.name_ar && matchAny(item.name_ar)) return item;
+      }
+      return null;
+    },
+    [serviceItems]
+  );
+
+  // ---------- Search (services-based provider/service search) ----------
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!searchOpen || q.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const run = async () => {
+      setSearchLoading(true);
+      try {
+        // Search services by title/category/provider_name/provider_phone
+        const { data: svc, error } = await supabase
+          .from("services")
+          .select("id, title, category, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused")
+          .eq("is_active", true)
+          .or("is_paused.is.null,is_paused.eq.false")
+          .or(
+            [
+              `title.ilike.%${q}%`,
+              `category.ilike.%${q}%`,
+              `provider_name.ilike.%${q}%`,
+              `provider_phone.ilike.%${q}%`,
+            ].join(",")
+          )
+          .order("created_at", { ascending: false })
+          .limit(20);
+
+        if (error) {
+          console.error("search error:", error);
+          if (!cancelled) setSearchResults([]);
+          return;
+        }
+
+        const rows = (svc || []) as any[];
+
+        // Respect city filter (best-effort)
+        const filtered = rows.filter((r) => matchesSelectedCity(r.city || null));
+
+        const mapped: SearchResult[] = filtered.map((r) => ({
+          id: r.id,
+          kind: r.provider_name || r.provider_phone ? "provider" : "service",
+          title: r.provider_name || r.title || (isRTL ? "مقدم خدمة" : "Provider"),
+          subtitle: r.title || r.category || "",
+          category: r.category,
+          provider_name: r.provider_name || "",
+          provider_city: r.city || null,
+        }));
+
+        if (!cancelled) setSearchResults(mapped);
+      } finally {
+        if (!cancelled) setSearchLoading(false);
+      }
     };
 
-    for (const item of candidates) {
-      if (matchAny(item.name, s.match_en)) return item;
-    }
-    for (const item of candidates) {
-      if (item.name_ar && matchAny(item.name_ar, s.match_ar)) return item;
-    }
-    for (const item of candidates) {
-      if (item.name_ar && matchAny(item.name_ar, s.match_en)) return item;
-      if (matchAny(item.name, s.match_ar)) return item;
-    }
+    const timer = setTimeout(run, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchOpen, searchQuery, searchFilters.city]);
 
-    return null;
-  };
+  // ---------- Recently viewed read ----------
+  useEffect(() => {
+    const loadRecent = async () => {
+      const key = `dora_recent_service_ids_${user?.id || "guest"}`;
+      let ids: string[] = [];
+      try {
+        ids = JSON.parse(localStorage.getItem(key) || "[]");
+      } catch {
+        ids = [];
+      }
+      ids = (ids || []).filter(Boolean).slice(0, 8);
+      if (ids.length === 0) {
+        setRecentCards([]);
+        return;
+      }
 
-  const suggestedByDora = useMemo(() => {
-    return DORA_SUGGESTIONS.map((s) => ({
-      suggestion: s,
-      target: findBestMatchingSubcategory(s),
-    })).filter((x) => Boolean(x.target));
-  }, [serviceItems]);
+      setRecentLoading(true);
+      try {
+        const { data: servicesData, error } = await supabase
+          .from("services")
+          .select("id, category, title, user_id, city, sub_city, subcategory_id, is_active, is_paused")
+          .in("id", ids)
+          .eq("is_active", true)
+          .or("is_paused.is.null,is_paused.eq.false");
 
-  // initials (kept in case you use it later)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const initials =
-    profile?.full_name
-      ?.split(" ")
-      .map((n) => n[0])
-      .join("")
-      .slice(0, 2) || (isRTL ? "م" : "U");
+        if (error) {
+          console.error("recent services error:", error);
+          setRecentCards([]);
+          return;
+        }
+
+        const list = (servicesData || []) as any[];
+
+        const userIds = [...new Set(list.map((s) => s.user_id).filter(Boolean))];
+
+        let profileMap = new Map<string, any>();
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("user_id, full_name, avatar_url, phone, city, sub_city, provider_status")
+            .in("user_id", userIds)
+            .eq("provider_status", "approved");
+
+          profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
+        }
+
+        // Keep order from ids
+        const mapById = new Map(list.map((s) => [s.id, s]));
+        const ordered = ids.map((id) => mapById.get(id)).filter(Boolean);
+
+        const cards: FeaturedProviderCard[] = ordered
+          .filter((svc: any) => svc.user_id && profileMap.has(svc.user_id))
+          .map((svc: any) => {
+            const p = profileMap.get(svc.user_id);
+            return {
+              service_id: svc.id,
+              category: svc.category,
+              service_title: svc.title || (isRTL ? "خدمة" : "Service"),
+              provider_name: p?.full_name || (isRTL ? "مقدم الخدمة" : "Provider"),
+              provider_phone: p?.phone || "",
+              provider_avatar: p?.avatar_url || null,
+              provider_city: p?.city || svc.city || null,
+              provider_sub_city: p?.sub_city || svc.sub_city || null,
+              subcategory_id: svc.subcategory_id || null,
+            };
+          })
+          .filter((c) => matchesSelectedCity(c.provider_city));
+
+        setRecentCards(cards);
+      } finally {
+        setRecentLoading(false);
+      }
+    };
+
+    // refresh when hub mounts and when sheet closes (common path)
+    loadRecent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, searchFilters.city, sheetOpen]);
 
   return (
     <div className="min-h-screen bg-[#F7F7F8] pb-24" dir={isRTL ? "rtl" : "ltr"}>
@@ -695,29 +759,23 @@ export default function Hub() {
       <header className="sticky top-0 z-40 bg-[#F7F7F8]/90 backdrop-blur supports-[backdrop-filter]:bg-[#F7F7F8]/75 border-b border-gray-100">
         <div className="px-4 pt-4 pb-3">
           <div className="flex items-center justify-between">
-            {/* left spacer */}
             <div className="h-10 w-10" />
 
-            {/* Center title */}
             <button
               type="button"
               onClick={() => navigate("/")}
               className="flex flex-col items-center leading-none"
               aria-label={t.appName}
             >
-              <span className="text-[14px] font-semibold text-[#111]">
-                {t.appName}
-              </span>
+              <span className="text-[14px] font-semibold text-[#111]">{t.appName}</span>
               <span className="text-[12px] text-[#777] mt-0.5">
                 {isRTL ? "خدمات قريبة منك" : "Local services"}
               </span>
             </button>
 
-            {/* Actions */}
             <div className="flex items-center gap-2">
               <LanguageToggle />
 
-              {/* ✅ Notifications fall from bell */}
               <Popover open={notifOpen} onOpenChange={setNotifOpen}>
                 <PopoverTrigger asChild>
                   <button
@@ -747,13 +805,7 @@ export default function Hub() {
                           {isRTL ? "الإشعارات" : "Notifications"}
                         </p>
                         <p className="text-[12px] text-[#777] mt-1">
-                          {user
-                            ? isRTL
-                              ? "آخر التحديثات"
-                              : "Latest updates"
-                            : isRTL
-                            ? "سجّل الدخول لعرض الإشعارات"
-                            : "Sign in to see notifications"}
+                          {user ? (isRTL ? "آخر التحديثات" : "Latest updates") : (isRTL ? "سجّل الدخول لعرض الإشعارات" : "Sign in to see notifications")}
                         </p>
                       </div>
 
@@ -773,24 +825,17 @@ export default function Hub() {
                     <ScrollArea className="h-[55vh] px-4 py-4">
                       {!user ? (
                         <div className="rounded-2xl bg-white border border-gray-200 p-4 text-[13px] text-[#777]">
-                          {isRTL
-                            ? "سجّل الدخول لعرض إشعاراتك."
-                            : "Please sign in to view your notifications."}
+                          {isRTL ? "سجّل الدخول لعرض إشعاراتك." : "Please sign in to view your notifications."}
                         </div>
                       ) : notifLoading ? (
                         <div className="space-y-2">
                           {[...Array(4)].map((_, i) => (
-                            <div
-                              key={i}
-                              className="h-16 rounded-2xl bg-gray-200 animate-pulse"
-                            />
+                            <div key={i} className="h-16 rounded-2xl bg-gray-200 animate-pulse" />
                           ))}
                         </div>
                       ) : notifications.length === 0 ? (
                         <div className="rounded-2xl bg-white border border-gray-200 p-4 text-[13px] text-[#777]">
-                          {isRTL
-                            ? "لا توجد إشعارات حالياً."
-                            : "No notifications yet."}
+                          {isRTL ? "لا توجد إشعارات حالياً." : "No notifications yet."}
                         </div>
                       ) : (
                         <div className="space-y-2">
@@ -810,20 +855,14 @@ export default function Hub() {
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                   <p className="text-[14px] font-semibold text-[#111] truncate">
-                                    {n.title ||
-                                      (isRTL ? "إشعار" : "Notification")}
+                                    {n.title || (isRTL ? "إشعار" : "Notification")}
                                   </p>
                                   <p className="text-[12px] text-[#777] mt-1 whitespace-pre-wrap">
-                                    {n.body ||
-                                      (isRTL
-                                        ? "تفاصيل الإشعار"
-                                        : "Notification details")}
+                                    {n.body || (isRTL ? "تفاصيل الإشعار" : "Notification details")}
                                   </p>
                                   {n.created_at && (
                                     <p className="text-[11px] text-[#999] mt-2">
-                                      {new Date(
-                                        n.created_at
-                                      ).toLocaleString()}
+                                      {new Date(n.created_at).toLocaleString()}
                                     </p>
                                   )}
                                 </div>
@@ -842,8 +881,21 @@ export default function Hub() {
             </div>
           </div>
 
-          {/* City chips ONLY (no rating chip) */}
-          <div className="mt-4 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+          {/* Row: Search icon + City chips */}
+          <div className="mt-4 flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
+            <button
+              type="button"
+              onClick={() => {
+                setSearchOpen((v) => !v);
+                setSearchQuery("");
+                setSearchResults([]);
+              }}
+              className="h-10 w-10 rounded-full bg-white border border-gray-200 flex items-center justify-center flex-shrink-0"
+              aria-label={isRTL ? "بحث" : "Search"}
+            >
+              <Search className="h-5 w-5 text-[#111]" />
+            </button>
+
             <FilterSuggestionChip
               icon={<MapPin className="h-4 w-4" />}
               label={isRTL ? "طرابلس" : "Tripoli"}
@@ -881,6 +933,108 @@ export default function Hub() {
               }
             />
           </div>
+
+          {/* Inline search input */}
+          {searchOpen && (
+            <div className="mt-3">
+              <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-2xl px-3 py-2">
+                <Search className="h-4 w-4 text-[#777]" />
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={isRTL ? "ابحث عن مقدم خدمة أو خدمة..." : "Search providers or services..."}
+                  className="flex-1 text-[14px] outline-none bg-transparent"
+                />
+                {searchQuery.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setSearchResults([]);
+                    }}
+                    className="h-8 w-8 rounded-full hover:bg-gray-100 flex items-center justify-center"
+                    aria-label={isRTL ? "مسح" : "Clear"}
+                  >
+                    <X className="h-4 w-4 text-[#777]" />
+                  </button>
+                )}
+              </div>
+
+              {(searchLoading || searchResults.length > 0 || (searchQuery.trim().length >= 2 && !searchLoading)) && (
+                <div className="mt-2 rounded-2xl bg-white border border-gray-200 overflow-hidden">
+                  {searchLoading ? (
+                    <div className="p-4 text-[13px] text-[#777]">
+                      {isRTL ? "جاري البحث..." : "Searching..."}
+                    </div>
+                  ) : searchResults.length === 0 ? (
+                    <div className="p-4 text-[13px] text-[#777]">
+                      {isRTL ? "لا توجد نتائج." : "No results."}
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-100">
+                      {searchResults.slice(0, 10).map((r) => (
+                        <button
+                          key={r.id}
+                          type="button"
+                          onClick={() => {
+                            // open provider profile directly using service id
+                            setInitialProviderServiceId(r.id);
+
+                            setSelectedService({
+                              id: r.id,
+                              titleKey: r.subtitle || r.title,
+                              descKey: "",
+                              category: r.category,
+                              categoryName: r.category,
+                              categoryNameAr: r.category,
+                              color: "bg-[#F2F2F2]",
+                              icon: Wrench,
+                            });
+
+                            setSheetOpen(true);
+                          }}
+                          className={cn(
+                            "w-full px-4 py-3 text-left hover:bg-gray-50",
+                            isRTL && "text-right"
+                          )}
+                        >
+                          <div className="text-[14px] font-semibold text-[#111] truncate">
+                            {r.title}
+                          </div>
+                          <div className="text-[12px] text-[#777] truncate mt-0.5">
+                            {r.subtitle}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Header service suggestions (chips) */}
+          <div className="mt-3 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+            {HUB_SUGGESTIONS.map((chip) => {
+              const Icon = chip.icon || Sparkles;
+              const label = isRTL ? chip.title_ar : chip.title_en;
+
+              return (
+                <button
+                  key={chip.id}
+                  type="button"
+                  onClick={() => {
+                    const target = resolveSuggestionTarget(chip);
+                    if (target) openServiceSheetFromSubcategory(target);
+                  }}
+                  className="flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-full text-[13px] font-semibold bg-white text-[#111] border border-gray-200 hover:bg-gray-50"
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </header>
 
@@ -894,18 +1048,14 @@ export default function Hub() {
           {categoriesLoading ? (
             <div className="grid grid-cols-4 gap-3">
               {[...Array(8)].map((_, i) => (
-                <div
-                  key={i}
-                  className="h-[108px] rounded-2xl bg-gray-200 animate-pulse"
-                />
+                <div key={i} className="h-[108px] rounded-2xl bg-gray-200 animate-pulse" />
               ))}
             </div>
           ) : (
             <div className="grid grid-cols-4 gap-3">
               {categoryGrid.map((cat: any) => {
                 const IconComponent = ICON_MAP[cat.icon] || Home;
-                const displayName =
-                  language === "ar" && cat.name_ar ? cat.name_ar : cat.name;
+                const displayName = language === "ar" && cat.name_ar ? cat.name_ar : cat.name;
 
                 return (
                   <button
@@ -913,24 +1063,11 @@ export default function Hub() {
                     onClick={() => openCategoryDrawer(cat.id)}
                     className="relative overflow-hidden h-[108px] rounded-2xl border bg-white border-gray-200 flex flex-col items-center justify-center gap-2 transition-all active:scale-[0.98]"
                   >
-                    <div
-                      className={cn(
-                        "absolute inset-0 opacity-10",
-                        cat.color || "bg-[#F2F2F2]"
-                      )}
-                    />
+                    <div className={cn("absolute inset-0 opacity-10", cat.color || "bg-[#F2F2F2]")} />
                     <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/70" />
 
-                    <div
-                      className={cn(
-                        "relative h-14 w-14 rounded-2xl flex items-center justify-center",
-                        cat.color || "bg-[#F2F2F2]"
-                      )}
-                    >
-                      <IconComponent
-                        className="h-7 w-7 text-[#111]"
-                        strokeWidth={1.7}
-                      />
+                    <div className={cn("relative h-14 w-14 rounded-2xl flex items-center justify-center", cat.color || "bg-[#F2F2F2]")}>
+                      <IconComponent className="h-7 w-7 text-[#111]" strokeWidth={1.7} />
                     </div>
 
                     <span className="relative text-[12px] font-semibold text-[#111] text-center px-1 leading-tight line-clamp-1">
@@ -943,18 +1080,13 @@ export default function Hub() {
           )}
         </section>
 
-        {/* Featured Providers UNDER Categories */}
+        {/* Featured Providers */}
         <section className="mt-8">
-          <SectionHeader
-            title={isRTL ? "مقدمي خدمة مختارين" : "Featured providers"}
-          />
+          <SectionHeader title={isRTL ? "مقدمي خدمة مختارين" : "Featured providers"} />
           {featuredLoading ? (
             <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
               {[...Array(3)].map((_, i) => (
-                <div
-                  key={i}
-                  className="flex-shrink-0 w-[330px] h-[128px] rounded-2xl bg-gray-200 animate-pulse"
-                />
+                <div key={i} className="flex-shrink-0 w-[330px] h-[128px] rounded-2xl bg-gray-200 animate-pulse" />
               ))}
             </div>
           ) : featuredProvidersFiltered.length > 0 ? (
@@ -984,159 +1116,108 @@ export default function Hub() {
                       </Avatar>
 
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-[16px] font-semibold text-[#111] truncate">
-                          {fp.provider_name}
-                        </h3>
-                        <p className="text-[13px] text-[#777] mt-1 truncate">
-                          {fp.service_title}
-                        </p>
+                        <h3 className="text-[16px] font-semibold text-[#111] truncate">{fp.provider_name}</h3>
+                        <p className="text-[13px] text-[#777] mt-1 truncate">{fp.service_title}</p>
 
                         <div className="mt-1.5 flex items-center gap-1 text-[12px]">
                           <Star
                             className={cn(
                               "h-4 w-4",
-                              r.hasRating
-                                ? "text-yellow-500 fill-yellow-500"
-                                : "text-[#999]"
+                              r.hasRating ? "text-yellow-500 fill-yellow-500" : "text-[#999]"
                             )}
                           />
-                          <span
-                            className={cn(
-                              r.hasRating
-                                ? "text-[#111] font-semibold"
-                                : "text-[#777]"
-                            )}
-                          >
+                          <span className={cn(r.hasRating ? "text-[#111] font-semibold" : "text-[#777]")}>
                             {r.text}
                           </span>
                         </div>
                       </div>
 
-                      <ChevronRight
-                        className={cn(
-                          "h-6 w-6 text-[#C9C9C9]",
-                          isRTL && "rotate-180"
-                        )}
-                      />
+                      <ChevronRight className={cn("h-6 w-6 text-[#C9C9C9]", isRTL && "rotate-180")} />
                     </div>
 
                     <div className="mt-3 text-[12px] text-[#777]">
                       {fp.provider_city ? (isRTL ? "المدينة: " : "City: ") : ""}
                       <span className="text-[#111] font-semibold">
-                        {getCityLabel(fp.provider_city) ||
-                          (isRTL ? "غير محدد" : "Not set")}
+                        {getCityLabel(fp.provider_city) || (isRTL ? "غير محدد" : "Not set")}
                       </span>
                     </div>
                   </button>
                 );
               })}
             </div>
-          ) : (
-            <div className="rounded-2xl bg-white border border-gray-200 p-5 text-[13px] text-[#777]">
-              {featuredProviders.length > 0 && featuredProvidersFiltered.length === 0
-                ? isRTL
-                  ? "لا يوجد مزودين مختارين لهذه المدينة."
-                  : "No featured providers for this city."
-                : isRTL
-                ? "لا يوجد مزودين مختارين حالياً."
-                : "No featured providers yet."}
-            </div>
-          )}
+          ) : null}
         </section>
 
-        {/* Suggested by Dora */}
-        {suggestedByDora.length > 0 && (
+        {/* Recently viewed (providers) */}
+        {recentLoading ? (
           <section className="mt-8">
-            <SectionHeader title={isRTL ? "مقترحات دورة" : "Suggested by Dora"} />
-            <div className="grid grid-cols-1 gap-3">
-              {suggestedByDora.map(({ suggestion, target }) => {
-                const targetService = target as ServiceItem;
-                const Icon = suggestion.icon || Sparkles;
-
-                return (
-                  <button
-                    key={suggestion.id}
-                    onClick={() => openServiceSheetFromSubcategory(targetService)}
-                    className={cn(
-                      "relative overflow-hidden w-full rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.99]",
-                      isRTL && "text-right"
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        "absolute inset-0 opacity-10",
-                        targetService.color
-                      )}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
-
-                    <div className="relative flex items-center gap-3">
-                      <div className="h-14 w-14 rounded-2xl bg-white/70 border border-gray-200 flex items-center justify-center flex-shrink-0">
-                        <Icon className="h-7 w-7 text-[#111]" strokeWidth={1.7} />
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-[16px] font-semibold text-[#111]">
-                          {isRTL ? suggestion.title_ar : suggestion.title_en}
-                        </h3>
-                        <p className="text-[13px] text-[#777] mt-1 line-clamp-2">
-                          {isRTL ? suggestion.hint_ar : suggestion.hint_en}
-                        </p>
-                      </div>
-
-                      <ChevronRight
-                        className={cn(
-                          "h-6 w-6 text-[#C9C9C9]",
-                          isRTL && "rotate-180"
-                        )}
-                      />
-                    </div>
-                  </button>
-                );
-              })}
+            <SectionHeader title={isRTL ? "شوهد مؤخراً" : "Recently viewed"} />
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="flex-shrink-0 w-[330px] h-[128px] rounded-2xl bg-gray-200 animate-pulse" />
+              ))}
             </div>
           </section>
-        )}
-
-        {/* Popular Services */}
-        {popularServices.length > 0 && (
+        ) : recentCards.length > 0 ? (
           <section className="mt-8">
-            <SectionHeader
-              title={isRTL ? "الخدمات الأكثر طلباً" : "Popular services"}
-            />
-            <div className="grid grid-cols-2 gap-3">
+            <SectionHeader title={isRTL ? "شوهد مؤخراً" : "Recently viewed"} />
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 snap-x snap-mandatory">
+              {recentCards.map((fp) => (
+                <button
+                  key={`recent-${fp.service_id}`}
+                  onClick={() => openProviderDetailsFromFeatured(fp)}
+                  className={cn(
+                    "snap-start flex-shrink-0 w-[330px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
+                    isRTL && "text-right"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-14 w-14">
+                      <AvatarImage src={fp.provider_avatar || undefined} />
+                      <AvatarFallback className="bg-[#111] text-white font-semibold">
+                        {(fp.provider_name || (isRTL ? "م" : "P"))
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .slice(0, 2)}
+                      </AvatarFallback>
+                    </Avatar>
+
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-[16px] font-semibold text-[#111] truncate">{fp.provider_name}</h3>
+                      <p className="text-[13px] text-[#777] mt-1 truncate">{fp.service_title}</p>
+                    </div>
+
+                    <ChevronRight className={cn("h-6 w-6 text-[#C9C9C9]", isRTL && "rotate-180")} />
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {/* Popular Services (horizontal) */}
+        {popularServices.length > 0 ? (
+          <section className="mt-8">
+            <SectionHeader title={isRTL ? "الخدمات الأكثر طلباً" : "Popular services"} />
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 snap-x snap-mandatory">
               {popularServices.map((service) => {
                 const IconComponent = service.icon;
                 const displayName =
-                  language === "ar" && service.name_ar
-                    ? service.name_ar
-                    : service.name;
+                  language === "ar" && service.name_ar ? service.name_ar : service.name;
 
                 return (
                   <button
                     key={service.id}
                     onClick={() => openServiceSheetFromSubcategory(service)}
                     className={cn(
-                      "relative overflow-hidden h-[102px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
+                      "snap-start flex-shrink-0 w-[260px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
                       isRTL && "text-right"
                     )}
                   >
-                    <div
-                      className={cn("absolute inset-0 opacity-10", service.color)}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
-
-                    <div className="relative flex items-center gap-3">
-                      <div
-                        className={cn(
-                          "h-14 w-14 rounded-2xl flex items-center justify-center",
-                          service.color
-                        )}
-                      >
-                        <IconComponent
-                          className="h-7 w-7 text-[#111]"
-                          strokeWidth={1.7}
-                        />
+                    <div className="flex items-center gap-3">
+                      <div className={cn("h-14 w-14 rounded-2xl flex items-center justify-center", service.color)}>
+                        <IconComponent className="h-7 w-7 text-[#111]" strokeWidth={1.7} />
                       </div>
 
                       <div className="flex-1 min-w-0">
@@ -1147,15 +1228,17 @@ export default function Hub() {
                           {isRTL ? "عرض مقدمي الخدمة" : "View providers"}
                         </p>
                       </div>
+
+                      <ChevronRight className={cn("h-6 w-6 text-[#C9C9C9]", isRTL && "rotate-180")} />
                     </div>
                   </button>
                 );
               })}
             </div>
           </section>
-        )}
+        ) : null}
 
-        {/* Bottom line / links */}
+        {/* Footer */}
         <section className="mt-10">
           <div className="border-t border-gray-200 pt-4 pb-2 text-[12px] text-[#777] flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
             <button
@@ -1171,23 +1254,13 @@ export default function Hub() {
               {isRTL ? "تواصل معنا" : "Contact"}
             </button>
             <button
-              onClick={() =>
-                window.alert(
-                  isRTL ? "سيتم إضافة الشروط قريباً" : "Terms will be added soon"
-                )
-              }
+              onClick={() => window.alert(isRTL ? "سيتم إضافة الشروط قريباً" : "Terms will be added soon")}
               className="hover:text-[#111] transition-colors"
             >
               {isRTL ? "الشروط" : "Terms"}
             </button>
             <button
-              onClick={() =>
-                window.alert(
-                  isRTL
-                    ? "سيتم إضافة الخصوصية قريباً"
-                    : "Privacy will be added soon"
-                )
-              }
+              onClick={() => window.alert(isRTL ? "سيتم إضافة الخصوصية قريباً" : "Privacy will be added soon")}
               className="hover:text-[#111] transition-colors"
             >
               {isRTL ? "الخصوصية" : "Privacy"}
@@ -1237,9 +1310,7 @@ export default function Hub() {
                   {drawerSubcategories.map((service) => {
                     const IconComponent = service.icon;
                     const displayName =
-                      language === "ar" && service.name_ar
-                        ? service.name_ar
-                        : service.name;
+                      language === "ar" && service.name_ar ? service.name_ar : service.name;
 
                     return (
                       <button
@@ -1253,24 +1324,11 @@ export default function Hub() {
                           isRTL && "flex-row-reverse text-right"
                         )}
                       >
-                        <div
-                          className={cn(
-                            "absolute inset-0 opacity-10",
-                            service.color
-                          )}
-                        />
+                        <div className={cn("absolute inset-0 opacity-10", service.color)} />
                         <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
 
-                        <div
-                          className={cn(
-                            "relative h-14 w-14 rounded-2xl flex items-center justify-center flex-shrink-0",
-                            service.color
-                          )}
-                        >
-                          <IconComponent
-                            className="h-7 w-7 text-[#111]"
-                            strokeWidth={1.7}
-                          />
+                        <div className={cn("relative h-14 w-14 rounded-2xl flex items-center justify-center flex-shrink-0", service.color)}>
+                          <IconComponent className="h-7 w-7 text-[#111]" strokeWidth={1.7} />
                         </div>
 
                         <div className="relative flex-1 min-w-0">
@@ -1282,21 +1340,14 @@ export default function Hub() {
                           </p>
                         </div>
 
-                        <ChevronRight
-                          className={cn(
-                            "relative h-6 w-6 text-[#C9C9C9] flex-shrink-0",
-                            isRTL && "rotate-180"
-                          )}
-                        />
+                        <ChevronRight className={cn("relative h-6 w-6 text-[#C9C9C9] flex-shrink-0", isRTL && "rotate-180")} />
                       </button>
                     );
                   })}
                 </div>
               ) : (
                 <div className="text-center py-10 text-sm text-muted-foreground">
-                  {isRTL
-                    ? "لا توجد خدمات في هذه الفئة"
-                    : "No services in this category"}
+                  {isRTL ? "لا توجد خدمات في هذه الفئة" : "No services in this category"}
                 </div>
               )}
             </div>
