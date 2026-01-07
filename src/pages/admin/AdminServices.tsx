@@ -62,7 +62,6 @@ export default function AdminServices() {
   const queryClient = useQueryClient();
   const { data: categories } = useCategories();
   const { data: subcategories } = useAllSubcategories();
-  const { data: subcategories } = useAllSubcategories();
 
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
