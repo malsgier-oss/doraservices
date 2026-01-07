@@ -2,8 +2,8 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const SUPABASE_URL = import.meta.env.VITE_DORA_SUPABASE_URL as string | undefined;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_DORA_SUPABASE_ANON_KEY as string | undefined;
 
 // ✅ Mobile-friendly: expose tiny diagnostics without console
 declare global {
@@ -22,13 +22,15 @@ if (typeof window !== "undefined") {
 // ✅ Hard fail early if env missing (prevents silent “nothing shows” bugs)
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   throw new Error(
-    "Missing Supabase env. Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Lovable secrets."
+    `Missing Supabase env. Check Lovable secrets:
+VITE_DORA_SUPABASE_URL set? ${Boolean(SUPABASE_URL)}
+VITE_DORA_SUPABASE_ANON_KEY set? ${Boolean(SUPABASE_ANON_KEY)}`,
   );
 }
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    storage: localStorage,
+    storage: typeof window !== "undefined" ? window.localStorage : undefined,
     persistSession: true,
     autoRefreshToken: true,
   },
