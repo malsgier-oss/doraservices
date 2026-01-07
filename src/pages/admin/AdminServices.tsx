@@ -6,40 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import {
-  Search,
-  Eye,
-  EyeOff,
-  Edit,
-  Trash2,
-  StickyNote,
-  Star,
-} from "lucide-react";
+import { Search, Eye, EyeOff, Edit, Trash2, StickyNote, Star } from "lucide-react";
 import { format } from "date-fns";
 import { useCategories } from "@/hooks/useCategories";
 import { useAllSubcategories } from "@/hooks/useSubcategories";
@@ -111,9 +84,7 @@ export default function AdminServices() {
   });
 
   // Featured order local draft
-  const [featuredOrderDraft, setFeaturedOrderDraft] = useState<
-    Record<string, string>
-  >({});
+  const [featuredOrderDraft, setFeaturedOrderDraft] = useState<Record<string, string>>({});
 
   // Provider search in edit dialog
   const [providerSearch, setProviderSearch] = useState("");
@@ -141,8 +112,7 @@ export default function AdminServices() {
     return m;
   }, [cities]);
 
-  const cityLabel = (c?: CityRow | null) =>
-    c?.name || c?.name_ar || "";
+  const cityLabel = (c?: CityRow | null) => c?.name || c?.name_ar || "";
 
   const subcategoryMap = useMemo(() => {
     const m = new Map<string, { id: string; name: string; name_ar: string | null }>();
@@ -177,29 +147,19 @@ export default function AdminServices() {
     isError,
     error,
   } = useQuery({
-    queryKey: [
-      "admin-services",
-      categoryFilter,
-      visibilityFilter,
-      featuredFilter,
-      search,
-    ],
+    queryKey: ["admin-services", categoryFilter, visibilityFilter, featuredFilter, search],
     queryFn: async () => {
       // ✅ IMPORTANT: no join here. Joins fail if FK is not defined in Supabase.
       let query = supabase.from("services").select("*");
 
       if (categoryFilter !== "all") query = query.eq("category", categoryFilter);
-      if (visibilityFilter !== "all")
-        query = query.eq("is_visible", visibilityFilter === "visible");
+      if (visibilityFilter !== "all") query = query.eq("is_visible", visibilityFilter === "visible");
 
       if (featuredFilter === "featured") query = query.eq("is_featured", true);
-      else if (featuredFilter === "not_featured")
-        query = query.or("is_featured.is.null,is_featured.eq.false");
+      else if (featuredFilter === "not_featured") query = query.or("is_featured.is.null,is_featured.eq.false");
 
       if (search) {
-        query = query.or(
-          `title.ilike.%${search}%,description.ilike.%${search}%`
-        );
+        query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
       }
 
       const ordered =
@@ -213,9 +173,7 @@ export default function AdminServices() {
       if (error) throw error;
 
       // Batch fetch provider names for any services that have user_id
-      const userIds = Array.from(
-        new Set((data || []).map((s: any) => s.user_id).filter(Boolean))
-      ) as string[];
+      const userIds = Array.from(new Set((data || []).map((s: any) => s.user_id).filter(Boolean))) as string[];
 
       let profileMap = new Map<string, any>();
 
@@ -248,26 +206,14 @@ export default function AdminServices() {
     if (!services) return;
     const map: Record<string, string> = {};
     services.forEach((s) => {
-      map[s.id] =
-        s.featured_order === null || s.featured_order === undefined
-          ? ""
-          : String(s.featured_order);
+      map[s.id] = s.featured_order === null || s.featured_order === undefined ? "" : String(s.featured_order);
     });
     setFeaturedOrderDraft(map);
   }, [services]);
 
   const toggleVisibility = useMutation({
-    mutationFn: async ({
-      id,
-      isVisible,
-    }: {
-      id: string;
-      isVisible: boolean;
-    }) => {
-      const { error } = await supabase
-        .from("services")
-        .update({ is_visible: isVisible })
-        .eq("id", id);
+    mutationFn: async ({ id, isVisible }: { id: string; isVisible: boolean }) => {
+      const { error } = await supabase.from("services").update({ is_visible: isVisible }).eq("id", id);
       if (error) throw error;
 
       await supabase.rpc("log_admin_action", {
@@ -285,10 +231,7 @@ export default function AdminServices() {
 
   const updateService = useMutation({
     mutationFn: async (data: { id: string; updates: Partial<Service> }) => {
-      const { error } = await supabase
-        .from("services")
-        .update(data.updates)
-        .eq("id", data.id);
+      const { error } = await supabase.from("services").update(data.updates).eq("id", data.id);
       if (error) throw error;
 
       await supabase.rpc("log_admin_action", {
@@ -325,10 +268,7 @@ export default function AdminServices() {
 
   const saveAdminNote = useMutation({
     mutationFn: async ({ id, note }: { id: string; note: string }) => {
-      const { error } = await supabase
-        .from("services")
-        .update({ admin_note: note })
-        .eq("id", id);
+      const { error } = await supabase.from("services").update({ admin_note: note }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -340,16 +280,9 @@ export default function AdminServices() {
   });
 
   const updateFeatured = useMutation({
-    mutationFn: async (payload: {
-      id: string;
-      is_featured?: boolean;
-      featured_order?: number | null;
-    }) => {
+    mutationFn: async (payload: { id: string; is_featured?: boolean; featured_order?: number | null }) => {
       const { id, ...updates } = payload;
-      const { error } = await supabase
-        .from("services")
-        .update(updates)
-        .eq("id", id);
+      const { error } = await supabase.from("services").update(updates).eq("id", id);
       if (error) throw error;
 
       const action =
@@ -404,11 +337,7 @@ export default function AdminServices() {
     updateFeatured.mutate({
       id: service.id,
       is_featured: next,
-      featured_order: next
-        ? Number.isFinite(parsed as any)
-          ? parsed
-          : 999
-        : null,
+      featured_order: next ? (Number.isFinite(parsed as any) ? parsed : 999) : null,
     });
   };
 
@@ -563,9 +492,7 @@ export default function AdminServices() {
                     <TableRow key={service.id}>
                       <TableCell className="font-medium max-w-48 truncate">
                         {service.title}
-                        {service.admin_note && (
-                          <StickyNote className="inline ml-2 h-3 w-3 text-yellow-500" />
-                        )}
+                        {service.admin_note && <StickyNote className="inline ml-2 h-3 w-3 text-yellow-500" />}
                       </TableCell>
 
                       <TableCell>{service.category}</TableCell>
@@ -594,13 +521,7 @@ export default function AdminServices() {
                           onClick={() => handleToggleFeatured(service)}
                           disabled={updateFeatured.isPending}
                         >
-                          <Star
-                            className={
-                              isFeatured
-                                ? "h-4 w-4 fill-yellow-400 text-yellow-400"
-                                : "h-4 w-4"
-                            }
-                          />
+                          <Star className={isFeatured ? "h-4 w-4 fill-yellow-400 text-yellow-400" : "h-4 w-4"} />
                           <span className="ml-2">{isFeatured ? "Yes" : "No"}</span>
                         </Button>
                       </TableCell>
@@ -630,15 +551,11 @@ export default function AdminServices() {
                           ) : (
                             <Badge variant="secondary">Hidden</Badge>
                           )}
-                          {!service.is_active && (
-                            <Badge variant="destructive">Inactive</Badge>
-                          )}
+                          {!service.is_active && <Badge variant="destructive">Inactive</Badge>}
                         </div>
                       </TableCell>
 
-                      <TableCell>
-                        {format(new Date(service.created_at), "MMM d, yyyy")}
-                      </TableCell>
+                      <TableCell>{format(new Date(service.created_at), "MMM d, yyyy")}</TableCell>
 
                       <TableCell>
                         <div className="flex gap-1">
@@ -652,26 +569,14 @@ export default function AdminServices() {
                               })
                             }
                           >
-                            {service.is_visible ? (
-                              <EyeOff className="h-4 w-4" />
-                            ) : (
-                              <Eye className="h-4 w-4" />
-                            )}
+                            {service.is_visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </Button>
 
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEditDialog(service)}
-                          >
+                          <Button variant="ghost" size="icon" onClick={() => openEditDialog(service)}>
                             <Edit className="h-4 w-4" />
                           </Button>
 
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openNoteDialog(service)}
-                          >
+                          <Button variant="ghost" size="icon" onClick={() => openNoteDialog(service)}>
                             <StickyNote className="h-4 w-4" />
                           </Button>
 
@@ -713,9 +618,7 @@ export default function AdminServices() {
               {editForm.user_id ? (
                 <div className="text-sm text-muted-foreground">
                   Current:{" "}
-                  <span className="text-foreground font-medium">
-                    {currentProviderLabel || editForm.user_id}
-                  </span>
+                  <span className="text-foreground font-medium">{currentProviderLabel || editForm.user_id}</span>
                 </div>
               ) : (
                 <div className="text-sm text-muted-foreground">No provider assigned</div>
@@ -727,12 +630,7 @@ export default function AdminServices() {
                   onChange={(e) => setProviderSearch(e.target.value)}
                   placeholder="Search provider by name..."
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={runProviderSearch}
-                  disabled={providerSearching}
-                >
+                <Button type="button" variant="outline" onClick={runProviderSearch} disabled={providerSearching}>
                   {providerSearching ? "Searching..." : "Search"}
                 </Button>
               </div>
@@ -764,28 +662,20 @@ export default function AdminServices() {
 
             <div>
               <Label>Title</Label>
-              <Input
-                value={editForm.title}
-                onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-              />
+              <Input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
             </div>
 
             <div>
               <Label>Description</Label>
               <Textarea
                 value={editForm.description}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, description: e.target.value })
-                }
+                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
               />
             </div>
 
             <div>
               <Label>Category</Label>
-              <Select
-                value={editForm.category}
-                onValueChange={(v) => setEditForm({ ...editForm, category: v })}
-              >
+              <Select value={editForm.category} onValueChange={(v) => setEditForm({ ...editForm, category: v })}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -825,10 +715,7 @@ export default function AdminServices() {
             {/* City Select (stores UUID) */}
             <div>
               <Label>City</Label>
-              <Select
-                value={editForm.city}
-                onValueChange={(v) => setEditForm({ ...editForm, city: v })}
-              >
+              <Select value={editForm.city} onValueChange={(v) => setEditForm({ ...editForm, city: v })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select a city" />
                 </SelectTrigger>
