@@ -405,8 +405,6 @@ export default function Auth() {
                   <Select
                     value={signupData.cityId}
                     onValueChange={(value) => setSignupData({ ...signupData, cityId: value })}
-                    // IMPORTANT: makes the dropdown behave correctly on mobile/iOS
-                    modal
                   >
                     <SelectTrigger className="rounded-xl h-12">
                       <SelectValue placeholder={isRTL ? "اختر مدينتك" : "Select your city"} />
