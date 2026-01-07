@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,8 @@ import {
   Languages, Camera, UtensilsCrossed, Stethoscope, Activity, Dog,
   Scissors, Laptop, PawPrint, Sparkles, Dumbbell, Utensils, Music,
   Plane, ShoppingCart, Baby, Paintbrush, Hammer, Battery, Calculator,
-  LucideIcon
+  LucideIcon,
+  Star
 } from "lucide-react";
 import { Category, useAllCategories } from "@/hooks/useCategories";
 import { Subcategory, useAllSubcategories, useSubcategoryMutations } from "@/hooks/useSubcategories";
@@ -85,10 +86,26 @@ export default function AdminCategories() {
     name_ar: "",
     icon: "Wrench",
     is_active: true,
+    is_popular: false,
+    popular_order: "" as string,
   });
 
   // Track expanded categories
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+
+  // Popular services ordering (subcategories)
+  const [popularOrderDraft, setPopularOrderDraft] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const map: Record<string, string> = {};
+    (subcategories || []).forEach((s) => {
+      map[s.id] =
+        s.popular_order === null || s.popular_order === undefined
+          ? ""
+          : String(s.popular_order);
+    });
+    setPopularOrderDraft(map);
+  }, [subcategories]);
 
   const createCategory = useMutation({
     mutationFn: async (data: typeof form & { display_order: number }) => {
@@ -226,7 +243,14 @@ export default function AdminCategories() {
   const openCreateSubDialog = (categoryId: string) => {
     setSelectedCategoryId(categoryId);
     setEditingSubcategory(null);
-    setSubForm({ name: "", name_ar: "", icon: "Wrench", is_active: true });
+    setSubForm({
+      name: "",
+      name_ar: "",
+      icon: "Wrench",
+      is_active: true,
+      is_popular: false,
+      popular_order: "",
+    });
     setSubDialogOpen(true);
   };
 
@@ -238,6 +262,11 @@ export default function AdminCategories() {
       name_ar: sub.name_ar || "",
       icon: sub.icon,
       is_active: sub.is_active ?? true,
+      is_popular: Boolean(sub.is_popular),
+      popular_order:
+        sub.popular_order === null || sub.popular_order === undefined
+          ? ""
+          : String(sub.popular_order),
     });
     setSubDialogOpen(true);
   };
@@ -254,14 +283,30 @@ export default function AdminCategories() {
       return;
     }
 
+    const po = String(subForm.popular_order || "").trim();
+    const popular_order = po === "" ? null : Number(po);
+    if (po !== "" && !Number.isFinite(popular_order)) {
+      toast.error("Popular order must be a number");
+      return;
+    }
+
+    const payload = {
+      name: subForm.name,
+      name_ar: subForm.name_ar,
+      icon: subForm.icon,
+      is_active: subForm.is_active,
+      is_popular: Boolean(subForm.is_popular),
+      popular_order,
+    };
+
     if (editingSubcategory) {
-      updateSubcategory.mutate({ id: editingSubcategory.id, ...subForm });
+      updateSubcategory.mutate({ id: editingSubcategory.id, ...payload });
     } else if (selectedCategoryId) {
       const categorySubcats = subcategories?.filter(s => s.category_id === selectedCategoryId) || [];
       const maxOrder = Math.max(...categorySubcats.map(s => s.display_order ?? 0), 0);
       createSubcategory.mutate({
         category_id: selectedCategoryId,
-        ...subForm,
+        ...payload,
         display_order: maxOrder + 1,
       });
     }
@@ -286,6 +331,33 @@ export default function AdminCategories() {
     return (subcategories || [])
       .filter(s => s.category_id === categoryId)
       .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+  };
+
+  const togglePopular = (sub: Subcategory) => {
+    const next = !(sub.is_popular === true);
+    const draft = (popularOrderDraft[sub.id] ?? "").trim();
+    const parsed = draft === "" ? null : Number(draft);
+
+    if (draft !== "" && !Number.isFinite(parsed)) {
+      toast.error("Popular order must be a number");
+      return;
+    }
+
+    updateSubcategory.mutate({
+      id: sub.id,
+      is_popular: next,
+      popular_order: next ? (Number.isFinite(parsed as any) ? parsed : 999) : null,
+    });
+  };
+
+  const savePopularOrder = (sub: Subcategory) => {
+    const draft = (popularOrderDraft[sub.id] ?? "").trim();
+    const next = draft === "" ? null : Number(draft);
+    if (draft !== "" && !Number.isFinite(next)) {
+      toast.error("Popular order must be a number");
+      return;
+    }
+    updateSubcategory.mutate({ id: sub.id, popular_order: next });
   };
 
   return (
@@ -488,8 +560,49 @@ export default function AdminCategories() {
                                           {sub.name_ar}
                                         </p>
                                       )}
+                                      <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                                        <span>{sub.is_active ? "Active" : "Inactive"}</span>
+                                        {sub.is_popular === true && (
+                                          <Badge variant="outline" className="text-[10px] h-5 px-2">
+                                            Popular
+                                          </Badge>
+                                        )}
+                                      </div>
                                     </div>
-                                    <div className="flex gap-1">
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className={cn(
+                                          "h-7 w-7",
+                                          sub.is_popular === true ? "text-yellow-600" : "text-muted-foreground"
+                                        )}
+                                        onClick={() => togglePopular(sub)}
+                                        title={sub.is_popular === true ? "Unmark popular" : "Mark popular"}
+                                      >
+                                        <Star
+                                          className={cn(
+                                            "h-3.5 w-3.5",
+                                            sub.is_popular === true && "fill-yellow-400 text-yellow-400"
+                                          )}
+                                        />
+                                      </Button>
+
+                                      <Input
+                                        value={popularOrderDraft[sub.id] ?? ""}
+                                        onChange={(e) =>
+                                          setPopularOrderDraft((prev) => ({
+                                            ...prev,
+                                            [sub.id]: e.target.value,
+                                          }))
+                                        }
+                                        onBlur={() => savePopularOrder(sub)}
+                                        placeholder="#"
+                                        className="h-7 w-14 text-xs"
+                                        inputMode="numeric"
+                                        title="Popular order"
+                                      />
+
                                       <Button
                                         variant="ghost"
                                         size="icon"
@@ -698,6 +811,33 @@ export default function AdminCategories() {
               />
               <Label>Active</Label>
             </div>
+
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={Boolean(subForm.is_popular)}
+                onCheckedChange={(checked) =>
+                  setSubForm({ ...subForm, is_popular: checked })
+                }
+              />
+              <Label>Popular (shows in Hub)</Label>
+            </div>
+
+            {Boolean(subForm.is_popular) && (
+              <div>
+                <Label>Popular Order</Label>
+                <Input
+                  value={subForm.popular_order}
+                  onChange={(e) =>
+                    setSubForm({ ...subForm, popular_order: e.target.value })
+                  }
+                  placeholder="e.g., 1"
+                  inputMode="numeric"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Lower numbers appear first.
+                </p>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
