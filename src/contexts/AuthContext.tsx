@@ -43,17 +43,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
 
+  /**
+   * ✅ Idempotent profile ensure:
+   * - Always UPSERT by user_id
+   * - Then read back the row
+   * This prevents “signup failed” due to duplicate key / race conditions.
+   */
   const ensureProfile = async (authUser: User): Promise<Profile | null> => {
     const meta = (authUser.user_metadata || {}) as Record<string, unknown>;
 
-    const cleanedPhoneFromMeta =
-      typeof meta.phone === "string" ? cleanPhoneForStorage(meta.phone) : null;
+    const cleanedPhoneFromMeta = typeof meta.phone === "string" ? cleanPhoneForStorage(meta.phone) : null;
 
     const fullNameFromMeta = typeof meta.full_name === "string" ? meta.full_name : null;
     const cityIdFromMeta = typeof meta.city_id === "string" ? meta.city_id : null;
     const cityNameFromMeta = typeof meta.city === "string" ? meta.city : null;
 
-    const { data: existing, error: fetchError } = await supabase
+    const payload: TablesInsert<"profiles"> = {
+      user_id: authUser.id,
+      full_name: fullNameFromMeta,
+      phone: cleanedPhoneFromMeta,
+      city_id: cityIdFromMeta,
+      city: cityNameFromMeta,
+      // do NOT set required fields here unless you want to override defaults
+      // (points/tier/status/role/is_active should be handled by DB defaults)
+    };
+
+    // 1) UPSERT (safe if row already exists)
+    const { error: upsertError } = await supabase.from("profiles").upsert(payload, { onConflict: "user_id" });
+
+    if (upsertError) {
+      console.error("[ensureProfile] upsert error:", upsertError);
+      return null;
+    }
+
+    // 2) Read back the profile
+    const { data: prof, error: fetchError } = await supabase
       .from("profiles")
       .select("*")
       .eq("user_id", authUser.id)
@@ -63,41 +87,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("[ensureProfile] fetch error:", fetchError);
       return null;
     }
-    if (existing) return existing as Profile;
 
-    const insertPayload: TablesInsert<"profiles"> = {
-      user_id: authUser.id,
-      full_name: fullNameFromMeta,
-      phone: cleanedPhoneFromMeta,
-      city_id: cityIdFromMeta,
-      city: cityNameFromMeta,
-    };
-
-    const { data: created, error: insertError } = await supabase
-      .from("profiles")
-      .insert(insertPayload)
-      .select("*")
-      .single();
-
-    if (insertError) {
-      console.error("[ensureProfile] insert error:", insertError);
-
-      // retry once (in case created by trigger / race)
-      const { data: retry, error: retryError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("user_id", authUser.id)
-        .maybeSingle();
-
-      if (retryError) {
-        console.error("[ensureProfile] retry fetch error:", retryError);
-        return null;
-      }
-
-      return (retry as Profile) ?? null;
-    }
-
-    return created as Profile;
+    return (prof as Profile) ?? null;
   };
 
   const fetchProfile = async (authUser: User) => {
@@ -195,7 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: new Error("Signup failed: No user returned") };
     }
 
-    // If session missing (email confirmation ON), signIn will fail with "Email not confirmed"
+    // If session missing (email confirmation ON), auto-login may fail.
     if (!data.session) {
       const { error: signInErr } = await supabase.auth.signInWithPassword({
         email: internalEmail,
@@ -205,12 +196,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (signInErr) {
         console.error("[signUp] auto-login failed:", signInErr);
 
-        // ✅ clearer message for your setup
         const msg = String(signInErr.message || "").toLowerCase();
         if (msg.includes("email not confirmed")) {
           return {
             error: new Error(
-              "Email confirmation is ON in Supabase. Turn it OFF (Auth → Providers → Email → Confirm email = OFF), then signup again."
+              "Email confirmation is ON in Supabase. Turn it OFF (Auth → Providers → Email → Confirm email = OFF), then signup again.",
             ),
           };
         }
@@ -226,7 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const prof = await ensureProfile(sessUser);
     if (!prof) {
       await supabase.auth.signOut();
-      return { error: new Error("Signup failed: could not create profile. Please try again.") };
+      return { error: new Error("Signup failed: profile could not be created/loaded. Please try again.") };
     }
 
     return { error: null };
