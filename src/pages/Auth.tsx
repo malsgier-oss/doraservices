@@ -40,8 +40,9 @@ export default function Auth() {
 
   const { t, isRTL, language } = useLanguage();
   const { data: cities, isLoading: citiesLoading } = useCities();
-  const [isLoading, setIsLoading] = useState(false);
   const { isEnabled: registrationEnabled, isLoading: settingsLoading } = useRegistrationEnabled();
+
+  const [isLoading, setIsLoading] = useState(false);
 
   const [loginData, setLoginData] = useState({ phone: "", password: "" });
   const [signupData, setSignupData] = useState({
@@ -188,8 +189,22 @@ export default function Auth() {
       return;
     }
 
+    // ✅ IMPORTANT: also send the city NAME (so profiles.city won't be null)
+    const selectedCity = cities?.find((c) => c.id === signupData.cityId);
+
+    const cityName =
+      language === "ar"
+        ? (selectedCity?.name_ar || selectedCity?.name || "")
+        : (selectedCity?.name || selectedCity?.name_ar || "");
+
     setIsLoading(true);
-    const { error } = await signUp(cleanedPhone, signupData.password, signupData.fullName, signupData.cityId);
+    const { error } = await signUp(
+      cleanedPhone,
+      signupData.password,
+      signupData.fullName,
+      signupData.cityId,
+      cityName
+    );
     setIsLoading(false);
 
     if (error) {
@@ -227,7 +242,10 @@ export default function Auth() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4" dir={isRTL ? "rtl" : "ltr"}>
+    <div
+      className="min-h-screen bg-background flex flex-col items-center justify-center p-4"
+      dir={isRTL ? "rtl" : "ltr"}
+    >
       <div className="absolute top-4 left-4">
         <LanguageToggle />
       </div>
@@ -250,7 +268,9 @@ export default function Auth() {
             <TabsContent value="login" className="mt-0">
               <div className={cn("space-y-1 mb-6", isRTL ? "text-right" : "text-left")}>
                 <CardTitle className="text-xl">{isRTL ? "مرحباً بعودتك" : "Welcome back"}</CardTitle>
-                <CardDescription>{isRTL ? "أدخل رقم هاتفك وكلمة المرور" : "Enter your phone and password"}</CardDescription>
+                <CardDescription>
+                  {isRTL ? "أدخل رقم هاتفك وكلمة المرور" : "Enter your phone and password"}
+                </CardDescription>
               </div>
 
               <form onSubmit={handleLogin} className="space-y-4">
@@ -320,7 +340,9 @@ export default function Auth() {
                 <Alert variant="destructive" className="mb-4">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    {isRTL ? "التسجيل مغلق حالياً. يرجى المحاولة لاحقاً." : "Registration is currently disabled. Please try again later."}
+                    {isRTL
+                      ? "التسجيل مغلق حالياً. يرجى المحاولة لاحقاً."
+                      : "Registration is currently disabled. Please try again later."}
                   </AlertDescription>
                 </Alert>
               )}
@@ -365,7 +387,7 @@ export default function Auth() {
                       dir="ltr"
                       value={signupData.phone}
                       onChange={(e) => {
-                        // allow various inputs; we normalize later in handleSignup via cleanPhoneForStorage()
+                        // allow digits and + only; normalize later
                         const val = e.target.value.replace(/[^\d+]/g, "").slice(0, 20);
                         setSignupData({ ...signupData, phone: val });
                       }}
@@ -401,7 +423,6 @@ export default function Auth() {
                     {isRTL ? "المدينة" : "City"} <span className="text-destructive">*</span>
                   </Label>
 
-                  {/* ✅ Mobile-safe Select */}
                   <Select
                     value={signupData.cityId}
                     onValueChange={(value) => setSignupData({ ...signupData, cityId: value })}
@@ -425,7 +446,11 @@ export default function Auth() {
                   </Select>
                 </div>
 
-                <Button type="submit" className="w-full rounded-full" disabled={isLoading || !registrationEnabled}>
+                <Button
+                  type="submit"
+                  className="w-full rounded-full"
+                  disabled={isLoading || !registrationEnabled}
+                >
                   {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t.auth.signup}
                 </Button>
               </form>
