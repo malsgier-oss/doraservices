@@ -68,11 +68,7 @@ export function useSubcategoryMutations() {
       is_popular?: boolean;
       popular_order?: number | null;
     }) => {
-      const { data, error } = await supabase
-        .from("subcategories")
-        .insert(subcategory)
-        .select()
-        .single();
+      const { data, error } = await supabase.from("subcategories").insert(subcategory).select().single();
 
       if (error) throw error;
       return data;
@@ -97,12 +93,7 @@ export function useSubcategoryMutations() {
       is_popular?: boolean;
       popular_order?: number | null;
     }) => {
-      const { data, error } = await supabase
-        .from("subcategories")
-        .update(updates)
-        .eq("id", id)
-        .select()
-        .single();
+      const { data, error } = await supabase.from("subcategories").update(updates).eq("id", id).select().single();
 
       if (error) throw error;
       return data;
@@ -114,10 +105,7 @@ export function useSubcategoryMutations() {
 
   const deleteSubcategory = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("subcategories")
-        .delete()
-        .eq("id", id);
+      const { error } = await supabase.from("subcategories").delete().eq("id", id);
 
       if (error) throw error;
     },
