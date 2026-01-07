@@ -10,6 +10,9 @@ export interface Subcategory {
   color: string | null;
   display_order: number | null;
   is_active: boolean | null;
+  // Hub: admin-picked popular services
+  is_popular?: boolean | null;
+  popular_order?: number | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -62,6 +65,8 @@ export function useSubcategoryMutations() {
       color?: string;
       display_order?: number;
       is_active?: boolean;
+      is_popular?: boolean;
+      popular_order?: number | null;
     }) => {
       const { data, error } = await supabase
         .from("subcategories")
@@ -89,6 +94,8 @@ export function useSubcategoryMutations() {
       color?: string;
       display_order?: number;
       is_active?: boolean;
+      is_popular?: boolean;
+      popular_order?: number | null;
     }) => {
       const { data, error } = await supabase
         .from("subcategories")
