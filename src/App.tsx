@@ -1,3 +1,4 @@
+import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -37,23 +38,34 @@ import AdminBulkUpload from "./pages/admin/AdminBulkUpload";
 import AdminSubCities from "./pages/admin/AdminSubCities";
 import AdminPasswordResets from "./pages/admin/AdminPasswordResets";
 
-// ✅ NEW: Env Debug page (create file at src/pages/EnvDebug.tsx)
+// ✅ NEW: Env Debug page (optional)
 import EnvDebug from "./pages/EnvDebug";
 
+// ✅ keep QueryClient stable (avoid re-creating on hot reload)
 const queryClient = new QueryClient();
 
+/**
+ * If user is logged in, redirect them away from /auth to the right place.
+ * This prevents confusion and fixes redirect loops.
+ */
 function AuthenticatedRedirect({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, profile, loading, profileLoading } = useAuth();
 
-  if (loading) {
+  if (loading || profileLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
   }
 
   if (user) {
+    // Logged in but profile not loaded for some reason — allow the page to render
+    if (!profile) return <Navigate to="/" replace />;
+
+    if (profile.must_change_password) return <Navigate to="/change-password" replace />;
+    if (!profile.is_verified) return <Navigate to="/pending-verification" replace />;
+
     return <Navigate to="/" replace />;
   }
 
@@ -63,11 +75,42 @@ function AuthenticatedRedirect({ children }: { children: React.ReactNode }) {
 const AppRoutes = () => {
   return (
     <Routes>
-      {/* Hub is now public - no auth required to browse */}
+      {/* Hub is public */}
       <Route path="/" element={<Hub />} />
 
-      {/* ✅ ENV DEBUG ROUTE (for phone debugging) */}
+      {/* ✅ ENV DEBUG ROUTE (optional) */}
       <Route path="/env" element={<EnvDebug />} />
+
+      {/* Auth routes */}
+      <Route
+        path="/auth"
+        element={
+          <AuthenticatedRedirect>
+            <Auth />
+          </AuthenticatedRedirect>
+        }
+      />
+
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+
+      {/* These should require a logged-in user */}
+      <Route
+        path="/pending-verification"
+        element={
+          <ProtectedRoute>
+            <PendingVerification />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/change-password"
+        element={
+          <ProtectedRoute>
+            <ChangePassword />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Protected routes - require login */}
       <Route
@@ -78,6 +121,7 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/create-service"
         element={
@@ -86,6 +130,7 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/profile"
         element={
@@ -94,6 +139,7 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/provider-dashboard"
         element={
@@ -102,11 +148,6 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
-
-      <Route path="/auth" element={<Auth />} />
-      <Route path="/pending-verification" element={<PendingVerification />} />
-      <Route path="/change-password" element={<ChangePassword />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
 
       {/* Admin Routes */}
       <Route
