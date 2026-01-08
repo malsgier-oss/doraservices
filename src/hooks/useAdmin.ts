@@ -102,7 +102,7 @@ export function useAdminStats() {
         { count: pendingReports },
       ] = await Promise.all([
         supabase.from("profiles").select("*", { count: "exact", head: true }),
-        supabase.from("user_roles").select("*", { count: "exact", head: true }).eq("role", "business"),
+        supabase.from("user_roles").select("*", { count: "exact", head: true }).eq("role", "provider"),
         supabase.from("businesses").select("*", { count: "exact", head: true }).eq("authorization_status", "pending"),
         supabase.from("businesses").select("*", { count: "exact", head: true }).eq("authorization_status", "approved"),
         supabase.from("deals").select("*", { count: "exact", head: true }).eq("status", "active"),
@@ -128,10 +128,7 @@ export function useAdminUsers(filters?: { status?: string; role?: string; search
   return useQuery({
     queryKey: ["admin", "users", filters],
     queryFn: async () => {
-      let query = supabase
-        .from("profiles")
-        .select("*")
-        .order("created_at", { ascending: false });
+      let query = supabase.from("profiles").select("*").order("created_at", { ascending: false });
 
       if (filters?.status && filters.status !== "all") {
         query = query.eq("status", filters.status);
@@ -146,10 +143,7 @@ export function useAdminUsers(filters?: { status?: string; role?: string; search
 
       // Get roles for each user
       const userIds = data?.map((p) => p.user_id) || [];
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("user_id", userIds);
+      const { data: roles } = await supabase.from("user_roles").select("user_id, role").in("user_id", userIds);
 
       const roleMap = new Map<string, string[]>();
       roles?.forEach((r) => {
@@ -157,10 +151,11 @@ export function useAdminUsers(filters?: { status?: string; role?: string; search
         roleMap.set(r.user_id, [...existing, r.role]);
       });
 
-      let result = data?.map((p) => ({
-        ...p,
-        roles: roleMap.get(p.user_id) || [],
-      })) || [];
+      let result =
+        data?.map((p) => ({
+          ...p,
+          roles: roleMap.get(p.user_id) || [],
+        })) || [];
 
       // Filter by role if needed
       if (filters?.role && filters.role !== "all") {
@@ -183,7 +178,7 @@ export function useUserMutations() {
         .update({ status: "suspended", suspended_at: new Date().toISOString(), suspended_reason: reason })
         .eq("user_id", userId);
       if (error) throw error;
-      
+
       await supabase.rpc("log_admin_action", {
         p_action: "suspend_user",
         p_target_type: "user",
@@ -225,10 +220,7 @@ export function useUserMutations() {
 
   const archiveUser = useMutation({
     mutationFn: async (userId: string) => {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ status: "archived" })
-        .eq("user_id", userId);
+      const { error } = await supabase.from("profiles").update({ status: "archived" }).eq("user_id", userId);
       if (error) throw error;
 
       await supabase.rpc("log_admin_action", {
@@ -257,7 +249,9 @@ export function useUserMutations() {
           try {
             const payload = await error.context.json();
             const msg = typeof payload?.error === "string" ? payload.error : error.message;
-            const details = payload?.details ? ` (${typeof payload.details === "string" ? payload.details : JSON.stringify(payload.details)})` : "";
+            const details = payload?.details
+              ? ` (${typeof payload.details === "string" ? payload.details : JSON.stringify(payload.details)})`
+              : "";
             throw new Error(`${msg}${details}`);
           } catch {
             // fallback when body isn't JSON
@@ -281,7 +275,15 @@ export function useUserMutations() {
   });
 
   const changeUserRole = useMutation({
-    mutationFn: async ({ userId, role, action }: { userId: string; role: "user" | "business" | "admin"; action: "add" | "remove" }) => {
+    mutationFn: async ({
+      userId,
+      role,
+      action,
+    }: {
+      userId: string;
+      role: "user" | "provider" | "admin";
+      action: "add" | "remove";
+    }) => {
       if (action === "add") {
         const { error } = await supabase.from("user_roles").insert({ user_id: userId, role });
         if (error) throw error;
@@ -308,7 +310,9 @@ export function useUserMutations() {
 
   const verifyUser = useMutation({
     mutationFn: async (userId: string) => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       const { error } = await supabase
         .from("profiles")
         .update({
@@ -369,10 +373,7 @@ export function useAdminBusinesses(filters?: { status?: string; authorization?: 
   return useQuery({
     queryKey: ["admin", "businesses", filters],
     queryFn: async () => {
-      let query = supabase
-        .from("businesses")
-        .select("*")
-        .order("created_at", { ascending: false });
+      let query = supabase.from("businesses").select("*").order("created_at", { ascending: false });
 
       if (filters?.status && filters.status !== "all") {
         query = query.eq("operational_status", filters.status);
@@ -414,17 +415,19 @@ export function useBusinessMutations() {
 
       // Send notification to business owner
       if (business?.user_id) {
-        const title = status === "approved" 
-          ? "Business Approved! 🎉" 
-          : status === "rejected" 
-          ? "Business Application Update" 
-          : "Business Status Updated";
-        const content = status === "approved"
-          ? `Your business "${business.name}" has been approved. You can now start offering services!`
-          : status === "rejected"
-          ? `Your business "${business.name}" application needs attention. ${note || "Please contact support for more details."}`
-          : `Your business "${business.name}" status has been updated to ${status}.`;
-        
+        const title =
+          status === "approved"
+            ? "Business Approved! 🎉"
+            : status === "rejected"
+              ? "Business Application Update"
+              : "Business Status Updated";
+        const content =
+          status === "approved"
+            ? `Your business "${business.name}" has been approved. You can now start offering services!`
+            : status === "rejected"
+              ? `Your business "${business.name}" application needs attention. ${note || "Please contact support for more details."}`
+              : `Your business "${business.name}" status has been updated to ${status}.`;
+
         await supabase.rpc("create_user_notification", {
           p_user_id: business.user_id,
           p_title: title,
@@ -497,10 +500,7 @@ export function useBusinessMutations() {
 
   const toggleFeaturedBusiness = useMutation({
     mutationFn: async ({ businessId, featured }: { businessId: string; featured: boolean }) => {
-      const { error } = await supabase
-        .from("businesses")
-        .update({ featured })
-        .eq("id", businessId);
+      const { error } = await supabase.from("businesses").update({ featured }).eq("id", businessId);
       if (error) throw error;
 
       await supabase.rpc("log_admin_action", {
@@ -526,10 +526,7 @@ export function useAdminDeals(filters?: { status?: string; search?: string }) {
   return useQuery({
     queryKey: ["admin", "deals", filters],
     queryFn: async () => {
-      let query = supabase
-        .from("deals")
-        .select("*, businesses(name)")
-        .order("created_at", { ascending: false });
+      let query = supabase.from("deals").select("*, businesses(name)").order("created_at", { ascending: false });
 
       if (filters?.status && filters.status !== "all") {
         query = query.eq("status", filters.status);
@@ -552,10 +549,7 @@ export function useDealMutations() {
 
   const deactivateDeal = useMutation({
     mutationFn: async (dealId: string) => {
-      const { error } = await supabase
-        .from("deals")
-        .update({ status: "inactive" })
-        .eq("id", dealId);
+      const { error } = await supabase.from("deals").update({ status: "inactive" }).eq("id", dealId);
       if (error) throw error;
 
       await supabase.rpc("log_admin_action", {
@@ -575,10 +569,7 @@ export function useDealMutations() {
 
   const activateDeal = useMutation({
     mutationFn: async (dealId: string) => {
-      const { error } = await supabase
-        .from("deals")
-        .update({ status: "active" })
-        .eq("id", dealId);
+      const { error } = await supabase.from("deals").update({ status: "active" }).eq("id", dealId);
       if (error) throw error;
 
       await supabase.rpc("log_admin_action", {
@@ -598,10 +589,7 @@ export function useDealMutations() {
 
   const toggleFeaturedDeal = useMutation({
     mutationFn: async ({ dealId, featured }: { dealId: string; featured: boolean }) => {
-      const { error } = await supabase
-        .from("deals")
-        .update({ featured })
-        .eq("id", dealId);
+      const { error } = await supabase.from("deals").update({ featured }).eq("id", dealId);
       if (error) throw error;
 
       await supabase.rpc("log_admin_action", {
@@ -650,10 +638,7 @@ export function useAdminReports(filters?: { status?: string }) {
   return useQuery({
     queryKey: ["admin", "reports", filters],
     queryFn: async () => {
-      let query = supabase
-        .from("user_reports")
-        .select("*")
-        .order("created_at", { ascending: false });
+      let query = supabase.from("user_reports").select("*").order("created_at", { ascending: false });
 
       if (filters?.status && filters.status !== "all") {
         query = query.eq("status", filters.status);
@@ -672,7 +657,9 @@ export function useReportMutations() {
 
   const resolveReport = useMutation({
     mutationFn: async ({ reportId, note }: { reportId: string; note: string }) => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       const { error } = await supabase
         .from("user_reports")
         .update({
@@ -702,7 +689,9 @@ export function useReportMutations() {
 
   const dismissReport = useMutation({
     mutationFn: async ({ reportId, note }: { reportId: string; note?: string }) => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       const { error } = await supabase
         .from("user_reports")
         .update({
@@ -737,14 +726,12 @@ export function usePlatformSettings() {
   return useQuery({
     queryKey: ["admin", "settings"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("platform_settings")
-        .select("*");
+      const { data, error } = await supabase.from("platform_settings").select("*");
       if (error) throw error;
 
       const settings: Record<string, string> = {};
       data?.forEach((s) => {
-        settings[s.key] = typeof s.value === 'string' ? s.value : JSON.stringify(s.value);
+        settings[s.key] = typeof s.value === "string" ? s.value : JSON.stringify(s.value);
       });
       return settings;
     },
@@ -757,7 +744,9 @@ export function useSettingsMutations() {
 
   const updateSetting = useMutation({
     mutationFn: async ({ key, value }: { key: string; value: string }) => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       const { error } = await supabase
         .from("platform_settings")
         .update({ value: value, updated_at: new Date().toISOString(), updated_by: user?.id })
@@ -818,16 +807,24 @@ export function useMessageMutations() {
   const { toast } = useToast();
 
   const sendMessage = useMutation({
-    mutationFn: async ({ title, content, targetAudience }: { title: string; content: string; targetAudience: string }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      const { error } = await supabase
-        .from("platform_messages")
-        .insert({
-          sender_id: user!.id,
-          title,
-          content,
-          target_audience: targetAudience,
-        });
+    mutationFn: async ({
+      title,
+      content,
+      targetAudience,
+    }: {
+      title: string;
+      content: string;
+      targetAudience: string;
+    }) => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const { error } = await supabase.from("platform_messages").insert({
+        sender_id: user!.id,
+        title,
+        content,
+        target_audience: targetAudience,
+      });
       if (error) throw error;
 
       await supabase.rpc("log_admin_action", {
@@ -872,15 +869,15 @@ export function useNoteMutations() {
 
   const addNote = useMutation({
     mutationFn: async ({ targetType, targetId, note }: { targetType: string; targetId: string; note: string }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      const { error } = await supabase
-        .from("admin_notes")
-        .insert({
-          admin_id: user!.id,
-          target_type: targetType,
-          target_id: targetId,
-          note,
-        });
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const { error } = await supabase.from("admin_notes").insert({
+        admin_id: user!.id,
+        target_type: targetType,
+        target_id: targetId,
+        note,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
