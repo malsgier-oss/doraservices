@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
-type AppRole = "user" | "business" | "admin";
+type AppRole = "user" | "provider" | "admin";
 
 interface UserRoleState {
   roles: AppRole[];
@@ -67,7 +67,7 @@ export function useUserRole() {
       setState({
         roles,
         loading: false,
-        isBusiness: role === "business",
+        isBusiness: role === "provider",
         isUser: role === "user",
         isAdmin: role === "admin",
       });
@@ -93,14 +93,14 @@ export function useUserRole() {
 
     if (readError) return { error: readError };
 
-    const nextUpdate: Record<string, any> = { role: "business" };
+    const nextUpdate: Record<string, any> = { role: "provider" };
     if (existing?.provider_status == null) nextUpdate.provider_status = "pending";
 
     const { error } = await supabase.from("profiles").update(nextUpdate).eq("user_id", user.id);
 
     if (!error) {
       setState({
-        roles: ["business"],
+        roles: ["provider"],
         loading: false,
         isBusiness: true,
         isUser: false,
