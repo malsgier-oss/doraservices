@@ -477,7 +477,7 @@ export default function Hub() {
       setFeaturedLoading(true);
       try {
         const selectWithSubcategory =
-          "id, category, title, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused, is_featured, featured_order, created_at, subcategory_id";
+          "id, category, title, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused, is_featured, featured_order, created_at";
 
         const { data: servicesData, error } = await supabase
           .from("services")
