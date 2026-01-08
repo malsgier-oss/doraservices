@@ -35,16 +35,19 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   const status = (profile.status || "").toLowerCase();
+  const role = (profile.role || "").toLowerCase();
 
   if (status === "deleted" || status === "inactive") {
     return <Navigate to="/auth" replace />;
   }
 
+  // Always enforce password change if required (even for admins)
   if (profile.must_change_password && location.pathname !== "/change-password") {
     return <Navigate to="/change-password" replace />;
   }
 
-  if (!profile.is_verified && location.pathname !== "/pending-verification") {
+  // Verification gating should not block admins
+  if (!profile.is_verified && role !== "admin" && location.pathname !== "/pending-verification") {
     return <Navigate to="/pending-verification" replace />;
   }
 
