@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AdminRoute } from "@/components/auth/AdminRoute";
+import { ProviderRoute } from "@/components/auth/ProviderRoute";
 
 import Hub from "./pages/Hub";
 import Favorites from "./pages/Favorites";
@@ -41,12 +42,11 @@ import AdminPasswordResets from "./pages/admin/AdminPasswordResets";
 // ✅ NEW: Env Debug page (optional)
 import EnvDebug from "./pages/EnvDebug";
 
-// ✅ keep QueryClient stable (avoid re-creating on hot reload)
+// ✅ keep QueryClient stable
 const queryClient = new QueryClient();
 
 /**
  * If user is logged in, redirect them away from /auth to the right place.
- * This prevents confusion and fixes redirect loops.
  */
 function AuthenticatedRedirect({ children }: { children: React.ReactNode }) {
   const { user, profile, loading, profileLoading } = useAuth();
@@ -60,7 +60,7 @@ function AuthenticatedRedirect({ children }: { children: React.ReactNode }) {
   }
 
   if (user) {
-    // Logged in but profile not loaded for some reason — allow the page to render
+    // Logged in but profile not loaded — still redirect away from /auth
     if (!profile) return <Navigate to="/" replace />;
 
     if (profile.must_change_password) return <Navigate to="/change-password" replace />;
@@ -140,12 +140,13 @@ const AppRoutes = () => {
         }
       />
 
+      {/* ✅ Provider Dashboard should require APPROVED provider */}
       <Route
         path="/provider-dashboard"
         element={
-          <ProtectedRoute>
+          <ProviderRoute>
             <ProviderDashboard />
-          </ProtectedRoute>
+          </ProviderRoute>
         }
       />
 
