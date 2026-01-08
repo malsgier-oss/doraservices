@@ -76,7 +76,6 @@ export default function Profile() {
       return;
     }
 
-    // If profile is missing (RLS), show helpful UI instead of redirecting
     if (!profile) return;
 
     if (profile.must_change_password) {
@@ -89,8 +88,8 @@ export default function Profile() {
       return;
     }
 
-    if ((profile.status || "").toLowerCase() === "deleted") {
-      // If they’re “deleted”, don’t let them use the app
+    const st = (profile.status || "").toLowerCase();
+    if (st === "deleted" || st === "inactive") {
       navigate("/auth", { replace: true });
     }
   }, [loading, profileLoading, user, profile, navigate]);
@@ -185,13 +184,7 @@ export default function Profile() {
 
     setDeleting(true);
 
-    // Optional cleanup: delete favorites if the table exists (ignore errors safely)
-    try {
-      await supabase.from("favorites").delete().eq("user_id", user.id);
-    } catch {
-      // ignore
-    }
-
+    // ✅ Soft delete Option A: keep phone, wipe personal fields
     const { error } = await supabase
       .from("profiles")
       .update({
@@ -201,7 +194,6 @@ export default function Profile() {
         full_name: null,
         bio: null,
         avatar_url: null,
-        // Option A: KEEP phone (do not change profiles.phone)
       })
       .eq("user_id", user.id);
 
@@ -235,7 +227,6 @@ export default function Profile() {
     );
   }
 
-  // Not logged in
   if (!user) return null;
 
   // RLS / profile not readable
