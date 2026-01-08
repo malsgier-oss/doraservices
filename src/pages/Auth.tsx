@@ -40,22 +40,24 @@ export default function Auth() {
     cityId: "",
   });
 
+  // If already logged in, route them appropriately
   useEffect(() => {
     if (!user) return;
     if (profileLoading) return;
     if (!profile) return;
 
     if (profile.must_change_password) {
-      navigate("/change-password");
+      navigate("/change-password", { replace: true });
       return;
     }
 
     if (!profile.is_verified) {
-      navigate("/pending-verification");
+      navigate("/pending-verification", { replace: true });
       return;
     }
 
-    navigate("/");
+    // Verified → go to home (hub)
+    navigate("/", { replace: true });
   }, [user, profile, profileLoading, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -110,6 +112,8 @@ export default function Auth() {
       title: isRTL ? "مرحباً بعودتك!" : "Welcome back!",
       description: isRTL ? "تم تسجيل الدخول بنجاح" : "You've successfully logged in.",
     });
+
+    // Navigation handled by the useEffect once profile loads
   };
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -175,7 +179,6 @@ export default function Auth() {
       return;
     }
 
-    // ✅ IMPORTANT: also send the city NAME (so profiles.city won't be null)
     const selectedCity = cities?.find((c) => c.id === signupData.cityId);
 
     const cityName =
@@ -210,7 +213,7 @@ export default function Auth() {
       description: isRTL ? "تم إنشاء حسابك بنجاح." : "Your account is created successfully.",
     });
 
-    navigate("/pending-verification");
+    navigate("/pending-verification", { replace: true });
   };
 
   if (authLoading || profileLoading || settingsLoading || citiesLoading) {
@@ -367,7 +370,6 @@ export default function Auth() {
                       dir="ltr"
                       value={signupData.phone}
                       onChange={(e) => {
-                        // allow digits and + only; normalize later
                         const val = e.target.value.replace(/[^\d+]/g, "").slice(0, 20);
                         setSignupData({ ...signupData, phone: val });
                       }}
