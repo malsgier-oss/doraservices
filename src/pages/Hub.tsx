@@ -104,7 +104,7 @@ interface ServiceItem {
 
 type FeaturedProviderCard = {
   service_id: string; // services.id
-  category: string; // services.category
+  category: string; // services.category (this is subcategory name in your DB)
   service_title: string;
   provider_name: string;
   provider_phone: string;
@@ -391,24 +391,23 @@ export default function Hub() {
     });
   }, [drawerCategoryId, serviceItems, language]);
 
-  // ✅ FIX: category must ALWAYS match services.category (category table "name"), never fall back to subcategory name.
+  // ✅ FIX: category MUST match services.category (subcategory name), not the parent category name.
   const openServiceSheetFromSubcategory = (service: ServiceItem) => {
     setInitialProviderServiceId(null);
 
-    const categoryRow = categories?.find((c: any) => c.id === service.category_id);
+    const parentCategory = categories?.find((c: any) => c.id === service.category_id);
 
-    const categoryName = categoryRow?.name || "";
-    const categoryNameAr = categoryRow?.name_ar || "";
+    const categoryForDb = service.name || (service.name_ar ?? "");
 
     setSelectedService({
-      id: service.id, // this is subcategory id (used by sheet UI / filtering if needed)
+      id: service.id, // subcategory id (for ServiceDetailSheet UI context)
       icon: service.icon,
       color: service.color,
       titleKey: service.name,
       descKey: "",
-      category: categoryName, // ✅ the only safe value for DB matching
-      categoryName,
-      categoryNameAr,
+      category: categoryForDb, // ✅ this is what your DB stores in services.category (Electrician, AC Repair, ...)
+      categoryName: parentCategory?.name || "",
+      categoryNameAr: parentCategory?.name_ar || "",
     });
 
     setSheetOpen(true);
@@ -466,7 +465,7 @@ export default function Hub() {
         color: sc?.color || "bg-[#F2F2F2]",
         titleKey: sc ? sc.name : fp.service_title,
         descKey: "",
-        category: fp.category || category?.name || "", // must match services.category
+        category: fp.category, // ✅ already matches services.category in DB
         categoryName: category?.name || fp.category,
         categoryNameAr: category?.name_ar || fp.category,
       });
@@ -480,12 +479,12 @@ export default function Hub() {
     const fetchFeaturedProviders = async () => {
       setFeaturedLoading(true);
       try {
-        const selectWithSubcategory =
-          "id, category, title, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused, is_featured, featured_order, created_at, subcategory_id";
+        const selectCols =
+          "id, category, title, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused, is_featured, featured_order, created_at";
 
         const { data: servicesData, error } = await supabase
           .from("services")
-          .select(selectWithSubcategory)
+          .select(selectCols)
           .eq("is_active", true)
           .eq("is_featured", true)
           .or("is_paused.is.null,is_paused.eq.false")
@@ -529,7 +528,7 @@ export default function Hub() {
             provider_avatar: p?.avatar_url || null,
             provider_city: p?.city || svc.city || null,
             provider_sub_city: p?.sub_city || svc.sub_city || null,
-            subcategory_id: svc.subcategory_id || null,
+            subcategory_id: null,
           };
         });
 
@@ -543,8 +542,7 @@ export default function Hub() {
     };
 
     fetchFeaturedProviders();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRTL, categories]);
+  }, [isRTL]);
 
   const featuredProvidersFiltered = useMemo(() => {
     return featuredProviders.filter((fp) => matchesSelectedCity(fp.provider_city));
@@ -655,7 +653,7 @@ export default function Hub() {
       try {
         const { data: servicesData, error } = await supabase
           .from("services")
-          .select("id, category, title, user_id, city, sub_city, subcategory_id, is_active, is_paused")
+          .select("id, category, title, user_id, city, sub_city, is_active, is_paused")
           .in("id", ids)
           .eq("is_active", true)
           .or("is_paused.is.null,is_paused.eq.false");
@@ -697,7 +695,7 @@ export default function Hub() {
               provider_avatar: p?.avatar_url || null,
               provider_city: p?.city || svc.city || null,
               provider_sub_city: p?.sub_city || svc.sub_city || null,
-              subcategory_id: svc.subcategory_id || null,
+              subcategory_id: null,
             };
           })
           .filter((c) => matchesSelectedCity(c.provider_city));
@@ -1186,16 +1184,28 @@ export default function Hub() {
         {/* Footer */}
         <section className="mt-10">
           <div className="border-t border-gray-200 pt-4 pb-2 text-[12px] text-[#777] flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-            <button onClick={() => window.alert(isRTL ? "قريباً" : "Coming soon")} className="hover:text-[#111] transition-colors">
+            <button
+              onClick={() => window.alert(isRTL ? "قريباً" : "Coming soon")}
+              className="hover:text-[#111] transition-colors"
+            >
               {isRTL ? "من نحن" : "About"}
             </button>
-            <button onClick={() => (window.location.href = "mailto:support@dora.ly")} className="hover:text-[#111] transition-colors">
+            <button
+              onClick={() => (window.location.href = "mailto:support@dora.ly")}
+              className="hover:text-[#111] transition-colors"
+            >
               {isRTL ? "تواصل معنا" : "Contact"}
             </button>
-            <button onClick={() => window.alert(isRTL ? "سيتم إضافة الشروط قريباً" : "Terms will be added soon")} className="hover:text-[#111] transition-colors">
+            <button
+              onClick={() => window.alert(isRTL ? "سيتم إضافة الشروط قريباً" : "Terms will be added soon")}
+              className="hover:text-[#111] transition-colors"
+            >
               {isRTL ? "الشروط" : "Terms"}
             </button>
-            <button onClick={() => window.alert(isRTL ? "سيتم إضافة الخصوصية قريباً" : "Privacy will be added soon")} className="hover:text-[#111] transition-colors">
+            <button
+              onClick={() => window.alert(isRTL ? "سيتم إضافة الخصوصية قريباً" : "Privacy will be added soon")}
+              className="hover:text-[#111] transition-colors"
+            >
               {isRTL ? "الخصوصية" : "Privacy"}
             </button>
 
@@ -1268,10 +1278,14 @@ export default function Hub() {
 
                         <div className="relative flex-1 min-w-0">
                           <h3 className="text-[16px] font-semibold text-[#111] line-clamp-1">{displayName}</h3>
-                          <p className="text-[13px] text-[#777] mt-1">{isRTL ? "عرض مقدمي الخدمة" : "View providers"}</p>
+                          <p className="text-[13px] text-[#777] mt-1">
+                            {isRTL ? "عرض مقدمي الخدمة" : "View providers"}
+                          </p>
                         </div>
 
-                        <ChevronRight className={cn("relative h-6 w-6 text-[#C9C9C9] flex-shrink-0", isRTL && "rotate-180")} />
+                        <ChevronRight
+                          className={cn("relative h-6 w-6 text-[#C9C9C9] flex-shrink-0", isRTL && "rotate-180")}
+                        />
                       </button>
                     );
                   })}
