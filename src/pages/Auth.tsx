@@ -6,21 +6,9 @@ import { useCities } from "@/hooks/useCities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { Lock, User, Loader2, AlertCircle, Phone, MapPin } from "lucide-react";
 import { LanguageToggle } from "@/components/LanguageToggle";
@@ -162,9 +150,7 @@ export default function Auth() {
     if (!isValidLibyanPhone(cleanedPhone)) {
       toast({
         title: isRTL ? "رقم هاتف غير صالح" : "Invalid phone",
-        description: isRTL
-          ? "يرجى إدخال رقم هاتف ليبي (09XXXXXXXX)"
-          : "Please enter a valid Libyan phone (09XXXXXXXX)",
+        description: isRTL ? "يرجى إدخال رقم هاتف ليبي (09XXXXXXXX)" : "Please enter a valid Libyan phone (09XXXXXXXX)",
         variant: "destructive",
       });
       return;
@@ -194,17 +180,11 @@ export default function Auth() {
 
     const cityName =
       language === "ar"
-        ? (selectedCity?.name_ar || selectedCity?.name || "")
-        : (selectedCity?.name || selectedCity?.name_ar || "");
+        ? selectedCity?.name_ar || selectedCity?.name || ""
+        : selectedCity?.name || selectedCity?.name_ar || "";
 
     setIsLoading(true);
-    const { error } = await signUp(
-      cleanedPhone,
-      signupData.password,
-      signupData.fullName,
-      signupData.cityId,
-      cityName
-    );
+    const { error } = await signUp(cleanedPhone, signupData.password, signupData.fullName, signupData.cityId, cityName);
     setIsLoading(false);
 
     if (error) {
@@ -280,7 +260,7 @@ export default function Auth() {
                     <Phone
                       className={cn(
                         "absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground",
-                        isRTL ? "right-3" : "left-3"
+                        isRTL ? "right-3" : "left-3",
                       )}
                     />
                     <Input
@@ -303,7 +283,7 @@ export default function Auth() {
                     <Lock
                       className={cn(
                         "absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground",
-                        isRTL ? "right-3" : "left-3"
+                        isRTL ? "right-3" : "left-3",
                       )}
                     />
                     <Input
@@ -354,7 +334,7 @@ export default function Auth() {
                     <User
                       className={cn(
                         "absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground",
-                        isRTL ? "right-3" : "left-3"
+                        isRTL ? "right-3" : "left-3",
                       )}
                     />
                     <Input
@@ -375,7 +355,7 @@ export default function Auth() {
                     <Phone
                       className={cn(
                         "absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground",
-                        isRTL ? "right-3" : "left-3"
+                        isRTL ? "right-3" : "left-3",
                       )}
                     />
                     <Input
@@ -402,7 +382,7 @@ export default function Auth() {
                     <Lock
                       className={cn(
                         "absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground",
-                        isRTL ? "right-3" : "left-3"
+                        isRTL ? "right-3" : "left-3",
                       )}
                     />
                     <Input
@@ -446,11 +426,7 @@ export default function Auth() {
                   </Select>
                 </div>
 
-                <Button
-                  type="submit"
-                  className="w-full rounded-full"
-                  disabled={isLoading || !registrationEnabled}
-                >
+                <Button type="submit" className="w-full rounded-full" disabled={isLoading || !registrationEnabled}>
                   {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t.auth.signup}
                 </Button>
               </form>
