@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -39,6 +39,10 @@ import {
   LayoutDashboard,
   PlusCircle,
   Trash2,
+  Camera,
+  X,
+  Building2,
+  ClipboardList,
 } from "lucide-react";
 
 function statusBadgeVariant(status?: string | null) {
@@ -50,11 +54,27 @@ function statusBadgeVariant(status?: string | null) {
   return "outline";
 }
 
+function extractStoragePathFromPublicUrl(publicUrl: string) {
+  // expected: .../storage/v1/object/public/<bucket>/<path>
+  const marker = "/storage/v1/object/public/";
+  const idx = publicUrl.indexOf(marker);
+  if (idx === -1) return null;
+  const rest = publicUrl.slice(idx + marker.length);
+  // rest = "<bucket>/<path...>"
+  const slash = rest.indexOf("/");
+  if (slash === -1) return null;
+  const bucket = rest.slice(0, slash);
+  const path = rest.slice(slash + 1);
+  return { bucket, path: decodeURIComponent(path) };
+}
+
 export default function Profile() {
   const navigate = useNavigate();
   const { user, profile, loading, profileLoading, signOut, refreshProfile } = useAuth();
   const { isRTL, language } = useLanguage();
   const { data: cities, isLoading: citiesLoading } = useCities();
+
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   const [tab, setTab] = useState<"account" | "provider" | "security" | "danger">("account");
 
@@ -63,11 +83,20 @@ export default function Profile() {
   const [bio, setBio] = useState("");
   const [cityId, setCityId] = useState<string>("");
 
+  const [avatarBusy, setAvatarBusy] = useState(false);
+
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
 
-  // Route guard: no silent redirect to "/"
+  // Provider application form
+  const [applyOpen, setApplyOpen] = useState(false);
+  const [applyBusy, setApplyBusy] = useState(false);
+  const [businessName, setBusinessName] = useState("");
+  const [businessCategory, setBusinessCategory] = useState("");
+  const [businessAddress, setBusinessAddress] = useState("");
+
+  // Route guard
   useEffect(() => {
     if (loading || profileLoading) return;
 
@@ -109,19 +138,9 @@ export default function Profile() {
     return language === "ar" ? c.name_ar || c.name : c.name || c.name_ar;
   }, [cities, cityId, language]);
 
-  const isProviderOnly = useMemo(() => {
-    if (!profile) return false;
-    const role = (profile.role || "").toLowerCase();
-    const providerStatus = (profile.provider_status || "").toLowerCase();
-    const looksProvider =
-      role === "business" ||
-      providerStatus === "approved" ||
-      providerStatus === "pending" ||
-      providerStatus === "rejected";
-
-    // show Provider tab only for providers (not admins)
-    return looksProvider && role !== "admin";
-  }, [profile]);
+  const providerStatus = profile?.provider_status || null;
+  const providerStatusLower = (providerStatus || "").toLowerCase();
+  const isProviderApproved = providerStatusLower === "approved";
 
   const handleSave = async () => {
     if (!user) return;
@@ -184,7 +203,6 @@ export default function Profile() {
 
     setDeleting(true);
 
-    // ✅ Soft delete Option A: keep phone, wipe personal fields
     const { error } = await supabase
       .from("profiles")
       .update({
@@ -217,6 +235,214 @@ export default function Profile() {
 
     await signOut?.();
     navigate("/", { replace: true });
+  };
+
+  const openFilePicker = () => fileRef.current?.click();
+
+  const handleAvatarUpload = async (file: File) => {
+    if (!user || !profile) return;
+
+    // Basic client-side validation
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: isRTL ? "ملف غير صالح" : "Invalid file",
+        description: isRTL ? "يرجى اختيار صورة فقط" : "Please select an image file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Optional size limit ~ 5MB
+    const maxBytes = 5 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      toast({
+        title: isRTL ? "حجم كبير" : "File too large",
+        description: isRTL ? "الحد الأقصى 5MB" : "Maximum size is 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAvatarBusy(true);
+
+    try {
+      // Remove old avatar file best-effort
+      if (profile.avatar_url) {
+        const parsed = extractStoragePathFromPublicUrl(profile.avatar_url);
+        if (parsed) {
+          await supabase.storage.from(parsed.bucket).remove([parsed.path]);
+        }
+      }
+
+      const bucket = "avatars";
+      const safeName = file.name.replace(/\s+/g, "_");
+      const path = `${user.id}/${Date.now()}_${safeName}`;
+
+      const { error: uploadError } = await supabase.storage.from(bucket).upload(path, file, {
+        cacheControl: "3600",
+        upsert: true,
+        contentType: file.type,
+      });
+
+      if (uploadError) {
+        toast({
+          title: isRTL ? "فشل رفع الصورة" : "Upload failed",
+          description:
+            uploadError.message +
+            (uploadError.message.toLowerCase().includes("bucket")
+              ? isRTL
+                ? " (تأكد من إنشاء bucket باسم avatars في Supabase Storage)"
+                : " (Make sure you created a Storage bucket named 'avatars')"
+              : ""),
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(path);
+      const publicUrl = publicData?.publicUrl;
+
+      if (!publicUrl) {
+        toast({
+          title: isRTL ? "فشل الحصول على رابط الصورة" : "Could not get image URL",
+          description: isRTL ? "حاول مرة أخرى" : "Please try again",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ avatar_url: publicUrl })
+        .eq("user_id", user.id);
+
+      if (updateError) {
+        toast({
+          title: isRTL ? "فشل تحديث الصورة" : "Update failed",
+          description: updateError.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      await refreshProfile?.();
+
+      toast({
+        title: isRTL ? "تم تحديث الصورة" : "Photo updated",
+        description: isRTL ? "تم حفظ صورة الملف الشخصي" : "Your profile photo was saved",
+      });
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const handleAvatarRemove = async () => {
+    if (!user || !profile) return;
+
+    setAvatarBusy(true);
+    try {
+      // Best-effort delete file
+      if (profile.avatar_url) {
+        const parsed = extractStoragePathFromPublicUrl(profile.avatar_url);
+        if (parsed) {
+          await supabase.storage.from(parsed.bucket).remove([parsed.path]);
+        }
+      }
+
+      const { error } = await supabase.from("profiles").update({ avatar_url: null }).eq("user_id", user.id);
+      if (error) {
+        toast({
+          title: isRTL ? "فشل حذف الصورة" : "Remove failed",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      await refreshProfile?.();
+
+      toast({
+        title: isRTL ? "تم حذف الصورة" : "Photo removed",
+        description: isRTL ? "تمت إزالة صورة الملف الشخصي" : "Your profile photo was removed",
+      });
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const openProviderApply = () => {
+    setBusinessName("");
+    setBusinessCategory("");
+    setBusinessAddress("");
+    setApplyOpen(true);
+  };
+
+  const handleProviderApplySubmit = async () => {
+    if (!user || !profile) return;
+
+    const name = businessName.trim();
+    const cat = businessCategory.trim();
+    const addr = businessAddress.trim();
+
+    if (name.length < 2 || cat.length < 2 || addr.length < 3) {
+      toast({
+        title: isRTL ? "بيانات غير كاملة" : "Incomplete data",
+        description: isRTL
+          ? "يرجى إدخال اسم النشاط، التصنيف، والعنوان"
+          : "Please enter business name, category, and address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setApplyBusy(true);
+    try {
+      // 1) Update profile to pending provider
+      const { error: updErr } = await supabase
+        .from("profiles")
+        .update({
+          role: "business",
+          provider_status: "pending",
+        })
+        .eq("user_id", user.id);
+
+      if (updErr) {
+        toast({
+          title: isRTL ? "فشل الإرسال" : "Submit failed",
+          description: updErr.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // 2) Log application details in analytics_events (no schema changes needed)
+      // event_type is free text; metadata is Json.
+      const { error: logErr } = await supabase.from("analytics_events").insert({
+        event_type: "provider_application_submitted",
+        user_id: user.id,
+        target_type: "provider_application",
+        target_id: user.id,
+        metadata: {
+          business_name: name,
+          category: cat,
+          address: addr,
+          submitted_at: new Date().toISOString(),
+        },
+      });
+
+      // ignore logging failure (application is still pending)
+      if (logErr) console.warn("[provider_application_submitted] log error:", logErr);
+
+      await refreshProfile?.();
+      setApplyOpen(false);
+
+      toast({
+        title: isRTL ? "تم إرسال الطلب" : "Application submitted",
+        description: isRTL ? "سيتم مراجعة طلبك قريباً" : "Your application will be reviewed soon",
+      });
+    } finally {
+      setApplyBusy(false);
+    }
   };
 
   if (loading || profileLoading || citiesLoading) {
@@ -255,13 +481,12 @@ export default function Profile() {
     );
   }
 
-  const role = (profile.role || "user").toLowerCase();
-  const providerStatus = profile.provider_status || null;
+  const providerStatusText = providerStatus || (isRTL ? "غير محدد" : "—");
 
   return (
     <div className="min-h-screen p-4 pb-24" dir={isRTL ? "rtl" : "ltr"}>
       <div className="max-w-2xl mx-auto space-y-4">
-        {/* Header card */}
+        {/* Header */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-xl flex items-center gap-2">
@@ -275,27 +500,66 @@ export default function Profile() {
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-4">
+            {/* Avatar row */}
+            <div className="flex items-center gap-4">
+              <div className="relative h-16 w-16 rounded-full overflow-hidden border bg-muted flex items-center justify-center">
+                {profile.avatar_url ? (
+                  <img src={profile.avatar_url} alt="avatar" className="h-full w-full object-cover" />
+                ) : (
+                  <Camera className="h-6 w-6 text-muted-foreground" />
+                )}
+              </div>
+
+              <div className="flex-1 space-y-1">
+                <div className="text-base font-semibold">{profile.full_name || (isRTL ? "بدون اسم" : "No name")}</div>
+                <div className="text-sm text-muted-foreground flex items-center gap-2">
+                  <Phone className="h-4 w-4" />
+                  <span dir="ltr">{profile.phone || "—"}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleAvatarUpload(file);
+                    // reset input so same file can be reselected
+                    e.currentTarget.value = "";
+                  }}
+                />
+
+                <Button variant="outline" onClick={openFilePicker} disabled={avatarBusy}>
+                  {avatarBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                  <span className="ms-2">
+                    {profile.avatar_url ? (isRTL ? "تغيير" : "Change") : isRTL ? "إضافة" : "Add"}
+                  </span>
+                </Button>
+
+                {profile.avatar_url && (
+                  <Button variant="outline" onClick={handleAvatarRemove} disabled={avatarBusy}>
+                    <X className="h-4 w-4" />
+                    <span className="ms-2">{isRTL ? "حذف" : "Remove"}</span>
+                  </Button>
+                )}
+              </div>
+            </div>
+
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={profile.is_verified ? "default" : "destructive"} className="gap-1">
                 <BadgeCheck className="h-4 w-4" />
                 {profile.is_verified ? (isRTL ? "موثّق" : "Verified") : isRTL ? "غير موثّق" : "Not verified"}
               </Badge>
 
-              <Badge variant="outline">
-                {isRTL ? "الدور:" : "Role:"} {role}
-              </Badge>
-
               {providerStatus && (
                 <Badge variant={statusBadgeVariant(providerStatus)}>
-                  {isRTL ? "حالة المزود:" : "Provider:"} {providerStatus}
+                  {isRTL ? "حالة المزود:" : "Provider:"} {providerStatusText}
                 </Badge>
               )}
-            </div>
-
-            <div className="text-sm text-muted-foreground flex items-center gap-2">
-              <Phone className="h-4 w-4" />
-              <span dir="ltr">{profile.phone || "—"}</span>
             </div>
           </CardContent>
         </Card>
@@ -304,9 +568,10 @@ export default function Profile() {
         <Card>
           <CardContent className="pt-6">
             <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
-              <TabsList className={cn("grid w-full", isProviderOnly ? "grid-cols-4" : "grid-cols-3")}>
+              {/* Provider tab ONLY after approved */}
+              <TabsList className={cn("grid w-full", isProviderApproved ? "grid-cols-4" : "grid-cols-3")}>
                 <TabsTrigger value="account">{isRTL ? "الحساب" : "Account"}</TabsTrigger>
-                {isProviderOnly && <TabsTrigger value="provider">{isRTL ? "المزود" : "Provider"}</TabsTrigger>}
+                {isProviderApproved && <TabsTrigger value="provider">{isRTL ? "المزود" : "Provider"}</TabsTrigger>}
                 <TabsTrigger value="security">{isRTL ? "الأمان" : "Security"}</TabsTrigger>
                 <TabsTrigger value="danger" className="text-destructive">
                   {isRTL ? "خطر" : "Danger"}
@@ -315,6 +580,49 @@ export default function Profile() {
 
               {/* Account */}
               <TabsContent value="account" className="mt-4 space-y-4">
+                {/* Provider apply card for non-approved users */}
+                {!isProviderApproved && (
+                  <Card className="border-border">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Building2 className="h-4 w-4" />
+                        {isRTL ? "كن مزود خدمة" : "Become a Provider"}
+                      </CardTitle>
+                      <CardDescription>
+                        {providerStatusLower === "pending"
+                          ? isRTL
+                            ? "طلبك قيد المراجعة."
+                            : "Your application is under review."
+                          : providerStatusLower === "rejected"
+                            ? isRTL
+                              ? "تم رفض الطلب. يمكنك إعادة التقديم."
+                              : "Application rejected. You can re-apply."
+                            : isRTL
+                              ? "قدّم طلبك لفتح لوحة المزود وإضافة خدمات."
+                              : "Apply to unlock the provider dashboard and create services."}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col sm:flex-row gap-2">
+                      <Button onClick={openProviderApply} className="gap-2">
+                        <ClipboardList className="h-4 w-4" />
+                        {providerStatusLower === "pending"
+                          ? isRTL
+                            ? "عرض/إعادة إرسال"
+                            : "View / Re-submit"
+                          : isRTL
+                            ? "تقديم طلب"
+                            : "Apply"}
+                      </Button>
+
+                      {providerStatus && (
+                        <Badge variant={statusBadgeVariant(providerStatus)} className="sm:ms-auto w-fit">
+                          {isRTL ? "الحالة:" : "Status:"} {providerStatusText}
+                        </Badge>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
                 <div className="grid gap-4">
                   <div className="grid gap-2">
                     <Label>{isRTL ? "الاسم الكامل" : "Full name"}</Label>
@@ -367,27 +675,81 @@ export default function Profile() {
                     </Button>
                   </div>
                 </div>
+
+                {/* Provider apply dialog */}
+                <Dialog open={applyOpen} onOpenChange={setApplyOpen}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>{isRTL ? "طلب مزود خدمة" : "Provider Application"}</DialogTitle>
+                      <DialogDescription>
+                        {isRTL
+                          ? "أدخل بيانات نشاطك وسيتم إرسال الطلب للمراجعة."
+                          : "Enter your business details and submit for review."}
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <Label>{isRTL ? "اسم النشاط" : "Business name"}</Label>
+                        <Input value={businessName} onChange={(e) => setBusinessName(e.target.value)} />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>{isRTL ? "التصنيف" : "Category"}</Label>
+                        <Input
+                          value={businessCategory}
+                          onChange={(e) => setBusinessCategory(e.target.value)}
+                          placeholder={isRTL ? "مثال: صيانة، مطاعم..." : "e.g. Maintenance, Restaurants..."}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>{isRTL ? "العنوان" : "Address"}</Label>
+                        <Textarea
+                          value={businessAddress}
+                          onChange={(e) => setBusinessAddress(e.target.value)}
+                          className="min-h-[80px]"
+                          placeholder={isRTL ? "المدينة، الشارع، علامة مميزة..." : "City, street, landmark..."}
+                        />
+                      </div>
+
+                      <p className="text-xs text-muted-foreground">
+                        {isRTL
+                          ? "ملاحظة: سيتم تحويل حالتك إلى Pending حتى يوافق الأدمن."
+                          : "Note: Your status will become Pending until an admin approves it."}
+                      </p>
+                    </div>
+
+                    <DialogFooter className="gap-2">
+                      <Button variant="outline" onClick={() => setApplyOpen(false)} disabled={applyBusy}>
+                        {isRTL ? "إلغاء" : "Cancel"}
+                      </Button>
+                      <Button onClick={handleProviderApplySubmit} disabled={applyBusy}>
+                        {applyBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                        <span className={cn(applyBusy ? "ms-2" : "")}>{isRTL ? "إرسال" : "Submit"}</span>
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </TabsContent>
 
-              {/* Provider (providers only, not admin) */}
-              {isProviderOnly && (
+              {/* Provider tab (ONLY approved) */}
+              {isProviderApproved && (
                 <TabsContent value="provider" className="mt-4 space-y-4">
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base flex items-center gap-2">
                         <ShieldCheck className="h-4 w-4" />
-                        {isRTL ? "حالة حساب المزود" : "Provider status"}
+                        {isRTL ? "إدارة المزود" : "Provider tools"}
                       </CardTitle>
                       <CardDescription>
-                        {isRTL ? "اختصارات وإعدادات للمزود." : "Shortcuts and settings for providers."}
+                        {isRTL ? "لوحة المزود وإدارة خدماتك." : "Provider dashboard and service management."}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">{isRTL ? "الحالة" : "Status"}</span>
-                        <Badge variant={statusBadgeVariant(providerStatus)}>
-                          {providerStatus || (isRTL ? "غير محدد" : "—")}
-                        </Badge>
+                        <Badge variant={statusBadgeVariant(providerStatus)}>{providerStatusText}</Badge>
                       </div>
 
                       <Separator />
@@ -409,12 +771,6 @@ export default function Profile() {
                       </div>
                     </CardContent>
                   </Card>
-
-                  <p className="text-sm text-muted-foreground">
-                    {isRTL
-                      ? "ملاحظة: تفاصيل الخدمات وإدارة البيانات تتم من لوحة المزود."
-                      : "Note: Manage services and provider details from the Provider Dashboard."}
-                  </p>
                 </TabsContent>
               )}
 
