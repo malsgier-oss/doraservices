@@ -1,26 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  X,
-  Phone,
-  Star,
-  Clock,
-  ChevronRight,
-  Heart,
-  MessageSquare,
-  MapPin,
-  Flag,
-} from "lucide-react";
+import { X, Phone, Star, Clock, ChevronRight, Heart, MessageSquare, MapPin, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer";
+import { Drawer, DrawerClose, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
@@ -45,7 +29,9 @@ interface ServiceProvider {
   category: string;
   image_url: string | null;
 
-  user_id: string; // always present now
+  // user_id can be null for unclaimed / imported services.
+  // In that case we still allow calling/WhatsApp, but disable provider-linked features (reviews, call logs).
+  user_id: string | null;
   provider_name: string;
   provider_avatar: string;
   provider_phone: string;
@@ -92,60 +78,40 @@ export function ServiceDetailSheet({
 
   const [providers, setProviders] = useState<ServiceProvider[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedProvider, setSelectedProvider] =
-    useState<ServiceProvider | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
 
-  const [pendingOpenProviderId, setPendingOpenProviderId] = useState<
-    string | null
-  >(null);
+  const [pendingOpenProviderId, setPendingOpenProviderId] = useState<string | null>(null);
 
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [isLoggingCall, setIsLoggingCall] = useState(false);
 
-  const {
-    reviews,
-    rating,
-    userReview,
-    submitReview,
-    loading: reviewsLoading,
-  } = useReviews(selectedProvider?.id);
+  const { reviews, rating, userReview, submitReview, loading: reviewsLoading } = useReviews(selectedProvider?.id);
 
-  const { ratings: providerRatings } = useServiceRatings(
-    providers.map((p) => p.id)
-  );
+  const { ratings: providerRatings } = useServiceRatings(providers.map((p) => p.id));
 
   const getCityLabel = (cityId: string | null) => {
     if (!cityId) return null;
     const city = cities?.find(
-      (c: any) =>
-        c.id === cityId ||
-        String(c.name || "").toLowerCase() === String(cityId).toLowerCase()
+      (c: any) => c.id === cityId || String(c.name || "").toLowerCase() === String(cityId).toLowerCase(),
     );
-    return city
-      ? language === "ar" && city.name_ar
-        ? city.name_ar
-        : city.name
-      : cityId;
+    return city ? (language === "ar" && city.name_ar ? city.name_ar : city.name) : cityId;
   };
 
   const getSubCityLabel = (subCityId: string | null) => {
     if (!subCityId) return null;
     const sc = subCities?.find(
-      (x: any) =>
-        x.id === subCityId ||
-        String(x.name || "").toLowerCase() === String(subCityId).toLowerCase()
+      (x: any) => x.id === subCityId || String(x.name || "").toLowerCase() === String(subCityId).toLowerCase(),
     );
-    return sc
-      ? language === "ar" && sc.name_ar
-        ? sc.name_ar
-        : sc.name
-      : subCityId;
+    return sc ? (language === "ar" && sc.name_ar ? sc.name_ar : sc.name) : subCityId;
   };
 
   // ---- City alias matching (to support filters.city = "tripoli" etc.) ----
-  const norm = (s: string | null | undefined) => String(s || "").toLowerCase().trim();
+  const norm = (s: string | null | undefined) =>
+    String(s || "")
+      .toLowerCase()
+      .trim();
 
   const cityAliasMap: Record<string, string[]> = {
     tripoli: ["tripoli", "طرابلس", "طرابلس المركز"],
@@ -215,7 +181,6 @@ export function ServiceDetailSheet({
         .eq("category", service.category)
         .eq("is_active", true)
         .or("is_paused.is.null,is_paused.eq.false")
-        .not("user_id", "is", null)
         .order("created_at", { ascending: false });
 
       if (servicesError) {
@@ -229,43 +194,42 @@ export function ServiceDetailSheet({
         return;
       }
 
-      const userIds = Array.from(
-        new Set((servicesData as any[]).map((s) => s.user_id).filter(Boolean))
-      ) as string[];
+      const userIds = Array.from(new Set((servicesData as any[]).map((s) => s.user_id).filter(Boolean))) as string[];
 
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, avatar_url, phone, city, sub_city, provider_status")
-        .in("user_id", userIds)
-        .eq("provider_status", "approved");
+      // Profiles are restricted to authenticated users in many setups.
+      // If profile lookup fails (e.g., guest browsing), we still show providers using service-level fields.
+      let profileMap = new Map<string, any>();
+      if (userIds.length > 0) {
+        const { data: profiles, error: profilesError } = await supabase
+          .from("profiles")
+          .select("user_id, full_name, avatar_url, phone, city, sub_city, provider_status")
+          .in("user_id", userIds)
+          .eq("provider_status", "approved");
 
-      if (profilesError) {
-        console.error("Error fetching profiles:", profilesError);
-        setProviders([]);
-        return;
+        if (profilesError) {
+          console.warn("Profiles lookup failed; falling back to service fields:", profilesError);
+        } else {
+          profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
+        }
       }
 
-      const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
+      const enriched: ServiceProvider[] = (servicesData as any[]).map((svc) => {
+        const p = svc.user_id ? profileMap.get(svc.user_id) : null;
+        return {
+          id: svc.id,
+          title: svc.title,
+          description: svc.description,
+          category: svc.category,
+          image_url: svc.image_url,
 
-      const enriched: ServiceProvider[] = (servicesData as any[])
-        .filter((svc) => profileMap.has(svc.user_id))
-        .map((svc) => {
-          const p = profileMap.get(svc.user_id);
-          return {
-            id: svc.id,
-            title: svc.title,
-            description: svc.description,
-            category: svc.category,
-            image_url: svc.image_url,
-
-            user_id: svc.user_id,
-            provider_name: p?.full_name || (isRTL ? "مقدم الخدمة" : "Provider"),
-            provider_avatar: p?.avatar_url || "",
-            provider_phone: p?.phone || "",
-            provider_city: p?.city || null,
-            provider_sub_city: p?.sub_city || null,
-          };
-        });
+          user_id: svc.user_id ?? null,
+          provider_name: p?.full_name || svc.provider_name || (isRTL ? "مقدم الخدمة" : "Provider"),
+          provider_avatar: p?.avatar_url || "",
+          provider_phone: p?.phone || svc.provider_phone || "",
+          provider_city: p?.city || svc.city || null,
+          provider_sub_city: p?.sub_city || svc.sub_city || null,
+        };
+      });
 
       setProviders(enriched);
     } catch (e) {
@@ -311,16 +275,12 @@ export function ServiceDetailSheet({
   if (!service) return null;
 
   const IconComponent = service.icon;
-  const title =
-    t.featuredList[service.titleKey as keyof typeof t.featuredList] ||
-    service.titleKey;
+  const title = t.featuredList[service.titleKey as keyof typeof t.featuredList] || service.titleKey;
 
   const categoryLabel =
     language === "ar" && service.categoryNameAr
       ? service.categoryNameAr
-      : service.categoryName ||
-        t.categories[service.category as keyof typeof t.categories] ||
-        service.category;
+      : service.categoryName || t.categories[service.category as keyof typeof t.categories] || service.category;
 
   const handleProviderClick = (provider: ServiceProvider) => setSelectedProvider(provider);
 
@@ -336,7 +296,7 @@ export function ServiceDetailSheet({
       toast.error(
         isRTL
           ? "حسابك قيد التحقق. سنتواصل معك قريباً لتفعيل المكالمات."
-          : "Account pending verification. We will contact you soon to activate calling."
+          : "Account pending verification. We will contact you soon to activate calling.",
       );
       return;
     }
@@ -348,10 +308,13 @@ export function ServiceDetailSheet({
 
     setIsLoggingCall(true);
     try {
-      await logCall.mutateAsync({
-        service_id: provider.id,
-        provider_id: provider.user_id,
-      });
+      // Only log calls for claimed providers (provider_id required)
+      if (provider.user_id) {
+        await logCall.mutateAsync({
+          service_id: provider.id,
+          provider_id: provider.user_id,
+        });
+      }
     } catch (err) {
       console.error("Error logging call:", err);
     } finally {
@@ -373,7 +336,7 @@ export function ServiceDetailSheet({
       toast.error(
         isRTL
           ? "حسابك قيد التحقق. سنتواصل معك قريباً لتفعيل واتساب."
-          : "Account pending verification. We will contact you soon to activate WhatsApp."
+          : "Account pending verification. We will contact you soon to activate WhatsApp.",
       );
       return;
     }
@@ -403,8 +366,8 @@ export function ServiceDetailSheet({
             ? "تمت الإضافة للمفضلة"
             : "Added to favorites"
           : isRTL
-          ? "تمت الإزالة من المفضلة"
-          : "Removed from favorites"
+            ? "تمت الإزالة من المفضلة"
+            : "Removed from favorites",
       );
     }
   };
@@ -421,7 +384,7 @@ export function ServiceDetailSheet({
       toast.error(
         isRTL
           ? "حسابك قيد التحقق. سنتواصل معك قريباً لتفعيل التقييمات."
-          : "Account pending verification. We will contact you soon to activate reviews."
+          : "Account pending verification. We will contact you soon to activate reviews.",
       );
       return;
     }
@@ -431,6 +394,10 @@ export function ServiceDetailSheet({
 
   const handleSubmitReview = async (reviewRating: number, content: string) => {
     if (!selectedProvider) return;
+    if (!selectedProvider.user_id) {
+      toast.error(isRTL ? "لا يمكن تقييم هذا المزود حالياً" : "This provider can't be reviewed yet");
+      return;
+    }
 
     setIsSubmittingReview(true);
     const { error } = await submitReview({
@@ -451,13 +418,11 @@ export function ServiceDetailSheet({
 
   const getRatingDisplay = (serviceId: string) => {
     const r = providerRatings.get(serviceId);
-    if (!r || r.totalReviews === 0)
-      return { text: isRTL ? "جديد" : "New", hasRating: false };
+    if (!r || r.totalReviews === 0) return { text: isRTL ? "جديد" : "New", hasRating: false };
     return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true };
   };
 
-  const drawerPageClass =
-    "h-[85dvh] max-h-[85dvh] flex flex-col overflow-hidden mt-0";
+  const drawerPageClass = "h-[85dvh] max-h-[85dvh] flex flex-col overflow-hidden mt-0";
 
   // ---------------- Provider detail view ----------------
   if (selectedProvider) {
@@ -482,21 +447,16 @@ export function ServiceDetailSheet({
                 onClick={handleBack}
                 className={cn(
                   "absolute top-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
-                  isRTL ? "right-4" : "left-4"
+                  isRTL ? "right-4" : "left-4",
                 )}
               >
-                <ChevronRight
-                  className={cn(
-                    "h-4 w-4 text-muted-foreground",
-                    !isRTL && "rotate-180"
-                  )}
-                />
+                <ChevronRight className={cn("h-4 w-4 text-muted-foreground", !isRTL && "rotate-180")} />
               </button>
 
               <DrawerClose
                 className={cn(
                   "absolute top-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
-                  isRTL ? "left-4" : "right-4"
+                  isRTL ? "left-4" : "right-4",
                 )}
               >
                 <X className="h-4 w-4 text-muted-foreground" />
@@ -516,9 +476,7 @@ export function ServiceDetailSheet({
                 <DrawerTitle className="text-xl font-bold text-foreground">
                   {selectedProvider.provider_name}
                 </DrawerTitle>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {selectedProvider.title}
-                </p>
+                <p className="text-sm text-muted-foreground mt-1">{selectedProvider.title}</p>
               </div>
             </DrawerHeader>
 
@@ -530,24 +488,10 @@ export function ServiceDetailSheet({
                     className="flex items-center gap-1 hover:opacity-70 transition-opacity"
                   >
                     <Star
-                      className={cn(
-                        "h-4 w-4",
-                        hasRating
-                          ? "text-yellow-400 fill-yellow-400"
-                          : "text-muted-foreground"
-                      )}
+                      className={cn("h-4 w-4", hasRating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground")}
                     />
-                    <span
-                      className={cn(
-                        "font-medium",
-                        hasRating ? "text-foreground" : "text-muted-foreground"
-                      )}
-                    >
-                      {hasRating
-                        ? `${rating.averageRating} (${rating.totalReviews})`
-                        : isRTL
-                        ? "جديد"
-                        : "New"}
+                    <span className={cn("font-medium", hasRating ? "text-foreground" : "text-muted-foreground")}>
+                      {hasRating ? `${rating.averageRating} (${rating.totalReviews})` : isRTL ? "جديد" : "New"}
                     </span>
                   </button>
 
@@ -566,30 +510,17 @@ export function ServiceDetailSheet({
 
                 {selectedProvider.description && (
                   <div className="bg-muted/50 rounded-2xl p-4">
-                    <h3 className="font-semibold text-foreground mb-2">
-                      {isRTL ? "عن الخدمة" : "About this service"}
-                    </h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                      {selectedProvider.description}
-                    </p>
+                    <h3 className="font-semibold text-foreground mb-2">{isRTL ? "عن الخدمة" : "About this service"}</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{selectedProvider.description}</p>
                   </div>
                 )}
 
                 <div className="space-y-3">
                   <div className={cn("flex items-center justify-between", isRTL && "flex-row-reverse")}>
-                    <h3 className="font-semibold text-foreground">
-                      {isRTL ? "التقييمات" : "Reviews"}
-                    </h3>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleOpenReviewDialog}
-                      className="text-primary"
-                    >
+                    <h3 className="font-semibold text-foreground">{isRTL ? "التقييمات" : "Reviews"}</h3>
+                    <Button variant="ghost" size="sm" onClick={handleOpenReviewDialog} className="text-primary">
                       <MessageSquare className="h-4 w-4 mr-1" />
-                      {userReview
-                        ? isRTL ? "تعديل تقييمك" : "Edit Review"
-                        : isRTL ? "أضف تقييم" : "Add Review"}
+                      {userReview ? (isRTL ? "تعديل تقييمك" : "Edit Review") : isRTL ? "أضف تقييم" : "Add Review"}
                     </Button>
                   </div>
                   <ReviewList reviews={reviews} loading={reviewsLoading} />
@@ -604,7 +535,7 @@ export function ServiceDetailSheet({
                     disabled={!isVerified || !selectedProvider.provider_phone || isLoggingCall}
                   >
                     <Phone className="h-5 w-5 mr-2" />
-                    {isLoggingCall ? (isRTL ? "جاري..." : "Calling...") : (isRTL ? "اتصل" : "Call")}
+                    {isLoggingCall ? (isRTL ? "جاري..." : "Calling...") : isRTL ? "اتصل" : "Call"}
                   </Button>
 
                   <Button
@@ -625,19 +556,18 @@ export function ServiceDetailSheet({
                     size="lg"
                     className={cn(
                       "flex-1 h-14 rounded-2xl",
-                      isProviderFavorite && "bg-red-500 hover:bg-red-600 text-white"
+                      isProviderFavorite && "bg-red-500 hover:bg-red-600 text-white",
                     )}
                     onClick={() => handleToggleFavorite(selectedProvider.id)}
                   >
-                    <Heart
-                      className={cn(
-                        "h-5 w-5 mr-2",
-                        isProviderFavorite && "fill-current"
-                      )}
-                    />
+                    <Heart className={cn("h-5 w-5 mr-2", isProviderFavorite && "fill-current")} />
                     {isProviderFavorite
-                      ? isRTL ? "في المفضلة" : "Favorited"
-                      : isRTL ? "أضف للمفضلة" : "Add to Favorites"}
+                      ? isRTL
+                        ? "في المفضلة"
+                        : "Favorited"
+                      : isRTL
+                        ? "أضف للمفضلة"
+                        : "Add to Favorites"}
                   </Button>
                 </div>
 
@@ -661,9 +591,7 @@ export function ServiceDetailSheet({
           open={reviewDialogOpen}
           onOpenChange={setReviewDialogOpen}
           providerName={selectedProvider.provider_name}
-          existingReview={
-            userReview ? { rating: userReview.rating, content: userReview.content } : undefined
-          }
+          existingReview={userReview ? { rating: userReview.rating, content: userReview.content } : undefined}
           onSubmit={handleSubmitReview}
           isSubmitting={isSubmittingReview}
         />
@@ -672,7 +600,7 @@ export function ServiceDetailSheet({
           open={reportDialogOpen}
           onOpenChange={setReportDialogOpen}
           serviceId={selectedProvider.id}
-          userId={selectedProvider.user_id}
+          userId={selectedProvider.user_id ?? undefined}
           providerName={selectedProvider.provider_name}
         />
       </>
@@ -733,13 +661,17 @@ export function ServiceDetailSheet({
                       onClick={() => handleProviderClick(provider)}
                       className={cn(
                         "w-full flex items-center gap-4 p-4 bg-card rounded-2xl border border-border transition-colors hover:bg-muted/50 active:bg-muted",
-                        isRTL && "flex-row-reverse text-right"
+                        isRTL && "flex-row-reverse text-right",
                       )}
                     >
                       <Avatar className="h-12 w-12">
                         <AvatarImage src={provider.provider_avatar || undefined} />
                         <AvatarFallback className="bg-primary text-primary-foreground font-medium">
-                          {provider.provider_name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                          {provider.provider_name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .slice(0, 2)}
                         </AvatarFallback>
                       </Avatar>
 
@@ -770,13 +702,13 @@ export function ServiceDetailSheet({
                         <Star
                           className={cn(
                             "h-4 w-4",
-                            ratingInfo.hasRating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground"
+                            ratingInfo.hasRating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground",
                           )}
                         />
                         <span
                           className={cn(
                             "text-sm font-medium",
-                            ratingInfo.hasRating ? "text-foreground" : "text-muted-foreground"
+                            ratingInfo.hasRating ? "text-foreground" : "text-muted-foreground",
                           )}
                         >
                           {ratingInfo.text}
