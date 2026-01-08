@@ -83,8 +83,20 @@ export function useUserRole() {
   const upgradeToBusiness = async () => {
     if (!user) return { error: new Error("Not authenticated") };
 
-    // Update role in profiles (NOT user_roles)
-    const { error } = await supabase.from("profiles").update({ role: "business" }).eq("user_id", user.id);
+    // Update role in profiles (NOT user_roles).
+    // Also ensure provider_status is set for legacy rows (only if currently null).
+    const { data: existing, error: readError } = await supabase
+      .from("profiles")
+      .select("provider_status")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (readError) return { error: readError };
+
+    const nextUpdate: Record<string, any> = { role: "business" };
+    if (existing?.provider_status == null) nextUpdate.provider_status = "pending";
+
+    const { error } = await supabase.from("profiles").update(nextUpdate).eq("user_id", user.id);
 
     if (!error) {
       setState({
