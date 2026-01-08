@@ -305,7 +305,6 @@ export default function Hub() {
     featuredProviders.map((fp) => fp.service_id)
   );
 
-  // ---------- Search UI state ----------
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchLoading, setSearchLoading] = useState(false);
@@ -323,7 +322,6 @@ export default function Hub() {
 
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
 
-  // ---------- Recently viewed ----------
   const [recentCards, setRecentCards] = useState<FeaturedProviderCard[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
 
@@ -384,7 +382,6 @@ export default function Hub() {
     return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true };
   };
 
-  // Map subcategories -> service items
   const serviceItems: ServiceItem[] = useMemo(() => {
     if (!subcategories) return [];
     return subcategories
@@ -430,8 +427,6 @@ export default function Hub() {
 
     const category = categories?.find((c: any) => c.id === service.category_id);
 
-    // IMPORTANT: service.category must match services.category string in DB.
-    // In your project, services.category seems to be subcategory name.
     setSelectedService({
       id: service.id,
       icon: service.icon,
@@ -480,7 +475,6 @@ export default function Hub() {
     [serviceItems]
   );
 
-  // Featured click: open ServiceDetailSheet + deep-link provider (provider profile)
   const openProviderDetailsFromFeatured = useCallback(
     (fp: FeaturedProviderCard) => {
       const subId = resolveFeaturedSubcategoryId(fp);
@@ -505,7 +499,6 @@ export default function Hub() {
     [resolveFeaturedSubcategoryId, serviceItems, categories]
   );
 
-  // Featured Providers fetch
   useEffect(() => {
     const fetchFeaturedProviders = async () => {
       setFeaturedLoading(true);
@@ -549,15 +542,15 @@ export default function Hub() {
         }
 
         const cards: FeaturedProviderCard[] = featured
-          .filter((svc: any) => svc.user_id && profileMap.has(svc.user_id))
+          .filter((svc: any) => svc.user_id)
           .map((svc: any) => {
             const p = profileMap.get(svc.user_id);
             return {
               service_id: svc.id,
               category: svc.category,
               service_title: svc.title || (isRTL ? "خدمة" : "Service"),
-              provider_name: p?.full_name || (isRTL ? "مقدم الخدمة" : "Provider"),
-              provider_phone: p?.phone || "",
+              provider_name: p?.full_name || svc.provider_name || (isRTL ? "مقدم الخدمة" : "Provider"),
+              provider_phone: p?.phone || svc.provider_phone || "",
               provider_avatar: p?.avatar_url || null,
               provider_city: p?.city || svc.city || null,
               provider_sub_city: p?.sub_city || svc.sub_city || null,
@@ -581,7 +574,6 @@ export default function Hub() {
     return featuredProviders.filter((fp) => matchesSelectedCity(fp.provider_city));
   }, [featuredProviders, searchFilters.city, language, cities]);
 
-  // Popular services = admin-picked only
   const popularServices: ServiceItem[] = useMemo(() => {
     const flagged = serviceItems.filter((s) => s.is_popular);
     if (flagged.length === 0) return [];
@@ -590,7 +582,6 @@ export default function Hub() {
       .slice(0, 12);
   }, [serviceItems]);
 
-  // ---------- Header suggestions -> resolve to subcategory ----------
   const resolveSuggestionTarget = useCallback(
     (chip: HubSuggestionChip): ServiceItem | null => {
       const keys = chip.subcategory_match.map((k) => norm(k));
@@ -610,7 +601,6 @@ export default function Hub() {
     [serviceItems]
   );
 
-  // ---------- Search (services-based provider/service search) ----------
   useEffect(() => {
     const q = searchQuery.trim();
     if (!searchOpen || q.length < 2) {
@@ -623,7 +613,6 @@ export default function Hub() {
     const run = async () => {
       setSearchLoading(true);
       try {
-        // Search services by title/category/provider_name/provider_phone
         const { data: svc, error } = await supabase
           .from("services")
           .select("id, title, category, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused")
@@ -648,7 +637,6 @@ export default function Hub() {
 
         const rows = (svc || []) as any[];
 
-        // Respect city filter (best-effort)
         const filtered = rows.filter((r) => matchesSelectedCity(r.city || null));
 
         const mapped: SearchResult[] = filtered.map((r) => ({
@@ -674,7 +662,6 @@ export default function Hub() {
     };
   }, [searchOpen, searchQuery, searchFilters.city]);
 
-  // ---------- Recently viewed read ----------
   useEffect(() => {
     const loadRecent = async () => {
       const key = `dora_recent_service_ids_${user?.id || "guest"}`;
@@ -720,7 +707,6 @@ export default function Hub() {
           profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
         }
 
-        // Keep order from ids
         const mapById = new Map(list.map((s) => [s.id, s]));
         const ordered = ids.map((id) => mapById.get(id)).filter(Boolean);
 
@@ -748,9 +734,7 @@ export default function Hub() {
       }
     };
 
-    // refresh when hub mounts and when sheet closes (common path)
     loadRecent();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, searchFilters.city, sheetOpen]);
 
   return (
@@ -977,7 +961,6 @@ export default function Hub() {
                           key={r.id}
                           type="button"
                           onClick={() => {
-                            // open provider profile directly using service id
                             setInitialProviderServiceId(r.id);
 
                             setSelectedService({
