@@ -2,11 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { TablesInsert } from "@/integrations/supabase/types";
-import {
-  cleanPhoneForStorage,
-  phoneToInternalEmail,
-  isValidLibyanPhone,
-} from "@/lib/phoneUtils";
+import { cleanPhoneForStorage, phoneToInternalEmail, isValidLibyanPhone } from "@/lib/phoneUtils";
 
 interface Profile {
   id: string;
@@ -20,6 +16,12 @@ interface Profile {
   sub_city: string | null;
   provider_status: string | null;
   role: string | null;
+
+  // ✅ Added to match your DB + soft delete flow
+  status: string | null;
+  suspended_at: string | null;
+  suspended_reason: string | null;
+
   is_verified: boolean;
   must_change_password: boolean;
   created_at: string;
@@ -38,7 +40,7 @@ interface AuthContextType {
     password: string,
     fullName: string,
     cityId: string,
-    cityName: string
+    cityName: string,
   ) => Promise<{ error: Error | null }>;
 
   signIn: (phone: string, password: string) => Promise<{ error: Error | null }>;
@@ -69,23 +71,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    *
    * ✅ Important: accept overrides so we don't rely on auth metadata timing
    */
-  const ensureProfile = async (
-    authUser: User,
-    overrides?: EnsureOverrides
-  ): Promise<Profile | null> => {
+  const ensureProfile = async (authUser: User, overrides?: EnsureOverrides): Promise<Profile | null> => {
     const meta = (authUser.user_metadata || {}) as Record<string, unknown>;
 
-    const metaPhone =
-      typeof meta.phone === "string" ? cleanPhoneForStorage(meta.phone) : null;
+    const metaPhone = typeof meta.phone === "string" ? cleanPhoneForStorage(meta.phone) : null;
 
-    const metaFullName =
-      typeof meta.full_name === "string" ? meta.full_name : null;
+    const metaFullName = typeof meta.full_name === "string" ? (meta.full_name as string) : null;
 
-    const metaCityId =
-      typeof meta.city_id === "string" ? meta.city_id : null;
+    const metaCityId = typeof meta.city_id === "string" ? (meta.city_id as string) : null;
 
-    const metaCityName =
-      typeof meta.city === "string" ? meta.city : null;
+    const metaCityName = typeof meta.city === "string" ? (meta.city as string) : null;
 
     const payload: TablesInsert<"profiles"> = {
       user_id: authUser.id,
@@ -95,9 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       city: overrides?.cityName ?? metaCityName,
     };
 
-    const { error: upsertError } = await supabase
-      .from("profiles")
-      .upsert(payload, { onConflict: "user_id" });
+    const { error: upsertError } = await supabase.from("profiles").upsert(payload, { onConflict: "user_id" });
 
     if (upsertError) {
       console.error("[ensureProfile] upsert error:", upsertError);
@@ -183,13 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signUp = async (
-    phone: string,
-    password: string,
-    fullName: string,
-    cityId: string,
-    cityName: string
-  ) => {
+  const signUp = async (phone: string, password: string, fullName: string, cityId: string, cityName: string) => {
     const cleanedPhone = cleanPhoneForStorage(phone);
 
     if (!isValidLibyanPhone(cleanedPhone)) {
@@ -206,7 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           full_name: fullName,
           phone: cleanedPhone,
           city_id: cityId,
-          city: cityName, // ✅ keep metadata too
+          city: cityName,
         },
       },
     });
@@ -234,7 +221,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (msg.includes("email not confirmed")) {
           return {
             error: new Error(
-              "Email confirmation is ON in Supabase. Turn it OFF (Auth → Providers → Email → Confirm email = OFF), then signup again."
+              "Email confirmation is ON in Supabase. Turn it OFF (Auth → Providers → Email → Confirm email = OFF), then signup again.",
             ),
           };
         }
@@ -251,7 +238,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: new Error("Signup failed: could not establish session") };
     }
 
-    // ✅ CRITICAL: do not depend on metadata timing
     const prof = await ensureProfile(sessUser, {
       fullName,
       phone: cleanedPhone,
