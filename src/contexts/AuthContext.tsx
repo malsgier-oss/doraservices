@@ -17,7 +17,6 @@ interface Profile {
   provider_status: string | null;
   role: string | null;
 
-  // ✅ Added to match your DB + soft delete flow
   status: string | null;
   suspended_at: string | null;
   suspended_reason: string | null;
@@ -65,38 +64,72 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profileLoading, setProfileLoading] = useState(false);
 
   /**
-   * ✅ Idempotent profile ensure:
-   * - Always UPSERT by user_id
-   * - Then read back the row
-   *
-   * ✅ Important: accept overrides so we don't rely on auth metadata timing
+   * ✅ Key fix:
+   * - First try to read profile.
+   * - Only INSERT/UPSERT if profile is missing (or overrides are provided explicitly).
+   * This prevents overwriting edits like full_name/bio on refresh.
    */
   const ensureProfile = async (authUser: User, overrides?: EnsureOverrides): Promise<Profile | null> => {
+    // 1) Try fetch existing profile first
+    const { data: existing, error: fetchExistingError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("user_id", authUser.id)
+      .maybeSingle();
+
+    if (fetchExistingError) {
+      console.error("[ensureProfile] fetch existing error:", fetchExistingError);
+      // continue; sometimes RLS could be weird, but we try create minimal
+    }
+
+    // If profile exists and no overrides, return it (don't overwrite it)
+    if (existing && !overrides) {
+      return existing as Profile;
+    }
+
+    // 2) Need to create or update because missing or overrides exist
     const meta = (authUser.user_metadata || {}) as Record<string, unknown>;
 
     const metaPhone = typeof meta.phone === "string" ? cleanPhoneForStorage(meta.phone) : null;
-
     const metaFullName = typeof meta.full_name === "string" ? (meta.full_name as string) : null;
-
     const metaCityId = typeof meta.city_id === "string" ? (meta.city_id as string) : null;
-
     const metaCityName = typeof meta.city === "string" ? (meta.city as string) : null;
 
+    // If missing and no overrides, fill from metadata if present.
+    // If overrides provided (signup), prefer overrides.
     const payload: TablesInsert<"profiles"> = {
       user_id: authUser.id,
-      full_name: overrides?.fullName ?? metaFullName,
-      phone: overrides?.phone ?? metaPhone,
-      city_id: overrides?.cityId ?? metaCityId,
-      city: overrides?.cityName ?? metaCityName,
+      full_name: overrides?.fullName ?? (existing ? undefined : metaFullName),
+      phone: overrides?.phone ?? (existing ? undefined : metaPhone),
+      city_id: overrides?.cityId ?? (existing ? undefined : metaCityId),
+      city: overrides?.cityName ?? (existing ? undefined : metaCityName),
     };
 
-    const { error: upsertError } = await supabase.from("profiles").upsert(payload, { onConflict: "user_id" });
+    // If we already have an existing profile and overrides exist, use UPDATE not UPSERT
+    if (existing) {
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          full_name: overrides?.fullName ?? undefined,
+          phone: overrides?.phone ?? undefined,
+          city_id: overrides?.cityId ?? undefined,
+          city: overrides?.cityName ?? undefined,
+        })
+        .eq("user_id", authUser.id);
 
-    if (upsertError) {
-      console.error("[ensureProfile] upsert error:", upsertError);
-      return null;
+      if (updateError) {
+        console.error("[ensureProfile] update error:", updateError);
+        return existing as Profile;
+      }
+    } else {
+      const { error: upsertError } = await supabase.from("profiles").upsert(payload, { onConflict: "user_id" });
+      if (upsertError) {
+        console.error("[ensureProfile] upsert error:", upsertError);
+        return null;
+      }
     }
 
+    // 3) Read back final
     const { data: prof, error: fetchError } = await supabase
       .from("profiles")
       .select("*")
@@ -104,8 +137,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .maybeSingle();
 
     if (fetchError) {
-      console.error("[ensureProfile] fetch error:", fetchError);
-      return null;
+      console.error("[ensureProfile] fetch after write error:", fetchError);
+      return (existing as Profile) ?? null;
     }
 
     return (prof as Profile) ?? null;
@@ -207,7 +240,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: new Error("Signup failed: No user returned") };
     }
 
-    // If session missing (email confirmation ON), auto-login may fail.
     if (!data.session) {
       const { error: signInErr } = await supabase.auth.signInWithPassword({
         email: internalEmail,
