@@ -549,15 +549,15 @@ export default function Hub() {
         }
 
         const cards: FeaturedProviderCard[] = featured
-          .filter((svc: any) => svc.user_id && profileMap.has(svc.user_id))
+          .filter((svc: any) => svc.user_id)
           .map((svc: any) => {
             const p = profileMap.get(svc.user_id);
             return {
               service_id: svc.id,
               category: svc.category,
               service_title: svc.title || (isRTL ? "خدمة" : "Service"),
-              provider_name: p?.full_name || (isRTL ? "مقدم الخدمة" : "Provider"),
-              provider_phone: p?.phone || "",
+              provider_name: p?.full_name || svc.provider_name || (isRTL ? "مقدم الخدمة" : "Provider"),
+              provider_phone: p?.phone || svc.provider_phone || "",
               provider_avatar: p?.avatar_url || null,
               provider_city: p?.city || svc.city || null,
               provider_sub_city: p?.sub_city || svc.sub_city || null,
