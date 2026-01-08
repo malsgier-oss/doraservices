@@ -111,6 +111,7 @@ type FeaturedProviderCard = {
   provider_avatar: string | null;
   provider_city: string | null;
   provider_sub_city: string | null;
+  subcategory_id: string | null;
 };
 
 type AppNotification = {
@@ -401,8 +402,7 @@ export default function Hub() {
       color: service.color,
       titleKey: service.name,
       descKey: "",
-      // MUST match `services.category` values in DB (you store category name, not subcategory name)
-      category: category?.name || "",
+      category: category?.name || category?.name_ar || service.name,
       categoryName: category?.name || "",
       categoryNameAr: category?.name_ar || "",
     });
@@ -417,6 +417,7 @@ export default function Hub() {
 
   const resolveFeaturedSubcategoryId = useCallback(
     (fp: FeaturedProviderCard): string | null => {
+      if (fp.subcategory_id) return fp.subcategory_id;
       if (!serviceItems.length) return null;
 
       const n = (s: string) =>
@@ -461,8 +462,7 @@ export default function Hub() {
         color: sc?.color || "bg-[#F2F2F2]",
         titleKey: sc ? sc.name : fp.service_title,
         descKey: "",
-        // MUST match `services.category` values in DB (category name)
-        category: category?.name || fp.category,
+        category: fp.category || category?.name || (sc ? sc.name : fp.category),
         categoryName: category?.name || fp.category,
         categoryNameAr: category?.name_ar || fp.category,
       });
@@ -527,6 +527,7 @@ export default function Hub() {
             provider_avatar: p?.avatar_url || null,
             provider_city: p?.city || svc.city || null,
             provider_sub_city: p?.sub_city || svc.sub_city || null,
+            subcategory_id: svc.subcategory_id || null,
           };
         });
 
@@ -651,7 +652,7 @@ export default function Hub() {
       try {
         const { data: servicesData, error } = await supabase
           .from("services")
-          .select("id, category, title, user_id, city, sub_city, is_active, is_paused")
+          .select("id, category, title, user_id, city, sub_city, subcategory_id, is_active, is_paused")
           .in("id", ids)
           .eq("is_active", true)
           .or("is_paused.is.null,is_paused.eq.false");
@@ -693,6 +694,7 @@ export default function Hub() {
               provider_avatar: p?.avatar_url || null,
               provider_city: p?.city || svc.city || null,
               provider_sub_city: p?.sub_city || svc.sub_city || null,
+              subcategory_id: svc.subcategory_id || null,
             };
           })
           .filter((c) => matchesSelectedCity(c.provider_city));
