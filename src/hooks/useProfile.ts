@@ -14,7 +14,8 @@ export interface Profile {
   sub_city: string | null;
   provider_status: string | null;
   role: string | null;
-  is_verified: boolean | null;
+  // Some DB versions don't include this column anymore.
+  is_verified?: boolean | null;
   verified_at: string | null;
   verified_by: string | null;
   must_change_password: boolean | null;
