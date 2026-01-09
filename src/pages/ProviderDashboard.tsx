@@ -83,11 +83,6 @@ export default function ProviderDashboard() {
 
     if (!profile) return;
 
-    if (!profile.is_verified) {
-      navigate("/pending-verification", { replace: true });
-      return;
-    }
-
     const st = (profile.status || "").toLowerCase();
     if (st === "deleted" || st === "inactive") {
       navigate("/auth", { replace: true });
