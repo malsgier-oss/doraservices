@@ -44,11 +44,6 @@ export function AdminRoute({ children }: AdminRouteProps) {
     return <>{children}</>;
   }
 
-  // Non-admins: apply global access rules
-  if (!profile.is_verified) {
-    return <Navigate to="/pending-verification" replace />;
-  }
-
   const st = (profile.status || "").toLowerCase();
   if (st === "deleted" || st === "inactive") {
     return <Navigate to="/auth" replace />;
