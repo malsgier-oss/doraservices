@@ -1,463 +1,913 @@
-import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCities } from "@/hooks/useCities";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+
 import { toast } from "@/hooks/use-toast";
-import { Lock, User, Loader2, AlertCircle, Phone, MapPin } from "lucide-react";
-import { LanguageToggle } from "@/components/LanguageToggle";
-import { z } from "zod";
 import { cn } from "@/lib/utils";
-import doraLogo from "@/assets/dora-logo.png";
-import { useRegistrationEnabled } from "@/hooks/usePlatformSettings";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { isValidLibyanPhone, cleanPhoneForStorage } from "@/lib/phoneUtils";
+import {
+  Loader2,
+  User2,
+  MapPin,
+  ShieldCheck,
+  LogOut,
+  KeyRound,
+  Phone,
+  BadgeCheck,
+  AlertTriangle,
+  LayoutDashboard,
+  PlusCircle,
+  Trash2,
+  Camera,
+  X,
+  Building2,
+  ClipboardList,
+} from "lucide-react";
 
-const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
-const nameSchema = z.string().min(2, "Name must be at least 2 characters");
+function statusBadgeVariant(status?: string | null) {
+  const s = (status || "").toLowerCase();
+  if (s === "approved") return "default";
+  if (s === "pending") return "secondary";
+  if (s === "rejected") return "destructive";
+  if (s === "deleted" || s === "inactive") return "destructive";
+  return "outline";
+}
 
-export default function Auth() {
+function extractStoragePathFromPublicUrl(publicUrl: string) {
+  // expected: .../storage/v1/object/public/<bucket>/<path>
+  const marker = "/storage/v1/object/public/";
+  const idx = publicUrl.indexOf(marker);
+  if (idx === -1) return null;
+  const rest = publicUrl.slice(idx + marker.length);
+  // rest = "<bucket>/<path...>"
+  const slash = rest.indexOf("/");
+  if (slash === -1) return null;
+  const bucket = rest.slice(0, slash);
+  const path = rest.slice(slash + 1);
+  return { bucket, path: decodeURIComponent(path) };
+}
+
+export default function Profile() {
   const navigate = useNavigate();
-  const { user, profile, signIn, signUp, loading: authLoading, profileLoading } = useAuth();
-
-  const { t, isRTL, language } = useLanguage();
+  const { user, profile, loading, profileLoading, signOut, refreshProfile } = useAuth();
+  const { isRTL, language } = useLanguage();
   const { data: cities, isLoading: citiesLoading } = useCities();
-  const { isEnabled: registrationEnabled, isLoading: settingsLoading } = useRegistrationEnabled();
 
-  const [isLoading, setIsLoading] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
-  const [loginData, setLoginData] = useState({ phone: "", password: "" });
-  const [signupData, setSignupData] = useState({
-    phone: "",
-    password: "",
-    fullName: "",
-    cityId: "",
-  });
+  const [tab, setTab] = useState<"account" | "provider" | "security" | "danger">("account");
 
+  const [saving, setSaving] = useState(false);
+  const [fullName, setFullName] = useState("");
+  const [bio, setBio] = useState("");
+  const [cityId, setCityId] = useState<string>("");
+
+  const [avatarBusy, setAvatarBusy] = useState(false);
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  // Provider application form
+  const [applyOpen, setApplyOpen] = useState(false);
+  const [applyBusy, setApplyBusy] = useState(false);
+  const [businessName, setBusinessName] = useState("");
+  const [businessCategory, setBusinessCategory] = useState("");
+  const [businessAddress, setBusinessAddress] = useState("");
+
+  // Route guard
   useEffect(() => {
-    if (!user) return;
-    if (profileLoading) return;
+    if (loading || profileLoading) return;
+
+    if (!user) {
+      navigate("/auth", { replace: true });
+      return;
+    }
+
     if (!profile) return;
 
     if (profile.must_change_password) {
-      navigate("/change-password");
+      navigate("/change-password", { replace: true });
       return;
     }
 
     if (!profile.is_verified) {
-      navigate("/pending-verification");
+      navigate("/pending-verification", { replace: true });
       return;
     }
 
-    navigate("/");
-  }, [user, profile, profileLoading, navigate]);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const cleanedPhone = cleanPhoneForStorage(loginData.phone);
-
-    if (!cleanedPhone) {
-      toast({
-        title: isRTL ? "رقم الهاتف مطلوب" : "Phone required",
-        description: isRTL ? "يرجى إدخال رقم الهاتف" : "Please enter your phone number",
-        variant: "destructive",
-      });
-      return;
+    const st = (profile.status || "").toLowerCase();
+    if (st === "deleted" || st === "inactive") {
+      navigate("/auth", { replace: true });
     }
+  }, [loading, profileLoading, user, profile, navigate]);
 
-    if (!isValidLibyanPhone(cleanedPhone)) {
-      toast({
-        title: isRTL ? "رقم هاتف غير صالح" : "Invalid phone",
-        description: isRTL
-          ? "يرجى إدخال رقم هاتف ليبي صحيح (09XXXXXXXX)"
-          : "Please enter a valid Libyan phone number (09XXXXXXXX)",
-        variant: "destructive",
-      });
-      return;
-    }
+  // Fill form fields
+  useEffect(() => {
+    if (!profile) return;
+    setFullName(profile.full_name || "");
+    setBio(profile.bio || "");
+    setCityId(profile.city_id || "");
+  }, [profile]);
 
-    const passwordResult = passwordSchema.safeParse(loginData.password);
-    if (!passwordResult.success) {
-      toast({
-        title: isRTL ? "كلمة مرور غير صالحة" : "Invalid password",
-        description: passwordResult.error.errors[0].message,
-        variant: "destructive",
-      });
-      return;
-    }
+  const cityLabel = useMemo(() => {
+    if (!cities || !cityId) return "";
+    const c = cities.find((x) => x.id === cityId);
+    if (!c) return "";
+    return language === "ar" ? c.name_ar || c.name : c.name || c.name_ar;
+  }, [cities, cityId, language]);
 
-    setIsLoading(true);
-    const { error } = await signIn(cleanedPhone, loginData.password);
-    setIsLoading(false);
+  const providerStatus = profile?.provider_status || null;
+  const providerStatusLower = (providerStatus || "").toLowerCase();
+  const isProviderApproved = providerStatusLower === "approved";
 
-    if (error) {
-      toast({
-        title: isRTL ? "فشل تسجيل الدخول" : "Login failed",
-        description: isRTL ? "رقم الهاتف أو كلمة المرور غير صحيحة" : error.message,
-        variant: "destructive",
-      });
-      return;
-    }
+  const handleSave = async () => {
+    if (!user) return;
 
-    toast({
-      title: isRTL ? "مرحباً بعودتك!" : "Welcome back!",
-      description: isRTL ? "تم تسجيل الدخول بنجاح" : "You've successfully logged in.",
-    });
-  };
-
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!registrationEnabled) {
-      toast({
-        title: isRTL ? "التسجيل مغلق" : "Registration Disabled",
-        description: isRTL
-          ? "التسجيل مغلق حالياً. يرجى المحاولة لاحقاً."
-          : "Registration is currently disabled. Please try again later.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const nameResult = nameSchema.safeParse(signupData.fullName);
-    if (!nameResult.success) {
+    const trimmed = fullName.trim();
+    if (trimmed.length < 2) {
       toast({
         title: isRTL ? "اسم غير صالح" : "Invalid name",
-        description: nameResult.error.errors[0].message,
+        description: isRTL ? "الاسم يجب أن يكون حرفين على الأقل" : "Name must be at least 2 characters",
         variant: "destructive",
       });
       return;
     }
 
-    const cleanedPhone = cleanPhoneForStorage(signupData.phone);
+    const selected = cities?.find((c) => c.id === cityId);
+    const cityName = selected
+      ? language === "ar"
+        ? selected.name_ar || selected.name
+        : selected.name || selected.name_ar
+      : null;
 
-    if (!cleanedPhone) {
-      toast({
-        title: isRTL ? "رقم الهاتف مطلوب" : "Phone required",
-        description: isRTL ? "يرجى إدخال رقم الهاتف" : "Please enter your phone number",
-        variant: "destructive",
-      });
-      return;
-    }
+    setSaving(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        full_name: trimmed,
+        bio: bio?.trim() || null,
+        city_id: cityId || null,
+        city: cityName,
+      })
+      .eq("user_id", user.id);
 
-    if (!isValidLibyanPhone(cleanedPhone)) {
-      toast({
-        title: isRTL ? "رقم هاتف غير صالح" : "Invalid phone",
-        description: isRTL
-          ? "يرجى إدخال رقم هاتف ليبي (09XXXXXXXX)"
-          : "Please enter a valid Libyan phone (09XXXXXXXX)",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const passwordResult = passwordSchema.safeParse(signupData.password);
-    if (!passwordResult.success) {
-      toast({
-        title: isRTL ? "كلمة مرور غير صالحة" : "Invalid password",
-        description: passwordResult.error.errors[0].message,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!signupData.cityId) {
-      toast({
-        title: isRTL ? "المدينة مطلوبة" : "City required",
-        description: isRTL ? "يرجى اختيار مدينتك" : "Please select your city",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // ✅ IMPORTANT: also send the city NAME (so profiles.city won't be null)
-    const selectedCity = cities?.find((c) => c.id === signupData.cityId);
-
-    const cityName =
-      language === "ar"
-        ? (selectedCity?.name_ar || selectedCity?.name || "")
-        : (selectedCity?.name || selectedCity?.name_ar || "");
-
-    setIsLoading(true);
-    const { error } = await signUp(
-      cleanedPhone,
-      signupData.password,
-      signupData.fullName,
-      signupData.cityId,
-      cityName
-    );
-    setIsLoading(false);
+    setSaving(false);
 
     if (error) {
-      const lower = error.message.toLowerCase();
-      let message = error.message;
-
-      if (lower.includes("already registered") || lower.includes("user already registered")) {
-        message = isRTL
-          ? "هذا الرقم مسجل بالفعل. يرجى تسجيل الدخول."
-          : "This phone is already registered. Please sign in.";
-      }
-
       toast({
-        title: isRTL ? "فشل إنشاء الحساب" : "Signup failed",
-        description: message,
+        title: isRTL ? "فشل الحفظ" : "Save failed",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    await refreshProfile?.();
+
+    toast({
+      title: isRTL ? "تم الحفظ" : "Saved",
+      description: isRTL ? "تم تحديث ملفك الشخصي" : "Your profile was updated",
+    });
+  };
+
+  const handleLogout = async () => {
+    await signOut?.();
+    navigate("/", { replace: true });
+  };
+
+  const handleSoftDelete = async () => {
+    if (!user || !profile) return;
+    if (deleteConfirmText.trim().toUpperCase() !== "DELETE") return;
+
+    setDeleting(true);
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        status: "deleted",
+        suspended_at: new Date().toISOString(),
+        suspended_reason: "user_deleted",
+        full_name: null,
+        bio: null,
+        avatar_url: null,
+      })
+      .eq("user_id", user.id);
+
+    setDeleting(false);
+
+    if (error) {
+      toast({
+        title: isRTL ? "فشل حذف الحساب" : "Delete failed",
+        description: error.message,
         variant: "destructive",
       });
       return;
     }
 
     toast({
-      title: isRTL ? "تم إنشاء الحساب!" : "Account created!",
-      description: isRTL ? "تم إنشاء حسابك بنجاح." : "Your account is created successfully.",
+      title: isRTL ? "تم حذف الحساب" : "Account deleted",
+      description: isRTL ? "تم تعطيل حسابك وتسجيل الخروج." : "Your account was deactivated and you were signed out.",
     });
 
-    navigate("/pending-verification");
+    setDeleteOpen(false);
+
+    await signOut?.();
+    navigate("/", { replace: true });
   };
 
-  if (authLoading || profileLoading || settingsLoading || citiesLoading) {
+  const openFilePicker = () => fileRef.current?.click();
+
+  const handleAvatarUpload = async (file: File) => {
+    if (!user || !profile) return;
+
+    // Basic client-side validation
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: isRTL ? "ملف غير صالح" : "Invalid file",
+        description: isRTL ? "يرجى اختيار صورة فقط" : "Please select an image file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Optional size limit ~ 5MB
+    const maxBytes = 5 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      toast({
+        title: isRTL ? "حجم كبير" : "File too large",
+        description: isRTL ? "الحد الأقصى 5MB" : "Maximum size is 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAvatarBusy(true);
+
+    try {
+      // Remove old avatar file best-effort
+      if (profile.avatar_url) {
+        const parsed = extractStoragePathFromPublicUrl(profile.avatar_url);
+        if (parsed) {
+          await supabase.storage.from(parsed.bucket).remove([parsed.path]);
+        }
+      }
+
+      const bucket = "avatars";
+      const safeName = file.name.replace(/\s+/g, "_");
+      const path = `${user.id}/${Date.now()}_${safeName}`;
+
+      const { error: uploadError } = await supabase.storage.from(bucket).upload(path, file, {
+        cacheControl: "3600",
+        upsert: true,
+        contentType: file.type,
+      });
+
+      if (uploadError) {
+        toast({
+          title: isRTL ? "فشل رفع الصورة" : "Upload failed",
+          description:
+            uploadError.message +
+            (uploadError.message.toLowerCase().includes("bucket")
+              ? isRTL
+                ? " (تأكد من إنشاء bucket باسم avatars في Supabase Storage)"
+                : " (Make sure you created a Storage bucket named 'avatars')"
+              : ""),
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(path);
+      const publicUrl = publicData?.publicUrl;
+
+      if (!publicUrl) {
+        toast({
+          title: isRTL ? "فشل الحصول على رابط الصورة" : "Could not get image URL",
+          description: isRTL ? "حاول مرة أخرى" : "Please try again",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ avatar_url: publicUrl })
+        .eq("user_id", user.id);
+
+      if (updateError) {
+        toast({
+          title: isRTL ? "فشل تحديث الصورة" : "Update failed",
+          description: updateError.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      await refreshProfile?.();
+
+      toast({
+        title: isRTL ? "تم تحديث الصورة" : "Photo updated",
+        description: isRTL ? "تم حفظ صورة الملف الشخصي" : "Your profile photo was saved",
+      });
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const handleAvatarRemove = async () => {
+    if (!user || !profile) return;
+
+    setAvatarBusy(true);
+    try {
+      // Best-effort delete file
+      if (profile.avatar_url) {
+        const parsed = extractStoragePathFromPublicUrl(profile.avatar_url);
+        if (parsed) {
+          await supabase.storage.from(parsed.bucket).remove([parsed.path]);
+        }
+      }
+
+      const { error } = await supabase.from("profiles").update({ avatar_url: null }).eq("user_id", user.id);
+      if (error) {
+        toast({
+          title: isRTL ? "فشل حذف الصورة" : "Remove failed",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      await refreshProfile?.();
+
+      toast({
+        title: isRTL ? "تم حذف الصورة" : "Photo removed",
+        description: isRTL ? "تمت إزالة صورة الملف الشخصي" : "Your profile photo was removed",
+      });
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const openProviderApply = () => {
+    setBusinessName("");
+    setBusinessCategory("");
+    setBusinessAddress("");
+    setApplyOpen(true);
+  };
+
+  const handleProviderApplySubmit = async () => {
+    if (!user || !profile) return;
+
+    const name = businessName.trim();
+    const cat = businessCategory.trim();
+    const addr = businessAddress.trim();
+
+    if (name.length < 2 || cat.length < 2 || addr.length < 3) {
+      toast({
+        title: isRTL ? "بيانات غير كاملة" : "Incomplete data",
+        description: isRTL
+          ? "يرجى إدخال اسم النشاط، التصنيف، والعنوان"
+          : "Please enter business name, category, and address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setApplyBusy(true);
+    try {
+      // 1) Update profile to pending provider
+      const { error: updErr } = await supabase
+        .from("profiles")
+        .update({
+          role: "business",
+          provider_status: "pending",
+        })
+        .eq("user_id", user.id);
+
+      if (updErr) {
+        toast({
+          title: isRTL ? "فشل الإرسال" : "Submit failed",
+          description: updErr.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // 2) Log application details in analytics_events (no schema changes needed)
+      // event_type is free text; metadata is Json.
+      const { error: logErr } = await supabase.from("analytics_events").insert({
+        event_type: "provider_application_submitted",
+        user_id: user.id,
+        target_type: "provider_application",
+        target_id: user.id,
+        metadata: {
+          business_name: name,
+          category: cat,
+          address: addr,
+          submitted_at: new Date().toISOString(),
+        },
+      });
+
+      // ignore logging failure (application is still pending)
+      if (logErr) console.warn("[provider_application_submitted] log error:", logErr);
+
+      await refreshProfile?.();
+      setApplyOpen(false);
+
+      toast({
+        title: isRTL ? "تم إرسال الطلب" : "Application submitted",
+        description: isRTL ? "سيتم مراجعة طلبك قريباً" : "Your application will be reviewed soon",
+      });
+    } finally {
+      setApplyBusy(false);
+    }
+  };
+
+  if (loading || profileLoading || citiesLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
   }
 
+  if (!user) return null;
+
+  // RLS / profile not readable
+  if (!profile) {
+    return (
+      <div className="min-h-screen p-4 flex items-center justify-center" dir={isRTL ? "rtl" : "ltr"}>
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>{isRTL ? "تعذر تحميل الملف الشخصي" : "Profile can’t load"}</CardTitle>
+            <CardDescription>
+              {isRTL
+                ? "غالباً بسبب سياسات RLS (صلاحيات القراءة). تأكد أن المستخدم يستطيع قراءة صفه في profiles."
+                : "Usually caused by RLS (read permissions). Ensure users can SELECT their own row in profiles."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button asChild className="w-full">
+              <Link to="/">{isRTL ? "العودة للرئيسية" : "Back to home"}</Link>
+            </Button>
+            <Button variant="outline" asChild className="w-full">
+              <Link to="/auth">{isRTL ? "تسجيل الدخول" : "Sign in"}</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const providerStatusText = providerStatus || (isRTL ? "غير محدد" : "—");
+
   return (
-    <div
-      className="min-h-screen bg-background flex flex-col items-center justify-center p-4"
-      dir={isRTL ? "rtl" : "ltr"}
-    >
-      <div className="absolute top-4 left-4">
-        <LanguageToggle />
-      </div>
-
-      <div className="flex items-center gap-2 mb-8">
-        <img src={doraLogo} alt="Dora Logo" className="w-10 h-10 rounded-full object-cover" />
-        <span className="text-2xl font-bold text-foreground">{t.appName}</span>
-      </div>
-
-      <Card className="w-full max-w-md shadow-card">
-        <Tabs defaultValue="login" className="w-full">
-          <CardHeader className="pb-2">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">{t.auth.login}</TabsTrigger>
-              <TabsTrigger value="signup">{t.auth.signup}</TabsTrigger>
-            </TabsList>
+    <div className="min-h-screen p-4 pb-24" dir={isRTL ? "rtl" : "ltr"}>
+      <div className="max-w-2xl mx-auto space-y-4">
+        {/* Header */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-xl flex items-center gap-2">
+              <User2 className="h-5 w-5" />
+              {isRTL ? "الملف الشخصي" : "Profile"}
+            </CardTitle>
+            <CardDescription className="leading-relaxed">
+              {isRTL
+                ? "إدارة معلومات حسابك وإعدادات الأمان."
+                : "Manage your account information and security settings."}
+            </CardDescription>
           </CardHeader>
 
-          <CardContent className="pt-4">
-            <TabsContent value="login" className="mt-0">
-              <div className={cn("space-y-1 mb-6", isRTL ? "text-right" : "text-left")}>
-                <CardTitle className="text-xl">{isRTL ? "مرحباً بعودتك" : "Welcome back"}</CardTitle>
-                <CardDescription>
-                  {isRTL ? "أدخل رقم هاتفك وكلمة المرور" : "Enter your phone and password"}
-                </CardDescription>
+          <CardContent className="space-y-4">
+            {/* Avatar row */}
+            <div className="flex items-center gap-4">
+              <div className="relative h-16 w-16 rounded-full overflow-hidden border bg-muted flex items-center justify-center">
+                {profile.avatar_url ? (
+                  <img src={profile.avatar_url} alt="avatar" className="h-full w-full object-cover" />
+                ) : (
+                  <Camera className="h-6 w-6 text-muted-foreground" />
+                )}
               </div>
 
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="login-phone">{isRTL ? "رقم الهاتف" : "Phone Number"}</Label>
-                  <div className="relative">
-                    <Phone
-                      className={cn(
-                        "absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground",
-                        isRTL ? "right-3" : "left-3"
-                      )}
-                    />
-                    <Input
-                      id="login-phone"
-                      type="tel"
-                      inputMode="numeric"
-                      placeholder="0912345678"
-                      className={cn(isRTL ? "pr-10 text-left" : "pl-10")}
-                      dir="ltr"
-                      value={loginData.phone}
-                      onChange={(e) => setLoginData({ ...loginData, phone: e.target.value })}
-                      required
-                    />
-                  </div>
+              <div className="flex-1 space-y-1">
+                <div className="text-base font-semibold">{profile.full_name || (isRTL ? "بدون اسم" : "No name")}</div>
+                <div className="text-sm text-muted-foreground flex items-center gap-2">
+                  <Phone className="h-4 w-4" />
+                  <span dir="ltr">{profile.phone || "—"}</span>
                 </div>
+              </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">{t.auth.password}</Label>
-                  <div className="relative">
-                    <Lock
-                      className={cn(
-                        "absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground",
-                        isRTL ? "right-3" : "left-3"
-                      )}
-                    />
-                    <Input
-                      id="login-password"
-                      type="password"
-                      placeholder="••••••••"
-                      className={cn(isRTL ? "pr-10" : "pl-10")}
-                      value={loginData.password}
-                      onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleAvatarUpload(file);
+                    // reset input so same file can be reselected
+                    e.currentTarget.value = "";
+                  }}
+                />
 
-                <div className={cn("text-sm", isRTL ? "text-right" : "text-left")}>
-                  <Link to="/forgot-password" className="text-primary hover:underline">
-                    {t.auth.forgotPassword}
-                  </Link>
-                </div>
-
-                <Button type="submit" className="w-full rounded-full" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t.auth.login}
+                <Button variant="outline" onClick={openFilePicker} disabled={avatarBusy}>
+                  {avatarBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                  <span className="ms-2">
+                    {profile.avatar_url ? (isRTL ? "تغيير" : "Change") : isRTL ? "إضافة" : "Add"}
+                  </span>
                 </Button>
-              </form>
-            </TabsContent>
 
-            <TabsContent value="signup" className="mt-0">
-              <div className={cn("space-y-1 mb-6", isRTL ? "text-right" : "text-left")}>
-                <CardTitle className="text-xl">{isRTL ? "إنشاء حساب" : "Create an account"}</CardTitle>
-                <CardDescription>{isRTL ? "انضم إلى دورة اليوم" : "Join Dora today"}</CardDescription>
+                {profile.avatar_url && (
+                  <Button variant="outline" onClick={handleAvatarRemove} disabled={avatarBusy}>
+                    <X className="h-4 w-4" />
+                    <span className="ms-2">{isRTL ? "حذف" : "Remove"}</span>
+                  </Button>
+                )}
               </div>
+            </div>
 
-              {!registrationEnabled && (
-                <Alert variant="destructive" className="mb-4">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    {isRTL
-                      ? "التسجيل مغلق حالياً. يرجى المحاولة لاحقاً."
-                      : "Registration is currently disabled. Please try again later."}
-                  </AlertDescription>
-                </Alert>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={profile.is_verified ? "default" : "destructive"} className="gap-1">
+                <BadgeCheck className="h-4 w-4" />
+                {profile.is_verified ? (isRTL ? "موثّق" : "Verified") : isRTL ? "غير موثّق" : "Not verified"}
+              </Badge>
+
+              {providerStatus && (
+                <Badge variant={statusBadgeVariant(providerStatus)}>
+                  {isRTL ? "حالة المزود:" : "Provider:"} {providerStatusText}
+                </Badge>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Tabs */}
+        <Card>
+          <CardContent className="pt-6">
+            <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
+              {/* Provider tab ONLY after approved */}
+              <TabsList className={cn("grid w-full", isProviderApproved ? "grid-cols-4" : "grid-cols-3")}>
+                <TabsTrigger value="account">{isRTL ? "الحساب" : "Account"}</TabsTrigger>
+                {isProviderApproved && <TabsTrigger value="provider">{isRTL ? "المزود" : "Provider"}</TabsTrigger>}
+                <TabsTrigger value="security">{isRTL ? "الأمان" : "Security"}</TabsTrigger>
+                <TabsTrigger value="danger" className="text-destructive">
+                  {isRTL ? "خطر" : "Danger"}
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Account */}
+              <TabsContent value="account" className="mt-4 space-y-4">
+                {/* Provider apply card for non-approved users */}
+                {!isProviderApproved && (
+                  <Card className="border-border">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Building2 className="h-4 w-4" />
+                        {isRTL ? "كن مزود خدمة" : "Become a Provider"}
+                      </CardTitle>
+                      <CardDescription>
+                        {providerStatusLower === "pending"
+                          ? isRTL
+                            ? "طلبك قيد المراجعة."
+                            : "Your application is under review."
+                          : providerStatusLower === "rejected"
+                            ? isRTL
+                              ? "تم رفض الطلب. يمكنك إعادة التقديم."
+                              : "Application rejected. You can re-apply."
+                            : isRTL
+                              ? "قدّم طلبك لفتح لوحة المزود وإضافة خدمات."
+                              : "Apply to unlock the provider dashboard and create services."}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col sm:flex-row gap-2">
+                      <Button onClick={openProviderApply} className="gap-2">
+                        <ClipboardList className="h-4 w-4" />
+                        {providerStatusLower === "pending"
+                          ? isRTL
+                            ? "عرض/إعادة إرسال"
+                            : "View / Re-submit"
+                          : isRTL
+                            ? "تقديم طلب"
+                            : "Apply"}
+                      </Button>
+
+                      {providerStatus && (
+                        <Badge variant={statusBadgeVariant(providerStatus)} className="sm:ms-auto w-fit">
+                          {isRTL ? "الحالة:" : "Status:"} {providerStatusText}
+                        </Badge>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                <div className="grid gap-4">
+                  <div className="grid gap-2">
+                    <Label>{isRTL ? "الاسم الكامل" : "Full name"}</Label>
+                    <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      {isRTL ? "المدينة" : "City"}
+                    </Label>
+
+                    <Select value={cityId} onValueChange={setCityId}>
+                      <SelectTrigger className="h-12 rounded-xl">
+                        <SelectValue placeholder={isRTL ? "اختر المدينة" : "Select city"} />
+                      </SelectTrigger>
+                      <SelectContent className="z-[9999] bg-white border border-border shadow-lg">
+                        {(cities || []).map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {language === "ar" ? c.name_ar || c.name : c.name || c.name_ar}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {!!cityLabel && (
+                      <p className="text-sm text-muted-foreground">
+                        {isRTL ? "الحالية:" : "Current:"} {cityLabel}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label>{isRTL ? "نبذة" : "Bio"}</Label>
+                    <Textarea
+                      value={bio}
+                      onChange={(e) => setBio(e.target.value)}
+                      placeholder={isRTL ? "اكتب نبذة قصيرة..." : "Write a short bio..."}
+                      className="min-h-[90px]"
+                    />
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Button onClick={handleSave} disabled={saving}>
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : isRTL ? "حفظ" : "Save"}
+                    </Button>
+
+                    <Button variant="outline" asChild className="sm:ms-auto">
+                      <Link to="/">{isRTL ? "العودة" : "Back"}</Link>
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Provider apply dialog */}
+                <Dialog open={applyOpen} onOpenChange={setApplyOpen}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>{isRTL ? "طلب مزود خدمة" : "Provider Application"}</DialogTitle>
+                      <DialogDescription>
+                        {isRTL
+                          ? "أدخل بيانات نشاطك وسيتم إرسال الطلب للمراجعة."
+                          : "Enter your business details and submit for review."}
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <Label>{isRTL ? "اسم النشاط" : "Business name"}</Label>
+                        <Input value={businessName} onChange={(e) => setBusinessName(e.target.value)} />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>{isRTL ? "التصنيف" : "Category"}</Label>
+                        <Input
+                          value={businessCategory}
+                          onChange={(e) => setBusinessCategory(e.target.value)}
+                          placeholder={isRTL ? "مثال: صيانة، مطاعم..." : "e.g. Maintenance, Restaurants..."}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>{isRTL ? "العنوان" : "Address"}</Label>
+                        <Textarea
+                          value={businessAddress}
+                          onChange={(e) => setBusinessAddress(e.target.value)}
+                          className="min-h-[80px]"
+                          placeholder={isRTL ? "المدينة، الشارع، علامة مميزة..." : "City, street, landmark..."}
+                        />
+                      </div>
+
+                      <p className="text-xs text-muted-foreground">
+                        {isRTL
+                          ? "ملاحظة: سيتم تحويل حالتك إلى Pending حتى يوافق الأدمن."
+                          : "Note: Your status will become Pending until an admin approves it."}
+                      </p>
+                    </div>
+
+                    <DialogFooter className="gap-2">
+                      <Button variant="outline" onClick={() => setApplyOpen(false)} disabled={applyBusy}>
+                        {isRTL ? "إلغاء" : "Cancel"}
+                      </Button>
+                      <Button onClick={handleProviderApplySubmit} disabled={applyBusy}>
+                        {applyBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                        <span className={cn(applyBusy ? "ms-2" : "")}>{isRTL ? "إرسال" : "Submit"}</span>
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </TabsContent>
+
+              {/* Provider tab (ONLY approved) */}
+              {isProviderApproved && (
+                <TabsContent value="provider" className="mt-4 space-y-4">
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <ShieldCheck className="h-4 w-4" />
+                        {isRTL ? "إدارة المزود" : "Provider tools"}
+                      </CardTitle>
+                      <CardDescription>
+                        {isRTL ? "لوحة المزود وإدارة خدماتك." : "Provider dashboard and service management."}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">{isRTL ? "الحالة" : "Status"}</span>
+                        <Badge variant={statusBadgeVariant(providerStatus)}>{providerStatusText}</Badge>
+                      </div>
+
+                      <Separator />
+
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <Button asChild>
+                          <Link to="/provider-dashboard" className="inline-flex items-center gap-2">
+                            <LayoutDashboard className="h-4 w-4" />
+                            {isRTL ? "لوحة المزود" : "Provider Dashboard"}
+                          </Link>
+                        </Button>
+
+                        <Button variant="outline" asChild>
+                          <Link to="/create-service" className="inline-flex items-center gap-2">
+                            <PlusCircle className="h-4 w-4" />
+                            {isRTL ? "إضافة خدمة" : "Create service"}
+                          </Link>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
               )}
 
-              <form onSubmit={handleSignup} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-name">{t.auth.fullName}</Label>
-                  <div className="relative">
-                    <User
-                      className={cn(
-                        "absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground",
-                        isRTL ? "right-3" : "left-3"
-                      )}
-                    />
-                    <Input
-                      id="signup-name"
-                      type="text"
-                      placeholder={isRTL ? "الاسم الكامل" : "Full Name"}
-                      className={cn(isRTL ? "pr-10" : "pl-10")}
-                      value={signupData.fullName}
-                      onChange={(e) => setSignupData({ ...signupData, fullName: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
+              {/* Security */}
+              <TabsContent value="security" className="mt-4 space-y-4">
+                {profile.must_change_password && (
+                  <Card className="border-destructive/40">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2 text-destructive">
+                        <AlertTriangle className="h-4 w-4" />
+                        {isRTL ? "مطلوب تغيير كلمة المرور" : "Password change required"}
+                      </CardTitle>
+                      <CardDescription>
+                        {isRTL ? "يرجى تغيير كلمة المرور للمتابعة." : "Please change your password to continue."}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Button asChild>
+                        <Link to="/change-password" className="inline-flex items-center gap-2">
+                          <KeyRound className="h-4 w-4" />
+                          {isRTL ? "تغيير كلمة المرور" : "Change password"}
+                        </Link>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
 
-                <div className="space-y-2">
-                  <Label htmlFor="signup-phone">{isRTL ? "رقم الهاتف" : "Phone Number"}</Label>
-                  <div className="relative">
-                    <Phone
-                      className={cn(
-                        "absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground",
-                        isRTL ? "right-3" : "left-3"
-                      )}
-                    />
-                    <Input
-                      id="signup-phone"
-                      type="tel"
-                      inputMode="numeric"
-                      placeholder="0912345678"
-                      className={cn(isRTL ? "pr-10 text-left" : "pl-10")}
-                      dir="ltr"
-                      value={signupData.phone}
-                      onChange={(e) => {
-                        // allow digits and + only; normalize later
-                        const val = e.target.value.replace(/[^\d+]/g, "").slice(0, 20);
-                        setSignupData({ ...signupData, phone: val });
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <KeyRound className="h-4 w-4" />
+                      {isRTL ? "الأمان" : "Security"}
+                    </CardTitle>
+                    <CardDescription>
+                      {isRTL ? "تحديث كلمة المرور وتسجيل الخروج." : "Update password and sign out."}
+                    </CardDescription>
+                  </CardHeader>
+
+                  <CardContent className="flex flex-col sm:flex-row gap-2">
+                    <Button asChild variant="outline">
+                      <Link to="/change-password" className="inline-flex items-center gap-2">
+                        <KeyRound className="h-4 w-4" />
+                        {isRTL ? "تغيير كلمة المرور" : "Change password"}
+                      </Link>
+                    </Button>
+
+                    <Button variant="destructive" className="sm:ms-auto" onClick={handleLogout}>
+                      <LogOut className="h-4 w-4" />
+                      <span className="ms-2">{isRTL ? "تسجيل الخروج" : "Logout"}</span>
+                    </Button>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Danger */}
+              <TabsContent value="danger" className="mt-4 space-y-4">
+                <Card className="border-destructive/40">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base text-destructive flex items-center gap-2">
+                      <Trash2 className="h-4 w-4" />
+                      {isRTL ? "منطقة الخطر" : "Danger zone"}
+                    </CardTitle>
+                    <CardDescription>
+                      {isRTL
+                        ? "حذف الحساب سيقوم بتعطيل حسابك وإخفاء معلوماتك الشخصية."
+                        : "Deleting your account will deactivate it and remove your personal details."}
+                    </CardDescription>
+                  </CardHeader>
+
+                  <CardContent className="space-y-3">
+                    <div className="text-sm text-muted-foreground">
+                      {isRTL
+                        ? "سيتم تعطيل الحساب (Soft delete). لن يتم حذف البيانات التاريخية مثل الخدمات/المراجعات، لكن سيتم إخفاء اسمك وبياناتك."
+                        : "This is a soft delete. Historical data (services/reviews) stays, but your name and personal info are removed."}
+                    </div>
+
+                    <Button
+                      variant="destructive"
+                      onClick={() => {
+                        setDeleteConfirmText("");
+                        setDeleteOpen(true);
                       }}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">{t.auth.password}</Label>
-                  <div className="relative">
-                    <Lock
-                      className={cn(
-                        "absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground",
-                        isRTL ? "right-3" : "left-3"
-                      )}
-                    />
-                    <Input
-                      id="signup-password"
-                      type="password"
-                      placeholder="••••••••"
-                      className={cn(isRTL ? "pr-10" : "pl-10")}
-                      value={signupData.password}
-                      onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
-                    {isRTL ? "المدينة" : "City"} <span className="text-destructive">*</span>
-                  </Label>
-
-                  <Select
-                    value={signupData.cityId}
-                    onValueChange={(value) => setSignupData({ ...signupData, cityId: value })}
-                  >
-                    <SelectTrigger className="rounded-xl h-12">
-                      <SelectValue placeholder={isRTL ? "اختر مدينتك" : "Select your city"} />
-                    </SelectTrigger>
-
-                    <SelectContent
-                      position="popper"
-                      sideOffset={8}
-                      avoidCollisions
-                      className="z-[9999] bg-white border border-border shadow-lg"
                     >
-                      {cities?.map((city) => (
-                        <SelectItem key={city.id} value={city.id}>
-                          {language === "ar" && city.name_ar ? city.name_ar : city.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                      <Trash2 className="h-4 w-4" />
+                      <span className="ms-2">{isRTL ? "حذف الحساب" : "Delete account"}</span>
+                    </Button>
+                  </CardContent>
+                </Card>
 
-                <Button
-                  type="submit"
-                  className="w-full rounded-full"
-                  disabled={isLoading || !registrationEnabled}
-                >
-                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t.auth.signup}
-                </Button>
-              </form>
-            </TabsContent>
+                <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle className="text-destructive">
+                        {isRTL ? "تأكيد حذف الحساب" : "Confirm account deletion"}
+                      </DialogTitle>
+                      <DialogDescription>
+                        {isRTL
+                          ? "اكتب DELETE للتأكيد. لا يمكن التراجع بعد التنفيذ."
+                          : "Type DELETE to confirm. This cannot be undone."}
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-2">
+                      <Label>DELETE</Label>
+                      <Input
+                        value={deleteConfirmText}
+                        onChange={(e) => setDeleteConfirmText(e.target.value)}
+                        placeholder="DELETE"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {isRTL
+                          ? "سيتم تعطيل حسابك وإخفاء اسمك/نبذتك/صورتك."
+                          : "Your account will be deactivated and your name/bio/avatar will be removed."}
+                      </p>
+                    </div>
+
+                    <DialogFooter className="gap-2">
+                      <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+                        {isRTL ? "إلغاء" : "Cancel"}
+                      </Button>
+
+                      <Button
+                        variant="destructive"
+                        onClick={handleSoftDelete}
+                        disabled={deleting || deleteConfirmText.trim().toUpperCase() !== "DELETE"}
+                      >
+                        {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                        <span className={cn(deleting ? "ms-2" : "")}>{isRTL ? "تأكيد الحذف" : "Confirm delete"}</span>
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </TabsContent>
+            </Tabs>
           </CardContent>
-        </Tabs>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 }

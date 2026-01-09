@@ -15,18 +15,17 @@ import { toast } from "sonner";
 import { Search, Eye, EyeOff, Edit, Trash2, StickyNote, Star } from "lucide-react";
 import { format } from "date-fns";
 import { useCategories } from "@/hooks/useCategories";
-import { useAllSubcategories } from "@/hooks/useSubcategories";
 
 interface Service {
   id: string;
   title: string;
   description: string | null;
   category: string;
-  subcategory_id?: string | null;
   price: number | null;
 
   /**
-   * Column name is `city` and it stores UUID (cities.id)
+   * Column name is `city`
+   * NOTE: in your DB this may be UUID (cities.id) OR a city name string
    */
   city: string | null;
 
@@ -61,7 +60,6 @@ type CityRow = {
 export default function AdminServices() {
   const queryClient = useQueryClient();
   const { data: categories } = useCategories();
-  const { data: subcategories } = useAllSubcategories();
 
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -77,8 +75,7 @@ export default function AdminServices() {
     title: "",
     description: "",
     category: "",
-    subcategory_id: "" as string,
-    city: "", // stores city UUID
+    city: "", // can be UUID or name
     user_id: "" as string, // provider assignment
   });
 
@@ -112,33 +109,6 @@ export default function AdminServices() {
   }, [cities]);
 
   const cityLabel = (c?: CityRow | null) => c?.name || c?.name_ar || "";
-
-  const subcategoryMap = useMemo(() => {
-    const m = new Map<string, { id: string; name: string; name_ar: string | null }>();
-    (subcategories || []).forEach((s: any) => m.set(s.id, s));
-    return m;
-  }, [subcategories]);
-
-  const subcategoryLabel = (id?: string | null) => {
-    if (!id) return "";
-    const s = subcategoryMap.get(id);
-    if (!s) return id;
-    return s.name_ar ? `${s.name} / ${s.name_ar}` : s.name;
-  };
-
-  const subcategoryOptions = useMemo(() => {
-    const catById = new Map<string, any>();
-    (categories || []).forEach((c: any) => catById.set(c.id, c));
-    return (subcategories || [])
-      .filter((s: any) => s.is_active !== false)
-      .map((s: any) => {
-        const c = catById.get(s.category_id);
-        const label = c ? `${c.name} — ${s.name}` : s.name;
-        const label2 = s.name_ar ? `${label} (${s.name_ar})` : label;
-        return { id: s.id, label: label2 };
-      })
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [subcategories, categories]);
 
   const {
     data: services,
@@ -200,7 +170,7 @@ export default function AdminServices() {
     },
   });
 
-  // ✅ FIX: useEffect (not useMemo) for setting state from services
+  // ✅ useEffect (not useMemo) for setting state from services
   useEffect(() => {
     if (!services) return;
     const map: Record<string, string> = {};
@@ -313,7 +283,6 @@ export default function AdminServices() {
       title: service.title,
       description: service.description || "",
       category: service.category,
-      subcategory_id: service.subcategory_id || "",
       city: service.city || "",
       user_id: service.user_id || "",
     });
@@ -447,7 +416,6 @@ export default function AdminServices() {
         </CardHeader>
 
         <CardContent>
-          {/* ✅ Show real error instead of silent "empty" */}
           {isError && (
             <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
               Failed to load services: {(error as any)?.message ?? "Unknown error"}
@@ -468,7 +436,6 @@ export default function AdminServices() {
                 <TableRow>
                   <TableHead>Title</TableHead>
                   <TableHead>Category</TableHead>
-                  <TableHead>Subcategory</TableHead>
                   <TableHead>City</TableHead>
                   <TableHead>Provider</TableHead>
                   <TableHead>Featured</TableHead>
@@ -495,12 +462,6 @@ export default function AdminServices() {
                       </TableCell>
 
                       <TableCell>{service.category}</TableCell>
-
-                      <TableCell className="max-w-56 truncate">
-                        {subcategoryLabel(service.subcategory_id) || (
-                          <span className="text-muted-foreground text-sm">—</span>
-                        )}
-                      </TableCell>
 
                       <TableCell className="max-w-40 truncate">{displayCity}</TableCell>
 
@@ -688,30 +649,7 @@ export default function AdminServices() {
               </Select>
             </div>
 
-            <div>
-              <Label>Subcategory (for Hub)</Label>
-              <Select
-                value={editForm.subcategory_id}
-                onValueChange={(v) => setEditForm({ ...editForm, subcategory_id: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a subcategory" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">None</SelectItem>
-                  {subcategoryOptions.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Used by Hub to open the correct service list (recommended for Featured providers and Recently viewed).
-              </p>
-            </div>
-
-            {/* City Select (stores UUID) */}
+            {/* City Select (stores UUID OR name) */}
             <div>
               <Label>City</Label>
               <Select value={editForm.city} onValueChange={(v) => setEditForm({ ...editForm, city: v })}>
@@ -728,7 +666,7 @@ export default function AdminServices() {
               </Select>
 
               <p className="text-xs text-muted-foreground mt-1">
-                Stored value is the city ID (UUID); the UI shows the city name.
+                Stored value might be city ID (UUID) or city name depending on your current data.
               </p>
             </div>
           </div>
@@ -757,7 +695,6 @@ export default function AdminServices() {
                     title: editForm.title,
                     description: editForm.description,
                     category: editForm.category,
-                    subcategory_id: editForm.subcategory_id || null,
                     city: editForm.city,
                     user_id: editForm.user_id,
                   },

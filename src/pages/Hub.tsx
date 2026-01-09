@@ -42,20 +42,10 @@ import { MobileNav } from "@/components/layout/MobileNav";
 import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
 import { ReviewPromptBanner } from "@/components/review/ReviewPromptBanner";
 
-import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer";
+import { Drawer, DrawerClose, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -65,11 +55,7 @@ import { useAllSubcategories } from "@/hooks/useSubcategories";
 import { useCities } from "@/hooks/useCities";
 import { useServiceRatings } from "@/hooks/useReviews";
 
-import {
-  useNotifications,
-  useUnreadCount,
-  useNotificationMutations,
-} from "@/hooks/useNotifications";
+import { useNotifications, useUnreadCount, useNotificationMutations } from "@/hooks/useNotifications";
 import type { Notification } from "@/hooks/useNotifications";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -118,7 +104,7 @@ interface ServiceItem {
 
 type FeaturedProviderCard = {
   service_id: string; // services.id
-  category: string; // services.category
+  category: string; // services.category (this is subcategory name in your DB)
   service_title: string;
   provider_name: string;
   provider_phone: string;
@@ -137,9 +123,9 @@ type AppNotification = {
 };
 
 type SearchFiltersState = {
-  city: string | null;     // "tripoli" | "benghazi" | "misrata" | null
+  city: string | null; // "tripoli" | "benghazi" | "misrata" | null
   subCity: string | null;
-  minRating: boolean;      // kept for ServiceDetailSheet compatibility
+  minRating: boolean; // kept for ServiceDetailSheet compatibility
 };
 
 // -------- Header suggestion chips (static for now; connect to control panel later) ----------
@@ -212,9 +198,7 @@ function FilterSuggestionChip({
       onClick={onClick}
       className={cn(
         "flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-full text-[13px] font-semibold transition-all border",
-        isActive
-          ? "bg-[#111] text-white border-[#111]"
-          : "bg-white text-[#111] border-gray-200 hover:bg-gray-50"
+        isActive ? "bg-[#111] text-white border-[#111]" : "bg-white text-[#111] border-gray-200 hover:bg-gray-50",
       )}
     >
       {icon}
@@ -223,13 +207,7 @@ function FilterSuggestionChip({
   );
 }
 
-function SectionHeader({
-  title,
-  action,
-}: {
-  title: string;
-  action?: React.ReactNode;
-}) {
+function SectionHeader({ title, action }: { title: string; action?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 mb-3">
       <h2 className="text-[18px] font-semibold text-[#111]">{title}</h2>
@@ -280,7 +258,7 @@ export default function Hub() {
     id: string; // subcategory id or fallback
     titleKey: string;
     descKey: string;
-    category: string; // MUST match services.category in DB (you already use it this way)
+    category: string; // MUST match services.category in DB
     categoryName?: string;
     categoryNameAr?: string;
     color: string;
@@ -301,9 +279,7 @@ export default function Hub() {
   const [featuredProviders, setFeaturedProviders] = useState<FeaturedProviderCard[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(false);
 
-  const { ratings: featuredRatings } = useServiceRatings(
-    featuredProviders.map((fp) => fp.service_id)
-  );
+  const { ratings: featuredRatings } = useServiceRatings(featuredProviders.map((fp) => fp.service_id));
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -328,18 +304,15 @@ export default function Hub() {
   const getCityLabel = (cityIdOrName: string | null) => {
     if (!cityIdOrName) return null;
     const found = cities?.find(
-      (c: any) =>
-        c.id === cityIdOrName ||
-        String(c.name || "").toLowerCase() === String(cityIdOrName).toLowerCase()
+      (c: any) => c.id === cityIdOrName || String(c.name || "").toLowerCase() === String(cityIdOrName).toLowerCase(),
     );
-    return found
-      ? language === "ar" && found.name_ar
-        ? found.name_ar
-        : found.name
-      : cityIdOrName;
+    return found ? (language === "ar" && found.name_ar ? found.name_ar : found.name) : cityIdOrName;
   };
 
-  const norm = (s: string | null | undefined) => String(s || "").toLowerCase().trim();
+  const norm = (s: string | null | undefined) =>
+    String(s || "")
+      .toLowerCase()
+      .trim();
 
   const cityAliasMap: Record<string, string[]> = {
     tripoli: ["tripoli", "طرابلس", "طرابلس المركز"],
@@ -377,8 +350,7 @@ export default function Hub() {
 
   const getFeaturedRatingDisplay = (serviceId: string) => {
     const r = featuredRatings.get(serviceId);
-    if (!r || r.totalReviews === 0)
-      return { text: isRTL ? "جديد" : "New", hasRating: false };
+    if (!r || r.totalReviews === 0) return { text: isRTL ? "جديد" : "New", hasRating: false };
     return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true };
   };
 
@@ -389,10 +361,7 @@ export default function Hub() {
       .map((sub: any) => ({
         id: sub.id,
         icon: ICON_MAP[sub.icon] || Wrench,
-        color:
-          sub.color ||
-          categories?.find((c: any) => c.id === sub.category_id)?.color ||
-          "bg-[#F2F2F2]",
+        color: sub.color || categories?.find((c: any) => c.id === sub.category_id)?.color || "bg-[#F2F2F2]",
         name: sub.name,
         name_ar: sub.name_ar,
         category_id: sub.category_id,
@@ -422,20 +391,23 @@ export default function Hub() {
     });
   }, [drawerCategoryId, serviceItems, language]);
 
+  // ✅ FIX: category MUST match services.category (subcategory name), not the parent category name.
   const openServiceSheetFromSubcategory = (service: ServiceItem) => {
     setInitialProviderServiceId(null);
 
-    const category = categories?.find((c: any) => c.id === service.category_id);
+    const parentCategory = categories?.find((c: any) => c.id === service.category_id);
+
+    const categoryForDb = service.name || (service.name_ar ?? "");
 
     setSelectedService({
-      id: service.id,
+      id: service.id, // subcategory id (for ServiceDetailSheet UI context)
       icon: service.icon,
       color: service.color,
       titleKey: service.name,
       descKey: "",
-      category: service.name,
-      categoryName: category?.name || "",
-      categoryNameAr: category?.name_ar || "",
+      category: categoryForDb, // ✅ this is what your DB stores in services.category (Electrician, AC Repair, ...)
+      categoryName: parentCategory?.name || "",
+      categoryNameAr: parentCategory?.name_ar || "",
     });
 
     setSheetOpen(true);
@@ -451,7 +423,11 @@ export default function Hub() {
       if (fp.subcategory_id) return fp.subcategory_id;
       if (!serviceItems.length) return null;
 
-      const n = (s: string) => String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
+      const n = (s: string) =>
+        String(s || "")
+          .toLowerCase()
+          .replace(/\s+/g, " ")
+          .trim();
       const H = n(`${fp.category || ""} ${fp.service_title || ""}`);
 
       let found =
@@ -472,7 +448,7 @@ export default function Hub() {
 
       return found?.id || null;
     },
-    [serviceItems]
+    [serviceItems],
   );
 
   const openProviderDetailsFromFeatured = useCallback(
@@ -489,26 +465,26 @@ export default function Hub() {
         color: sc?.color || "bg-[#F2F2F2]",
         titleKey: sc ? sc.name : fp.service_title,
         descKey: "",
-        category: sc ? sc.name : fp.category,
+        category: fp.category, // ✅ already matches services.category in DB
         categoryName: category?.name || fp.category,
         categoryNameAr: category?.name_ar || fp.category,
       });
 
       setSheetOpen(true);
     },
-    [resolveFeaturedSubcategoryId, serviceItems, categories]
+    [resolveFeaturedSubcategoryId, serviceItems, categories],
   );
 
   useEffect(() => {
     const fetchFeaturedProviders = async () => {
       setFeaturedLoading(true);
       try {
-        const selectWithSubcategory =
-          "id, category, title, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused, is_featured, featured_order, created_at, subcategory_id";
+        const selectCols =
+          "id, category, title, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused, is_featured, featured_order, created_at";
 
         const { data: servicesData, error } = await supabase
           .from("services")
-          .select(selectWithSubcategory)
+          .select(selectCols)
           .eq("is_active", true)
           .eq("is_featured", true)
           .or("is_paused.is.null,is_paused.eq.false")
@@ -541,22 +517,20 @@ export default function Hub() {
           profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
         }
 
-        const cards: FeaturedProviderCard[] = featured
-          .filter((svc: any) => svc.user_id)
-          .map((svc: any) => {
-            const p = profileMap.get(svc.user_id);
-            return {
-              service_id: svc.id,
-              category: svc.category,
-              service_title: svc.title || (isRTL ? "خدمة" : "Service"),
-              provider_name: p?.full_name || svc.provider_name || (isRTL ? "مقدم الخدمة" : "Provider"),
-              provider_phone: p?.phone || svc.provider_phone || "",
-              provider_avatar: p?.avatar_url || null,
-              provider_city: p?.city || svc.city || null,
-              provider_sub_city: p?.sub_city || svc.sub_city || null,
-              subcategory_id: svc.subcategory_id || null,
-            };
-          });
+        const cards: FeaturedProviderCard[] = featured.map((svc: any) => {
+          const p = svc.user_id ? profileMap.get(svc.user_id) : null;
+          return {
+            service_id: svc.id,
+            category: svc.category,
+            service_title: svc.title || (isRTL ? "خدمة" : "Service"),
+            provider_name: p?.full_name || svc.provider_name || (isRTL ? "مقدم الخدمة" : "Provider"),
+            provider_phone: p?.phone || svc.provider_phone || "",
+            provider_avatar: p?.avatar_url || null,
+            provider_city: p?.city || svc.city || null,
+            provider_sub_city: p?.sub_city || svc.sub_city || null,
+            subcategory_id: null,
+          };
+        });
 
         setFeaturedProviders(cards.slice(0, 12));
       } catch (e) {
@@ -577,9 +551,7 @@ export default function Hub() {
   const popularServices: ServiceItem[] = useMemo(() => {
     const flagged = serviceItems.filter((s) => s.is_popular);
     if (flagged.length === 0) return [];
-    return [...flagged]
-      .sort((a, b) => (a.popular_order ?? 9999) - (b.popular_order ?? 9999))
-      .slice(0, 12);
+    return [...flagged].sort((a, b) => (a.popular_order ?? 9999) - (b.popular_order ?? 9999)).slice(0, 12);
   }, [serviceItems]);
 
   const resolveSuggestionTarget = useCallback(
@@ -598,7 +570,7 @@ export default function Hub() {
       }
       return null;
     },
-    [serviceItems]
+    [serviceItems],
   );
 
   useEffect(() => {
@@ -624,7 +596,7 @@ export default function Hub() {
               `category.ilike.%${q}%`,
               `provider_name.ilike.%${q}%`,
               `provider_phone.ilike.%${q}%`,
-            ].join(",")
+            ].join(","),
           )
           .order("created_at", { ascending: false })
           .limit(20);
@@ -681,7 +653,7 @@ export default function Hub() {
       try {
         const { data: servicesData, error } = await supabase
           .from("services")
-          .select("id, category, title, user_id, city, sub_city, subcategory_id, is_active, is_paused")
+          .select("id, category, title, user_id, city, sub_city, is_active, is_paused")
           .in("id", ids)
           .eq("is_active", true)
           .or("is_paused.is.null,is_paused.eq.false");
@@ -723,7 +695,7 @@ export default function Hub() {
               provider_avatar: p?.avatar_url || null,
               provider_city: p?.city || svc.city || null,
               provider_sub_city: p?.sub_city || svc.sub_city || null,
-              subcategory_id: svc.subcategory_id || null,
+              subcategory_id: null,
             };
           })
           .filter((c) => matchesSelectedCity(c.provider_city));
@@ -752,9 +724,7 @@ export default function Hub() {
               aria-label={t.appName}
             >
               <span className="text-[14px] font-semibold text-[#111]">{t.appName}</span>
-              <span className="text-[12px] text-[#777] mt-0.5">
-                {isRTL ? "خدمات قريبة منك" : "Local services"}
-              </span>
+              <span className="text-[12px] text-[#777] mt-0.5">{isRTL ? "خدمات قريبة منك" : "Local services"}</span>
             </button>
 
             <div className="flex items-center gap-2">
@@ -785,11 +755,15 @@ export default function Hub() {
                   <div className="px-4 pt-4 pb-3 border-b border-gray-100">
                     <div className="flex items-start justify-between gap-3">
                       <div className={cn("min-w-0", isRTL && "text-right")}>
-                        <p className="text-[14px] font-bold text-[#111]">
-                          {isRTL ? "الإشعارات" : "Notifications"}
-                        </p>
+                        <p className="text-[14px] font-bold text-[#111]">{isRTL ? "الإشعارات" : "Notifications"}</p>
                         <p className="text-[12px] text-[#777] mt-1">
-                          {user ? (isRTL ? "آخر التحديثات" : "Latest updates") : (isRTL ? "سجّل الدخول لعرض الإشعارات" : "Sign in to see notifications")}
+                          {user
+                            ? isRTL
+                              ? "آخر التحديثات"
+                              : "Latest updates"
+                            : isRTL
+                              ? "سجّل الدخول لعرض الإشعارات"
+                              : "Sign in to see notifications"}
                         </p>
                       </div>
 
@@ -833,7 +807,7 @@ export default function Hub() {
                               className={cn(
                                 "w-full text-left rounded-2xl bg-white border border-gray-200 p-4 transition-all active:scale-[0.99]",
                                 !n.is_read && "border-[#111]",
-                                isRTL && "text-right"
+                                isRTL && "text-right",
                               )}
                             >
                               <div className="flex items-start justify-between gap-3">
@@ -947,13 +921,9 @@ export default function Hub() {
               {(searchLoading || searchResults.length > 0 || (searchQuery.trim().length >= 2 && !searchLoading)) && (
                 <div className="mt-2 rounded-2xl bg-white border border-gray-200 overflow-hidden">
                   {searchLoading ? (
-                    <div className="p-4 text-[13px] text-[#777]">
-                      {isRTL ? "جاري البحث..." : "Searching..."}
-                    </div>
+                    <div className="p-4 text-[13px] text-[#777]">{isRTL ? "جاري البحث..." : "Searching..."}</div>
                   ) : searchResults.length === 0 ? (
-                    <div className="p-4 text-[13px] text-[#777]">
-                      {isRTL ? "لا توجد نتائج." : "No results."}
-                    </div>
+                    <div className="p-4 text-[13px] text-[#777]">{isRTL ? "لا توجد نتائج." : "No results."}</div>
                   ) : (
                     <div className="divide-y divide-gray-100">
                       {searchResults.slice(0, 10).map((r) => (
@@ -976,17 +946,10 @@ export default function Hub() {
 
                             setSheetOpen(true);
                           }}
-                          className={cn(
-                            "w-full px-4 py-3 text-left hover:bg-gray-50",
-                            isRTL && "text-right"
-                          )}
+                          className={cn("w-full px-4 py-3 text-left hover:bg-gray-50", isRTL && "text-right")}
                         >
-                          <div className="text-[14px] font-semibold text-[#111] truncate">
-                            {r.title}
-                          </div>
-                          <div className="text-[12px] text-[#777] truncate mt-0.5">
-                            {r.subtitle}
-                          </div>
+                          <div className="text-[14px] font-semibold text-[#111] truncate">{r.title}</div>
+                          <div className="text-[12px] text-[#777] truncate mt-0.5">{r.subtitle}</div>
                         </button>
                       ))}
                     </div>
@@ -1049,7 +1012,12 @@ export default function Hub() {
                     <div className={cn("absolute inset-0 opacity-10", cat.color || "bg-[#F2F2F2]")} />
                     <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/70" />
 
-                    <div className={cn("relative h-14 w-14 rounded-2xl flex items-center justify-center", cat.color || "bg-[#F2F2F2]")}>
+                    <div
+                      className={cn(
+                        "relative h-14 w-14 rounded-2xl flex items-center justify-center",
+                        cat.color || "bg-[#F2F2F2]",
+                      )}
+                    >
                       <IconComponent className="h-7 w-7 text-[#111]" strokeWidth={1.7} />
                     </div>
 
@@ -1083,7 +1051,7 @@ export default function Hub() {
                     onClick={() => openProviderDetailsFromFeatured(fp)}
                     className={cn(
                       "snap-start flex-shrink-0 w-[330px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
-                      isRTL && "text-right"
+                      isRTL && "text-right",
                     )}
                   >
                     <div className="flex items-center gap-3">
@@ -1104,10 +1072,7 @@ export default function Hub() {
 
                         <div className="mt-1.5 flex items-center gap-1 text-[12px]">
                           <Star
-                            className={cn(
-                              "h-4 w-4",
-                              r.hasRating ? "text-yellow-500 fill-yellow-500" : "text-[#999]"
-                            )}
+                            className={cn("h-4 w-4", r.hasRating ? "text-yellow-500 fill-yellow-500" : "text-[#999]")}
                           />
                           <span className={cn(r.hasRating ? "text-[#111] font-semibold" : "text-[#777]")}>
                             {r.text}
@@ -1151,7 +1116,7 @@ export default function Hub() {
                   onClick={() => openProviderDetailsFromFeatured(fp)}
                   className={cn(
                     "snap-start flex-shrink-0 w-[330px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
-                    isRTL && "text-right"
+                    isRTL && "text-right",
                   )}
                 >
                   <div className="flex items-center gap-3">
@@ -1186,8 +1151,7 @@ export default function Hub() {
             <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 snap-x snap-mandatory">
               {popularServices.map((service) => {
                 const IconComponent = service.icon;
-                const displayName =
-                  language === "ar" && service.name_ar ? service.name_ar : service.name;
+                const displayName = language === "ar" && service.name_ar ? service.name_ar : service.name;
 
                 return (
                   <button
@@ -1195,7 +1159,7 @@ export default function Hub() {
                     onClick={() => openServiceSheetFromSubcategory(service)}
                     className={cn(
                       "snap-start flex-shrink-0 w-[260px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
-                      isRTL && "text-right"
+                      isRTL && "text-right",
                     )}
                   >
                     <div className="flex items-center gap-3">
@@ -1204,12 +1168,8 @@ export default function Hub() {
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-[15px] font-semibold text-[#111] line-clamp-1">
-                          {displayName}
-                        </h3>
-                        <p className="text-[12px] text-[#777] mt-1">
-                          {isRTL ? "عرض مقدمي الخدمة" : "View providers"}
-                        </p>
+                        <h3 className="text-[15px] font-semibold text-[#111] line-clamp-1">{displayName}</h3>
+                        <p className="text-[12px] text-[#777] mt-1">{isRTL ? "عرض مقدمي الخدمة" : "View providers"}</p>
                       </div>
 
                       <ChevronRight className={cn("h-6 w-6 text-[#C9C9C9]", isRTL && "rotate-180")} />
@@ -1264,7 +1224,7 @@ export default function Hub() {
             <DrawerClose
               className={cn(
                 "absolute top-4 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
-                isRTL ? "left-4" : "right-4"
+                isRTL ? "left-4" : "right-4",
               )}
             >
               <X className="h-4 w-4 text-muted-foreground" />
@@ -1277,12 +1237,10 @@ export default function Hub() {
                     ? drawerCategory.name_ar
                     : drawerCategory.name
                   : isRTL
-                  ? "الفئة"
-                  : "Category"}
+                    ? "الفئة"
+                    : "Category"}
               </DrawerTitle>
-              <p className="text-sm text-muted-foreground mt-1">
-                {isRTL ? "اختر خدمة" : "Choose a service"}
-              </p>
+              <p className="text-sm text-muted-foreground mt-1">{isRTL ? "اختر خدمة" : "Choose a service"}</p>
             </div>
           </DrawerHeader>
 
@@ -1292,8 +1250,7 @@ export default function Hub() {
                 <div className="space-y-2">
                   {drawerSubcategories.map((service) => {
                     const IconComponent = service.icon;
-                    const displayName =
-                      language === "ar" && service.name_ar ? service.name_ar : service.name;
+                    const displayName = language === "ar" && service.name_ar ? service.name_ar : service.name;
 
                     return (
                       <button
@@ -1304,26 +1261,31 @@ export default function Hub() {
                         }}
                         className={cn(
                           "relative overflow-hidden w-full flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-200 transition-colors hover:bg-gray-50 active:bg-gray-100",
-                          isRTL && "flex-row-reverse text-right"
+                          isRTL && "flex-row-reverse text-right",
                         )}
                       >
                         <div className={cn("absolute inset-0 opacity-10", service.color)} />
                         <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/75" />
 
-                        <div className={cn("relative h-14 w-14 rounded-2xl flex items-center justify-center flex-shrink-0", service.color)}>
+                        <div
+                          className={cn(
+                            "relative h-14 w-14 rounded-2xl flex items-center justify-center flex-shrink-0",
+                            service.color,
+                          )}
+                        >
                           <IconComponent className="h-7 w-7 text-[#111]" strokeWidth={1.7} />
                         </div>
 
                         <div className="relative flex-1 min-w-0">
-                          <h3 className="text-[16px] font-semibold text-[#111] line-clamp-1">
-                            {displayName}
-                          </h3>
+                          <h3 className="text-[16px] font-semibold text-[#111] line-clamp-1">{displayName}</h3>
                           <p className="text-[13px] text-[#777] mt-1">
                             {isRTL ? "عرض مقدمي الخدمة" : "View providers"}
                           </p>
                         </div>
 
-                        <ChevronRight className={cn("relative h-6 w-6 text-[#C9C9C9] flex-shrink-0", isRTL && "rotate-180")} />
+                        <ChevronRight
+                          className={cn("relative h-6 w-6 text-[#C9C9C9] flex-shrink-0", isRTL && "rotate-180")}
+                        />
                       </button>
                     );
                   })}

@@ -4,14 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,7 +22,18 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Search, MoreHorizontal, Shield, Store, User, AlertTriangle, Trash2, CheckCircle, XCircle, Phone } from "lucide-react";
+import {
+  Search,
+  MoreHorizontal,
+  Shield,
+  Store,
+  User,
+  AlertTriangle,
+  Trash2,
+  CheckCircle,
+  XCircle,
+  Phone,
+} from "lucide-react";
 import { useAdminUsers, useUserMutations } from "@/hooks/useAdmin";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
@@ -58,11 +62,12 @@ export default function AdminUsers() {
   });
   const { data: cities } = useCities();
 
-  const { suspendUser, reactivateUser, archiveUser, deleteUser, changeUserRole, verifyUser, unverifyUser } = useUserMutations();
+  const { suspendUser, reactivateUser, archiveUser, deleteUser, changeUserRole, verifyUser, unverifyUser } =
+    useUserMutations();
 
   const getCityName = (cityId: string | null) => {
     if (!cityId) return "-";
-    const city = cities?.find(c => c.id === cityId);
+    const city = cities?.find((c) => c.id === cityId);
     return city?.name || cityId;
   };
 
@@ -83,16 +88,19 @@ export default function AdminUsers() {
 
   const getRoleBadges = (roles: string[]) => {
     return roles.map((role) => {
-      const config: Record<string, { icon: React.ElementType; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+      const config: Record<
+        string,
+        { icon: React.ElementType; variant: "default" | "secondary" | "destructive" | "outline" }
+      > = {
         admin: { icon: Shield, variant: "destructive" },
-        business: { icon: Store, variant: "default" },
+        provider: { icon: Store, variant: "default" },
         user: { icon: User, variant: "secondary" },
       };
       const { icon: Icon, variant } = config[role] || { icon: User, variant: "secondary" as const };
       return (
         <Badge key={role} variant={variant} className="gap-1">
           <Icon className="h-3 w-3" />
-          {role}
+          {role === "provider" ? "business" : role}
         </Badge>
       );
     });
@@ -148,7 +156,7 @@ export default function AdminUsers() {
               <SelectContent>
                 <SelectItem value="all">All Roles</SelectItem>
                 <SelectItem value="user">User</SelectItem>
-                <SelectItem value="business">Business</SelectItem>
+                <SelectItem value="provider">Business</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
               </SelectContent>
             </Select>
@@ -173,14 +181,30 @@ export default function AdminUsers() {
                 {isLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}>
-                      <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-8" /></TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-32" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-20" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-16" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-20" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-16" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-8" />
+                      </TableCell>
                     </TableRow>
                   ))
                 ) : users?.length === 0 ? (
@@ -192,9 +216,7 @@ export default function AdminUsers() {
                 ) : (
                   users?.map((user) => (
                     <TableRow key={user.id}>
-                      <TableCell className="font-medium">
-                        {user.full_name || "Unnamed User"}
-                      </TableCell>
+                      <TableCell className="font-medium">{user.full_name || "Unnamed User"}</TableCell>
                       <TableCell>
                         {user.phone ? (
                           <div className="flex items-center gap-1 text-sm font-mono">
@@ -220,9 +242,7 @@ export default function AdminUsers() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <div className="flex gap-1 flex-wrap">
-                          {getRoleBadges(user.roles)}
-                        </div>
+                        <div className="flex gap-1 flex-wrap">{getRoleBadges(user.roles)}</div>
                       </TableCell>
                       <TableCell>{getStatusBadge(user.status)}</TableCell>
                       <TableCell className="text-muted-foreground">
@@ -282,22 +302,22 @@ export default function AdminUsers() {
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuSeparator />
-                            {!user.roles.includes("business") && (
+                            {!user.roles.includes("provider") && (
                               <DropdownMenuItem
                                 onSelect={(e) => {
                                   e.preventDefault();
-                                  changeUserRole.mutate({ userId: user.user_id, role: "business", action: "add" });
+                                  changeUserRole.mutate({ userId: user.user_id, role: "provider", action: "add" });
                                 }}
                               >
                                 <Store className="h-4 w-4 mr-2" />
                                 Add Business Role
                               </DropdownMenuItem>
                             )}
-                            {user.roles.includes("business") && (
+                            {user.roles.includes("provider") && (
                               <DropdownMenuItem
                                 onSelect={(e) => {
                                   e.preventDefault();
-                                  changeUserRole.mutate({ userId: user.user_id, role: "business", action: "remove" });
+                                  changeUserRole.mutate({ userId: user.user_id, role: "provider", action: "remove" });
                                 }}
                               >
                                 Remove Business Role
