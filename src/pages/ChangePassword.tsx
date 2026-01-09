@@ -74,12 +74,9 @@ export default function ChangePassword() {
         description: isRTL ? "تم تحديث كلمة المرور بنجاح" : "Your password has been updated successfully",
       });
 
-      // Navigate based on verification status
-      if (profile?.is_verified) {
-        navigate("/");
-      } else {
-        navigate("/pending-verification");
-      }
+      // Dora P0: don't block users by a verification flag. Provider approval is enforced
+      // only on provider-only routes.
+      navigate("/");
     } catch (error: any) {
       toast({
         title: isRTL ? "خطأ" : "Error",
