@@ -15,9 +15,14 @@ export default function PendingVerification() {
   const { t, isRTL } = useLanguage();
 
   useEffect(() => {
-    // If user is verified, redirect to home
-    if (profile?.is_verified) {
+    const role = (profile?.role || "").toLowerCase();
+    const providerStatus = (profile?.provider_status || "").toLowerCase();
+
+    // This page is for business/providers awaiting approval.
+    // If the user is not a provider, or already approved, just go home.
+    if (profile && (role !== "provider" || providerStatus === "approved")) {
       navigate("/");
+      return;
     }
     // If no user, redirect to auth
     if (!loading && !user) {
@@ -57,12 +62,12 @@ export default function PendingVerification() {
             <Clock className="h-8 w-8 text-amber-600" />
           </div>
           <CardTitle className="text-xl">
-            {isRTL ? "في انتظار التحقق" : "Pending Verification"}
+            {isRTL ? "في انتظار اعتماد الحساب" : "Pending Approval"}
           </CardTitle>
           <CardDescription className="mt-2">
-            {isRTL 
-              ? "سنتواصل معك قريباً لتفعيل حسابك. بمجرد التحقق، ستتمكن من الاتصال بمقدمي الخدمات وإضافة التقييمات."
-              : "We will contact you soon to activate your account. Once verified, you'll be able to call providers and add reviews."
+            {isRTL
+              ? "حساب النشاط التجاري الخاص بك قيد المراجعة. بمجرد الاعتماد ستتمكن من إضافة خدماتك وإدارة صفحتك."
+              : "Your business account is under review. Once approved, you can add services and manage your provider dashboard."
             }
           </CardDescription>
         </CardHeader>
@@ -86,25 +91,24 @@ export default function PendingVerification() {
           {/* What you can do */}
           <div className="bg-muted/50 rounded-xl p-4">
             <h3 className="font-medium mb-2">
-              {isRTL ? "بإمكانك الآن:" : "You can now:"}
+              {isRTL ? "بإمكانك الآن:" : "You can still:"}
             </h3>
             <ul className="text-sm text-muted-foreground space-y-1">
               <li>• {isRTL ? "تصفح الخدمات ومقدميها" : "Browse services and providers"}</li>
               <li>• {isRTL ? "البحث والتصفية" : "Search and filter"}</li>
               <li>• {isRTL ? "قراءة التقييمات" : "Read reviews"}</li>
+              <li>• {isRTL ? "الاتصال بمقدمي الخدمات" : "Call / WhatsApp providers"}</li>
             </ul>
           </div>
 
           {/* What you can't do */}
           <div className="bg-destructive/5 border border-destructive/20 rounded-xl p-4">
             <h3 className="font-medium mb-2 text-destructive">
-              {isRTL ? "يتطلب التحقق:" : "Requires verification:"}
+              {isRTL ? "يتطلب الاعتماد:" : "Requires approval:"}
             </h3>
             <ul className="text-sm text-destructive/80 space-y-1">
-              <li>• {isRTL ? "الاتصال بمقدمي الخدمات" : "Call providers"}</li>
-              <li>• {isRTL ? "التواصل عبر واتساب" : "WhatsApp providers"}</li>
-              <li>• {isRTL ? "إضافة تقييمات" : "Add reviews"}</li>
               <li>• {isRTL ? "إضافة خدمات" : "Add services"}</li>
+              <li>• {isRTL ? "لوحة مقدم الخدمة" : "Provider dashboard"}</li>
             </ul>
           </div>
 
