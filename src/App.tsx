@@ -64,8 +64,9 @@ function AuthenticatedRedirect({ children }: { children: React.ReactNode }) {
     if (!profile) return <Navigate to="/" replace />;
 
     if (profile.must_change_password) return <Navigate to="/change-password" replace />;
-    if (!profile.is_verified) return <Navigate to="/pending-verification" replace />;
 
+    // Dora P0: browsing and calling should not be blocked by any "verification" flag.
+    // Provider approval is enforced only on provider/admin-only routes.
     return <Navigate to="/" replace />;
   }
 
