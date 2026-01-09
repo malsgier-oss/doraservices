@@ -21,7 +21,9 @@ interface Profile {
   suspended_at: string | null;
   suspended_reason: string | null;
 
-  is_verified: boolean;
+  // Note: some deployments do not have an `is_verified` column anymore.
+  // Do not rely on this flag for core navigation.
+  is_verified?: boolean | null;
   must_change_password: boolean;
   created_at: string;
   updated_at: string;
