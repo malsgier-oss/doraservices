@@ -170,7 +170,7 @@ export default function AdminUsers() {
                   <TableHead>Name</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>City</TableHead>
-                  <TableHead>Verified</TableHead>
+                  <TableHead>Provider Status</TableHead>
                   <TableHead>Roles</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Joined</TableHead>
@@ -229,16 +229,20 @@ export default function AdminUsers() {
                       </TableCell>
                       <TableCell>{getCityName(user.city_id)}</TableCell>
                       <TableCell>
-                        {user.is_verified ? (
-                          <Badge variant="default" className="bg-green-600 gap-1">
-                            <CheckCircle className="h-3 w-3" />
-                            Verified
-                          </Badge>
+                        {user.roles.includes("provider") ? (
+                          (user.provider_status || "pending").toLowerCase() === "approved" ? (
+                            <Badge variant="default" className="bg-green-600 gap-1">
+                              <CheckCircle className="h-3 w-3" />
+                              Approved
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-yellow-600 border-yellow-600 gap-1">
+                              <XCircle className="h-3 w-3" />
+                              Pending
+                            </Badge>
+                          )
                         ) : (
-                          <Badge variant="outline" className="text-yellow-600 border-yellow-600 gap-1">
-                            <XCircle className="h-3 w-3" />
-                            Pending
-                          </Badge>
+                          <Badge variant="secondary">—</Badge>
                         )}
                       </TableCell>
                       <TableCell>
@@ -278,28 +282,30 @@ export default function AdminUsers() {
                               </DropdownMenuItem>
                             ) : null}
                             <DropdownMenuSeparator />
-                            {!user.is_verified ? (
-                              <DropdownMenuItem
-                                onSelect={(e) => {
-                                  e.preventDefault();
-                                  verifyUser.mutate(user.user_id);
-                                }}
-                                className="text-green-600"
-                              >
-                                <CheckCircle className="h-4 w-4 mr-2" />
-                                Verify User
-                              </DropdownMenuItem>
-                            ) : (
-                              <DropdownMenuItem
-                                onSelect={(e) => {
-                                  e.preventDefault();
-                                  unverifyUser.mutate(user.user_id);
-                                }}
-                                className="text-yellow-600"
-                              >
-                                <XCircle className="h-4 w-4 mr-2" />
-                                Unverify User
-                              </DropdownMenuItem>
+                            {user.roles.includes("provider") && (
+                              (user.provider_status || "pending").toLowerCase() !== "approved" ? (
+                                <DropdownMenuItem
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    verifyUser.mutate(user.user_id);
+                                  }}
+                                  className="text-green-600"
+                                >
+                                  <CheckCircle className="h-4 w-4 mr-2" />
+                                  Approve Provider
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    unverifyUser.mutate(user.user_id);
+                                  }}
+                                  className="text-yellow-600"
+                                >
+                                  <XCircle className="h-4 w-4 mr-2" />
+                                  Set Provider to Pending
+                                </DropdownMenuItem>
+                              )
                             )}
                             <DropdownMenuSeparator />
                             {!user.roles.includes("provider") && (
