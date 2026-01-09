@@ -112,11 +112,6 @@ export default function Profile() {
       return;
     }
 
-    if (!profile.is_verified) {
-      navigate("/pending-verification", { replace: true });
-      return;
-    }
-
     const st = (profile.status || "").toLowerCase();
     if (st === "deleted" || st === "inactive") {
       navigate("/auth", { replace: true });
@@ -550,9 +545,9 @@ export default function Profile() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={profile.is_verified ? "default" : "destructive"} className="gap-1">
-                <BadgeCheck className="h-4 w-4" />
-                {profile.is_verified ? (isRTL ? "موثّق" : "Verified") : isRTL ? "غير موثّق" : "Not verified"}
+              <Badge variant={statusBadgeVariant(profile.status)} className="gap-1">
+                <ShieldCheck className="h-4 w-4" />
+                {(profile.status || "active").toLowerCase() === "active" ? (isRTL ? "نشط" : "Active") : (profile.status || "").toString()}
               </Badge>
 
               {providerStatus && (
