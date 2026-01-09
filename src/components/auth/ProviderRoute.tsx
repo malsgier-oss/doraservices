@@ -9,8 +9,8 @@ interface ProviderRouteProps {
 /**
  * ProviderRoute:
  * - requires login
- * - requires verified
- * - requires provider_status === "approved"
+ * - requires role === "provider" (or admin)
+ * - requires provider_status === "approved" for providers
  * - blocks deleted/inactive accounts
  */
 export function ProviderRoute({ children }: ProviderRouteProps) {
@@ -35,18 +35,21 @@ export function ProviderRoute({ children }: ProviderRouteProps) {
   }
 
   if (profile.must_change_password) return <Navigate to="/change-password" replace />;
-  if (!profile.is_verified) return <Navigate to="/pending-verification" replace />;
 
   const st = (profile.status || "").toLowerCase();
   if (st === "deleted" || st === "inactive") {
     return <Navigate to="/auth" replace />;
   }
 
-  const providerStatus = (profile.provider_status || "").toLowerCase();
-  if (providerStatus !== "approved") {
-    // Not approved yet → go to profile where they can apply / see status
+  const role = (profile.role || "").toLowerCase();
+  const isAdmin = role === "admin";
+  const isProvider = role === "provider";
+  if (!isAdmin && !isProvider) {
     return <Navigate to="/profile" replace />;
   }
+
+  const providerStatus = (profile.provider_status || "").toLowerCase();
+  if (!isAdmin && providerStatus !== "approved") return <Navigate to="/profile" replace />;
 
   return <>{children}</>;
 }
