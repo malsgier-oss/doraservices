@@ -51,12 +51,7 @@ export default function Auth() {
       return;
     }
 
-    if (!profile.is_verified) {
-      navigate("/pending-verification", { replace: true });
-      return;
-    }
-
-    // Verified → go to home (hub)
+    // Logged in → go to home (hub)
     navigate("/", { replace: true });
   }, [user, profile, profileLoading, navigate]);
 
