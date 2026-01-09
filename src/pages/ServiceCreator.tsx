@@ -64,12 +64,27 @@ export default function ServiceCreator() {
   const { data: subcategories } = useSubcategories(formData.category || undefined);
   const { data: subCities } = useSubCities(formData.city || profile?.city || null);
 
-  // Redirect unverified users
+  // Guard: only approved providers (or admins) can add services.
   useEffect(() => {
-    if (!profileLoading && profile && !profile.is_verified) {
-      navigate("/pending-verification");
+    if (profileLoading) return;
+    if (!profile) return;
+
+    const role = (profile.role || "").toLowerCase();
+    const providerStatus = (profile.provider_status || "").toLowerCase();
+    const isAdmin = role === "admin";
+    const isProvider = role === "provider";
+
+    if (!isAdmin && !isProvider) {
+      toast.error(isRTL ? "هذه الصفحة لمقدمي الخدمة فقط" : "This page is for providers only");
+      navigate("/profile", { replace: true });
+      return;
     }
-  }, [profile, profileLoading, navigate]);
+
+    if (!isAdmin && providerStatus !== "approved") {
+      toast.info(isRTL ? "حسابك كمزود خدمة قيد المراجعة" : "Your provider account is pending approval");
+      navigate("/pending-verification", { replace: true });
+    }
+  }, [profile, profileLoading, navigate, isRTL]);
 
   // Show loading while checking verification
   if (profileLoading) {
