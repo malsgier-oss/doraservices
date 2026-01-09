@@ -7,7 +7,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Drawer, DrawerClose, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { useProfile } from "@/hooks/useProfile";
 import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -67,14 +66,14 @@ export function ServiceDetailSheet({
 }: ServiceDetailSheetProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { profile } = useProfile();
   const { t, isRTL, language } = useLanguage();
   const { toggleFavorite, isFavorite } = useFavorites();
   const { data: cities } = useCities();
   const { data: subCities } = useSubCities(filters?.city);
   const { logCall } = useCallLogs();
 
-  const isVerified = profile?.is_verified === true;
+  // Dora P0: calling / WhatsApp must work even when the user is anonymous.
+  // Logged-in features (favorites, reviews, call logs) still require auth.
 
   const [providers, setProviders] = useState<ServiceProvider[]>([]);
   const [loading, setLoading] = useState(false);
@@ -285,22 +284,6 @@ export function ServiceDetailSheet({
   const handleProviderClick = (provider: ServiceProvider) => setSelectedProvider(provider);
 
   const handleCall = async (provider: ServiceProvider) => {
-    if (!user) {
-      toast.info(isRTL ? "يرجى تسجيل الدخول للتواصل" : "Please sign in to contact");
-      onOpenChange(false);
-      navigate("/auth");
-      return;
-    }
-
-    if (!isVerified) {
-      toast.error(
-        isRTL
-          ? "حسابك قيد التحقق. سنتواصل معك قريباً لتفعيل المكالمات."
-          : "Account pending verification. We will contact you soon to activate calling.",
-      );
-      return;
-    }
-
     if (!provider.provider_phone) {
       toast.error(isRTL ? "رقم الهاتف غير متوفر" : "Phone number not available");
       return;
@@ -308,8 +291,8 @@ export function ServiceDetailSheet({
 
     setIsLoggingCall(true);
     try {
-      // Only log calls for claimed providers (provider_id required)
-      if (provider.user_id) {
+      // Only log calls when the caller is logged in AND the provider is claimed.
+      if (user && provider.user_id) {
         await logCall.mutateAsync({
           service_id: provider.id,
           provider_id: provider.user_id,
@@ -325,22 +308,6 @@ export function ServiceDetailSheet({
   };
 
   const handleWhatsApp = (provider: ServiceProvider) => {
-    if (!user) {
-      toast.info(isRTL ? "يرجى تسجيل الدخول للتواصل" : "Please sign in to contact");
-      onOpenChange(false);
-      navigate("/auth");
-      return;
-    }
-
-    if (!isVerified) {
-      toast.error(
-        isRTL
-          ? "حسابك قيد التحقق. سنتواصل معك قريباً لتفعيل واتساب."
-          : "Account pending verification. We will contact you soon to activate WhatsApp.",
-      );
-      return;
-    }
-
     if (!provider.provider_phone) {
       toast.error(isRTL ? "رقم الهاتف غير متوفر" : "Phone number not available");
       return;
@@ -379,16 +346,6 @@ export function ServiceDetailSheet({
       navigate("/auth");
       return;
     }
-
-    if (!isVerified) {
-      toast.error(
-        isRTL
-          ? "حسابك قيد التحقق. سنتواصل معك قريباً لتفعيل التقييمات."
-          : "Account pending verification. We will contact you soon to activate reviews.",
-      );
-      return;
-    }
-
     setReviewDialogOpen(true);
   };
 
@@ -532,7 +489,7 @@ export function ServiceDetailSheet({
                     size="lg"
                     className="flex-1 h-14 rounded-2xl"
                     onClick={() => handleCall(selectedProvider)}
-                    disabled={!isVerified || !selectedProvider.provider_phone || isLoggingCall}
+                    disabled={!selectedProvider.provider_phone || isLoggingCall}
                   >
                     <Phone className="h-5 w-5 mr-2" />
                     {isLoggingCall ? (isRTL ? "جاري..." : "Calling...") : isRTL ? "اتصل" : "Call"}
@@ -543,7 +500,7 @@ export function ServiceDetailSheet({
                     size="lg"
                     className="flex-1 h-14 rounded-2xl"
                     onClick={() => handleWhatsApp(selectedProvider)}
-                    disabled={!isVerified || !selectedProvider.provider_phone}
+                    disabled={!selectedProvider.provider_phone}
                   >
                     <MessageSquare className="h-5 w-5 mr-2" />
                     {isRTL ? "واتساب" : "WhatsApp"}
