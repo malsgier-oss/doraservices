@@ -46,10 +46,5 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     return <Navigate to="/change-password" replace />;
   }
 
-  // Verification gating should not block admins
-  if (!profile.is_verified && role !== "admin" && location.pathname !== "/pending-verification") {
-    return <Navigate to="/pending-verification" replace />;
-  }
-
   return <>{children}</>;
 }
