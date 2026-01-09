@@ -102,9 +102,20 @@ export function useReviews(serviceId?: string) {
       return { error: new Error("Rating must be between 1 and 5") };
     }
 
-    // Validate content length
-    if (data.content && data.content.length > 500) {
-      return { error: new Error("Review content must be less than 500 characters") };
+    // Sanitize and validate content - strip HTML tags to prevent XSS
+    let sanitizedContent: string | null = null;
+    if (data.content) {
+      // Strip all HTML tags but keep text content
+      sanitizedContent = data.content.trim().replace(/<[^>]*>/g, '');
+      
+      if (sanitizedContent.length > 500) {
+        return { error: new Error("Review content must be less than 500 characters") };
+      }
+      
+      // Set to null if empty after sanitization
+      if (sanitizedContent.length === 0) {
+        sanitizedContent = null;
+      }
     }
 
     try {
@@ -114,7 +125,7 @@ export function useReviews(serviceId?: string) {
           .from("service_reviews")
           .update({
             rating: data.rating,
-            content: data.content?.trim() || null,
+            content: sanitizedContent,
           })
           .eq("id", userReview.id);
 
@@ -128,7 +139,7 @@ export function useReviews(serviceId?: string) {
             user_id: user.id,
             provider_id: data.providerId,
             rating: data.rating,
-            content: data.content?.trim() || null,
+            content: sanitizedContent,
           });
 
         if (error) return { error };
