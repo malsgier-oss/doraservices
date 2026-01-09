@@ -141,21 +141,18 @@ export function useAdminUsers(filters?: { status?: string; role?: string; search
       const { data, error } = await query;
       if (error) throw error;
 
-      // Get roles for each user
-      const userIds = data?.map((p) => p.user_id) || [];
-      const { data: roles } = await supabase.from("user_roles").select("user_id, role").in("user_id", userIds);
+      // Dora: roles are stored in profiles.role (simple + reliable).
+      // We still tolerate legacy user_roles if it exists, but profiles.role is the source of truth.
+      const base =
+        data?.map((p: any) => {
+          const r = (p.role || "user").toString().toLowerCase();
+          return {
+            ...p,
+            roles: [r],
+          };
+        }) || [];
 
-      const roleMap = new Map<string, string[]>();
-      roles?.forEach((r) => {
-        const existing = roleMap.get(r.user_id) || [];
-        roleMap.set(r.user_id, [...existing, r.role]);
-      });
-
-      let result =
-        data?.map((p) => ({
-          ...p,
-          roles: roleMap.get(p.user_id) || [],
-        })) || [];
+      let result = base;
 
       // Filter by role if needed
       if (filters?.role && filters.role !== "all") {
@@ -284,13 +281,19 @@ export function useUserMutations() {
       role: "user" | "provider" | "admin";
       action: "add" | "remove";
     }) => {
-      if (action === "add") {
-        const { error } = await supabase.from("user_roles").insert({ user_id: userId, role });
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", role);
-        if (error) throw error;
+      // Source of truth: profiles.role (single role per user for Dora P0)
+      // - "add" sets the role
+      // - "remove" resets back to "user" unless removing admin (still -> user)
+      const nextRole = action === "add" ? role : "user";
+
+      // If promoting to provider, default provider_status to pending (unless already approved)
+      const updates: any = { role: nextRole };
+      if (nextRole === "provider") {
+        updates.provider_status = "pending";
       }
+
+      const { error } = await supabase.from("profiles").update(updates).eq("user_id", userId);
+      if (error) throw error;
 
       await supabase.rpc("log_admin_action", {
         p_action: `${action}_role`,
@@ -310,17 +313,9 @@ export function useUserMutations() {
 
   const verifyUser = useMutation({
     mutationFn: async (userId: string) => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          is_verified: true,
-          verified_at: new Date().toISOString(),
-          verified_by: user?.id,
-        })
-        .eq("user_id", userId);
+      // Dora P0: "verification" maps to provider approval.
+      // For non-provider users this is effectively a no-op.
+      const { error } = await supabase.from("profiles").update({ provider_status: "approved" }).eq("user_id", userId);
       if (error) throw error;
 
       await supabase.rpc("log_admin_action", {
@@ -340,14 +335,7 @@ export function useUserMutations() {
 
   const unverifyUser = useMutation({
     mutationFn: async (userId: string) => {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          is_verified: false,
-          verified_at: null,
-          verified_by: null,
-        })
-        .eq("user_id", userId);
+      const { error } = await supabase.from("profiles").update({ provider_status: "pending" }).eq("user_id", userId);
       if (error) throw error;
 
       await supabase.rpc("log_admin_action", {
