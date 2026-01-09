@@ -102,7 +102,7 @@ export function useAdminStats() {
         { count: pendingReports },
       ] = await Promise.all([
         supabase.from("profiles").select("*", { count: "exact", head: true }),
-        supabase.from("user_roles").select("*", { count: "exact", head: true }).eq("role", "provider"),
+        supabase.from("user_roles").select("*", { count: "exact", head: true }).eq("role", "business"),
         supabase.from("businesses").select("*", { count: "exact", head: true }).eq("authorization_status", "pending"),
         supabase.from("businesses").select("*", { count: "exact", head: true }).eq("authorization_status", "approved"),
         supabase.from("deals").select("*", { count: "exact", head: true }).eq("status", "active"),
