@@ -282,8 +282,8 @@ export default function AdminUsers() {
                               </DropdownMenuItem>
                             ) : null}
                             <DropdownMenuSeparator />
-                            {user.roles.includes("provider") && (
-                              (user.provider_status || "pending").toLowerCase() !== "approved" ? (
+                            {user.roles.includes("provider") &&
+                              ((user.provider_status || "pending").toLowerCase() !== "approved" ? (
                                 <DropdownMenuItem
                                   onSelect={(e) => {
                                     e.preventDefault();
@@ -305,8 +305,7 @@ export default function AdminUsers() {
                                   <XCircle className="h-4 w-4 mr-2" />
                                   Set Provider to Pending
                                 </DropdownMenuItem>
-                              )
-                            )}
+                              ))}
                             <DropdownMenuSeparator />
                             {!user.roles.includes("provider") && (
                               <DropdownMenuItem
@@ -327,6 +326,28 @@ export default function AdminUsers() {
                                 }}
                               >
                                 Remove Business Role
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            {!user.roles.includes("admin") && (
+                              <DropdownMenuItem
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  changeUserRole.mutate({ userId: user.user_id, role: "admin", action: "add" });
+                                }}
+                              >
+                                <Shield className="h-4 w-4 mr-2" />
+                                Add Admin Role
+                              </DropdownMenuItem>
+                            )}
+                            {user.roles.includes("admin") && (
+                              <DropdownMenuItem
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  changeUserRole.mutate({ userId: user.user_id, role: "admin", action: "remove" });
+                                }}
+                              >
+                                Remove Admin Role
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuSeparator />
