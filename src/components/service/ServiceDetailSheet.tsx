@@ -61,28 +61,31 @@ function digitsOnly(v: string) {
   return (v || "").replace(/\D/g, "");
 }
 
+/**
+ * Normalize Libyan phone numbers into:
+ * - tel: "+2189xxxxxxx" (preferred for tel)
+ * - wa:  "2189xxxxxxx"  (digits only for wa.me)
+ */
 function normalizeLibyaPhone(raw: string) {
   const d = digitsOnly(raw);
   if (!d) return { tel: "", wa: "" };
 
-  // already country code
-  if (d.startsWith("218")) {
-    return { tel: `+${d}`, wa: d };
-  }
+  // already has country code
+  if (d.startsWith("218")) return { tel: `+${d}`, wa: d };
 
-  // 0XXXXXXXXX
+  // common local format: 0XXXXXXXXX
   if (d.length === 10 && d.startsWith("0")) {
     const cc = `218${d.slice(1)}`;
     return { tel: `+${cc}`, wa: cc };
   }
 
-  // 9 digits (missing leading 0)
+  // sometimes stored without leading 0
   if (d.length === 9) {
     const cc = `218${d}`;
     return { tel: `+${cc}`, wa: cc };
   }
 
-  // fallback
+  // fallback: best-effort
   return { tel: d.startsWith("+") ? d : `+${d}`, wa: d };
 }
 
@@ -304,50 +307,6 @@ export function ServiceDetailSheet({
 
   const handleProviderClick = (provider: ServiceProvider) => setSelectedProvider(provider);
 
-  const handleCall = async (provider: ServiceProvider) => {
-    if (!provider.provider_phone) {
-      toast.error(isRTL ? "رقم الهاتف غير متوفر" : "Phone number not available");
-      return;
-    }
-
-    const normalized = normalizeLibyaPhone(provider.provider_phone);
-    if (!normalized.tel) {
-      toast.error(isRTL ? "رقم الهاتف غير صحيح" : "Invalid phone number");
-      return;
-    }
-
-    setIsLoggingCall(true);
-    try {
-      if (user && provider.user_id) {
-        await logCall.mutateAsync({
-          service_id: provider.id,
-          provider_id: provider.user_id,
-        });
-      }
-    } catch (err) {
-      console.error("Error logging call:", err);
-    } finally {
-      setIsLoggingCall(false);
-    }
-
-    window.location.href = `tel:${normalized.tel}`;
-  };
-
-  const handleWhatsApp = (provider: ServiceProvider) => {
-    if (!provider.provider_phone) {
-      toast.error(isRTL ? "رقم الهاتف غير متوفر" : "Phone number not available");
-      return;
-    }
-
-    const normalized = normalizeLibyaPhone(provider.provider_phone);
-    if (!normalized.wa) {
-      toast.error(isRTL ? "رقم الهاتف غير صحيح" : "Invalid phone number");
-      return;
-    }
-
-    window.open(`https://wa.me/${normalized.wa}`, "_blank", "noopener,noreferrer");
-  };
-
   const handleToggleFavorite = async (serviceId: string) => {
     if (!user) {
       toast.info(isRTL ? "يرجى تسجيل الدخول" : "Please sign in first");
@@ -410,6 +369,26 @@ export function ServiceDetailSheet({
   if (selectedProvider) {
     const isProviderFavorite = isFavorite(selectedProvider.id);
     const hasRating = rating.totalReviews > 0;
+
+    const normalized = normalizeLibyaPhone(selectedProvider.provider_phone || "");
+    const telHref = normalized.tel ? `tel:${normalized.tel}` : "";
+    const waHref = normalized.wa ? `https://wa.me/${normalized.wa}` : "";
+
+    const handleLogCall = async () => {
+      // Call logging is optional and only for logged-in + claimed providers.
+      if (!user || !selectedProvider.user_id) return;
+      setIsLoggingCall(true);
+      try {
+        await logCall.mutateAsync({
+          service_id: selectedProvider.id,
+          provider_id: selectedProvider.user_id,
+        });
+      } catch (err) {
+        console.error("Error logging call:", err);
+      } finally {
+        setIsLoggingCall(false);
+      }
+    };
 
     return (
       <>
@@ -506,27 +485,44 @@ export function ServiceDetailSheet({
                   <ReviewList reviews={reviews} loading={reviewsLoading} />
                 </div>
 
+                {/* ✅ Call / WhatsApp: use real anchor links (no popup blockers) */}
                 <div className="flex gap-3 pt-2">
                   <Button
+                    asChild
                     variant="outline"
                     size="lg"
                     className="flex-1 h-14 rounded-2xl"
-                    onClick={() => handleCall(selectedProvider)}
-                    disabled={!selectedProvider.provider_phone || isLoggingCall}
+                    disabled={!telHref || isLoggingCall}
+                    onClick={() => {
+                      if (!selectedProvider.provider_phone) {
+                        toast.error(isRTL ? "رقم الهاتف غير متوفر" : "Phone number not available");
+                      }
+                      // log call only if eligible
+                      void handleLogCall();
+                    }}
                   >
-                    <Phone className="h-5 w-5 mr-2" />
-                    {isLoggingCall ? (isRTL ? "جاري..." : "Calling...") : isRTL ? "اتصل" : "Call"}
+                    <a href={telHref || "#"} aria-disabled={!telHref || isLoggingCall}>
+                      <Phone className="h-5 w-5 mr-2" />
+                      {isLoggingCall ? (isRTL ? "جاري..." : "Calling...") : isRTL ? "اتصل" : "Call"}
+                    </a>
                   </Button>
 
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="flex-1 h-14 rounded-2xl"
-                    onClick={() => handleWhatsApp(selectedProvider)}
-                    disabled={!selectedProvider.provider_phone}
-                  >
-                    <MessageSquare className="h-5 w-5 mr-2" />
-                    {isRTL ? "واتساب" : "WhatsApp"}
+                  <Button asChild variant="outline" size="lg" className="flex-1 h-14 rounded-2xl" disabled={!waHref}>
+                    <a
+                      href={waHref || "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-disabled={!waHref}
+                      onClick={(e) => {
+                        if (!waHref) {
+                          e.preventDefault();
+                          toast.error(isRTL ? "رقم الهاتف غير متوفر" : "Phone number not available");
+                        }
+                      }}
+                    >
+                      <MessageSquare className="h-5 w-5 mr-2" />
+                      {isRTL ? "واتساب" : "WhatsApp"}
+                    </a>
                   </Button>
                 </div>
 
