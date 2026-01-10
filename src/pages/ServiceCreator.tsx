@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useServices } from "@/hooks/useServices";
 import { useProfile } from "@/hooks/useProfile";
 import { useCategories } from "@/hooks/useCategories";
 import { useSubcategories } from "@/hooks/useSubcategories";
@@ -47,6 +46,7 @@ import {
   MapPin,
   LucideIcon,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 // Icon mapping for dynamic icons from database
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -78,11 +78,32 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Sparkles,
 };
 
+function digitsOnly(v: string) {
+  return (v || "").replace(/\D/g, "");
+}
+
+// Dora P0: store phone in services row so anonymous users can call/WhatsApp
+function normalizeLibyaPhoneForStorage(raw: string | null | undefined) {
+  const d = digitsOnly(raw || "");
+  if (!d) return "";
+
+  // already has country code
+  if (d.startsWith("218")) return d;
+
+  // common local format: 0XXXXXXXXX (10 digits starting with 0)
+  if (d.length === 10 && d.startsWith("0")) return `218${d.slice(1)}`;
+
+  // 9 digits (sometimes without leading 0)
+  if (d.length === 9) return `218${d}`;
+
+  // fallback: store digits as-is
+  return d;
+}
+
 export default function ServiceCreator() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { t, isRTL, language } = useLanguage();
-  const { createService } = useServices();
   const { profile, loading: profileLoading, updateProfile } = useProfile();
   const { data: categories } = useCategories();
   const { data: cities } = useCities();
@@ -140,6 +161,12 @@ export default function ServiceCreator() {
       return;
     }
 
+    if (!profile) {
+      toast.error(isRTL ? "يرجى إكمال ملفك الشخصي" : "Please complete your profile");
+      navigate("/profile");
+      return;
+    }
+
     if (!formData.serviceName.trim()) {
       toast.error(isRTL ? "يرجى إدخال اسم الخدمة" : "Please enter service name");
       return;
@@ -148,9 +175,18 @@ export default function ServiceCreator() {
       toast.error(isRTL ? "يرجى اختيار الفئة" : "Please select a category");
       return;
     }
+
     const cityValue = formData.city || profile?.city;
     if (!cityValue) {
       toast.error(isRTL ? "يرجى اختيار المدينة" : "Please select your city");
+      return;
+    }
+
+    // IMPORTANT for P0: phone must exist to allow call/WhatsApp for guests
+    const storedPhone = normalizeLibyaPhoneForStorage(profile.phone);
+    if (!storedPhone) {
+      toast.error(isRTL ? "أضف رقم هاتفك في الملف الشخصي أولاً" : "Add your phone number in Profile first");
+      navigate("/profile");
       return;
     }
 
@@ -161,16 +197,32 @@ export default function ServiceCreator() {
         await updateProfile({ city: formData.city });
       }
 
+      // Update profile with subCity if selected (optional)
+      if (formData.subCity && formData.subCity !== profile?.sub_city) {
+        await updateProfile({ sub_city: formData.subCity });
+      }
+
       // Use subcategory name if selected, otherwise use category name
       const categoryToUse = formData.subcategory
         ? subcategories?.find((s) => s.id === formData.subcategory)?.name
         : selectedCategory?.name;
 
-      const { error } = await createService({
-        title: formData.serviceName,
-        description: formData.bio || undefined,
+      const providerName = (profile.full_name || "").trim() || (isRTL ? "مقدم الخدمة" : "Provider");
+
+      // ✅ Insert directly to ensure provider_phone/provider_name/city/sub_city are stored for anonymous browsing
+      const { error } = await supabase.from("services").insert({
+        user_id: user.id,
+        title: formData.serviceName.trim(),
+        description: formData.bio?.trim() || null,
         category: categoryToUse || "",
-        price: 0, // Price no longer used but required by DB
+        price: 0, // required by DB
+        city: cityValue,
+        sub_city: formData.subCity || profile.sub_city || null,
+        provider_name: providerName,
+        provider_phone: storedPhone,
+        is_active: true,
+        is_visible: true,
+        is_paused: false,
       });
 
       if (error) throw error;
@@ -181,6 +233,7 @@ export default function ServiceCreator() {
 
       navigate("/profile");
     } catch (error) {
+      console.error(error);
       toast.error(isRTL ? "حدث خطأ أثناء إنشاء الخدمة" : "Error creating service");
     } finally {
       setIsSubmitting(false);
@@ -236,7 +289,7 @@ export default function ServiceCreator() {
             </Label>
             <Select
               value={formData.city || profile?.city || "none"}
-              onValueChange={(value) => setFormData({ ...formData, city: value === "none" ? "" : value })}
+              onValueChange={(value) => setFormData({ ...formData, city: value === "none" ? "" : value, subCity: "" })}
             >
               <SelectTrigger className="rounded-xl h-12">
                 <SelectValue placeholder={isRTL ? "اختر مدينتك" : "Select your city"} />
@@ -250,9 +303,7 @@ export default function ServiceCreator() {
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              {isRTL ? "يساعد العملاء على إيجادك" : "Helps customers find you"}
-            </p>
+            <p className="text-xs text-muted-foreground">{isRTL ? "يساعد العملاء على إيجادك" : "Helps customers find you"}</p>
           </div>
 
           {/* Sub-city Selection */}
@@ -299,9 +350,7 @@ export default function ServiceCreator() {
                       onClick={() => setFormData({ ...formData, subcategory: sub.id })}
                       className={cn(
                         "flex items-center gap-2 p-3 rounded-xl border transition-colors",
-                        isSelected
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border hover:border-primary/50",
+                        isSelected ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-primary/50",
                       )}
                     >
                       <SubIcon className="h-5 w-5" />
