@@ -40,15 +40,15 @@ export function useServices() {
     }
 
     // Get provider profiles for each service
-    const userIds = [...new Set(servicesData?.map(s => s.user_id) || [])];
+    const userIds = [...new Set(servicesData?.map((s) => s.user_id) || [])];
     const { data: profiles } = await supabase
       .from("profiles")
       .select("user_id, full_name, avatar_url, phone")
       .in("user_id", userIds);
 
-    const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
+    const profileMap = new Map(profiles?.map((p) => [p.user_id, p]) || []);
 
-    const enrichedServices = (servicesData || []).map(service => ({
+    const enrichedServices = (servicesData || []).map((service) => ({
       ...service,
       provider_name: profileMap.get(service.user_id)?.full_name || "Provider",
       provider_avatar: profileMap.get(service.user_id)?.avatar_url || "",
@@ -94,6 +94,25 @@ export function useServices() {
   }) => {
     if (!user) return { error: new Error("Not authenticated") };
 
+    // Dora P0: ensure call/WhatsApp works even for anonymous users.
+    // We denormalize provider_name/phone/city/sub_city into the service row at creation time.
+    let provider: {
+      full_name: string | null;
+      phone: string | null;
+      city: string | null;
+      sub_city: string | null;
+    } | null = null;
+    try {
+      const { data: p, error: pErr } = await supabase
+        .from("profiles")
+        .select("full_name, phone, city, sub_city")
+        .eq("user_id", user.id)
+        .single();
+      if (!pErr) provider = p as any;
+    } catch {
+      // ignore
+    }
+
     const { data, error } = await supabase
       .from("services")
       .insert({
@@ -103,12 +122,16 @@ export function useServices() {
         category: serviceData.category,
         price: serviceData.price,
         image_url: serviceData.image_url || null,
+        provider_name: provider?.full_name || null,
+        provider_phone: provider?.phone || null,
+        city: provider?.city || null,
+        sub_city: provider?.sub_city || null,
       })
       .select()
       .single();
 
     if (!error && data) {
-      setMyServices(prev => [data, ...prev]);
+      setMyServices((prev) => [data, ...prev]);
       await fetchAllServices(); // Refresh all services
     }
 
@@ -116,15 +139,10 @@ export function useServices() {
   };
 
   const updateService = async (id: string, updates: Partial<Service>) => {
-    const { data, error } = await supabase
-      .from("services")
-      .update(updates)
-      .eq("id", id)
-      .select()
-      .single();
+    const { data, error } = await supabase.from("services").update(updates).eq("id", id).select().single();
 
     if (!error && data) {
-      setMyServices(prev => prev.map(s => s.id === id ? data : s));
+      setMyServices((prev) => prev.map((s) => (s.id === id ? data : s)));
       await fetchAllServices();
     }
 
@@ -132,13 +150,10 @@ export function useServices() {
   };
 
   const deleteService = async (id: string) => {
-    const { error } = await supabase
-      .from("services")
-      .delete()
-      .eq("id", id);
+    const { error } = await supabase.from("services").delete().eq("id", id);
 
     if (!error) {
-      setMyServices(prev => prev.filter(s => s.id !== id));
+      setMyServices((prev) => prev.filter((s) => s.id !== id));
       await fetchAllServices();
     }
 
