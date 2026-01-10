@@ -5,13 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useServices } from "@/hooks/useServices";
 import { useProfile } from "@/hooks/useProfile";
@@ -24,20 +18,64 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 import {
-  Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper,
-  Wrench, Droplets, Wind, Fuel, ClipboardCheck, Sun, Cog, Scale,
-  Languages, Camera, UtensilsCrossed, Stethoscope, Activity,
-  Hammer, Paintbrush, Battery, Calculator, Sparkles,
+  Home,
+  Car,
+  Zap,
+  Briefcase,
+  Building2,
+  GraduationCap,
+  Heart,
+  PartyPopper,
+  Wrench,
+  Droplets,
+  Wind,
+  Fuel,
+  ClipboardCheck,
+  Sun,
+  Cog,
+  Scale,
+  Languages,
+  Camera,
+  UtensilsCrossed,
+  Stethoscope,
+  Activity,
+  Hammer,
+  Paintbrush,
+  Battery,
+  Calculator,
+  Sparkles,
   MapPin,
-  LucideIcon
+  LucideIcon,
 } from "lucide-react";
 
 // Icon mapping for dynamic icons from database
 const ICON_MAP: Record<string, LucideIcon> = {
-  Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper,
-  Wrench, Droplets, Wind, Fuel, ClipboardCheck, Sun, Cog, Scale,
-  Languages, Camera, UtensilsCrossed, Stethoscope, Activity,
-  Hammer, Paintbrush, Battery, Calculator, Sparkles
+  Home,
+  Car,
+  Zap,
+  Briefcase,
+  Building2,
+  GraduationCap,
+  Heart,
+  PartyPopper,
+  Wrench,
+  Droplets,
+  Wind,
+  Fuel,
+  ClipboardCheck,
+  Sun,
+  Cog,
+  Scale,
+  Languages,
+  Camera,
+  UtensilsCrossed,
+  Stethoscope,
+  Activity,
+  Hammer,
+  Paintbrush,
+  Battery,
+  Calculator,
+  Sparkles,
 };
 
 export default function ServiceCreator() {
@@ -48,7 +86,7 @@ export default function ServiceCreator() {
   const { profile, loading: profileLoading, updateProfile } = useProfile();
   const { data: categories } = useCategories();
   const { data: cities } = useCities();
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     serviceName: "",
@@ -60,17 +98,16 @@ export default function ServiceCreator() {
   });
 
   // Get subcategories for selected category
-  const selectedCategory = categories?.find(c => c.id === formData.category);
+  const selectedCategory = categories?.find((c) => c.id === formData.category);
   const { data: subcategories } = useSubcategories(formData.category || undefined);
   const { data: subCities } = useSubCities(formData.city || profile?.city || null);
 
-  // Guard: only approved providers (or admins) can add services.
+  // Guard (Dora P0): providers (or admins) can add services immediately.
   useEffect(() => {
     if (profileLoading) return;
     if (!profile) return;
 
     const role = (profile.role || "").toLowerCase();
-    const providerStatus = (profile.provider_status || "").toLowerCase();
     const isAdmin = role === "admin";
     const isProvider = role === "provider";
 
@@ -80,10 +117,7 @@ export default function ServiceCreator() {
       return;
     }
 
-    if (!isAdmin && providerStatus !== "approved") {
-      toast.info(isRTL ? "حسابك كمزود خدمة قيد المراجعة" : "Your provider account is pending approval");
-      navigate("/pending-verification", { replace: true });
-    }
+    // No pending gate in P0.
   }, [profile, profileLoading, navigate, isRTL]);
 
   // Show loading while checking verification
@@ -99,7 +133,7 @@ export default function ServiceCreator() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!user) {
       toast.error(isRTL ? "يرجى تسجيل الدخول" : "Please log in");
       navigate("/auth");
@@ -128,8 +162,8 @@ export default function ServiceCreator() {
       }
 
       // Use subcategory name if selected, otherwise use category name
-      const categoryToUse = formData.subcategory 
-        ? subcategories?.find(s => s.id === formData.subcategory)?.name 
+      const categoryToUse = formData.subcategory
+        ? subcategories?.find((s) => s.id === formData.subcategory)?.name
         : selectedCategory?.name;
 
       const { error } = await createService({
@@ -140,11 +174,11 @@ export default function ServiceCreator() {
       });
 
       if (error) throw error;
-      
+
       toast.success(t.creator.serviceCreated, {
         description: t.creator.serviceCreatedDesc,
       });
-      
+
       navigate("/profile");
     } catch (error) {
       toast.error(isRTL ? "حدث خطأ أثناء إنشاء الخدمة" : "Error creating service");
@@ -169,9 +203,7 @@ export default function ServiceCreator() {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Category Selection */}
           <div className="space-y-2">
-            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>
-              {t.creator.category}
-            </Label>
+            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{t.creator.category}</Label>
             <Select
               value={formData.category}
               onValueChange={(value) => setFormData({ ...formData, category: value, subcategory: "" })}
@@ -210,9 +242,7 @@ export default function ServiceCreator() {
                 <SelectValue placeholder={isRTL ? "اختر مدينتك" : "Select your city"} />
               </SelectTrigger>
               <SelectContent className="bg-card border-border z-50">
-                <SelectItem value="none">
-                  {isRTL ? "-- اختر مدينة --" : "-- Select city --"}
-                </SelectItem>
+                <SelectItem value="none">{isRTL ? "-- اختر مدينة --" : "-- Select city --"}</SelectItem>
                 {cities?.map((city) => (
                   <SelectItem key={city.id} value={city.id}>
                     {language === "ar" && city.name_ar ? city.name_ar : city.name}
@@ -240,9 +270,7 @@ export default function ServiceCreator() {
                   <SelectValue placeholder={isRTL ? "اختر منطقتك" : "Select your area"} />
                 </SelectTrigger>
                 <SelectContent className="bg-card border-border z-50">
-                  <SelectItem value="none">
-                    {isRTL ? "-- اختر منطقة --" : "-- Select area --"}
-                  </SelectItem>
+                  <SelectItem value="none">{isRTL ? "-- اختر منطقة --" : "-- Select area --"}</SelectItem>
                   {subCities.map((sc) => (
                     <SelectItem key={sc.id} value={sc.id}>
                       {language === "ar" && sc.name_ar ? sc.name_ar : sc.name}
@@ -271,9 +299,9 @@ export default function ServiceCreator() {
                       onClick={() => setFormData({ ...formData, subcategory: sub.id })}
                       className={cn(
                         "flex items-center gap-2 p-3 rounded-xl border transition-colors",
-                        isSelected 
-                          ? "border-primary bg-primary/10 text-primary" 
-                          : "border-border hover:border-primary/50"
+                        isSelected
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border hover:border-primary/50",
                       )}
                     >
                       <SubIcon className="h-5 w-5" />
@@ -287,9 +315,7 @@ export default function ServiceCreator() {
 
           {/* Service Name */}
           <div className="space-y-2">
-            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>
-              {t.creator.serviceName}
-            </Label>
+            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{t.creator.serviceName}</Label>
             <Input
               value={formData.serviceName}
               onChange={(e) => setFormData({ ...formData, serviceName: e.target.value })}
@@ -301,9 +327,7 @@ export default function ServiceCreator() {
 
           {/* Bio */}
           <div className="space-y-2">
-            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>
-              {t.creator.bio}
-            </Label>
+            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{t.creator.bio}</Label>
             <Textarea
               value={formData.bio}
               onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
@@ -314,11 +338,7 @@ export default function ServiceCreator() {
           </div>
 
           {/* Submit */}
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full rounded-full h-12 text-base"
-          >
+          <Button type="submit" disabled={isSubmitting} className="w-full rounded-full h-12 text-base">
             {isSubmitting ? t.common.loading : t.creator.createService}
           </Button>
         </form>
