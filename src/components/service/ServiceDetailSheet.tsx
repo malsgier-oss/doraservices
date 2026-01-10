@@ -57,6 +57,35 @@ interface ServiceDetailSheetProps {
   initialProviderServiceId?: string | null;
 }
 
+function digitsOnly(v: string) {
+  return (v || "").replace(/\D/g, "");
+}
+
+function normalizeLibyaPhone(raw: string) {
+  const d = digitsOnly(raw);
+  if (!d) return { tel: "", wa: "" };
+
+  // already country code
+  if (d.startsWith("218")) {
+    return { tel: `+${d}`, wa: d };
+  }
+
+  // 0XXXXXXXXX
+  if (d.length === 10 && d.startsWith("0")) {
+    const cc = `218${d.slice(1)}`;
+    return { tel: `+${cc}`, wa: cc };
+  }
+
+  // 9 digits (missing leading 0)
+  if (d.length === 9) {
+    const cc = `218${d}`;
+    return { tel: `+${cc}`, wa: cc };
+  }
+
+  // fallback
+  return { tel: d.startsWith("+") ? d : `+${d}`, wa: d };
+}
+
 export function ServiceDetailSheet({
   open,
   onOpenChange,
@@ -71,9 +100,6 @@ export function ServiceDetailSheet({
   const { data: cities } = useCities();
   const { data: subCities } = useSubCities(filters?.city);
   const { logCall } = useCallLogs();
-
-  // Dora P0: calling / WhatsApp must work even when the user is anonymous.
-  // Logged-in features (favorites, reviews, call logs) still require auth.
 
   const [providers, setProviders] = useState<ServiceProvider[]>([]);
   const [loading, setLoading] = useState(false);
@@ -106,7 +132,6 @@ export function ServiceDetailSheet({
     return sc ? (language === "ar" && sc.name_ar ? sc.name_ar : sc.name) : subCityId;
   };
 
-  // ---- City alias matching (to support filters.city = "tripoli" etc.) ----
   const norm = (s: string | null | undefined) =>
     String(s || "")
       .toLowerCase()
@@ -146,7 +171,6 @@ export function ServiceDetailSheet({
     return false;
   };
 
-  // ✅ Recently viewed write (store service_id whenever provider profile is opened)
   useEffect(() => {
     if (!selectedProvider) return;
 
@@ -195,8 +219,6 @@ export function ServiceDetailSheet({
 
       const userIds = Array.from(new Set((servicesData as any[]).map((s) => s.user_id).filter(Boolean))) as string[];
 
-      // Profiles are restricted to authenticated users in many setups.
-      // If profile lookup fails (e.g., guest browsing), we still show providers using service-level fields.
       let profileMap = new Map<string, any>();
       if (userIds.length > 0) {
         const { data: profiles, error: profilesError } = await supabase
@@ -288,9 +310,14 @@ export function ServiceDetailSheet({
       return;
     }
 
+    const normalized = normalizeLibyaPhone(provider.provider_phone);
+    if (!normalized.tel) {
+      toast.error(isRTL ? "رقم الهاتف غير صحيح" : "Invalid phone number");
+      return;
+    }
+
     setIsLoggingCall(true);
     try {
-      // Only log calls when the caller is logged in AND the provider is claimed.
       if (user && provider.user_id) {
         await logCall.mutateAsync({
           service_id: provider.id,
@@ -303,7 +330,7 @@ export function ServiceDetailSheet({
       setIsLoggingCall(false);
     }
 
-    window.location.href = `tel:${provider.provider_phone}`;
+    window.location.href = `tel:${normalized.tel}`;
   };
 
   const handleWhatsApp = (provider: ServiceProvider) => {
@@ -312,8 +339,13 @@ export function ServiceDetailSheet({
       return;
     }
 
-    const digitsOnly = provider.provider_phone.replace(/\D/g, "");
-    window.open(`https://wa.me/${digitsOnly}`, "_blank");
+    const normalized = normalizeLibyaPhone(provider.provider_phone);
+    if (!normalized.wa) {
+      toast.error(isRTL ? "رقم الهاتف غير صحيح" : "Invalid phone number");
+      return;
+    }
+
+    window.open(`https://wa.me/${normalized.wa}`, "_blank", "noopener,noreferrer");
   };
 
   const handleToggleFavorite = async (serviceId: string) => {
@@ -372,12 +404,6 @@ export function ServiceDetailSheet({
 
   const handleBack = () => setSelectedProvider(null);
 
-  const getRatingDisplay = (serviceId: string) => {
-    const r = providerRatings.get(serviceId);
-    if (!r || r.totalReviews === 0) return { text: isRTL ? "جديد" : "New", hasRating: false };
-    return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true };
-  };
-
   const drawerPageClass = "h-[85dvh] max-h-[85dvh] flex flex-col overflow-hidden mt-0";
 
   // ---------------- Provider detail view ----------------
@@ -429,9 +455,7 @@ export function ServiceDetailSheet({
                       .slice(0, 2)}
                   </AvatarFallback>
                 </Avatar>
-                <DrawerTitle className="text-xl font-bold text-foreground">
-                  {selectedProvider.provider_name}
-                </DrawerTitle>
+                <DrawerTitle className="text-xl font-bold text-foreground">{selectedProvider.provider_name}</DrawerTitle>
                 <p className="text-sm text-muted-foreground mt-1">{selectedProvider.title}</p>
               </div>
             </DrawerHeader>
@@ -648,9 +672,7 @@ export function ServiceDetailSheet({
                         </div>
 
                         {provider.provider_sub_city && (
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {getSubCityLabel(provider.provider_sub_city)}
-                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">{getSubCityLabel(provider.provider_sub_city)}</div>
                         )}
                       </div>
 
@@ -677,12 +699,8 @@ export function ServiceDetailSheet({
             ) : (
               <div className="text-center py-12">
                 <div className="text-4xl mb-3">🔍</div>
-                <p className="text-muted-foreground font-medium">
-                  {isRTL ? "لا يوجد مقدمي خدمة" : "No providers available"}
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {isRTL ? "جرب تصفية مختلفة" : "Try different filters"}
-                </p>
+                <p className="text-muted-foreground font-medium">{isRTL ? "لا يوجد مقدمي خدمة" : "No providers available"}</p>
+                <p className="text-sm text-muted-foreground mt-1">{isRTL ? "جرب تصفية مختلفة" : "Try different filters"}</p>
               </div>
             )}
           </div>
