@@ -89,8 +89,9 @@ export default function ProviderDashboard() {
     }
   }, [loading, profileLoading, user, profile, navigate]);
 
+  // Dora P0 (Libya UX): providers can use the dashboard immediately.
+  // Keep provider_status only as an informational field.
   const providerStatus = (profile?.provider_status || "").toLowerCase();
-  const isApproved = providerStatus === "approved";
 
   const isLoading = loading || profileLoading || statsLoading || serviceStatsLoading;
 
@@ -104,52 +105,7 @@ export default function ProviderDashboard() {
 
   if (!user || !profile) return null;
 
-  if (!isApproved) {
-    const msg =
-      providerStatus === "pending"
-        ? isRTL
-          ? "طلبك قيد المراجعة."
-          : "Your application is under review."
-        : providerStatus === "rejected"
-          ? isRTL
-            ? "تم رفض طلبك. يمكنك إعادة التقديم من صفحة الملف الشخصي."
-            : "Your application was rejected. You can re-apply from your profile."
-          : isRTL
-            ? "هذه الصفحة متاحة فقط للمزودين المعتمدين."
-            : "This page is only available for approved providers.";
-
-    return (
-      <div className="min-h-screen bg-background p-4 pb-20" dir={isRTL ? "rtl" : "ltr"}>
-        <header className="sticky top-0 z-40 bg-background border-b px-4 py-3 -mx-4">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full">
-              <ArrowLeft className={cn("h-5 w-5", isRTL && "rotate-180")} />
-            </Button>
-            <h1 className="text-lg font-semibold">{isRTL ? "لوحة المزود" : "Provider Dashboard"}</h1>
-          </div>
-        </header>
-
-        <div className="max-w-xl mx-auto mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <ShieldAlert className="h-4 w-4 text-destructive" />
-                {isRTL ? "غير متاح حالياً" : "Not available"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">{msg}</p>
-              <Button onClick={() => navigate("/profile")} className="w-full">
-                {isRTL ? "الذهاب للملف الشخصي" : "Go to Profile"}
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-
-        <MobileNav />
-      </div>
-    );
-  }
+  // No approval gate in P0.
 
   const hasServices = (serviceStats?.length || 0) > 0;
   const { percentage: completeness, missing } = calculateProfileCompleteness(profile, hasServices);
