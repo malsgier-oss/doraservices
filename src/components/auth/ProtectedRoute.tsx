@@ -1,22 +1,21 @@
-import { useEffect } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 
-interface ProtectedRouteProps {
+interface ProviderRouteProps {
   children: React.ReactNode;
 }
 
-export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, profile, loading, profileLoading, signOut } = useAuth();
+/**
+ * ProviderRoute (Dora P0):
+ * - requires login
+ * - requires role === "provider" (or admin)
+ * - does NOT block on provider_status (Libya UX: providers can add services immediately)
+ * - blocks deleted/inactive accounts
+ */
+export function ProviderRoute({ children }: ProviderRouteProps) {
+  const { user, profile, loading, profileLoading } = useAuth();
   const location = useLocation();
-
-  useEffect(() => {
-    const status = (profile?.status || "").toLowerCase();
-    if (user && profile && (status === "deleted" || status === "inactive")) {
-      signOut?.();
-    }
-  }, [user, profile, signOut]);
 
   if (loading || profileLoading) {
     return (
@@ -30,20 +29,23 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
+  // If profile missing, send to profile to avoid loops
   if (!profile) {
-    return <Navigate to="/auth" state={{ from: location }} replace />;
+    return <Navigate to="/profile" replace />;
   }
 
-  const status = (profile.status || "").toLowerCase();
-  const role = (profile.role || "").toLowerCase();
+  if (profile.must_change_password) return <Navigate to="/change-password" replace />;
 
-  if (status === "deleted" || status === "inactive") {
+  const st = (profile.status || "").toLowerCase();
+  if (st === "deleted" || st === "inactive") {
     return <Navigate to="/auth" replace />;
   }
 
-  // Always enforce password change if required (even for admins)
-  if (profile.must_change_password && location.pathname !== "/change-password") {
-    return <Navigate to="/change-password" replace />;
+  const role = (profile.role || "").toLowerCase();
+  const isAdmin = role === "admin";
+  const isProvider = role === "provider";
+  if (!isAdmin && !isProvider) {
+    return <Navigate to="/profile" replace />;
   }
 
   return <>{children}</>;
