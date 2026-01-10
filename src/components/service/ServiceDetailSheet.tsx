@@ -202,8 +202,7 @@ export function ServiceDetailSheet({
         const { data: profiles, error: profilesError } = await supabase
           .from("profiles")
           .select("user_id, full_name, avatar_url, phone, city, sub_city, provider_status")
-          .in("user_id", userIds)
-          .eq("provider_status", "approved");
+          .in("user_id", userIds);
 
         if (profilesError) {
           console.warn("Profiles lookup failed; falling back to service fields:", profilesError);
