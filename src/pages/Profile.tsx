@@ -392,12 +392,13 @@ export default function Profile() {
 
     setApplyBusy(true);
     try {
-      // 1) Update profile to pending provider
+      // Dora P0 (Libya UX): once a user chooses to be a provider, they can start immediately.
+      // We still log the application details for later moderation/ops, but we don't block creation.
       const { error: updErr } = await supabase
         .from("profiles")
         .update({
-          role: "business",
-          provider_status: "pending",
+          role: "provider",
+          provider_status: "approved",
         })
         .eq("user_id", user.id);
 
@@ -432,8 +433,8 @@ export default function Profile() {
       setApplyOpen(false);
 
       toast({
-        title: isRTL ? "تم إرسال الطلب" : "Application submitted",
-        description: isRTL ? "سيتم مراجعة طلبك قريباً" : "Your application will be reviewed soon",
+        title: isRTL ? "تم تفعيل حساب المزود" : "Provider enabled",
+        description: isRTL ? "يمكنك الآن إضافة خدمات مباشرة" : "You can now add services immediately",
       });
     } finally {
       setApplyBusy(false);
@@ -547,7 +548,11 @@ export default function Profile() {
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={statusBadgeVariant(profile.status)} className="gap-1">
                 <ShieldCheck className="h-4 w-4" />
-                {(profile.status || "active").toLowerCase() === "active" ? (isRTL ? "نشط" : "Active") : (profile.status || "").toString()}
+                {(profile.status || "active").toLowerCase() === "active"
+                  ? isRTL
+                    ? "نشط"
+                    : "Active"
+                  : (profile.status || "").toString()}
               </Badge>
 
               {providerStatus && (
