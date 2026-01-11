@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -20,6 +20,7 @@ import ProviderDashboard from "./pages/ProviderDashboard";
 import PendingVerification from "./pages/PendingVerification";
 import ChangePassword from "./pages/ChangePassword";
 import ForgotPassword from "./pages/ForgotPassword";
+import Onboarding, { ONBOARDING_DONE_KEY } from "./pages/Onboarding";
 
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -73,9 +74,50 @@ function AuthenticatedRedirect({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/**
+ * App-first onboarding gate (first open only).
+ *
+ * - Shows /onboarding only once (localStorage flag)
+ * - Never blocks auth flows or special routes
+ */
+function OnboardingGate({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  React.useEffect(() => {
+    const path = location.pathname;
+    const allow =
+      path === "/onboarding" ||
+      path === "/auth" ||
+      path === "/forgot-password" ||
+      path === "/change-password" ||
+      path === "/pending-verification" ||
+      path === "/env" ||
+      path.startsWith("/admin");
+
+    if (allow) return;
+
+    let done = false;
+    try {
+      done = localStorage.getItem(ONBOARDING_DONE_KEY) === "1";
+    } catch {
+      done = true; // if storage is blocked, don't trap users
+    }
+
+    if (!done) {
+      navigate("/onboarding", { replace: true });
+    }
+  }, [location.pathname, navigate]);
+
+  return <>{children}</>;
+}
+
 const AppRoutes = () => {
   return (
-    <Routes>
+    <OnboardingGate>
+      <Routes>
+      {/* Onboarding */}
+      <Route path="/onboarding" element={<Onboarding />} />
       {/* Hub is public */}
       <Route path="/" element={<Hub />} />
 
@@ -179,7 +221,8 @@ const AppRoutes = () => {
       </Route>
 
       <Route path="*" element={<NotFound />} />
-    </Routes>
+      </Routes>
+    </OnboardingGate>
   );
 };
 
