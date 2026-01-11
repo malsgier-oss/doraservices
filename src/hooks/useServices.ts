@@ -97,7 +97,7 @@ export function useServices() {
           (service.provider_name && String(service.provider_name).trim()) ||
           (p?.full_name && String(p.full_name).trim()) ||
           "Provider",
-        provider_avatar: (service.provider_avatar && String(service.provider_avatar)) || (p?.avatar_url || ""),
+        provider_avatar: (service.provider_avatar && String(service.provider_avatar)) || p?.avatar_url || "",
         // ✅ never overwrite a non-empty service phone with an empty profile phone
         provider_phone: svcPhone || profPhone || "",
       };
@@ -177,6 +177,17 @@ export function useServices() {
         price: serviceData.price,
         image_url: serviceData.image_url || null,
 
+        // Dora P0: make sure newly created services are visible on Hub/lists.
+        // Hub filters by is_active + is_visible and excludes paused.
+        is_active: true,
+        is_visible: true,
+        is_paused: false,
+        is_featured: false,
+
+        // Dora P0: admin-controlled trust pipeline.
+        // (If your DB has a different default, this keeps behavior explicit.)
+        approval_status: "pending",
+
         provider_name: providerName,
         provider_phone: providerPhone || null,
         provider_avatar: provider?.avatar_url || null,
@@ -196,7 +207,12 @@ export function useServices() {
   };
 
   const updateService = async (id: string, updates: Partial<Service>) => {
-    const { data, error } = await supabase.from("services").update(updates as any).eq("id", id).select().single();
+    const { data, error } = await supabase
+      .from("services")
+      .update(updates as any)
+      .eq("id", id)
+      .select()
+      .single();
 
     if (!error && data) {
       setMyServices((prev) => prev.map((s) => (s.id === id ? (data as any) : s)));
