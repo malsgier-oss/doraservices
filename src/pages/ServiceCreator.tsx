@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useServices } from "@/hooks/useServices";
 import { useProfile } from "@/hooks/useProfile";
 import { useCategories } from "@/hooks/useCategories";
 import { useSubcategories } from "@/hooks/useSubcategories";
@@ -46,7 +47,6 @@ import {
   MapPin,
   LucideIcon,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 
 // Icon mapping for dynamic icons from database
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -82,21 +82,13 @@ function digitsOnly(v: string) {
   return (v || "").replace(/\D/g, "");
 }
 
-// Dora P0: store phone in services row so anonymous users can call/WhatsApp
 function normalizeLibyaPhoneForStorage(raw: string | null | undefined) {
   const d = digitsOnly(raw || "");
   if (!d) return "";
 
-  // already has country code
   if (d.startsWith("218")) return d;
-
-  // common local format: 0XXXXXXXXX (10 digits starting with 0)
   if (d.length === 10 && d.startsWith("0")) return `218${d.slice(1)}`;
-
-  // 9 digits (sometimes without leading 0)
   if (d.length === 9) return `218${d}`;
-
-  // fallback: store digits as-is
   return d;
 }
 
@@ -104,6 +96,7 @@ export default function ServiceCreator() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { t, isRTL, language } = useLanguage();
+  const { createService } = useServices();
   const { profile, loading: profileLoading, updateProfile } = useProfile();
   const { data: categories } = useCategories();
   const { data: cities } = useCities();
@@ -118,7 +111,6 @@ export default function ServiceCreator() {
     subCity: "",
   });
 
-  // Get subcategories for selected category
   const selectedCategory = categories?.find((c) => c.id === formData.category);
   const { data: subcategories } = useSubcategories(formData.category || undefined);
   const { data: subCities } = useSubCities(formData.city || profile?.city || null);
@@ -137,11 +129,8 @@ export default function ServiceCreator() {
       navigate("/profile", { replace: true });
       return;
     }
-
-    // No pending gate in P0.
   }, [profile, profileLoading, navigate, isRTL]);
 
-  // Show loading while checking verification
   if (profileLoading) {
     return (
       <Layout>
@@ -182,7 +171,7 @@ export default function ServiceCreator() {
       return;
     }
 
-    // IMPORTANT for P0: phone must exist to allow call/WhatsApp for guests
+    // P0: phone must exist so guests can call/WhatsApp (we store it on services row)
     const storedPhone = normalizeLibyaPhoneForStorage(profile.phone);
     if (!storedPhone) {
       toast.error(isRTL ? "أضف رقم هاتفك في الملف الشخصي أولاً" : "Add your phone number in Profile first");
@@ -192,37 +181,25 @@ export default function ServiceCreator() {
 
     setIsSubmitting(true);
     try {
-      // Update profile with city if provided
+      // Update profile with city/subcity if user selected (nice-to-have)
       if (formData.city && formData.city !== profile?.city) {
         await updateProfile({ city: formData.city });
       }
-
-      // Update profile with subCity if selected (optional)
       if (formData.subCity && formData.subCity !== profile?.sub_city) {
         await updateProfile({ sub_city: formData.subCity });
       }
 
-      // Use subcategory name if selected, otherwise use category name
       const categoryToUse = formData.subcategory
         ? subcategories?.find((s) => s.id === formData.subcategory)?.name
         : selectedCategory?.name;
 
-      const providerName = (profile.full_name || "").trim() || (isRTL ? "مقدم الخدمة" : "Provider");
-
-      // ✅ Insert directly to ensure provider_phone/provider_name/city/sub_city are stored for anonymous browsing
-      const { error } = await supabase.from("services").insert({
-        user_id: user.id,
+      const { error } = await createService({
         title: formData.serviceName.trim(),
-        description: formData.bio?.trim() || null,
+        description: formData.bio?.trim() || undefined,
         category: categoryToUse || "",
-        price: 0, // required by DB
+        price: 0,
         city: cityValue,
         sub_city: formData.subCity || profile.sub_city || null,
-        provider_name: providerName,
-        provider_phone: storedPhone,
-        is_active: true,
-        is_visible: true,
-        is_paused: false,
       });
 
       if (error) throw error;
@@ -243,7 +220,6 @@ export default function ServiceCreator() {
   return (
     <Layout>
       <div className="container py-6 max-w-lg mx-auto">
-        {/* Header */}
         <div className="text-center mb-8">
           <div className="w-16 h-16 rounded-full bg-primary/10 mx-auto mb-4 flex items-center justify-center">
             <span className="text-3xl">✨</span>
@@ -252,9 +228,7 @@ export default function ServiceCreator() {
           <p className="text-muted-foreground mt-1">{t.creator.subtitle}</p>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Category Selection */}
           <div className="space-y-2">
             <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{t.creator.category}</Label>
             <Select
@@ -281,7 +255,6 @@ export default function ServiceCreator() {
             </Select>
           </div>
 
-          {/* City Selection */}
           <div className="space-y-2">
             <Label className={cn("flex items-center gap-2", isRTL ? "flex-row-reverse justify-end" : "")}>
               <MapPin className="h-4 w-4" />
@@ -306,7 +279,6 @@ export default function ServiceCreator() {
             <p className="text-xs text-muted-foreground">{isRTL ? "يساعد العملاء على إيجادك" : "Helps customers find you"}</p>
           </div>
 
-          {/* Sub-city Selection */}
           {(formData.city || profile?.city) && subCities && subCities.length > 0 && (
             <div className="space-y-2">
               <Label className={cn("flex items-center gap-2", isRTL ? "flex-row-reverse justify-end" : "")}>
@@ -332,7 +304,6 @@ export default function ServiceCreator() {
             </div>
           )}
 
-          {/* Subcategory Selection (if available) */}
           {selectedCategory && subcategories && subcategories.length > 0 && (
             <div className="space-y-2">
               <Label className={cn(isRTL ? "text-right block" : "text-left block")}>
@@ -362,7 +333,6 @@ export default function ServiceCreator() {
             </div>
           )}
 
-          {/* Service Name */}
           <div className="space-y-2">
             <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{t.creator.serviceName}</Label>
             <Input
@@ -374,7 +344,6 @@ export default function ServiceCreator() {
             />
           </div>
 
-          {/* Bio */}
           <div className="space-y-2">
             <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{t.creator.bio}</Label>
             <Textarea
@@ -386,7 +355,6 @@ export default function ServiceCreator() {
             />
           </div>
 
-          {/* Submit */}
           <Button type="submit" disabled={isSubmitting} className="w-full rounded-full h-12 text-base">
             {isSubmitting ? t.common.loading : t.creator.createService}
           </Button>

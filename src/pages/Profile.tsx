@@ -34,7 +34,6 @@ import {
   LogOut,
   KeyRound,
   Phone,
-  BadgeCheck,
   AlertTriangle,
   LayoutDashboard,
   PlusCircle,
@@ -55,17 +54,29 @@ function statusBadgeVariant(status?: string | null) {
 }
 
 function extractStoragePathFromPublicUrl(publicUrl: string) {
-  // expected: .../storage/v1/object/public/<bucket>/<path>
   const marker = "/storage/v1/object/public/";
   const idx = publicUrl.indexOf(marker);
   if (idx === -1) return null;
   const rest = publicUrl.slice(idx + marker.length);
-  // rest = "<bucket>/<path...>"
   const slash = rest.indexOf("/");
   if (slash === -1) return null;
   const bucket = rest.slice(0, slash);
   const path = rest.slice(slash + 1);
   return { bucket, path: decodeURIComponent(path) };
+}
+
+function digitsOnly(v: string) {
+  return (v || "").replace(/\D/g, "");
+}
+
+function normalizeLibyaPhoneForStorage(raw: string | null | undefined) {
+  const d = digitsOnly(raw || "");
+  if (!d) return "";
+
+  if (d.startsWith("218")) return d;
+  if (d.length === 10 && d.startsWith("0")) return `218${d.slice(1)}`;
+  if (d.length === 9) return `218${d}`;
+  return d;
 }
 
 export default function Profile() {
@@ -82,6 +93,7 @@ export default function Profile() {
   const [fullName, setFullName] = useState("");
   const [bio, setBio] = useState("");
   const [cityId, setCityId] = useState<string>("");
+  const [phone, setPhone] = useState<string>("");
 
   const [avatarBusy, setAvatarBusy] = useState(false);
 
@@ -96,7 +108,6 @@ export default function Profile() {
   const [businessCategory, setBusinessCategory] = useState("");
   const [businessAddress, setBusinessAddress] = useState("");
 
-  // Route guard
   useEffect(() => {
     if (loading || profileLoading) return;
 
@@ -118,12 +129,12 @@ export default function Profile() {
     }
   }, [loading, profileLoading, user, profile, navigate]);
 
-  // Fill form fields
   useEffect(() => {
     if (!profile) return;
     setFullName(profile.full_name || "");
     setBio(profile.bio || "");
     setCityId(profile.city_id || "");
+    setPhone(profile.phone || "");
   }, [profile]);
 
   const cityLabel = useMemo(() => {
@@ -135,7 +146,9 @@ export default function Profile() {
 
   const providerStatus = profile?.provider_status || null;
   const providerStatusLower = (providerStatus || "").toLowerCase();
-  const isProviderApproved = providerStatusLower === "approved";
+
+  const roleLower = ((profile?.role as string) || "").toLowerCase();
+  const canUseProviderTools = roleLower === "provider" || roleLower === "admin"; // ✅ P0
 
   const handleSave = async () => {
     if (!user) return;
@@ -145,6 +158,17 @@ export default function Profile() {
       toast({
         title: isRTL ? "اسم غير صالح" : "Invalid name",
         description: isRTL ? "الاسم يجب أن يكون حرفين على الأقل" : "Name must be at least 2 characters",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const normalizedPhone = normalizeLibyaPhoneForStorage(phone);
+    // allow empty phone, but if they type something invalid -> show error
+    if (phone.trim() && !normalizedPhone) {
+      toast({
+        title: isRTL ? "رقم غير صالح" : "Invalid phone",
+        description: isRTL ? "أدخل رقم هاتف صحيح" : "Please enter a valid phone number",
         variant: "destructive",
       });
       return;
@@ -163,6 +187,7 @@ export default function Profile() {
       .update({
         full_name: trimmed,
         bio: bio?.trim() || null,
+        phone: normalizedPhone || null,
         city_id: cityId || null,
         city: cityName,
       })
@@ -237,7 +262,6 @@ export default function Profile() {
   const handleAvatarUpload = async (file: File) => {
     if (!user || !profile) return;
 
-    // Basic client-side validation
     if (!file.type.startsWith("image/")) {
       toast({
         title: isRTL ? "ملف غير صالح" : "Invalid file",
@@ -247,7 +271,6 @@ export default function Profile() {
       return;
     }
 
-    // Optional size limit ~ 5MB
     const maxBytes = 5 * 1024 * 1024;
     if (file.size > maxBytes) {
       toast({
@@ -261,7 +284,6 @@ export default function Profile() {
     setAvatarBusy(true);
 
     try {
-      // Remove old avatar file best-effort
       if (profile.avatar_url) {
         const parsed = extractStoragePathFromPublicUrl(profile.avatar_url);
         if (parsed) {
@@ -336,7 +358,6 @@ export default function Profile() {
 
     setAvatarBusy(true);
     try {
-      // Best-effort delete file
       if (profile.avatar_url) {
         const parsed = extractStoragePathFromPublicUrl(profile.avatar_url);
         if (parsed) {
@@ -392,8 +413,7 @@ export default function Profile() {
 
     setApplyBusy(true);
     try {
-      // Dora P0 (Libya UX): once a user chooses to be a provider, they can start immediately.
-      // We still log the application details for later moderation/ops, but we don't block creation.
+      // P0: immediate provider enable (no waiting)
       const { error: updErr } = await supabase
         .from("profiles")
         .update({
@@ -411,8 +431,6 @@ export default function Profile() {
         return;
       }
 
-      // 2) Log application details in analytics_events (no schema changes needed)
-      // event_type is free text; metadata is Json.
       const { error: logErr } = await supabase.from("analytics_events").insert({
         event_type: "provider_application_submitted",
         user_id: user.id,
@@ -426,7 +444,6 @@ export default function Profile() {
         },
       });
 
-      // ignore logging failure (application is still pending)
       if (logErr) console.warn("[provider_application_submitted] log error:", logErr);
 
       await refreshProfile?.();
@@ -451,7 +468,6 @@ export default function Profile() {
 
   if (!user) return null;
 
-  // RLS / profile not readable
   if (!profile) {
     return (
       <div className="min-h-screen p-4 flex items-center justify-center" dir={isRTL ? "rtl" : "ltr"}>
@@ -482,7 +498,6 @@ export default function Profile() {
   return (
     <div className="min-h-screen p-4 pb-24" dir={isRTL ? "rtl" : "ltr"}>
       <div className="max-w-2xl mx-auto space-y-4">
-        {/* Header */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-xl flex items-center gap-2">
@@ -490,14 +505,11 @@ export default function Profile() {
               {isRTL ? "الملف الشخصي" : "Profile"}
             </CardTitle>
             <CardDescription className="leading-relaxed">
-              {isRTL
-                ? "إدارة معلومات حسابك وإعدادات الأمان."
-                : "Manage your account information and security settings."}
+              {isRTL ? "إدارة معلومات حسابك وإعدادات الأمان." : "Manage your account information and security settings."}
             </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-4">
-            {/* Avatar row */}
             <div className="flex items-center gap-4">
               <div className="relative h-16 w-16 rounded-full overflow-hidden border bg-muted flex items-center justify-center">
                 {profile.avatar_url ? (
@@ -524,16 +536,13 @@ export default function Profile() {
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) void handleAvatarUpload(file);
-                    // reset input so same file can be reselected
                     e.currentTarget.value = "";
                   }}
                 />
 
                 <Button variant="outline" onClick={openFilePicker} disabled={avatarBusy}>
                   {avatarBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                  <span className="ms-2">
-                    {profile.avatar_url ? (isRTL ? "تغيير" : "Change") : isRTL ? "إضافة" : "Add"}
-                  </span>
+                  <span className="ms-2">{profile.avatar_url ? (isRTL ? "تغيير" : "Change") : isRTL ? "إضافة" : "Add"}</span>
                 </Button>
 
                 {profile.avatar_url && (
@@ -548,11 +557,7 @@ export default function Profile() {
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={statusBadgeVariant(profile.status)} className="gap-1">
                 <ShieldCheck className="h-4 w-4" />
-                {(profile.status || "active").toLowerCase() === "active"
-                  ? isRTL
-                    ? "نشط"
-                    : "Active"
-                  : (profile.status || "").toString()}
+                {(profile.status || "active").toLowerCase() === "active" ? (isRTL ? "نشط" : "Active") : (profile.status || "").toString()}
               </Badge>
 
               {providerStatus && (
@@ -564,24 +569,20 @@ export default function Profile() {
           </CardContent>
         </Card>
 
-        {/* Tabs */}
         <Card>
           <CardContent className="pt-6">
             <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
-              {/* Provider tab ONLY after approved */}
-              <TabsList className={cn("grid w-full", isProviderApproved ? "grid-cols-4" : "grid-cols-3")}>
+              <TabsList className={cn("grid w-full", canUseProviderTools ? "grid-cols-4" : "grid-cols-3")}>
                 <TabsTrigger value="account">{isRTL ? "الحساب" : "Account"}</TabsTrigger>
-                {isProviderApproved && <TabsTrigger value="provider">{isRTL ? "المزود" : "Provider"}</TabsTrigger>}
+                {canUseProviderTools && <TabsTrigger value="provider">{isRTL ? "المزود" : "Provider"}</TabsTrigger>}
                 <TabsTrigger value="security">{isRTL ? "الأمان" : "Security"}</TabsTrigger>
                 <TabsTrigger value="danger" className="text-destructive">
                   {isRTL ? "خطر" : "Danger"}
                 </TabsTrigger>
               </TabsList>
 
-              {/* Account */}
               <TabsContent value="account" className="mt-4 space-y-4">
-                {/* Provider apply card for non-approved users */}
-                {!isProviderApproved && (
+                {!canUseProviderTools && (
                   <Card className="border-border">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base flex items-center gap-2">
@@ -598,20 +599,14 @@ export default function Profile() {
                               ? "تم رفض الطلب. يمكنك إعادة التقديم."
                               : "Application rejected. You can re-apply."
                             : isRTL
-                              ? "قدّم طلبك لفتح لوحة المزود وإضافة خدمات."
-                              : "Apply to unlock the provider dashboard and create services."}
+                              ? "قدّم طلبك لتفعيل حساب المزود وإضافة خدمات مباشرة."
+                              : "Apply to enable provider tools and create services immediately."}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="flex flex-col sm:flex-row gap-2">
                       <Button onClick={openProviderApply} className="gap-2">
                         <ClipboardList className="h-4 w-4" />
-                        {providerStatusLower === "pending"
-                          ? isRTL
-                            ? "عرض/إعادة إرسال"
-                            : "View / Re-submit"
-                          : isRTL
-                            ? "تقديم طلب"
-                            : "Apply"}
+                        {isRTL ? "تفعيل كمزود" : "Enable as provider"}
                       </Button>
 
                       {providerStatus && (
@@ -627,6 +622,24 @@ export default function Profile() {
                   <div className="grid gap-2">
                     <Label>{isRTL ? "الاسم الكامل" : "Full name"}</Label>
                     <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label className="flex items-center gap-2">
+                      <Phone className="h-4 w-4" />
+                      {isRTL ? "رقم الهاتف" : "Phone"}
+                    </Label>
+                    <Input
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder={isRTL ? "مثال: 092xxxxxxx" : "e.g. 092xxxxxxx"}
+                      dir="ltr"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {isRTL
+                        ? "مهم: بدون رقم هاتف لن يستطيع العملاء الاتصال بك."
+                        : "Important: without a phone number, customers can’t call you."}
+                    </p>
                   </div>
 
                   <div className="grid gap-2">
@@ -676,15 +689,14 @@ export default function Profile() {
                   </div>
                 </div>
 
-                {/* Provider apply dialog */}
                 <Dialog open={applyOpen} onOpenChange={setApplyOpen}>
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>{isRTL ? "طلب مزود خدمة" : "Provider Application"}</DialogTitle>
                       <DialogDescription>
                         {isRTL
-                          ? "أدخل بيانات نشاطك وسيتم إرسال الطلب للمراجعة."
-                          : "Enter your business details and submit for review."}
+                          ? "أدخل بيانات نشاطك. سيتم تفعيل حسابك كمزود مباشرة (P0)."
+                          : "Enter your business details. Your provider role will be enabled immediately (P0)."}
                       </DialogDescription>
                     </DialogHeader>
 
@@ -715,8 +727,8 @@ export default function Profile() {
 
                       <p className="text-xs text-muted-foreground">
                         {isRTL
-                          ? "ملاحظة: سيتم تحويل حالتك إلى Pending حتى يوافق الأدمن."
-                          : "Note: Your status will become Pending until an admin approves it."}
+                          ? "ملاحظة: سيتم تسجيل البيانات للمراجعة لاحقاً، لكنك ستبدأ فوراً."
+                          : "Note: details are logged for later review, but you can start immediately."}
                       </p>
                     </div>
 
@@ -726,15 +738,14 @@ export default function Profile() {
                       </Button>
                       <Button onClick={handleProviderApplySubmit} disabled={applyBusy}>
                         {applyBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                        <span className={cn(applyBusy ? "ms-2" : "")}>{isRTL ? "إرسال" : "Submit"}</span>
+                        <span className={cn(applyBusy ? "ms-2" : "")}>{isRTL ? "تفعيل" : "Enable"}</span>
                       </Button>
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
               </TabsContent>
 
-              {/* Provider tab (ONLY approved) */}
-              {isProviderApproved && (
+              {canUseProviderTools && (
                 <TabsContent value="provider" className="mt-4 space-y-4">
                   <Card>
                     <CardHeader className="pb-3">
@@ -774,7 +785,6 @@ export default function Profile() {
                 </TabsContent>
               )}
 
-              {/* Security */}
               <TabsContent value="security" className="mt-4 space-y-4">
                 {profile.must_change_password && (
                   <Card className="border-destructive/40">
@@ -804,9 +814,7 @@ export default function Profile() {
                       <KeyRound className="h-4 w-4" />
                       {isRTL ? "الأمان" : "Security"}
                     </CardTitle>
-                    <CardDescription>
-                      {isRTL ? "تحديث كلمة المرور وتسجيل الخروج." : "Update password and sign out."}
-                    </CardDescription>
+                    <CardDescription>{isRTL ? "تحديث كلمة المرور وتسجيل الخروج." : "Update password and sign out."}</CardDescription>
                   </CardHeader>
 
                   <CardContent className="flex flex-col sm:flex-row gap-2">
@@ -825,7 +833,6 @@ export default function Profile() {
                 </Card>
               </TabsContent>
 
-              {/* Danger */}
               <TabsContent value="danger" className="mt-4 space-y-4">
                 <Card className="border-destructive/40">
                   <CardHeader className="pb-3">
@@ -834,9 +841,7 @@ export default function Profile() {
                       {isRTL ? "منطقة الخطر" : "Danger zone"}
                     </CardTitle>
                     <CardDescription>
-                      {isRTL
-                        ? "حذف الحساب سيقوم بتعطيل حسابك وإخفاء معلوماتك الشخصية."
-                        : "Deleting your account will deactivate it and remove your personal details."}
+                      {isRTL ? "حذف الحساب سيقوم بتعطيل حسابك وإخفاء معلوماتك الشخصية." : "Deleting your account will deactivate it and remove your personal details."}
                     </CardDescription>
                   </CardHeader>
 
@@ -863,27 +868,17 @@ export default function Profile() {
                 <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle className="text-destructive">
-                        {isRTL ? "تأكيد حذف الحساب" : "Confirm account deletion"}
-                      </DialogTitle>
+                      <DialogTitle className="text-destructive">{isRTL ? "تأكيد حذف الحساب" : "Confirm account deletion"}</DialogTitle>
                       <DialogDescription>
-                        {isRTL
-                          ? "اكتب DELETE للتأكيد. لا يمكن التراجع بعد التنفيذ."
-                          : "Type DELETE to confirm. This cannot be undone."}
+                        {isRTL ? "اكتب DELETE للتأكيد. لا يمكن التراجع بعد التنفيذ." : "Type DELETE to confirm. This cannot be undone."}
                       </DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-2">
                       <Label>DELETE</Label>
-                      <Input
-                        value={deleteConfirmText}
-                        onChange={(e) => setDeleteConfirmText(e.target.value)}
-                        placeholder="DELETE"
-                      />
+                      <Input value={deleteConfirmText} onChange={(e) => setDeleteConfirmText(e.target.value)} placeholder="DELETE" />
                       <p className="text-xs text-muted-foreground">
-                        {isRTL
-                          ? "سيتم تعطيل حسابك وإخفاء اسمك/نبذتك/صورتك."
-                          : "Your account will be deactivated and your name/bio/avatar will be removed."}
+                        {isRTL ? "سيتم تعطيل حسابك وإخفاء اسمك/نبذتك/صورتك." : "Your account will be deactivated and your name/bio/avatar will be removed."}
                       </p>
                     </div>
 
