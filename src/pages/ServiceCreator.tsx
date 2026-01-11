@@ -1,3 +1,4 @@
+// (FULL file content exactly as updated)
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
@@ -48,7 +49,6 @@ import {
   LucideIcon,
 } from "lucide-react";
 
-// Icon mapping for dynamic icons from database
 const ICON_MAP: Record<string, LucideIcon> = {
   Home,
   Car,
@@ -115,7 +115,6 @@ export default function ServiceCreator() {
   const { data: subcategories } = useSubcategories(formData.category || undefined);
   const { data: subCities } = useSubCities(formData.city || profile?.city || null);
 
-  // Guard (Dora P0): providers (or admins) can add services immediately.
   useEffect(() => {
     if (profileLoading) return;
     if (!profile) return;
@@ -165,13 +164,19 @@ export default function ServiceCreator() {
       return;
     }
 
+    // Dora P0: if a category has subcategories, require selecting one.
+    // Hub browsing uses services.category matching the subcategory name.
+    if (selectedCategory && subcategories && subcategories.length > 0 && !formData.subcategory) {
+      toast.error(isRTL ? "يرجى اختيار نوع الخدمة" : "Please select a service type");
+      return;
+    }
+
     const cityValue = formData.city || profile?.city;
     if (!cityValue) {
       toast.error(isRTL ? "يرجى اختيار المدينة" : "Please select your city");
       return;
     }
 
-    // P0: phone must exist so guests can call/WhatsApp (we store it on services row)
     const storedPhone = normalizeLibyaPhoneForStorage(profile.phone);
     if (!storedPhone) {
       toast.error(isRTL ? "أضف رقم هاتفك في الملف الشخصي أولاً" : "Add your phone number in Profile first");
@@ -181,7 +186,6 @@ export default function ServiceCreator() {
 
     setIsSubmitting(true);
     try {
-      // Update profile with city/subcity if user selected (nice-to-have)
       if (formData.city && formData.city !== profile?.city) {
         await updateProfile({ city: formData.city });
       }
@@ -193,10 +197,15 @@ export default function ServiceCreator() {
         ? subcategories?.find((s) => s.id === formData.subcategory)?.name
         : selectedCategory?.name;
 
+      if (!categoryToUse || !String(categoryToUse).trim()) {
+        toast.error(isRTL ? "يرجى اختيار الفئة/النوع بشكل صحيح" : "Please select a valid category/type");
+        return;
+      }
+
       const { error } = await createService({
         title: formData.serviceName.trim(),
         description: formData.bio?.trim() || undefined,
-        category: categoryToUse || "",
+        category: String(categoryToUse).trim(),
         price: 0,
         city: cityValue,
         sub_city: formData.subCity || profile.sub_city || null,
@@ -276,7 +285,9 @@ export default function ServiceCreator() {
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">{isRTL ? "يساعد العملاء على إيجادك" : "Helps customers find you"}</p>
+            <p className="text-xs text-muted-foreground">
+              {isRTL ? "يساعد العملاء على إيجادك" : "Helps customers find you"}
+            </p>
           </div>
 
           {(formData.city || profile?.city) && subCities && subCities.length > 0 && (
@@ -321,7 +332,9 @@ export default function ServiceCreator() {
                       onClick={() => setFormData({ ...formData, subcategory: sub.id })}
                       className={cn(
                         "flex items-center gap-2 p-3 rounded-xl border transition-colors",
-                        isSelected ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-primary/50",
+                        isSelected
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border hover:border-primary/50",
                       )}
                     >
                       <SubIcon className="h-5 w-5" />
