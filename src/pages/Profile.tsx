@@ -12,74 +12,61 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
-  Loader2,
-  User2,
-  MapPin,
-  ShieldCheck,
-  LogOut,
-  KeyRound,
-  Phone,
-  BadgeCheck,
   AlertTriangle,
-  LayoutDashboard,
-  PlusCircle,
-  Trash2,
-  Camera,
-  X,
   Building2,
-  ClipboardList,
+  Camera,
+  KeyRound,
+  LayoutDashboard,
+  Loader2,
+  LogOut,
+  MapPin,
+  Phone,
+  PlusCircle,
+  ShieldCheck,
+  Trash2,
+  User2,
+  X,
 } from "lucide-react";
-
-function digitsOnly(v: string) {
-  return (v || "").replace(/\D/g, "");
-}
-
-// Store Libya phone as digits with country code (218XXXXXXXXX) for consistent calling/WhatsApp.
-function normalizeLibyaPhoneForStorage(raw: string | null | undefined) {
-  const d = digitsOnly(raw || "");
-  if (!d) return "";
-  if (d.startsWith("218")) return d;
-  if (d.length === 10 && d.startsWith("0")) return `218${d.slice(1)}`;
-  if (d.length === 9) return `218${d}`;
-  return d;
-}
 
 function statusBadgeVariant(status?: string | null) {
   const s = (status || "").toLowerCase();
   if (s === "approved") return "default";
   if (s === "pending") return "secondary";
   if (s === "rejected") return "destructive";
-  if (s === "deleted" || s === "inactive") return "destructive";
+  if (s === "deleted" || s === "inactive" || s === "suspended") return "destructive";
   return "outline";
 }
 
 function extractStoragePathFromPublicUrl(publicUrl: string) {
-  // expected: .../storage/v1/object/public/<bucket>/<path>
   const marker = "/storage/v1/object/public/";
   const idx = publicUrl.indexOf(marker);
   if (idx === -1) return null;
   const rest = publicUrl.slice(idx + marker.length);
-  // rest = "<bucket>/<path...>"
   const slash = rest.indexOf("/");
   if (slash === -1) return null;
   const bucket = rest.slice(0, slash);
   const path = rest.slice(slash + 1);
   return { bucket, path: decodeURIComponent(path) };
+}
+
+function isProviderLike(role: string | null | undefined) {
+  const r = (role || "").toLowerCase();
+  // DB enum uses "business". Accept legacy "provider" reads.
+  return r === "business" || r === "provider";
 }
 
 export default function Profile() {
@@ -90,11 +77,8 @@ export default function Profile() {
 
   const fileRef = useRef<HTMLInputElement | null>(null);
 
-  const [tab, setTab] = useState<"account" | "provider" | "security" | "danger">("account");
-
   const [saving, setSaving] = useState(false);
   const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
   const [bio, setBio] = useState("");
   const [cityId, setCityId] = useState<string>("");
 
@@ -104,12 +88,7 @@ export default function Profile() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
 
-  // Provider application form
-  const [applyOpen, setApplyOpen] = useState(false);
-  const [applyBusy, setApplyBusy] = useState(false);
-  const [businessName, setBusinessName] = useState("");
-  const [businessCategory, setBusinessCategory] = useState("");
-  const [businessAddress, setBusinessAddress] = useState("");
+  const [becomingProvider, setBecomingProvider] = useState(false);
 
   // Route guard
   useEffect(() => {
@@ -137,7 +116,6 @@ export default function Profile() {
   useEffect(() => {
     if (!profile) return;
     setFullName(profile.full_name || "");
-    setPhone(profile.phone || "");
     setBio(profile.bio || "");
     setCityId(profile.city_id || "");
   }, [profile]);
@@ -151,7 +129,17 @@ export default function Profile() {
 
   const providerStatus = profile?.provider_status || null;
   const providerStatusLower = (providerStatus || "").toLowerCase();
-  const isProviderApproved = providerStatusLower === "approved";
+
+  const currentRole = (profile?.role || "user").toString().toLowerCase();
+  const isProvider = isProviderLike(currentRole);
+  const isAdmin = currentRole === "admin";
+
+  const isProviderApproved =
+    isProvider &&
+    (providerStatusLower === "approved" ||
+      providerStatusLower === "" ||
+      providerStatusLower === "active" ||
+      providerStatusLower === "verified");
 
   const handleSave = async () => {
     if (!user) return;
@@ -173,23 +161,11 @@ export default function Profile() {
         : selected.name || selected.name_ar
       : null;
 
-    // Phone is required for P0 call/WhatsApp.
-    const normalizedPhone = normalizeLibyaPhoneForStorage(phone);
-    if (!normalizedPhone) {
-      toast({
-        title: isRTL ? "رقم هاتف غير صالح" : "Invalid phone",
-        description: isRTL ? "أدخل رقم هاتفك الليبي" : "Please enter your Libyan phone number",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setSaving(true);
     const { error } = await supabase
       .from("profiles")
       .update({
         full_name: trimmed,
-        phone: normalizedPhone,
         bio: bio?.trim() || null,
         city_id: cityId || null,
         city: cityName,
@@ -220,52 +196,11 @@ export default function Profile() {
     navigate("/", { replace: true });
   };
 
-  const handleSoftDelete = async () => {
-    if (!user || !profile) return;
-    if (deleteConfirmText.trim().toUpperCase() !== "DELETE") return;
-
-    setDeleting(true);
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        status: "deleted",
-        suspended_at: new Date().toISOString(),
-        suspended_reason: "user_deleted",
-        full_name: null,
-        bio: null,
-        avatar_url: null,
-      })
-      .eq("user_id", user.id);
-
-    setDeleting(false);
-
-    if (error) {
-      toast({
-        title: isRTL ? "فشل حذف الحساب" : "Delete failed",
-        description: error.message,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    toast({
-      title: isRTL ? "تم حذف الحساب" : "Account deleted",
-      description: isRTL ? "تم تعطيل حسابك وتسجيل الخروج." : "Your account was deactivated and you were signed out.",
-    });
-
-    setDeleteOpen(false);
-
-    await signOut?.();
-    navigate("/", { replace: true });
-  };
-
   const openFilePicker = () => fileRef.current?.click();
 
   const handleAvatarUpload = async (file: File) => {
     if (!user || !profile) return;
 
-    // Basic client-side validation
     if (!file.type.startsWith("image/")) {
       toast({
         title: isRTL ? "ملف غير صالح" : "Invalid file",
@@ -275,7 +210,6 @@ export default function Profile() {
       return;
     }
 
-    // Optional size limit ~ 5MB
     const maxBytes = 5 * 1024 * 1024;
     if (file.size > maxBytes) {
       toast({
@@ -289,7 +223,6 @@ export default function Profile() {
     setAvatarBusy(true);
 
     try {
-      // Remove old avatar file best-effort
       if (profile.avatar_url) {
         const parsed = extractStoragePathFromPublicUrl(profile.avatar_url);
         if (parsed) {
@@ -364,7 +297,6 @@ export default function Profile() {
 
     setAvatarBusy(true);
     try {
-      // Best-effort delete file
       if (profile.avatar_url) {
         const parsed = extractStoragePathFromPublicUrl(profile.avatar_url);
         if (parsed) {
@@ -393,79 +325,78 @@ export default function Profile() {
     }
   };
 
-  const openProviderApply = () => {
-    setBusinessName("");
-    setBusinessCategory("");
-    setBusinessAddress("");
-    setApplyOpen(true);
-  };
+  const handleBecomeProvider = async () => {
+    if (!user) return;
 
-  const handleProviderApplySubmit = async () => {
-    if (!user || !profile) return;
-
-    const name = businessName.trim();
-    const cat = businessCategory.trim();
-    const addr = businessAddress.trim();
-
-    if (name.length < 2 || cat.length < 2 || addr.length < 3) {
-      toast({
-        title: isRTL ? "بيانات غير كاملة" : "Incomplete data",
-        description: isRTL
-          ? "يرجى إدخال اسم النشاط، التصنيف، والعنوان"
-          : "Please enter business name, category, and address",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setApplyBusy(true);
+    setBecomingProvider(true);
     try {
-      // 1) Update profile to pending provider
-      const { error: updErr } = await supabase
+      // IMPORTANT: profiles.role is constrained by DB to: user | business | admin
+      const { error } = await supabase
         .from("profiles")
         .update({
           role: "business",
-          provider_status: "pending",
+          provider_status: "approved",
         })
         .eq("user_id", user.id);
 
-      if (updErr) {
+      if (error) {
         toast({
-          title: isRTL ? "فشل الإرسال" : "Submit failed",
-          description: updErr.message,
+          title: isRTL ? "فشل التفعيل" : "Activation failed",
+          description: error.message,
           variant: "destructive",
         });
         return;
       }
 
-      // 2) Log application details in analytics_events (no schema changes needed)
-      // event_type is free text; metadata is Json.
-      const { error: logErr } = await supabase.from("analytics_events").insert({
-        event_type: "provider_application_submitted",
-        user_id: user.id,
-        target_type: "provider_application",
-        target_id: user.id,
-        metadata: {
-          business_name: name,
-          category: cat,
-          address: addr,
-          submitted_at: new Date().toISOString(),
-        },
-      });
-
-      // ignore logging failure (application is still pending)
-      if (logErr) console.warn("[provider_application_submitted] log error:", logErr);
-
       await refreshProfile?.();
-      setApplyOpen(false);
 
       toast({
-        title: isRTL ? "تم إرسال الطلب" : "Application submitted",
-        description: isRTL ? "سيتم مراجعة طلبك قريباً" : "Your application will be reviewed soon",
+        title: isRTL ? "تم تفعيل حساب المزود" : "Provider enabled",
+        description: isRTL ? "يمكنك الآن إضافة خدمات" : "You can now create services",
       });
     } finally {
-      setApplyBusy(false);
+      setBecomingProvider(false);
     }
+  };
+
+  const handleSoftDelete = async () => {
+    if (!user || !profile) return;
+    if (deleteConfirmText.trim().toUpperCase() !== "DELETE") return;
+
+    setDeleting(true);
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        status: "deleted",
+        suspended_at: new Date().toISOString(),
+        suspended_reason: "user_deleted",
+        full_name: null,
+        bio: null,
+        avatar_url: null,
+      })
+      .eq("user_id", user.id);
+
+    setDeleting(false);
+
+    if (error) {
+      toast({
+        title: isRTL ? "فشل حذف الحساب" : "Delete failed",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: isRTL ? "تم حذف الحساب" : "Account deleted",
+      description: isRTL ? "تم تعطيل حسابك وتسجيل الخروج." : "Your account was deactivated and you were signed out.",
+    });
+
+    setDeleteOpen(false);
+
+    await signOut?.();
+    navigate("/", { replace: true });
   };
 
   if (loading || profileLoading || citiesLoading) {
@@ -504,8 +435,6 @@ export default function Profile() {
     );
   }
 
-  const providerStatusText = providerStatus || (isRTL ? "غير محدد" : "—");
-
   return (
     <div className="min-h-screen p-4 pb-24" dir={isRTL ? "rtl" : "ltr"}>
       <div className="max-w-2xl mx-auto space-y-4">
@@ -517,9 +446,7 @@ export default function Profile() {
               {isRTL ? "الملف الشخصي" : "Profile"}
             </CardTitle>
             <CardDescription className="leading-relaxed">
-              {isRTL
-                ? "إدارة معلومات حسابك وإعدادات الأمان."
-                : "Manage your account information and security settings."}
+              {isRTL ? "صفحة بسيطة لإدارة حسابك." : "A simple page to manage your account."}
             </CardDescription>
           </CardHeader>
 
@@ -551,7 +478,6 @@ export default function Profile() {
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) void handleAvatarUpload(file);
-                    // reset input so same file can be reselected
                     e.currentTarget.value = "";
                   }}
                 />
@@ -582,374 +508,264 @@ export default function Profile() {
                   : (profile.status || "").toString()}
               </Badge>
 
+              <Badge variant="outline" className="gap-1">
+                {isAdmin ? "Admin" : isProvider ? (isRTL ? "مزود" : "Provider") : isRTL ? "مستخدم" : "User"}
+              </Badge>
+
               {providerStatus && (
                 <Badge variant={statusBadgeVariant(providerStatus)}>
-                  {isRTL ? "حالة المزود:" : "Provider:"} {providerStatusText}
+                  {isRTL ? "حالة المزود:" : "Provider:"} {providerStatus}
                 </Badge>
               )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Tabs */}
+        {/* Account */}
         <Card>
-          <CardContent className="pt-6">
-            <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
-              {/* Provider tab ONLY after approved */}
-              <TabsList className={cn("grid w-full", isProviderApproved ? "grid-cols-4" : "grid-cols-3")}>
-                <TabsTrigger value="account">{isRTL ? "الحساب" : "Account"}</TabsTrigger>
-                {isProviderApproved && <TabsTrigger value="provider">{isRTL ? "المزود" : "Provider"}</TabsTrigger>}
-                <TabsTrigger value="security">{isRTL ? "الأمان" : "Security"}</TabsTrigger>
-                <TabsTrigger value="danger" className="text-destructive">
-                  {isRTL ? "خطر" : "Danger"}
-                </TabsTrigger>
-              </TabsList>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4" />
+              {isRTL ? "الحساب" : "Account"}
+            </CardTitle>
+            <CardDescription>
+              {isRTL ? "تحديث اسمك والنبذة والمدينة." : "Update your name, bio, and city."}
+            </CardDescription>
+          </CardHeader>
 
-              {/* Account */}
-              <TabsContent value="account" className="mt-4 space-y-4">
-                {/* Provider apply card for non-approved users */}
-                {!isProviderApproved && (
-                  <Card className="border-border">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Building2 className="h-4 w-4" />
-                        {isRTL ? "كن مزود خدمة" : "Become a Provider"}
-                      </CardTitle>
-                      <CardDescription>
-                        {providerStatusLower === "pending"
-                          ? isRTL
-                            ? "طلبك قيد المراجعة."
-                            : "Your application is under review."
-                          : providerStatusLower === "rejected"
-                            ? isRTL
-                              ? "تم رفض الطلب. يمكنك إعادة التقديم."
-                              : "Application rejected. You can re-apply."
-                            : isRTL
-                              ? "قدّم طلبك لفتح لوحة المزود وإضافة خدمات."
-                              : "Apply to unlock the provider dashboard and create services."}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex flex-col sm:flex-row gap-2">
-                      <Button onClick={openProviderApply} className="gap-2">
-                        <ClipboardList className="h-4 w-4" />
-                        {providerStatusLower === "pending"
-                          ? isRTL
-                            ? "عرض/إعادة إرسال"
-                            : "View / Re-submit"
-                          : isRTL
-                            ? "تقديم طلب"
-                            : "Apply"}
-                      </Button>
+          <CardContent className="space-y-4">
+            <div className="grid gap-2">
+              <Label>{isRTL ? "الاسم الكامل" : "Full name"}</Label>
+              <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+            </div>
 
-                      {providerStatus && (
-                        <Badge variant={statusBadgeVariant(providerStatus)} className="sm:ms-auto w-fit">
-                          {isRTL ? "الحالة:" : "Status:"} {providerStatusText}
-                        </Badge>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
+            <div className="grid gap-2">
+              <Label className="flex items-center gap-2">
+                <MapPin className="h-4 w-4" />
+                {isRTL ? "المدينة" : "City"}
+              </Label>
 
-                <div className="grid gap-4">
-                  <div className="grid gap-2">
-                    <Label>{isRTL ? "الاسم الكامل" : "Full name"}</Label>
-                    <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+              <Select value={cityId} onValueChange={setCityId}>
+                <SelectTrigger className="h-12 rounded-xl">
+                  <SelectValue placeholder={isRTL ? "اختر المدينة" : "Select city"} />
+                </SelectTrigger>
+                <SelectContent className="z-[9999] bg-white border border-border shadow-lg">
+                  {(cities || []).map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {language === "ar" ? c.name_ar || c.name : c.name || c.name_ar}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {!!cityLabel && (
+                <p className="text-sm text-muted-foreground">
+                  {isRTL ? "الحالية:" : "Current:"} {cityLabel}
+                </p>
+              )}
+            </div>
+
+            <div className="grid gap-2">
+              <Label>{isRTL ? "نبذة" : "Bio"}</Label>
+              <Textarea
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder={isRTL ? "اكتب نبذة قصيرة..." : "Write a short bio..."}
+                className="min-h-[90px]"
+              />
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : isRTL ? "حفظ" : "Save"}
+              </Button>
+
+              <Button variant="outline" asChild className="sm:ms-auto">
+                <Link to="/">{isRTL ? "العودة" : "Back"}</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Provider */}
+        {!isAdmin && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Building2 className="h-4 w-4" />
+                {isRTL ? "حساب المزود" : "Provider"}
+              </CardTitle>
+              <CardDescription>
+                {isProvider
+                  ? isRTL
+                    ? "أدوات المزود وإدارة خدماتك."
+                    : "Provider tools and your services."
+                  : isRTL
+                    ? "اضغط زر واحد لتفعيل حساب مزود الخدمة."
+                    : "One click to enable a provider account."}
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="space-y-3">
+              {!isProvider ? (
+                <Button onClick={handleBecomeProvider} disabled={becomingProvider} className="gap-2">
+                  {becomingProvider ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
+                  {isRTL ? "أريد أن أكون مزود" : "I want to be a provider"}
+                </Button>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">{isRTL ? "الحالة" : "Status"}</span>
+                    <Badge variant={statusBadgeVariant(providerStatus)}>{providerStatus || "approved"}</Badge>
                   </div>
 
-                  <div className="grid gap-2">
-                    <Label className="flex items-center gap-2">
-                      <Phone className="h-4 w-4" />
-                      {isRTL ? "رقم الهاتف" : "Phone"}
-                    </Label>
-                    <Input
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder={isRTL ? "+218 أو 09..." : "+218 or 09..."}
-                      dir="ltr"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      {isRTL
-                        ? "مهم: سيتم استخدام الرقم للاتصال وواتساب في الخدمات."
-                        : "Important: Used for Call/WhatsApp on your services."}
-                    </p>
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4" />
-                      {isRTL ? "المدينة" : "City"}
-                    </Label>
-
-                    <Select value={cityId} onValueChange={setCityId}>
-                      <SelectTrigger className="h-12 rounded-xl">
-                        <SelectValue placeholder={isRTL ? "اختر المدينة" : "Select city"} />
-                      </SelectTrigger>
-                      <SelectContent className="z-[9999] bg-white border border-border shadow-lg">
-                        {(cities || []).map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {language === "ar" ? c.name_ar || c.name : c.name || c.name_ar}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    {!!cityLabel && (
-                      <p className="text-sm text-muted-foreground">
-                        {isRTL ? "الحالية:" : "Current:"} {cityLabel}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label>{isRTL ? "نبذة" : "Bio"}</Label>
-                    <Textarea
-                      value={bio}
-                      onChange={(e) => setBio(e.target.value)}
-                      placeholder={isRTL ? "اكتب نبذة قصيرة..." : "Write a short bio..."}
-                      className="min-h-[90px]"
-                    />
-                  </div>
+                  <Separator />
 
                   <div className="flex flex-col sm:flex-row gap-2">
-                    <Button onClick={handleSave} disabled={saving}>
-                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : isRTL ? "حفظ" : "Save"}
-                    </Button>
-
-                    <Button variant="outline" asChild className="sm:ms-auto">
-                      <Link to="/">{isRTL ? "العودة" : "Back"}</Link>
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Provider apply dialog */}
-                <Dialog open={applyOpen} onOpenChange={setApplyOpen}>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>{isRTL ? "طلب مزود خدمة" : "Provider Application"}</DialogTitle>
-                      <DialogDescription>
-                        {isRTL
-                          ? "أدخل بيانات نشاطك وسيتم إرسال الطلب للمراجعة."
-                          : "Enter your business details and submit for review."}
-                      </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-3">
-                      <div className="space-y-2">
-                        <Label>{isRTL ? "اسم النشاط" : "Business name"}</Label>
-                        <Input value={businessName} onChange={(e) => setBusinessName(e.target.value)} />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>{isRTL ? "التصنيف" : "Category"}</Label>
-                        <Input
-                          value={businessCategory}
-                          onChange={(e) => setBusinessCategory(e.target.value)}
-                          placeholder={isRTL ? "مثال: صيانة، مطاعم..." : "e.g. Maintenance, Restaurants..."}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>{isRTL ? "العنوان" : "Address"}</Label>
-                        <Textarea
-                          value={businessAddress}
-                          onChange={(e) => setBusinessAddress(e.target.value)}
-                          className="min-h-[80px]"
-                          placeholder={isRTL ? "المدينة، الشارع، علامة مميزة..." : "City, street, landmark..."}
-                        />
-                      </div>
-
-                      <p className="text-xs text-muted-foreground">
-                        {isRTL
-                          ? "ملاحظة: سيتم تحويل حالتك إلى Pending حتى يوافق الأدمن."
-                          : "Note: Your status will become Pending until an admin approves it."}
-                      </p>
-                    </div>
-
-                    <DialogFooter className="gap-2">
-                      <Button variant="outline" onClick={() => setApplyOpen(false)} disabled={applyBusy}>
-                        {isRTL ? "إلغاء" : "Cancel"}
-                      </Button>
-                      <Button onClick={handleProviderApplySubmit} disabled={applyBusy}>
-                        {applyBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                        <span className={cn(applyBusy ? "ms-2" : "")}>{isRTL ? "إرسال" : "Submit"}</span>
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </TabsContent>
-
-              {/* Provider tab (ONLY approved) */}
-              {isProviderApproved && (
-                <TabsContent value="provider" className="mt-4 space-y-4">
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <ShieldCheck className="h-4 w-4" />
-                        {isRTL ? "إدارة المزود" : "Provider tools"}
-                      </CardTitle>
-                      <CardDescription>
-                        {isRTL ? "لوحة المزود وإدارة خدماتك." : "Provider dashboard and service management."}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">{isRTL ? "الحالة" : "Status"}</span>
-                        <Badge variant={statusBadgeVariant(providerStatus)}>{providerStatusText}</Badge>
-                      </div>
-
-                      <Separator />
-
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        <Button asChild>
-                          <Link to="/provider-dashboard" className="inline-flex items-center gap-2">
-                            <LayoutDashboard className="h-4 w-4" />
-                            {isRTL ? "لوحة المزود" : "Provider Dashboard"}
-                          </Link>
-                        </Button>
-
-                        <Button variant="outline" asChild>
-                          <Link to="/create-service" className="inline-flex items-center gap-2">
-                            <PlusCircle className="h-4 w-4" />
-                            {isRTL ? "إضافة خدمة" : "Create service"}
-                          </Link>
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              )}
-
-              {/* Security */}
-              <TabsContent value="security" className="mt-4 space-y-4">
-                {profile.must_change_password && (
-                  <Card className="border-destructive/40">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base flex items-center gap-2 text-destructive">
-                        <AlertTriangle className="h-4 w-4" />
-                        {isRTL ? "مطلوب تغيير كلمة المرور" : "Password change required"}
-                      </CardTitle>
-                      <CardDescription>
-                        {isRTL ? "يرجى تغيير كلمة المرور للمتابعة." : "Please change your password to continue."}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <Button asChild>
-                        <Link to="/change-password" className="inline-flex items-center gap-2">
-                          <KeyRound className="h-4 w-4" />
-                          {isRTL ? "تغيير كلمة المرور" : "Change password"}
-                        </Link>
-                      </Button>
-                    </CardContent>
-                  </Card>
-                )}
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <KeyRound className="h-4 w-4" />
-                      {isRTL ? "الأمان" : "Security"}
-                    </CardTitle>
-                    <CardDescription>
-                      {isRTL ? "تحديث كلمة المرور وتسجيل الخروج." : "Update password and sign out."}
-                    </CardDescription>
-                  </CardHeader>
-
-                  <CardContent className="flex flex-col sm:flex-row gap-2">
-                    <Button asChild variant="outline">
-                      <Link to="/change-password" className="inline-flex items-center gap-2">
-                        <KeyRound className="h-4 w-4" />
-                        {isRTL ? "تغيير كلمة المرور" : "Change password"}
+                    <Button asChild disabled={!isProviderApproved}>
+                      <Link to="/provider-dashboard" className="inline-flex items-center gap-2">
+                        <LayoutDashboard className="h-4 w-4" />
+                        {isRTL ? "لوحة المزود" : "Provider Dashboard"}
                       </Link>
                     </Button>
 
-                    <Button variant="destructive" className="sm:ms-auto" onClick={handleLogout}>
-                      <LogOut className="h-4 w-4" />
-                      <span className="ms-2">{isRTL ? "تسجيل الخروج" : "Logout"}</span>
+                    <Button variant="outline" asChild disabled={!isProviderApproved}>
+                      <Link to="/create-service" className="inline-flex items-center gap-2">
+                        <PlusCircle className="h-4 w-4" />
+                        {isRTL ? "إضافة خدمة" : "Create service"}
+                      </Link>
                     </Button>
-                  </CardContent>
-                </Card>
-              </TabsContent>
+                  </div>
 
-              {/* Danger */}
-              <TabsContent value="danger" className="mt-4 space-y-4">
-                <Card className="border-destructive/40">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base text-destructive flex items-center gap-2">
-                      <Trash2 className="h-4 w-4" />
-                      {isRTL ? "منطقة الخطر" : "Danger zone"}
-                    </CardTitle>
-                    <CardDescription>
-                      {isRTL
-                        ? "حذف الحساب سيقوم بتعطيل حسابك وإخفاء معلوماتك الشخصية."
-                        : "Deleting your account will deactivate it and remove your personal details."}
-                    </CardDescription>
-                  </CardHeader>
+                  {!isProviderApproved && (
+                    <p className="text-xs text-muted-foreground">
+                      {isRTL ? "حسابك غير مفعل بالكامل بعد." : "Your provider account is not fully active yet."}
+                    </p>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
-                  <CardContent className="space-y-3">
-                    <div className="text-sm text-muted-foreground">
-                      {isRTL
-                        ? "سيتم تعطيل الحساب (Soft delete). لن يتم حذف البيانات التاريخية مثل الخدمات/المراجعات، لكن سيتم إخفاء اسمك وبياناتك."
-                        : "This is a soft delete. Historical data (services/reviews) stays, but your name and personal info are removed."}
-                    </div>
+        {/* Security */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <KeyRound className="h-4 w-4" />
+              {isRTL ? "الأمان" : "Security"}
+            </CardTitle>
+            <CardDescription>
+              {isRTL ? "تحديث كلمة المرور وتسجيل الخروج." : "Update password and sign out."}
+            </CardDescription>
+          </CardHeader>
 
-                    <Button
-                      variant="destructive"
-                      onClick={() => {
-                        setDeleteConfirmText("");
-                        setDeleteOpen(true);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span className="ms-2">{isRTL ? "حذف الحساب" : "Delete account"}</span>
-                    </Button>
-                  </CardContent>
-                </Card>
+          <CardContent className="space-y-3">
+            {profile.must_change_password && (
+              <div className="rounded-xl border border-destructive/40 p-3 flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-destructive mt-0.5" />
+                <div className="text-sm">
+                  <div className="font-medium text-destructive">
+                    {isRTL ? "مطلوب تغيير كلمة المرور" : "Password change required"}
+                  </div>
+                  <div className="text-muted-foreground">
+                    {isRTL ? "يرجى تغيير كلمة المرور للمتابعة." : "Please change your password to continue."}
+                  </div>
+                </div>
+              </div>
+            )}
 
-                <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle className="text-destructive">
-                        {isRTL ? "تأكيد حذف الحساب" : "Confirm account deletion"}
-                      </DialogTitle>
-                      <DialogDescription>
-                        {isRTL
-                          ? "اكتب DELETE للتأكيد. لا يمكن التراجع بعد التنفيذ."
-                          : "Type DELETE to confirm. This cannot be undone."}
-                      </DialogDescription>
-                    </DialogHeader>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button asChild variant="outline">
+                <Link to="/change-password" className="inline-flex items-center gap-2">
+                  <KeyRound className="h-4 w-4" />
+                  {isRTL ? "تغيير كلمة المرور" : "Change password"}
+                </Link>
+              </Button>
 
-                    <div className="space-y-2">
-                      <Label>DELETE</Label>
-                      <Input
-                        value={deleteConfirmText}
-                        onChange={(e) => setDeleteConfirmText(e.target.value)}
-                        placeholder="DELETE"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        {isRTL
-                          ? "سيتم تعطيل حسابك وإخفاء اسمك/نبذتك/صورتك."
-                          : "Your account will be deactivated and your name/bio/avatar will be removed."}
-                      </p>
-                    </div>
+              <Button variant="destructive" className="sm:ms-auto" onClick={handleLogout}>
+                <LogOut className="h-4 w-4" />
+                <span className="ms-2">{isRTL ? "تسجيل الخروج" : "Logout"}</span>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
-                    <DialogFooter className="gap-2">
-                      <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
-                        {isRTL ? "إلغاء" : "Cancel"}
-                      </Button>
+        {/* Danger */}
+        <Card className="border-destructive/40">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base text-destructive flex items-center gap-2">
+              <Trash2 className="h-4 w-4" />
+              {isRTL ? "منطقة الخطر" : "Danger"}
+            </CardTitle>
+            <CardDescription>
+              {isRTL
+                ? "حذف الحساب سيقوم بتعطيل حسابك وإخفاء معلوماتك الشخصية."
+                : "Deleting your account will deactivate it and remove your personal details."}
+            </CardDescription>
+          </CardHeader>
 
-                      <Button
-                        variant="destructive"
-                        onClick={handleSoftDelete}
-                        disabled={deleting || deleteConfirmText.trim().toUpperCase() !== "DELETE"}
-                      >
-                        {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                        <span className={cn(deleting ? "ms-2" : "")}>{isRTL ? "تأكيد الحذف" : "Confirm delete"}</span>
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </TabsContent>
-            </Tabs>
+          <CardContent className="space-y-3">
+            <div className="text-sm text-muted-foreground">
+              {isRTL
+                ? "هذا حذف Soft delete. لن يتم حذف البيانات التاريخية مثل الخدمات/المراجعات، لكن سيتم إخفاء اسمك وبياناتك."
+                : "This is a soft delete. Historical data (services/reviews) stays, but your name and personal info are removed."}
+            </div>
+
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setDeleteConfirmText("");
+                setDeleteOpen(true);
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="ms-2">{isRTL ? "حذف الحساب" : "Delete account"}</span>
+            </Button>
+
+            <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle className="text-destructive">
+                    {isRTL ? "تأكيد حذف الحساب" : "Confirm account deletion"}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {isRTL
+                      ? "اكتب DELETE للتأكيد. لا يمكن التراجع بعد التنفيذ."
+                      : "Type DELETE to confirm. This cannot be undone."}
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-2">
+                  <Label>DELETE</Label>
+                  <Input
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="DELETE"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {isRTL
+                      ? "سيتم تعطيل حسابك وإخفاء اسمك/نبذتك/صورتك."
+                      : "Your account will be deactivated and your name/bio/avatar will be removed."}
+                  </p>
+                </div>
+
+                <DialogFooter className="gap-2">
+                  <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+                    {isRTL ? "إلغاء" : "Cancel"}
+                  </Button>
+
+                  <Button
+                    variant="destructive"
+                    onClick={handleSoftDelete}
+                    disabled={deleting || deleteConfirmText.trim().toUpperCase() !== "DELETE"}
+                  >
+                    {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    <span className={cn(deleting ? "ms-2" : "")}>{isRTL ? "تأكيد الحذف" : "Confirm delete"}</span>
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </CardContent>
         </Card>
       </div>
