@@ -1,21 +1,24 @@
 import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
+
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ProviderRouteProps {
   children: React.ReactNode;
 }
 
-/**
- * ProviderRoute (Dora P0):
- * - requires login
- * - requires role === "provider" (or admin)
- * - does NOT block on provider_status (Libya UX: providers can add services immediately)
- * - blocks deleted/inactive accounts
- */
+function isProviderLike(role: string | null | undefined) {
+  const r = (role || "").toLowerCase();
+  return r === "business" || r === "provider";
+}
+
+function isAdmin(role: string | null | undefined) {
+  return (role || "").toLowerCase() === "admin";
+}
+
 export function ProviderRoute({ children }: ProviderRouteProps) {
-  const { user, profile, loading, profileLoading } = useAuth();
+  const { user, loading, profile, profileLoading } = useAuth();
   const location = useLocation();
 
   if (loading || profileLoading) {
@@ -30,24 +33,9 @@ export function ProviderRoute({ children }: ProviderRouteProps) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  if (!profile) {
-    return <Navigate to="/profile" replace />;
-  }
+  const role = (profile?.role as any) || "user";
 
-  if (profile.must_change_password) {
-    return <Navigate to="/change-password" replace />;
-  }
-
-  const st = (profile.status || "").toLowerCase();
-  if (st === "deleted" || st === "inactive") {
-    return <Navigate to="/auth" replace />;
-  }
-
-  const role = (profile.role || "").toLowerCase();
-  const isAdmin = role === "admin";
-  const isProvider = role === "provider";
-
-  if (!isAdmin && !isProvider) {
+  if (!isAdmin(role) && !isProviderLike(role)) {
     return <Navigate to="/profile" replace />;
   }
 
