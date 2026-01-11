@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
-type AppRole = "user" | "provider" | "admin";
+// DB enum (generated types) currently uses: "user" | "business" | "admin".
+// We also accept legacy "provider" reads (older rows / older clients).
+export type AppRole = "user" | "business" | "admin" | "provider";
 
 interface UserRoleState {
   roles: AppRole[];
@@ -10,6 +12,11 @@ interface UserRoleState {
   isBusiness: boolean;
   isUser: boolean;
   isAdmin: boolean;
+}
+
+function isBusinessRole(role: string | null | undefined) {
+  const r = (role || "").toLowerCase();
+  return r === "business" || r === "provider";
 }
 
 export function useUserRole() {
@@ -38,11 +45,9 @@ export function useUserRole() {
       };
     }
 
-    // Ensure guards wait for role fetch after login
     setState((prev) => ({ ...prev, loading: true }));
 
     const fetchRole = async () => {
-      // Read role from profiles (single source of truth)
       const { data, error } = await supabase.from("profiles").select("role").eq("user_id", user.id).maybeSingle();
 
       if (cancelled) return;
@@ -59,17 +64,16 @@ export function useUserRole() {
         return;
       }
 
-      // If no profile or no role, default to "user"
-      const role = ((data?.role as AppRole) || "user") as AppRole;
-
+      const rawRole = (data?.role as string | null) || "user";
+      const role = (rawRole as AppRole) || "user";
       const roles: AppRole[] = [role];
 
       setState({
         roles,
         loading: false,
-        isBusiness: role === "provider",
-        isUser: role === "user",
-        isAdmin: role === "admin",
+        isBusiness: isBusinessRole(role),
+        isUser: (role || "").toLowerCase() === "user",
+        isAdmin: (role || "").toLowerCase() === "admin",
       });
     };
 
@@ -80,27 +84,24 @@ export function useUserRole() {
     };
   }, [user?.id]);
 
+  /**
+   * Dora P0: become provider immediately.
+   * We set role="business" and provider_status="approved".
+   */
   const upgradeToBusiness = async () => {
     if (!user) return { error: new Error("Not authenticated") };
 
-    // Update role in profiles (NOT user_roles).
-    // Also ensure provider_status is set for legacy rows (only if currently null).
-    const { data: existing, error: readError } = await supabase
+    const { error } = await supabase
       .from("profiles")
-      .select("provider_status")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (readError) return { error: readError };
-
-    const nextUpdate: Record<string, any> = { role: "provider" };
-    if (existing?.provider_status == null) nextUpdate.provider_status = "pending";
-
-    const { error } = await supabase.from("profiles").update(nextUpdate).eq("user_id", user.id);
+      .update({
+        role: "business",
+        provider_status: "approved",
+      })
+      .eq("user_id", user.id);
 
     if (!error) {
       setState({
-        roles: ["provider"],
+        roles: ["business"],
         loading: false,
         isBusiness: true,
         isUser: false,
