@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCities } from "@/hooks/useCities";
+import { useSubCities } from "@/hooks/useSubCities";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,6 +73,7 @@ function isProviderLike(role: string | null | undefined) {
 
 export default function Profile() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, profile, loading, profileLoading, signOut, refreshProfile } = useAuth();
   const { isRTL, language } = useLanguage();
   const { data: cities, isLoading: citiesLoading } = useCities();
@@ -82,6 +84,9 @@ export default function Profile() {
   const [fullName, setFullName] = useState("");
   const [bio, setBio] = useState("");
   const [cityId, setCityId] = useState<string>("");
+  const [subCity, setSubCity] = useState<string>("");
+
+  const { data: subCities } = useSubCities(cityId || null);
 
   const [avatarBusy, setAvatarBusy] = useState(false);
 
@@ -119,7 +124,18 @@ export default function Profile() {
     setFullName(profile.full_name || "");
     setBio(profile.bio || "");
     setCityId(profile.city_id || "");
+    setSubCity(profile.sub_city || "");
   }, [profile]);
+
+  // If city changes and the selected sub-city doesn't belong to the city, clear it.
+  useEffect(() => {
+    if (!subCity) return;
+    if (!cityId) return;
+    if (!subCities) return;
+
+    const exists = subCities.some((sc) => sc.name === subCity || sc.name_ar === subCity);
+    if (!exists) setSubCity("");
+  }, [cityId, subCities, subCity]);
 
   const cityLabel = useMemo(() => {
     if (!cities || !cityId) return "";
@@ -141,6 +157,11 @@ export default function Profile() {
       providerStatusLower === "" ||
       providerStatusLower === "active" ||
       providerStatusLower === "verified");
+
+  const showWelcome = useMemo(() => {
+    const q = new URLSearchParams(location.search);
+    return q.get("welcome") === "1";
+  }, [location.search]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -170,6 +191,7 @@ export default function Profile() {
         bio: bio?.trim() || null,
         city_id: cityId || null,
         city: cityName,
+        sub_city: subCity?.trim() || null,
       })
       .eq("user_id", user.id);
 
@@ -441,6 +463,16 @@ export default function Profile() {
   return (
     <div className="min-h-screen p-4 pb-24" dir={isRTL ? "rtl" : "ltr"}>
       <div className="max-w-2xl mx-auto space-y-4">
+        {showWelcome && (
+          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+            <div className="font-semibold">{isRTL ? "مرحباً!" : "Welcome!"}</div>
+            <div className="text-sm text-muted-foreground mt-1">
+              {isRTL
+                ? "أكمل بياناتك بسرعة. إذا كنت مزود خدمة، اضغط: أريد أن أكون مزود."
+                : "Complete your info quickly. If you're a provider, tap: I want to be a provider."}
+            </div>
+          </div>
+        )}
         {/* Header */}
         <Card>
           <CardHeader className="pb-3">
@@ -566,6 +598,43 @@ export default function Profile() {
                   {isRTL ? "الحالية:" : "Current:"} {cityLabel}
                 </p>
               )}
+            </div>
+
+            {/* Sub-city (DB-backed) */}
+            <div className="grid gap-2">
+              <Label className="flex items-center gap-2">
+                <MapPin className="h-4 w-4" />
+                {isRTL ? "المنطقة" : "Sub-city"}
+              </Label>
+
+              {cityId && subCities && subCities.length > 0 ? (
+                <Select value={subCity || "none"} onValueChange={(v) => setSubCity(v === "none" ? "" : v)}>
+                  <SelectTrigger className="h-12 rounded-xl">
+                    <SelectValue placeholder={isRTL ? "اختر المنطقة" : "Select sub-city"} />
+                  </SelectTrigger>
+                  <SelectContent className="z-[9999] bg-white border border-border shadow-lg">
+                    <SelectItem value="none">{isRTL ? "بدون" : "None"}</SelectItem>
+                    {subCities.map((sc) => {
+                      const label = language === "ar" && sc.name_ar ? sc.name_ar : sc.name;
+                      return (
+                        <SelectItem key={sc.id} value={label}>
+                          {label}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  value={subCity}
+                  onChange={(e) => setSubCity(e.target.value)}
+                  placeholder={isRTL ? "اكتب منطقتك (اختياري)" : "Type your area (optional)"}
+                />
+              )}
+
+              <p className="text-xs text-muted-foreground">
+                {isRTL ? "اختياري. سيساعدنا لاحقاً في نتائج أدق." : "Optional. This helps improve results later."}
+              </p>
             </div>
 
             <div className="grid gap-2">
