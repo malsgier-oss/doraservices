@@ -247,7 +247,8 @@ export function ServiceDetailSheet({
           user_id: svc.user_id ?? null,
           provider_name: p?.full_name || svc.provider_name || (isRTL ? "مقدم الخدمة" : "Provider"),
           provider_avatar: p?.avatar_url || "",
-          provider_phone: p?.phone || svc.provider_phone || "",
+          // Some datasets store phone as numeric; normalize to string early.
+          provider_phone: String(p?.phone || svc.provider_phone || "").trim(),
           provider_city: p?.city || svc.city || null,
           provider_sub_city: p?.sub_city || svc.sub_city || null,
         };
