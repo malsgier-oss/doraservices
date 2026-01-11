@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -77,7 +78,6 @@ export default function Profile() {
   const { user, profile, loading, profileLoading, signOut, refreshProfile } = useAuth();
   const { isRTL, language } = useLanguage();
   const { data: cities, isLoading: citiesLoading } = useCities();
-
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const [saving, setSaving] = useState(false);
@@ -107,6 +107,7 @@ export default function Profile() {
 
     if (!profile) return;
 
+    // @ts-expect-error - older schema may contain must_change_password
     if (profile.must_change_password) {
       navigate("/change-password", { replace: true });
       return;
@@ -162,6 +163,11 @@ export default function Profile() {
     const q = new URLSearchParams(location.search);
     return q.get("welcome") === "1";
   }, [location.search]);
+
+  const defaultTab = useMemo(() => {
+    if (showWelcome) return isProvider ? "provider" : "account";
+    return "account";
+  }, [showWelcome, isProvider]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -468,42 +474,66 @@ export default function Profile() {
             <div className="font-semibold">{isRTL ? "مرحباً!" : "Welcome!"}</div>
             <div className="text-sm text-muted-foreground mt-1">
               {isRTL
-                ? "أكمل بياناتك بسرعة. إذا كنت مزود خدمة، اضغط: أريد أن أكون مزود."
-                : "Complete your info quickly. If you're a provider, tap: I want to be a provider."}
+                ? "أكمل بياناتك بسرعة. إذا كنت مزود خدمة، انتقل إلى تبويب (المزود)."
+                : "Complete your info quickly. If you're a provider, switch to the Provider tab."}
             </div>
           </div>
         )}
-        {/* Header */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-xl flex items-center gap-2">
-              <User2 className="h-5 w-5" />
-              {isRTL ? "الملف الشخصي" : "Profile"}
-            </CardTitle>
-            <CardDescription className="leading-relaxed">
-              {isRTL ? "صفحة بسيطة لإدارة حسابك." : "A simple page to manage your account."}
-            </CardDescription>
-          </CardHeader>
 
-          <CardContent className="space-y-4">
-            {/* Avatar row */}
-            <div className="flex items-center gap-4">
-              <div className="relative h-16 w-16 rounded-full overflow-hidden border bg-muted flex items-center justify-center">
+        {/* Modern Header Card */}
+        <Card className="overflow-hidden">
+          <div className="bg-primary/10">
+            <div className="p-4 sm:p-6 flex items-center gap-4">
+              <div className="relative h-16 w-16 sm:h-20 sm:w-20 rounded-full overflow-hidden border bg-muted flex items-center justify-center shrink-0">
                 {profile.avatar_url ? (
                   <img src={profile.avatar_url} alt="avatar" className="h-full w-full object-cover" />
                 ) : (
-                  <Camera className="h-6 w-6 text-muted-foreground" />
+                  <Camera className="h-7 w-7 text-muted-foreground" />
                 )}
               </div>
 
-              <div className="flex-1 space-y-1">
-                <div className="text-base font-semibold">{profile.full_name || (isRTL ? "بدون اسم" : "No name")}</div>
-                <div className="text-sm text-muted-foreground flex items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="text-xl sm:text-2xl font-semibold truncate">
+                  {profile.full_name || (isRTL ? "بدون اسم" : "No name")}
+                </div>
+                <div className="mt-1 text-sm text-muted-foreground flex items-center gap-2">
                   <Phone className="h-4 w-4" />
-                  <span dir="ltr">{profile.phone || "—"}</span>
+                  <span dir="ltr" className="truncate">
+                    {profile.phone || "—"}
+                  </span>
+                </div>
+
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Badge variant={statusBadgeVariant(profile.status)} className="gap-1">
+                    <ShieldCheck className="h-4 w-4" />
+                    {(profile.status || "active").toLowerCase() === "active"
+                      ? isRTL
+                        ? "نشط"
+                        : "Active"
+                      : (profile.status || "").toString()}
+                  </Badge>
+
+                  <Badge variant="outline">
+                    {isAdmin ? "Admin" : isProvider ? (isRTL ? "مزود" : "Provider") : isRTL ? "مستخدم" : "User"}
+                  </Badge>
+
+                  {cityLabel && (
+                    <Badge variant="secondary" className="gap-1">
+                      <MapPin className="h-4 w-4" />
+                      {cityLabel}
+                      {subCity ? ` • ${subCity}` : ""}
+                    </Badge>
+                  )}
+
+                  {providerStatus && (
+                    <Badge variant={statusBadgeVariant(providerStatus)}>
+                      {isRTL ? "المزود:" : "Provider:"} {providerStatus}
+                    </Badge>
+                  )}
                 </div>
               </div>
 
+              {/* Avatar actions */}
               <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   ref={fileRef}
@@ -517,7 +547,7 @@ export default function Profile() {
                   }}
                 />
 
-                <Button variant="outline" onClick={openFilePicker} disabled={avatarBusy}>
+                <Button variant="outline" onClick={openFilePicker} disabled={avatarBusy} className="h-11 rounded-xl">
                   {avatarBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
                   <span className="ms-2">
                     {profile.avatar_url ? (isRTL ? "تغيير" : "Change") : isRTL ? "إضافة" : "Add"}
@@ -525,321 +555,405 @@ export default function Profile() {
                 </Button>
 
                 {profile.avatar_url && (
-                  <Button variant="outline" onClick={handleAvatarRemove} disabled={avatarBusy}>
+                  <Button
+                    variant="outline"
+                    onClick={handleAvatarRemove}
+                    disabled={avatarBusy}
+                    className="h-11 rounded-xl"
+                  >
                     <X className="h-4 w-4" />
                     <span className="ms-2">{isRTL ? "حذف" : "Remove"}</span>
                   </Button>
                 )}
               </div>
             </div>
+          </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={statusBadgeVariant(profile.status)} className="gap-1">
-                <ShieldCheck className="h-4 w-4" />
-                {(profile.status || "active").toLowerCase() === "active"
-                  ? isRTL
-                    ? "نشط"
-                    : "Active"
-                  : (profile.status || "").toString()}
-              </Badge>
+          {/* Provider quick actions strip (only for providers) */}
+          {!isAdmin && isProvider && (
+            <CardContent className="pt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <Button asChild disabled={!isProviderApproved} className="h-12 rounded-xl justify-start gap-2">
+                  <Link to="/provider-dashboard">
+                    <LayoutDashboard className="h-4 w-4" />
+                    {isRTL ? "لوحة المزود" : "Provider Dashboard"}
+                  </Link>
+                </Button>
 
-              <Badge variant="outline" className="gap-1">
-                {isAdmin ? "Admin" : isProvider ? (isRTL ? "مزود" : "Provider") : isRTL ? "مستخدم" : "User"}
-              </Badge>
+                <Button
+                  asChild
+                  variant="outline"
+                  disabled={!isProviderApproved}
+                  className="h-12 rounded-xl justify-start gap-2"
+                >
+                  <Link to="/create-service">
+                    <PlusCircle className="h-4 w-4" />
+                    {isRTL ? "إضافة خدمة" : "Create service"}
+                  </Link>
+                </Button>
+              </div>
 
-              {providerStatus && (
-                <Badge variant={statusBadgeVariant(providerStatus)}>
-                  {isRTL ? "حالة المزود:" : "Provider:"} {providerStatus}
-                </Badge>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Account */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4" />
-              {isRTL ? "الحساب" : "Account"}
-            </CardTitle>
-            <CardDescription>
-              {isRTL ? "تحديث اسمك والنبذة والمدينة." : "Update your name, bio, and city."}
-            </CardDescription>
-          </CardHeader>
-
-          <CardContent className="space-y-4">
-            <div className="grid gap-2">
-              <Label>{isRTL ? "الاسم الكامل" : "Full name"}</Label>
-              <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
-            </div>
-
-            <div className="grid gap-2">
-              <Label className="flex items-center gap-2">
-                <MapPin className="h-4 w-4" />
-                {isRTL ? "المدينة" : "City"}
-              </Label>
-
-              <Select value={cityId} onValueChange={setCityId}>
-                <SelectTrigger className="h-12 rounded-xl">
-                  <SelectValue placeholder={isRTL ? "اختر المدينة" : "Select city"} />
-                </SelectTrigger>
-                <SelectContent className="z-[9999] bg-white border border-border shadow-lg">
-                  {(cities || []).map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {language === "ar" ? c.name_ar || c.name : c.name || c.name_ar}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {!!cityLabel && (
-                <p className="text-sm text-muted-foreground">
-                  {isRTL ? "الحالية:" : "Current:"} {cityLabel}
+              {!isProviderApproved && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {isRTL ? "حساب المزود غير مفعل بالكامل بعد." : "Your provider account is not fully active yet."}
                 </p>
               )}
-            </div>
-
-            {/* Sub-city (DB-backed) */}
-            <div className="grid gap-2">
-              <Label className="flex items-center gap-2">
-                <MapPin className="h-4 w-4" />
-                {isRTL ? "المنطقة" : "Sub-city"}
-              </Label>
-
-              {cityId && subCities && subCities.length > 0 ? (
-                <Select value={subCity || "none"} onValueChange={(v) => setSubCity(v === "none" ? "" : v)}>
-                  <SelectTrigger className="h-12 rounded-xl">
-                    <SelectValue placeholder={isRTL ? "اختر المنطقة" : "Select sub-city"} />
-                  </SelectTrigger>
-                  <SelectContent className="z-[9999] bg-white border border-border shadow-lg">
-                    <SelectItem value="none">{isRTL ? "بدون" : "None"}</SelectItem>
-                    {subCities.map((sc) => {
-                      const label = language === "ar" && sc.name_ar ? sc.name_ar : sc.name;
-                      return (
-                        <SelectItem key={sc.id} value={label}>
-                          {label}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input
-                  value={subCity}
-                  onChange={(e) => setSubCity(e.target.value)}
-                  placeholder={isRTL ? "اكتب منطقتك (اختياري)" : "Type your area (optional)"}
-                />
-              )}
-
-              <p className="text-xs text-muted-foreground">
-                {isRTL ? "اختياري. سيساعدنا لاحقاً في نتائج أدق." : "Optional. This helps improve results later."}
-              </p>
-            </div>
-
-            <div className="grid gap-2">
-              <Label>{isRTL ? "نبذة" : "Bio"}</Label>
-              <Textarea
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                placeholder={isRTL ? "اكتب نبذة قصيرة..." : "Write a short bio..."}
-                className="min-h-[90px]"
-              />
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Button onClick={handleSave} disabled={saving}>
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : isRTL ? "حفظ" : "Save"}
-              </Button>
-
-              <Button variant="outline" asChild className="sm:ms-auto">
-                <Link to="/">{isRTL ? "العودة" : "Back"}</Link>
-              </Button>
-            </div>
-          </CardContent>
+            </CardContent>
+          )}
         </Card>
 
-        {/* Provider */}
-        {!isAdmin && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Building2 className="h-4 w-4" />
-                {isRTL ? "حساب المزود" : "Provider"}
-              </CardTitle>
-              <CardDescription>
-                {isProvider
-                  ? isRTL
-                    ? "أدوات المزود وإدارة خدماتك."
-                    : "Provider tools and your services."
-                  : isRTL
-                    ? "اضغط زر واحد لتفعيل حساب مزود الخدمة."
-                    : "One click to enable a provider account."}
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent className="space-y-3">
-              {!isProvider ? (
-                <Button onClick={handleBecomeProvider} disabled={becomingProvider} className="gap-2">
-                  {becomingProvider ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
-                  {isRTL ? "أريد أن أكون مزود" : "I want to be a provider"}
-                </Button>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">{isRTL ? "الحالة" : "Status"}</span>
-                    <Badge variant={statusBadgeVariant(providerStatus)}>{providerStatus || "approved"}</Badge>
-                  </div>
-
-                  <Separator />
-
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Button asChild disabled={!isProviderApproved}>
-                      <Link to="/provider-dashboard" className="inline-flex items-center gap-2">
-                        <LayoutDashboard className="h-4 w-4" />
-                        {isRTL ? "لوحة المزود" : "Provider Dashboard"}
-                      </Link>
-                    </Button>
-
-                    <Button variant="outline" asChild disabled={!isProviderApproved}>
-                      <Link to="/create-service" className="inline-flex items-center gap-2">
-                        <PlusCircle className="h-4 w-4" />
-                        {isRTL ? "إضافة خدمة" : "Create service"}
-                      </Link>
-                    </Button>
-                  </div>
-
-                  {!isProviderApproved && (
-                    <p className="text-xs text-muted-foreground">
-                      {isRTL ? "حسابك غير مفعل بالكامل بعد." : "Your provider account is not fully active yet."}
-                    </p>
-                  )}
-                </>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Security */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <KeyRound className="h-4 w-4" />
+        {/* Tabs Layout (Modern Cards Style) */}
+        <Tabs defaultValue={defaultTab} className="w-full">
+          <TabsList className="grid grid-cols-3 w-full rounded-2xl h-12">
+            <TabsTrigger value="account" className="rounded-xl">
+              {isRTL ? "الحساب" : "Account"}
+            </TabsTrigger>
+            <TabsTrigger value="provider" className="rounded-xl">
+              {isRTL ? "المزود" : "Provider"}
+            </TabsTrigger>
+            <TabsTrigger value="security" className="rounded-xl">
               {isRTL ? "الأمان" : "Security"}
-            </CardTitle>
-            <CardDescription>
-              {isRTL ? "تحديث كلمة المرور وتسجيل الخروج." : "Update password and sign out."}
-            </CardDescription>
-          </CardHeader>
+            </TabsTrigger>
+          </TabsList>
 
-          <CardContent className="space-y-3">
-            {profile.must_change_password && (
-              <div className="rounded-xl border border-destructive/40 p-3 flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 text-destructive mt-0.5" />
-                <div className="text-sm">
-                  <div className="font-medium text-destructive">
-                    {isRTL ? "مطلوب تغيير كلمة المرور" : "Password change required"}
+          {/* Account Tab */}
+          <TabsContent value="account" className="mt-4 space-y-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <User2 className="h-4 w-4" />
+                  {isRTL ? "بيانات الحساب" : "Account details"}
+                </CardTitle>
+                <CardDescription>
+                  {isRTL ? "حدث اسمك والنبذة وموقعك." : "Update your name, bio, and location."}
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                <div className="grid gap-2">
+                  <Label>{isRTL ? "الاسم الكامل" : "Full name"}</Label>
+                  <Input value={fullName} onChange={(e) => setFullName(e.target.value)} className="h-12 rounded-xl" />
+                </div>
+
+                {/* Location */}
+                <div className="grid gap-3">
+                  <div className="text-sm font-medium flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    {isRTL ? "الموقع" : "Location"}
                   </div>
-                  <div className="text-muted-foreground">
-                    {isRTL ? "يرجى تغيير كلمة المرور للمتابعة." : "Please change your password to continue."}
+
+                  <div className="grid gap-2">
+                    <Label>{isRTL ? "المدينة" : "City"}</Label>
+                    <Select value={cityId} onValueChange={setCityId}>
+                      <SelectTrigger className="h-12 rounded-xl">
+                        <SelectValue placeholder={isRTL ? "اختر المدينة" : "Select city"} />
+                      </SelectTrigger>
+                      <SelectContent className="z-[9999] bg-white border border-border shadow-lg">
+                        {(cities || []).map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {language === "ar" ? c.name_ar || c.name : c.name || c.name_ar}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!!cityLabel && (
+                      <p className="text-xs text-muted-foreground">
+                        {isRTL ? "الحالية:" : "Current:"} {cityLabel}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label>{isRTL ? "المنطقة" : "Sub-city"}</Label>
+
+                    {cityId && subCities && subCities.length > 0 ? (
+                      <Select value={subCity || "none"} onValueChange={(v) => setSubCity(v === "none" ? "" : v)}>
+                        <SelectTrigger className="h-12 rounded-xl">
+                          <SelectValue placeholder={isRTL ? "اختر المنطقة" : "Select sub-city"} />
+                        </SelectTrigger>
+                        <SelectContent className="z-[9999] bg-white border border-border shadow-lg">
+                          <SelectItem value="none">{isRTL ? "بدون" : "None"}</SelectItem>
+                          {subCities.map((sc) => {
+                            const label = language === "ar" && sc.name_ar ? sc.name_ar : sc.name;
+                            return (
+                              <SelectItem key={sc.id} value={label}>
+                                {label}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        value={subCity}
+                        onChange={(e) => setSubCity(e.target.value)}
+                        placeholder={isRTL ? "اكتب منطقتك (اختياري)" : "Type your area (optional)"}
+                        className="h-12 rounded-xl"
+                      />
+                    )}
+
+                    <p className="text-xs text-muted-foreground">
+                      {isRTL ? "اختياري. يساعدنا لاحقاً في نتائج أدق." : "Optional. Helps improve results later."}
+                    </p>
                   </div>
                 </div>
-              </div>
+
+                <div className="grid gap-2">
+                  <Label>{isRTL ? "نبذة" : "Bio"}</Label>
+                  <Textarea
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    placeholder={isRTL ? "اكتب نبذة قصيرة..." : "Write a short bio..."}
+                    className="min-h-[100px] rounded-xl"
+                  />
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button onClick={handleSave} disabled={saving} className="h-12 rounded-xl">
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    <span className={cn(saving ? "ms-2" : "")}>{isRTL ? "حفظ" : "Save changes"}</span>
+                  </Button>
+
+                  <Button variant="outline" asChild className="h-12 rounded-xl sm:ms-auto">
+                    <Link to="/">{isRTL ? "العودة" : "Back"}</Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Provider Tab */}
+          <TabsContent value="provider" className="mt-4 space-y-4">
+            {!isAdmin && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    {isRTL ? "المزود" : "Provider"}
+                  </CardTitle>
+                  <CardDescription>
+                    {isProvider
+                      ? isRTL
+                        ? "إدارة خدماتك والوصول السريع للأدوات."
+                        : "Manage your services and quick actions."
+                      : isRTL
+                        ? "حوّل حسابك إلى مزود خدمة بضغطة واحدة."
+                        : "Upgrade your account to a provider with one tap."}
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent className="space-y-4">
+                  {!isProvider ? (
+                    <div className="space-y-3">
+                      <div className="rounded-2xl border bg-muted/30 p-4">
+                        <div className="text-sm font-medium">
+                          {isRTL ? "ماذا تحصل كمزود؟" : "What you get as a provider"}
+                        </div>
+                        <ul className="mt-2 text-sm text-muted-foreground space-y-1 list-disc ps-5">
+                          <li>{isRTL ? "إضافة خدماتك في دُورا" : "Create service listings on Dora"}</li>
+                          <li>{isRTL ? "ظهور في البحث والتصنيفات" : "Appear in search and categories"}</li>
+                          <li>{isRTL ? "تواصل مباشر عبر الهاتف" : "Direct calls from customers"}</li>
+                        </ul>
+                      </div>
+
+                      <Button
+                        onClick={handleBecomeProvider}
+                        disabled={becomingProvider}
+                        className="h-12 rounded-xl w-full gap-2"
+                      >
+                        {becomingProvider ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Building2 className="h-4 w-4" />
+                        )}
+                        {isRTL ? "أريد أن أكون مزود" : "I want to be a provider"}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">{isRTL ? "الحالة" : "Status"}</span>
+                        <Badge variant={statusBadgeVariant(providerStatus)}>{providerStatus || "approved"}</Badge>
+                      </div>
+
+                      <Separator />
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <Button asChild disabled={!isProviderApproved} className="h-12 rounded-xl justify-start gap-2">
+                          <Link to="/provider-dashboard">
+                            <LayoutDashboard className="h-4 w-4" />
+                            {isRTL ? "لوحة المزود" : "Provider Dashboard"}
+                          </Link>
+                        </Button>
+
+                        <Button
+                          asChild
+                          variant="outline"
+                          disabled={!isProviderApproved}
+                          className="h-12 rounded-xl justify-start gap-2"
+                        >
+                          <Link to="/create-service">
+                            <PlusCircle className="h-4 w-4" />
+                            {isRTL ? "إضافة خدمة" : "Create service"}
+                          </Link>
+                        </Button>
+                      </div>
+
+                      {!isProviderApproved && (
+                        <p className="text-xs text-muted-foreground">
+                          {isRTL ? "حسابك غير مفعل بالكامل بعد." : "Your provider account is not fully active yet."}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             )}
 
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Button asChild variant="outline">
-                <Link to="/change-password" className="inline-flex items-center gap-2">
+            {isAdmin && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">{isRTL ? "أنت أدمن" : "Admin account"}</CardTitle>
+                  <CardDescription>
+                    {isRTL
+                      ? "حسابك أدمن، لا تحتاج لتفعيل مزود."
+                      : "You’re an admin; provider activation is not needed."}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild className="h-12 rounded-xl">
+                    <Link to="/admin">{isRTL ? "لوحة الأدمن" : "Admin panel"}</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Security Tab */}
+          <TabsContent value="security" className="mt-4 space-y-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
                   <KeyRound className="h-4 w-4" />
-                  {isRTL ? "تغيير كلمة المرور" : "Change password"}
-                </Link>
-              </Button>
+                  {isRTL ? "الأمان" : "Security"}
+                </CardTitle>
+                <CardDescription>
+                  {isRTL ? "تغيير كلمة المرور وتسجيل الخروج." : "Change password and sign out."}
+                </CardDescription>
+              </CardHeader>
 
-              <Button variant="destructive" className="sm:ms-auto" onClick={handleLogout}>
-                <LogOut className="h-4 w-4" />
-                <span className="ms-2">{isRTL ? "تسجيل الخروج" : "Logout"}</span>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+              <CardContent className="space-y-3">
+                {/* @ts-expect-error - older schema may contain must_change_password */}
+                {profile.must_change_password && (
+                  <div className="rounded-xl border border-destructive/40 p-3 flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-destructive mt-0.5" />
+                    <div className="text-sm">
+                      <div className="font-medium text-destructive">
+                        {isRTL ? "مطلوب تغيير كلمة المرور" : "Password change required"}
+                      </div>
+                      <div className="text-muted-foreground">
+                        {isRTL ? "يرجى تغيير كلمة المرور للمتابعة." : "Please change your password to continue."}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
-        {/* Danger */}
-        <Card className="border-destructive/40">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base text-destructive flex items-center gap-2">
-              <Trash2 className="h-4 w-4" />
-              {isRTL ? "منطقة الخطر" : "Danger"}
-            </CardTitle>
-            <CardDescription>
-              {isRTL
-                ? "حذف الحساب سيقوم بتعطيل حسابك وإخفاء معلوماتك الشخصية."
-                : "Deleting your account will deactivate it and remove your personal details."}
-            </CardDescription>
-          </CardHeader>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button asChild variant="outline" className="h-12 rounded-xl justify-start gap-2">
+                    <Link to="/change-password">
+                      <KeyRound className="h-4 w-4" />
+                      {isRTL ? "تغيير كلمة المرور" : "Change password"}
+                    </Link>
+                  </Button>
 
-          <CardContent className="space-y-3">
-            <div className="text-sm text-muted-foreground">
-              {isRTL
-                ? "هذا حذف Soft delete. لن يتم حذف البيانات التاريخية مثل الخدمات/المراجعات، لكن سيتم إخفاء اسمك وبياناتك."
-                : "This is a soft delete. Historical data (services/reviews) stays, but your name and personal info are removed."}
-            </div>
+                  <Button variant="destructive" className="h-12 rounded-xl sm:ms-auto" onClick={handleLogout}>
+                    <LogOut className="h-4 w-4" />
+                    <span className="ms-2">{isRTL ? "تسجيل الخروج" : "Logout"}</span>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
 
-            <Button
-              variant="destructive"
-              onClick={() => {
-                setDeleteConfirmText("");
-                setDeleteOpen(true);
-              }}
-            >
-              <Trash2 className="h-4 w-4" />
-              <span className="ms-2">{isRTL ? "حذف الحساب" : "Delete account"}</span>
-            </Button>
+            {/* Danger */}
+            <Card className="border-destructive/40">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base text-destructive flex items-center gap-2">
+                  <Trash2 className="h-4 w-4" />
+                  {isRTL ? "منطقة الخطر" : "Danger zone"}
+                </CardTitle>
+                <CardDescription>
+                  {isRTL
+                    ? "حذف الحساب سيقوم بتعطيل حسابك وإخفاء معلوماتك الشخصية."
+                    : "Deleting your account will deactivate it and remove your personal details."}
+                </CardDescription>
+              </CardHeader>
 
-            <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle className="text-destructive">
-                    {isRTL ? "تأكيد حذف الحساب" : "Confirm account deletion"}
-                  </DialogTitle>
-                  <DialogDescription>
-                    {isRTL
-                      ? "اكتب DELETE للتأكيد. لا يمكن التراجع بعد التنفيذ."
-                      : "Type DELETE to confirm. This cannot be undone."}
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="space-y-2">
-                  <Label>DELETE</Label>
-                  <Input
-                    value={deleteConfirmText}
-                    onChange={(e) => setDeleteConfirmText(e.target.value)}
-                    placeholder="DELETE"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {isRTL
-                      ? "سيتم تعطيل حسابك وإخفاء اسمك/نبذتك/صورتك."
-                      : "Your account will be deactivated and your name/bio/avatar will be removed."}
-                  </p>
+              <CardContent className="space-y-3">
+                <div className="text-sm text-muted-foreground">
+                  {isRTL
+                    ? "هذا حذف Soft delete. لن يتم حذف البيانات التاريخية مثل الخدمات/المراجعات، لكن سيتم إخفاء اسمك وبياناتك."
+                    : "This is a soft delete. Historical data (services/reviews) stays, but your name and personal info are removed."}
                 </div>
 
-                <DialogFooter className="gap-2">
-                  <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
-                    {isRTL ? "إلغاء" : "Cancel"}
-                  </Button>
+                <Button
+                  variant="destructive"
+                  className="h-12 rounded-xl"
+                  onClick={() => {
+                    setDeleteConfirmText("");
+                    setDeleteOpen(true);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span className="ms-2">{isRTL ? "حذف الحساب" : "Delete account"}</span>
+                </Button>
 
-                  <Button
-                    variant="destructive"
-                    onClick={handleSoftDelete}
-                    disabled={deleting || deleteConfirmText.trim().toUpperCase() !== "DELETE"}
-                  >
-                    {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    <span className={cn(deleting ? "ms-2" : "")}>{isRTL ? "تأكيد الحذف" : "Confirm delete"}</span>
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </CardContent>
-        </Card>
+                <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle className="text-destructive">
+                        {isRTL ? "تأكيد حذف الحساب" : "Confirm account deletion"}
+                      </DialogTitle>
+                      <DialogDescription>
+                        {isRTL
+                          ? "اكتب DELETE للتأكيد. لا يمكن التراجع بعد التنفيذ."
+                          : "Type DELETE to confirm. This cannot be undone."}
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-2">
+                      <Label>DELETE</Label>
+                      <Input
+                        value={deleteConfirmText}
+                        onChange={(e) => setDeleteConfirmText(e.target.value)}
+                        placeholder="DELETE"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {isRTL
+                          ? "سيتم تعطيل حسابك وإخفاء اسمك/نبذتك/صورتك."
+                          : "Your account will be deactivated and your name/bio/avatar will be removed."}
+                      </p>
+                    </div>
+
+                    <DialogFooter className="gap-2">
+                      <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+                        {isRTL ? "إلغاء" : "Cancel"}
+                      </Button>
+
+                      <Button
+                        variant="destructive"
+                        onClick={handleSoftDelete}
+                        disabled={deleting || deleteConfirmText.trim().toUpperCase() !== "DELETE"}
+                      >
+                        {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                        <span className={cn(deleting ? "ms-2" : "")}>{isRTL ? "تأكيد الحذف" : "Confirm delete"}</span>
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
