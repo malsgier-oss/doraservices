@@ -31,10 +31,7 @@ export function useAllCities() {
   return useQuery({
     queryKey: ["cities", "all"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("cities")
-        .select("*")
-        .order("display_order", { ascending: true });
+      const { data, error } = await supabase.from("cities").select("*").order("display_order", { ascending: true });
 
       if (error) throw error;
       return data as City[];
