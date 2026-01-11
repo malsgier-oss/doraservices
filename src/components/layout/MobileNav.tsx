@@ -1,4 +1,4 @@
-import { Home, Heart, User, Shield, BarChart3 } from "lucide-react";
+import { Home, Heart, User, Shield } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -6,13 +6,12 @@ import { cn } from "@/lib/utils";
 
 export function MobileNav() {
   const { t, isRTL } = useLanguage();
-  const { isAdmin, isBusiness } = useUserRole();
+  const { isAdmin } = useUserRole();
   const location = useLocation();
 
   const navItems = [
     { to: "/", icon: Home, label: t.nav.home },
     { to: "/favorites", icon: Heart, label: t.favorites?.title || (isRTL ? "المفضلة" : "Favorites") },
-    ...(isBusiness ? [{ to: "/provider-dashboard", icon: BarChart3, label: isRTL ? "إحصائياتي" : "My Stats" }] : []),
     { to: "/profile", icon: User, label: t.nav.profile },
     ...(isAdmin ? [{ to: "/admin", icon: Shield, label: isRTL ? "لوحة التحكم" : "Admin" }] : []),
   ];
@@ -21,8 +20,7 @@ export function MobileNav() {
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border shadow-lg">
       <div className="flex items-center justify-around h-16 px-4">
         {navItems.map((item) => {
-          const isActive =
-            item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to);
+          const isActive = item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to);
           const Icon = item.icon;
           return (
             <NavLink
