@@ -20,7 +20,8 @@ export default function PendingVerification() {
 
     // This page is for business/providers awaiting approval.
     // If the user is not a provider, or already approved, just go home.
-    if (profile && (role !== "provider" || providerStatus === "approved")) {
+    const isProviderLike = role === "business" || role === "provider"; // accept legacy "provider"
+    if (profile && (!isProviderLike || providerStatus === "approved")) {
       navigate("/");
       return;
     }
@@ -44,7 +45,10 @@ export default function PendingVerification() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4" dir={isRTL ? "rtl" : "ltr"}>
+    <div
+      className="min-h-screen bg-background flex flex-col items-center justify-center p-4"
+      dir={isRTL ? "rtl" : "ltr"}
+    >
       {/* Language Toggle */}
       <div className="absolute top-4 left-4">
         <LanguageToggle />
@@ -61,14 +65,11 @@ export default function PendingVerification() {
           <div className="w-16 h-16 rounded-full bg-amber-100 mx-auto mb-4 flex items-center justify-center">
             <Clock className="h-8 w-8 text-amber-600" />
           </div>
-          <CardTitle className="text-xl">
-            {isRTL ? "في انتظار اعتماد الحساب" : "Pending Approval"}
-          </CardTitle>
+          <CardTitle className="text-xl">{isRTL ? "في انتظار اعتماد الحساب" : "Pending Approval"}</CardTitle>
           <CardDescription className="mt-2">
             {isRTL
               ? "حساب النشاط التجاري الخاص بك قيد المراجعة. بمجرد الاعتماد ستتمكن من إضافة خدماتك وإدارة صفحتك."
-              : "Your business account is under review. Once approved, you can add services and manage your provider dashboard."
-            }
+              : "Your business account is under review. Once approved, you can add services and manage your provider dashboard."}
           </CardDescription>
         </CardHeader>
 
@@ -78,9 +79,7 @@ export default function PendingVerification() {
             <div className="bg-muted rounded-xl p-4 flex items-center gap-3">
               <Phone className="h-5 w-5 text-muted-foreground" />
               <div>
-                <p className="text-sm text-muted-foreground">
-                  {isRTL ? "رقم الهاتف المسجل" : "Registered phone"}
-                </p>
+                <p className="text-sm text-muted-foreground">{isRTL ? "رقم الهاتف المسجل" : "Registered phone"}</p>
                 <p className="font-medium" dir="ltr">
                   {formatPhoneDisplay(profile.phone)}
                 </p>
@@ -90,9 +89,7 @@ export default function PendingVerification() {
 
           {/* What you can do */}
           <div className="bg-muted/50 rounded-xl p-4">
-            <h3 className="font-medium mb-2">
-              {isRTL ? "بإمكانك الآن:" : "You can still:"}
-            </h3>
+            <h3 className="font-medium mb-2">{isRTL ? "بإمكانك الآن:" : "You can still:"}</h3>
             <ul className="text-sm text-muted-foreground space-y-1">
               <li>• {isRTL ? "تصفح الخدمات ومقدميها" : "Browse services and providers"}</li>
               <li>• {isRTL ? "البحث والتصفية" : "Search and filter"}</li>
@@ -103,9 +100,7 @@ export default function PendingVerification() {
 
           {/* What you can't do */}
           <div className="bg-destructive/5 border border-destructive/20 rounded-xl p-4">
-            <h3 className="font-medium mb-2 text-destructive">
-              {isRTL ? "يتطلب الاعتماد:" : "Requires approval:"}
-            </h3>
+            <h3 className="font-medium mb-2 text-destructive">{isRTL ? "يتطلب الاعتماد:" : "Requires approval:"}</h3>
             <ul className="text-sm text-destructive/80 space-y-1">
               <li>• {isRTL ? "إضافة خدمات" : "Add services"}</li>
               <li>• {isRTL ? "لوحة مقدم الخدمة" : "Provider dashboard"}</li>
@@ -113,18 +108,10 @@ export default function PendingVerification() {
           </div>
 
           <div className="flex gap-3 pt-4">
-            <Button 
-              variant="outline" 
-              className="flex-1 rounded-full"
-              onClick={() => navigate("/")}
-            >
+            <Button variant="outline" className="flex-1 rounded-full" onClick={() => navigate("/")}>
               {isRTL ? "تصفح الخدمات" : "Browse Services"}
             </Button>
-            <Button 
-              variant="ghost" 
-              className="rounded-full"
-              onClick={handleLogout}
-            >
+            <Button variant="ghost" className="rounded-full" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />
               {t.profile.logout}
             </Button>
