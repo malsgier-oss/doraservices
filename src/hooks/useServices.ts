@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export interface Service {
   id: string;
-  user_id: string | null;
+  user_id: string;
   title: string;
   description: string | null;
   category: string;
@@ -17,12 +17,10 @@ export interface Service {
   created_at: string;
   updated_at: string;
 
-  // denormalized provider fields on services row (P0 critical)
+  // Dora P0: denormalized provider fields (so guests can call/WhatsApp even if profiles are RLS-protected)
   provider_name?: string | null;
   provider_avatar?: string | null;
   provider_phone?: string | null;
-
-  // optional location fields if your table has them
   city?: string | null;
   sub_city?: string | null;
 }
@@ -31,7 +29,9 @@ function digitsOnly(v: string) {
   return (v || "").replace(/\D/g, "");
 }
 
-function normalizeLibyaPhoneForStorage(raw: string | null | undefined) {
+// Dora P0: store phone in services row so anonymous users can call/WhatsApp.
+// We store digits-only with Libya country code when possible.
+export function normalizeLibyaPhoneForStorage(raw: string | null | undefined) {
   const d = digitsOnly(raw || "");
   if (!d) return "";
 
@@ -63,43 +63,37 @@ export function useServices() {
       return;
     }
 
-    const base = (servicesData || []) as any[];
+    const rows = (servicesData || []) as any[];
 
-    // ✅ P0 rule: always rely on denormalized fields in services row.
-    // Profiles may be blocked by RLS for other users (even when signed in).
-    // We'll do best-effort enrichment ONLY and never overwrite existing service phone/name.
-    const userIds = Array.from(new Set(base.map((s) => s.user_id).filter(Boolean))) as string[];
-
+    // Optional enrichment from profiles (may fail for guests due to RLS).
+    // IMPORTANT: never overwrite service-level provider_phone/name with empty values.
+    const userIds = Array.from(new Set(rows.map((s) => s.user_id).filter(Boolean))) as string[];
     let profileMap = new Map<string, any>();
+
     if (userIds.length > 0) {
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("user_id, full_name, avatar_url, phone")
+        .select("user_id, full_name, avatar_url, phone, city, sub_city")
         .in("user_id", userIds);
 
       if (profilesError) {
-        // expected in many setups because of RLS (non-admin can't read other profiles)
-        console.warn("Profiles lookup blocked/failed; using service-level fields only:", profilesError.message);
+        // Guest browsing or restrictive RLS: this is expected.
+        profileMap = new Map();
       } else {
         profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
       }
     }
 
-    const enrichedServices: Service[] = base.map((service) => {
+    const enrichedServices: Service[] = rows.map((service) => {
       const p = service.user_id ? profileMap.get(service.user_id) : null;
-
-      const svcPhone = normalizeLibyaPhoneForStorage(service.provider_phone);
-      const profPhone = normalizeLibyaPhoneForStorage(p?.phone);
-
       return {
         ...service,
-        provider_name:
-          (service.provider_name && String(service.provider_name).trim()) ||
-          (p?.full_name && String(p.full_name).trim()) ||
-          "Provider",
-        provider_avatar: (service.provider_avatar && String(service.provider_avatar)) || p?.avatar_url || "",
-        // ✅ never overwrite a non-empty service phone with an empty profile phone
-        provider_phone: svcPhone || profPhone || "",
+        provider_name: p?.full_name || service.provider_name || "Provider",
+        provider_avatar: p?.avatar_url || service.provider_avatar || "",
+        // keep DB value if present
+        provider_phone: p?.phone || service.provider_phone || "",
+        city: p?.city || service.city || null,
+        sub_city: p?.sub_city || service.sub_city || null,
       };
     });
 
@@ -129,9 +123,9 @@ export function useServices() {
   }, []);
 
   useEffect(() => {
-    if (user) fetchMyServices();
+    if (user) void fetchMyServices();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user]);
 
   const createService = async (serviceData: {
     title: string;
@@ -139,18 +133,16 @@ export function useServices() {
     category: string;
     price: number;
     image_url?: string;
-    city?: string | null;
-    sub_city?: string | null;
   }) => {
     if (!user) return { error: new Error("Not authenticated") };
 
-    // Dora P0: denormalize provider info into services row so call/WhatsApp works for guests.
+    // Dora P0: denormalize provider fields into the service row.
     let provider: {
       full_name: string | null;
       phone: string | null;
       city: string | null;
       sub_city: string | null;
-      avatar_url?: string | null;
+      avatar_url: string | null;
     } | null = null;
 
     try {
@@ -164,8 +156,7 @@ export function useServices() {
       // ignore
     }
 
-    const providerPhone = normalizeLibyaPhoneForStorage(provider?.phone);
-    const providerName = (provider?.full_name || "").trim() || "Provider";
+    const storedPhone = normalizeLibyaPhoneForStorage(provider?.phone);
 
     const { data, error } = await supabase
       .from("services")
@@ -176,24 +167,11 @@ export function useServices() {
         category: serviceData.category,
         price: serviceData.price,
         image_url: serviceData.image_url || null,
-
-        // Dora P0: make sure newly created services are visible on Hub/lists.
-        // Hub filters by is_active + is_visible and excludes paused.
-        is_active: true,
-        is_visible: true,
-        is_paused: false,
-        is_featured: false,
-
-        // Dora P0: admin-controlled trust pipeline.
-        // (If your DB has a different default, this keeps behavior explicit.)
-        approval_status: "pending",
-
-        provider_name: providerName,
-        provider_phone: providerPhone || null,
+        provider_name: provider?.full_name || null,
         provider_avatar: provider?.avatar_url || null,
-
-        city: serviceData.city ?? provider?.city ?? null,
-        sub_city: serviceData.sub_city ?? provider?.sub_city ?? null,
+        provider_phone: storedPhone || null,
+        city: provider?.city || null,
+        sub_city: provider?.sub_city || null,
       })
       .select()
       .single();
@@ -207,12 +185,7 @@ export function useServices() {
   };
 
   const updateService = async (id: string, updates: Partial<Service>) => {
-    const { data, error } = await supabase
-      .from("services")
-      .update(updates as any)
-      .eq("id", id)
-      .select()
-      .single();
+    const { data, error } = await supabase.from("services").update(updates).eq("id", id).select().single();
 
     if (!error && data) {
       setMyServices((prev) => prev.map((s) => (s.id === id ? (data as any) : s)));
