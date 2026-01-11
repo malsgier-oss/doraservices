@@ -21,6 +21,29 @@ import { ReportDialog } from "@/components/report/ReportDialog";
 import { toast } from "sonner";
 import { SearchFiltersState } from "@/components/search/SearchFilters";
 
+const digitsOnly = (v: string) => (v || "").replace(/\D/g, "");
+
+/**
+ * Normalize Libya phone for:
+ * - tel: +218xxxxxxxxx
+ * - wa: 218xxxxxxxxx (digits only)
+ */
+function normalizeLibyaPhone(raw: string) {
+  const d = digitsOnly((raw || "").trim());
+  if (!d) return { tel: "", wa: "" };
+
+  if (d.startsWith("218")) return { tel: `+${d}`, wa: d };
+  if (d.length === 10 && d.startsWith("0")) {
+    const cc = `218${d.slice(1)}`;
+    return { tel: `+${cc}`, wa: cc };
+  }
+  if (d.length === 9) {
+    const cc = `218${d}`;
+    return { tel: `+${cc}`, wa: cc };
+  }
+  return { tel: d.startsWith("+") ? d : `+${d}`, wa: d };
+}
+
 interface ServiceProvider {
   id: string; // service id
   title: string;
@@ -29,9 +52,8 @@ interface ServiceProvider {
   image_url: string | null;
 
   // user_id can be null for unclaimed / imported services.
+  // In that case we still allow calling/WhatsApp, but disable provider-linked features (reviews, call logs).
   user_id: string | null;
-
-  // denormalized provider fields (P0: must work for guests)
   provider_name: string;
   provider_avatar: string;
   provider_phone: string;
@@ -58,52 +80,6 @@ interface ServiceDetailSheetProps {
   initialProviderServiceId?: string | null;
 }
 
-const digitsOnly = (v: string) => (v || "").replace(/\D/g, "");
-
-/**
- * Normalize Libya phone for:
- * - tel: +218xxxxxxxxx
- * - wa: 218xxxxxxxxx (digits only)
- */
-function normalizeLibyaPhone(raw: string) {
-  const d = digitsOnly((raw || "").trim());
-  if (!d) return { tel: "", wa: "" };
-
-  // already has country code
-  if (d.startsWith("218")) return { tel: `+${d}`, wa: d };
-
-  // common local: 0XXXXXXXXX
-  if (d.length === 10 && d.startsWith("0")) {
-    const cc = `218${d.slice(1)}`;
-    return { tel: `+${cc}`, wa: cc };
-  }
-
-  // 9 digits without leading 0
-  if (d.length === 9) {
-    const cc = `218${d}`;
-    return { tel: `+${cc}`, wa: cc };
-  }
-
-  // fallback
-  const wa = d;
-  const tel = d.startsWith("+") ? d : `+${d}`;
-  return { tel, wa };
-}
-
-/**
- * Open external links robustly:
- * - Try opening in new tab (may be blocked in previews/iframes)
- * - If blocked, fallback to same-tab navigation
- */
-function openExternal(url: string) {
-  try {
-    const w = window.open(url, "_blank", "noopener,noreferrer");
-    if (!w) window.location.href = url;
-  } catch {
-    window.location.href = url;
-  }
-}
-
 export function ServiceDetailSheet({
   open,
   onOpenChange,
@@ -119,6 +95,9 @@ export function ServiceDetailSheet({
   const { data: subCities } = useSubCities(filters?.city);
   const { logCall } = useCallLogs();
 
+  // Dora P0: calling / WhatsApp must work even when the user is anonymous.
+  // Logged-in features (favorites, reviews, call logs) still require auth.
+
   const [providers, setProviders] = useState<ServiceProvider[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
@@ -131,6 +110,7 @@ export function ServiceDetailSheet({
   const [isLoggingCall, setIsLoggingCall] = useState(false);
 
   const { reviews, rating, userReview, submitReview, loading: reviewsLoading } = useReviews(selectedProvider?.id);
+
   const { ratings: providerRatings } = useServiceRatings(providers.map((p) => p.id));
 
   const getCityLabel = (cityId: string | null) => {
@@ -238,13 +218,15 @@ export function ServiceDetailSheet({
 
       const userIds = Array.from(new Set((servicesData as any[]).map((s) => s.user_id).filter(Boolean))) as string[];
 
-      // Profiles may fail for guests due to RLS. We still render using service-level fields.
+      // Profiles are restricted to authenticated users in many setups.
+      // If profile lookup fails (e.g., guest browsing), we still show providers using service-level fields.
       let profileMap = new Map<string, any>();
       if (userIds.length > 0) {
         const { data: profiles, error: profilesError } = await supabase
           .from("profiles")
           .select("user_id, full_name, avatar_url, phone, city, sub_city, provider_status")
-          .in("user_id", userIds);
+          .in("user_id", userIds)
+          .eq("provider_status", "approved");
 
         if (profilesError) {
           console.warn("Profiles lookup failed; falling back to service fields:", profilesError);
@@ -255,12 +237,6 @@ export function ServiceDetailSheet({
 
       const enriched: ServiceProvider[] = (servicesData as any[]).map((svc) => {
         const p = svc.user_id ? profileMap.get(svc.user_id) : null;
-
-        // ✅ P0: prefer denormalized service row FIRST (works for guests; avoids RLS issues)
-        const phoneRaw = String(svc.provider_phone || p?.phone || "").trim();
-        const nameRaw = String(svc.provider_name || p?.full_name || "").trim();
-        const avatarRaw = String(svc.provider_avatar || p?.avatar_url || "").trim();
-
         return {
           id: svc.id,
           title: svc.title,
@@ -269,11 +245,11 @@ export function ServiceDetailSheet({
           image_url: svc.image_url,
 
           user_id: svc.user_id ?? null,
-          provider_name: nameRaw || (isRTL ? "مقدم الخدمة" : "Provider"),
-          provider_avatar: avatarRaw || "",
-          provider_phone: phoneRaw || "",
-          provider_city: (svc.city || p?.city || null) as any,
-          provider_sub_city: (svc.sub_city || p?.sub_city || null) as any,
+          provider_name: p?.full_name || svc.provider_name || (isRTL ? "مقدم الخدمة" : "Provider"),
+          provider_avatar: p?.avatar_url || "",
+          provider_phone: p?.phone || svc.provider_phone || "",
+          provider_city: p?.city || svc.city || null,
+          provider_sub_city: p?.sub_city || svc.sub_city || null,
         };
       });
 
@@ -327,6 +303,43 @@ export function ServiceDetailSheet({
     language === "ar" && service.categoryNameAr
       ? service.categoryNameAr
       : service.categoryName || t.categories[service.category as keyof typeof t.categories] || service.category;
+
+  const handleProviderClick = (provider: ServiceProvider) => setSelectedProvider(provider);
+
+  const handleCall = async (provider: ServiceProvider) => {
+    const normalized = normalizeLibyaPhone(provider.provider_phone || "");
+    if (!normalized.wa) {
+      toast.error(isRTL ? "رقم الهاتف غير متوفر" : "Phone number not available");
+      return;
+    }
+
+    setIsLoggingCall(true);
+    try {
+      // Only log calls when the caller is logged in AND the provider is claimed.
+      if (user && provider.user_id) {
+        await logCall.mutateAsync({
+          service_id: provider.id,
+          provider_id: provider.user_id,
+        });
+      }
+    } catch (err) {
+      console.error("Error logging call:", err);
+    } finally {
+      setIsLoggingCall(false);
+    }
+
+    window.location.href = `tel:${normalized.tel}`;
+  };
+
+  const handleWhatsApp = (provider: ServiceProvider) => {
+    const normalized = normalizeLibyaPhone(provider.provider_phone || "");
+    if (!normalized.wa) {
+      toast.error(isRTL ? "رقم الهاتف غير متوفر" : "Phone number not available");
+      return;
+    }
+
+    window.open(`https://wa.me/${normalized.wa}`, "_blank", "noopener,noreferrer");
+  };
 
   const handleToggleFavorite = async (serviceId: string) => {
     if (!user) {
@@ -382,6 +395,14 @@ export function ServiceDetailSheet({
     }
   };
 
+  const handleBack = () => setSelectedProvider(null);
+
+  const getRatingDisplay = (serviceId: string) => {
+    const r = providerRatings.get(serviceId);
+    if (!r || r.totalReviews === 0) return { text: isRTL ? "جديد" : "New", hasRating: false };
+    return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true };
+  };
+
   const drawerPageClass = "h-[85dvh] max-h-[85dvh] flex flex-col overflow-hidden mt-0";
 
   // ---------------- Provider detail view ----------------
@@ -389,52 +410,22 @@ export function ServiceDetailSheet({
     const isProviderFavorite = isFavorite(selectedProvider.id);
     const hasRating = rating.totalReviews > 0;
 
-    const normalized = normalizeLibyaPhone(selectedProvider.provider_phone || "");
-    const hasPhone = Boolean(normalized.wa);
-
-    const handleCall = () => {
-      if (!hasPhone) {
-        toast.error(isRTL ? "رقم الهاتف غير متوفر" : "Phone number not available");
-        return;
-      }
-
-      // Log call only if logged-in + claimed; do not block navigation
-      if (user && selectedProvider.user_id) {
-        setIsLoggingCall(true);
-        logCall
-          .mutateAsync({
-            service_id: selectedProvider.id,
-            provider_id: selectedProvider.user_id,
-          })
-          .catch((err) => console.error("Error logging call:", err))
-          .finally(() => setIsLoggingCall(false));
-      }
-
-      window.location.href = `tel:${normalized.tel}`;
-    };
-
-    const handleWhatsApp = () => {
-      if (!hasPhone) {
-        toast.error(isRTL ? "رقم الهاتف غير متوفر" : "Phone number not available");
-        return;
-      }
-
-      openExternal(`https://wa.me/${normalized.wa}`);
-    };
-
     return (
       <>
         <Drawer
           open={open}
           onOpenChange={(isOpen) => {
-            if (!isOpen) setSelectedProvider(null);
+            if (!isOpen) {
+              setSelectedProvider(null);
+              setPendingOpenProviderId(null);
+            }
             onOpenChange(isOpen);
           }}
         >
           <DrawerContent className={drawerPageClass}>
             <DrawerHeader className="relative pb-0">
               <button
-                onClick={() => setSelectedProvider(null)}
+                onClick={handleBack}
                 className={cn(
                   "absolute top-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
                   isRTL ? "right-4" : "left-4",
@@ -517,12 +508,24 @@ export function ServiceDetailSheet({
                 </div>
 
                 <div className="flex gap-3 pt-2">
-                  <Button variant="outline" size="lg" className="flex-1 h-14 rounded-2xl" onClick={handleCall}>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="flex-1 h-14 rounded-2xl"
+                    onClick={() => handleCall(selectedProvider)}
+                    disabled={!selectedProvider.provider_phone || isLoggingCall}
+                  >
                     <Phone className="h-5 w-5 mr-2" />
                     {isLoggingCall ? (isRTL ? "جاري..." : "Calling...") : isRTL ? "اتصل" : "Call"}
                   </Button>
 
-                  <Button variant="outline" size="lg" className="flex-1 h-14 rounded-2xl" onClick={handleWhatsApp}>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="flex-1 h-14 rounded-2xl"
+                    onClick={() => handleWhatsApp(selectedProvider)}
+                    disabled={!selectedProvider.provider_phone}
+                  >
                     <MessageSquare className="h-5 w-5 mr-2" />
                     {isRTL ? "واتساب" : "WhatsApp"}
                   </Button>
@@ -636,7 +639,7 @@ export function ServiceDetailSheet({
                   return (
                     <button
                       key={provider.id}
-                      onClick={() => setSelectedProvider(provider)}
+                      onClick={() => handleProviderClick(provider)}
                       className={cn(
                         "w-full flex items-center gap-4 p-4 bg-card rounded-2xl border border-border transition-colors hover:bg-muted/50 active:bg-muted",
                         isRTL && "flex-row-reverse text-right",
