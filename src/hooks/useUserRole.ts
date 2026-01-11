@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
-// DB enum (generated types) currently uses: "user" | "business" | "admin".
-// We also accept legacy "provider" reads (older rows / older clients).
+// Dora P0: profiles.role is constrained in DB to: "user" | "provider" | "admin".
+// We keep "business" in the union only for backward-compat with older clients/code.
 export type AppRole = "user" | "business" | "admin" | "provider";
 
 interface UserRoleState {
@@ -16,7 +16,9 @@ interface UserRoleState {
 
 function isBusinessRole(role: string | null | undefined) {
   const r = (role || "").toLowerCase();
-  return r === "business" || r === "provider";
+  // "provider" is the canonical provider role.
+  // "business" is legacy (older builds) and is treated the same.
+  return r === "provider" || r === "business";
 }
 
 export function useUserRole() {
@@ -85,8 +87,8 @@ export function useUserRole() {
   }, [user?.id]);
 
   /**
-   * Dora P0: become provider immediately.
-   * We set role="business" and provider_status="approved".
+   * Dora P0: become provider.
+   * We set role="provider" and provider_status="approved" (auto-approve).
    */
   const upgradeToBusiness = async () => {
     if (!user) return { error: new Error("Not authenticated") };
@@ -94,14 +96,14 @@ export function useUserRole() {
     const { error } = await supabase
       .from("profiles")
       .update({
-        role: "business",
+        role: "provider",
         provider_status: "approved",
       })
       .eq("user_id", user.id);
 
     if (!error) {
       setState({
-        roles: ["business"],
+        roles: ["provider"],
         loading: false,
         isBusiness: true,
         isUser: false,
