@@ -28,6 +28,7 @@ interface ServiceProvider {
   category: string;
   image_url: string | null;
 
+  // user_id can be null for unclaimed / imported services.
   user_id: string | null;
   provider_name: string;
   provider_avatar: string;
@@ -43,13 +44,15 @@ interface ServiceDetailSheetProps {
     id: string;
     titleKey: string;
     descKey: string;
-    category: string;
+    category: string; // this must match services.category in DB
     categoryName?: string;
     categoryNameAr?: string;
     color: string;
     icon: LucideIcon;
   } | null;
   filters?: SearchFiltersState;
+
+  // ✅ if Hub passes a service id, open that provider directly
   initialProviderServiceId?: string | null;
 }
 
@@ -61,22 +64,43 @@ const digitsOnly = (v: string) => (v || "").replace(/\D/g, "");
  * - wa: 218xxxxxxxxx (digits only)
  */
 function normalizeLibyaPhone(raw: string) {
-  const d = digitsOnly(raw);
+  const d = digitsOnly((raw || "").trim());
   if (!d) return { tel: "", wa: "" };
 
+  // already has country code
   if (d.startsWith("218")) return { tel: `+${d}`, wa: d };
 
+  // common local: 0XXXXXXXXX
   if (d.length === 10 && d.startsWith("0")) {
     const cc = `218${d.slice(1)}`;
     return { tel: `+${cc}`, wa: cc };
   }
 
+  // 9 digits without leading 0
   if (d.length === 9) {
     const cc = `218${d}`;
     return { tel: `+${cc}`, wa: cc };
   }
 
+  // fallback
   return { tel: d.startsWith("+") ? d : `+${d}`, wa: d };
+}
+
+/**
+ * Open external links robustly:
+ * - Try opening in new tab (may be blocked in previews/iframes)
+ * - If blocked, fallback to same-tab navigation
+ */
+function openExternal(url: string) {
+  try {
+    const w = window.open(url, "_blank", "noopener,noreferrer");
+    if (!w) {
+      // popup blocked or disallowed -> same-tab
+      window.location.href = url;
+    }
+  } catch {
+    window.location.href = url;
+  }
 }
 
 export function ServiceDetailSheet({
@@ -124,6 +148,7 @@ export function ServiceDetailSheet({
     return sc ? (language === "ar" && sc.name_ar ? sc.name_ar : sc.name) : subCityId;
   };
 
+  // ---- City alias matching (to support filters.city = "tripoli" etc.) ----
   const norm = (s: string | null | undefined) =>
     String(s || "")
       .toLowerCase()
@@ -163,6 +188,7 @@ export function ServiceDetailSheet({
     return false;
   };
 
+  // ✅ Recently viewed write (store service_id whenever provider profile is opened)
   useEffect(() => {
     if (!selectedProvider) return;
 
@@ -211,6 +237,7 @@ export function ServiceDetailSheet({
 
       const userIds = Array.from(new Set((servicesData as any[]).map((s) => s.user_id).filter(Boolean))) as string[];
 
+      // Profiles may fail for guests due to RLS. We still render using service-level fields.
       let profileMap = new Map<string, any>();
       if (userIds.length > 0) {
         const { data: profiles, error: profilesError } = await supabase
@@ -227,6 +254,8 @@ export function ServiceDetailSheet({
 
       const enriched: ServiceProvider[] = (servicesData as any[]).map((svc) => {
         const p = svc.user_id ? profileMap.get(svc.user_id) : null;
+        const phone = (p?.phone || svc.provider_phone || "").trim();
+
         return {
           id: svc.id,
           title: svc.title,
@@ -237,7 +266,7 @@ export function ServiceDetailSheet({
           user_id: svc.user_id ?? null,
           provider_name: p?.full_name || svc.provider_name || (isRTL ? "مقدم الخدمة" : "Provider"),
           provider_avatar: p?.avatar_url || "",
-          provider_phone: p?.phone || svc.provider_phone || "",
+          provider_phone: phone,
           provider_city: p?.city || svc.city || null,
           provider_sub_city: p?.sub_city || svc.sub_city || null,
         };
@@ -294,18 +323,6 @@ export function ServiceDetailSheet({
       ? service.categoryNameAr
       : service.categoryName || t.categories[service.category as keyof typeof t.categories] || service.category;
 
-  const handleCallLogOnly = (provider: ServiceProvider) => {
-    if (!user || !provider.user_id) return;
-    setIsLoggingCall(true);
-    logCall
-      .mutateAsync({
-        service_id: provider.id,
-        provider_id: provider.user_id,
-      })
-      .catch((err) => console.error("Error logging call:", err))
-      .finally(() => setIsLoggingCall(false));
-  };
-
   const handleToggleFavorite = async (serviceId: string) => {
     if (!user) {
       toast.info(isRTL ? "يرجى تسجيل الدخول" : "Please sign in first");
@@ -360,10 +377,9 @@ export function ServiceDetailSheet({
     }
   };
 
-  const handleBack = () => setSelectedProvider(null);
-
   const drawerPageClass = "h-[85dvh] max-h-[85dvh] flex flex-col overflow-hidden mt-0";
 
+  // ---------------- Provider detail view ----------------
   if (selectedProvider) {
     const isProviderFavorite = isFavorite(selectedProvider.id);
     const hasRating = rating.totalReviews > 0;
@@ -371,25 +387,50 @@ export function ServiceDetailSheet({
     const normalized = normalizeLibyaPhone(selectedProvider.provider_phone || "");
     const hasPhone = Boolean(normalized.wa);
 
-    const callHref = hasPhone ? `tel:${normalized.tel}` : "#";
-    const waHref = hasPhone ? `https://wa.me/${normalized.wa}` : "#";
+    const handleCall = () => {
+      if (!hasPhone) {
+        toast.error(isRTL ? "رقم الهاتف غير متوفر" : "Phone number not available");
+        return;
+      }
+
+      // Log call only if logged-in + claimed; do not block navigation
+      if (user && selectedProvider.user_id) {
+        setIsLoggingCall(true);
+        logCall
+          .mutateAsync({
+            service_id: selectedProvider.id,
+            provider_id: selectedProvider.user_id,
+          })
+          .catch((err) => console.error("Error logging call:", err))
+          .finally(() => setIsLoggingCall(false));
+      }
+
+      window.location.href = `tel:${normalized.tel}`;
+    };
+
+    const handleWhatsApp = () => {
+      if (!hasPhone) {
+        toast.error(isRTL ? "رقم الهاتف غير متوفر" : "Phone number not available");
+        return;
+      }
+
+      // Try new tab, fallback to same tab if blocked
+      openExternal(`https://wa.me/${normalized.wa}`);
+    };
 
     return (
       <>
         <Drawer
           open={open}
           onOpenChange={(isOpen) => {
-            if (!isOpen) {
-              setSelectedProvider(null);
-              setPendingOpenProviderId(null);
-            }
+            if (!isOpen) setSelectedProvider(null);
             onOpenChange(isOpen);
           }}
         >
           <DrawerContent className={drawerPageClass}>
             <DrawerHeader className="relative pb-0">
               <button
-                onClick={handleBack}
+                onClick={() => setSelectedProvider(null)}
                 className={cn(
                   "absolute top-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center",
                   isRTL ? "right-4" : "left-4",
@@ -418,7 +459,9 @@ export function ServiceDetailSheet({
                       .slice(0, 2)}
                   </AvatarFallback>
                 </Avatar>
-                <DrawerTitle className="text-xl font-bold text-foreground">{selectedProvider.provider_name}</DrawerTitle>
+                <DrawerTitle className="text-xl font-bold text-foreground">
+                  {selectedProvider.provider_name}
+                </DrawerTitle>
                 <p className="text-sm text-muted-foreground mt-1">{selectedProvider.title}</p>
               </div>
             </DrawerHeader>
@@ -469,48 +512,16 @@ export function ServiceDetailSheet({
                   <ReviewList reviews={reviews} loading={reviewsLoading} />
                 </div>
 
-                {/* In embedded previews, popups are blocked. Use SAME-TAB navigation. */}
                 <div className="flex gap-3 pt-2">
-                  <a
-                    href={callHref}
-                    className={cn(
-                      "flex-1",
-                      !hasPhone && "pointer-events-none opacity-50",
-                    )}
-                    onClick={(e) => {
-                      if (!hasPhone) {
-                        e.preventDefault();
-                        toast.error(isRTL ? "رقم الهاتف غير متوفر" : "Phone number not available");
-                        return;
-                      }
-                      handleCallLogOnly(selectedProvider);
-                    }}
-                  >
-                    <Button variant="outline" size="lg" className="w-full h-14 rounded-2xl" disabled={!hasPhone || isLoggingCall}>
-                      <Phone className="h-5 w-5 mr-2" />
-                      {isLoggingCall ? (isRTL ? "جاري..." : "Calling...") : isRTL ? "اتصل" : "Call"}
-                    </Button>
-                  </a>
+                  <Button variant="outline" size="lg" className="flex-1 h-14 rounded-2xl" onClick={handleCall}>
+                    <Phone className="h-5 w-5 mr-2" />
+                    {isLoggingCall ? (isRTL ? "جاري..." : "Calling...") : isRTL ? "اتصل" : "Call"}
+                  </Button>
 
-                  <a
-                    href={waHref}
-                    className={cn(
-                      "flex-1",
-                      !hasPhone && "pointer-events-none opacity-50",
-                    )}
-                    onClick={(e) => {
-                      if (!hasPhone) {
-                        e.preventDefault();
-                        toast.error(isRTL ? "رقم الهاتف غير متوفر" : "Phone number not available");
-                      }
-                      // same-tab navigation to WhatsApp
-                    }}
-                  >
-                    <Button variant="outline" size="lg" className="w-full h-14 rounded-2xl" disabled={!hasPhone}>
-                      <MessageSquare className="h-5 w-5 mr-2" />
-                      {isRTL ? "واتساب" : "WhatsApp"}
-                    </Button>
-                  </a>
+                  <Button variant="outline" size="lg" className="flex-1 h-14 rounded-2xl" onClick={handleWhatsApp}>
+                    <MessageSquare className="h-5 w-5 mr-2" />
+                    {isRTL ? "واتساب" : "WhatsApp"}
+                  </Button>
                 </div>
 
                 <div className="flex gap-3">
@@ -570,6 +581,7 @@ export function ServiceDetailSheet({
     );
   }
 
+  // ---------------- Providers list view ----------------
   return (
     <Drawer
       open={open}
@@ -654,7 +666,9 @@ export function ServiceDetailSheet({
                         </div>
 
                         {provider.provider_sub_city && (
-                          <div className="text-xs text-muted-foreground mt-1">{getSubCityLabel(provider.provider_sub_city)}</div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {getSubCityLabel(provider.provider_sub_city)}
+                          </div>
                         )}
                       </div>
 
@@ -681,8 +695,12 @@ export function ServiceDetailSheet({
             ) : (
               <div className="text-center py-12">
                 <div className="text-4xl mb-3">🔍</div>
-                <p className="text-muted-foreground font-medium">{isRTL ? "لا يوجد مقدمي خدمة" : "No providers available"}</p>
-                <p className="text-sm text-muted-foreground mt-1">{isRTL ? "جرب تصفية مختلفة" : "Try different filters"}</p>
+                <p className="text-muted-foreground font-medium">
+                  {isRTL ? "لا يوجد مقدمي خدمة" : "No providers available"}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {isRTL ? "جرب تصفية مختلفة" : "Try different filters"}
+                </p>
               </div>
             )}
           </div>
