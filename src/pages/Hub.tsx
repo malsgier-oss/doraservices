@@ -511,9 +511,10 @@ export default function Hub() {
           const { data: profiles } = await supabase
             .from("profiles")
             .select("user_id, full_name, avatar_url, phone, city, sub_city, provider_status")
-            .in("user_id", userIds)
-            .eq("provider_status", "approved");
-
+            .in("user_id", userIds);
+          // Dora P0: do not hard-filter by provider_status here.
+          // Many providers are unclaimed services (user_id null) or pending/legacy profiles.
+          // The services row already carries provider_name/provider_phone for guest contact.
           profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
         }
 
@@ -673,9 +674,8 @@ export default function Hub() {
           const { data: profiles } = await supabase
             .from("profiles")
             .select("user_id, full_name, avatar_url, phone, city, sub_city, provider_status")
-            .in("user_id", userIds)
-            .eq("provider_status", "approved");
-
+            .in("user_id", userIds);
+          // Dora P0: do not hard-filter by provider_status here.
           profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
         }
 
