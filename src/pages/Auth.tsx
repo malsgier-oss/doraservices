@@ -208,7 +208,9 @@ export default function Auth() {
       description: isRTL ? "تم إنشاء حسابك بنجاح." : "Your account is created successfully.",
     });
 
-    navigate("/pending-verification", { replace: true });
+    // Dora P0: avoid blocking flows behind a verification screen.
+    // Providers/admin can be moderated via admin approval without breaking navigation.
+    navigate("/profile", { replace: true });
   };
 
   if (authLoading || profileLoading || settingsLoading || citiesLoading) {
