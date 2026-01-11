@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCities } from "@/hooks/useCities";
@@ -22,8 +22,12 @@ import { isValidLibyanPhone, cleanPhoneForStorage } from "@/lib/phoneUtils";
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
 const nameSchema = z.string().min(2, "Name must be at least 2 characters");
 
+const POST_SIGNUP_REDIRECT_KEY = "dora_post_signup_redirect";
+const ONBOARDING_INTENT_KEY = "dora_onboarding_intent";
+
 export default function Auth() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, profile, signIn, signUp, loading: authLoading, profileLoading } = useAuth();
 
   const { t, isRTL, language } = useLanguage();
@@ -31,6 +35,16 @@ export default function Auth() {
   const { isEnabled: registrationEnabled, isLoading: settingsLoading } = useRegistrationEnabled();
 
   const [isLoading, setIsLoading] = useState(false);
+
+  const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const initialTab = (query.get("tab") || "login").toLowerCase();
+  const [tab, setTab] = useState<"login" | "signup">(initialTab === "signup" ? "signup" : "login");
+
+  // Keep tab in sync with URL changes (e.g., onboarding intent opens signup)
+  useEffect(() => {
+    const t = (query.get("tab") || "login").toLowerCase();
+    setTab(t === "signup" ? "signup" : "login");
+  }, [query]);
 
   const [loginData, setLoginData] = useState({ phone: "", password: "" });
   const [signupData, setSignupData] = useState({
@@ -51,7 +65,34 @@ export default function Auth() {
       return;
     }
 
-    // Logged in → go to home (hub)
+    // App-first routing:
+    // - After signup: go to Profile (welcome mode)
+    // - If onboarding intent was provider: also go to Profile
+    // - Otherwise: go to Hub
+    let postSignup = false;
+    let intent: string | null = null;
+    try {
+      postSignup = localStorage.getItem(POST_SIGNUP_REDIRECT_KEY) === "1";
+      intent = localStorage.getItem(ONBOARDING_INTENT_KEY);
+    } catch {
+      // ignore
+    }
+
+    if (postSignup) {
+      try {
+        localStorage.removeItem(POST_SIGNUP_REDIRECT_KEY);
+      } catch {
+        // ignore
+      }
+      navigate("/profile?welcome=1", { replace: true });
+      return;
+    }
+
+    if ((intent || "").toLowerCase() === "provider") {
+      navigate("/profile?welcome=1", { replace: true });
+      return;
+    }
+
     navigate("/", { replace: true });
   }, [user, profile, profileLoading, navigate]);
 
@@ -208,9 +249,19 @@ export default function Auth() {
       description: isRTL ? "تم إنشاء حسابك بنجاح." : "Your account is created successfully.",
     });
 
-    // Dora P0: avoid blocking flows behind a verification screen.
-    // Providers/admin can be moderated via admin approval without breaking navigation.
-    navigate("/profile", { replace: true });
+    // Mark for one-time post-signup redirect (useEffect handles the final route once profile loads).
+    try {
+      localStorage.setItem(POST_SIGNUP_REDIRECT_KEY, "1");
+      const intent = (query.get("intent") || "").toLowerCase();
+      if (intent === "provider") {
+        localStorage.setItem(ONBOARDING_INTENT_KEY, "provider");
+      }
+    } catch {
+      // ignore
+    }
+
+    // Immediate UX: push to profile (welcome). If profile isn't ready yet, the effect will handle it.
+    navigate("/profile?welcome=1", { replace: true });
   };
 
   if (authLoading || profileLoading || settingsLoading || citiesLoading) {
@@ -223,7 +274,7 @@ export default function Auth() {
 
   return (
     <div
-      className="min-h-screen bg-background flex flex-col items-center justify-center p-4"
+      className="min-h-screen bg-[#F9F9F9] flex flex-col items-center justify-center p-4"
       dir={isRTL ? "rtl" : "ltr"}
     >
       <div className="absolute top-4 left-4">
@@ -235,10 +286,10 @@ export default function Auth() {
         <span className="text-2xl font-bold text-foreground">{t.appName}</span>
       </div>
 
-      <Card className="w-full max-w-md shadow-card">
-        <Tabs defaultValue="login" className="w-full">
+      <Card className="w-full max-w-md shadow-card rounded-3xl">
+        <Tabs value={tab} onValueChange={(v) => setTab(v === "signup" ? "signup" : "login")} className="w-full">
           <CardHeader className="pb-2">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-2 rounded-2xl p-1 bg-muted">
               <TabsTrigger value="login">{t.auth.login}</TabsTrigger>
               <TabsTrigger value="signup">{t.auth.signup}</TabsTrigger>
             </TabsList>
@@ -268,7 +319,7 @@ export default function Auth() {
                       type="tel"
                       inputMode="numeric"
                       placeholder="0912345678"
-                      className={cn(isRTL ? "pr-10 text-left" : "pl-10")}
+                      className={cn("h-12 rounded-2xl", isRTL ? "pr-10 text-left" : "pl-10")}
                       dir="ltr"
                       value={loginData.phone}
                       onChange={(e) => setLoginData({ ...loginData, phone: e.target.value })}
@@ -290,7 +341,7 @@ export default function Auth() {
                       id="login-password"
                       type="password"
                       placeholder="••••••••"
-                      className={cn(isRTL ? "pr-10" : "pl-10")}
+                      className={cn("h-12 rounded-2xl", isRTL ? "pr-10" : "pl-10")}
                       value={loginData.password}
                       onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
                       required
@@ -341,7 +392,7 @@ export default function Auth() {
                       id="signup-name"
                       type="text"
                       placeholder={isRTL ? "الاسم الكامل" : "Full Name"}
-                      className={cn(isRTL ? "pr-10" : "pl-10")}
+                      className={cn("h-12 rounded-2xl", isRTL ? "pr-10" : "pl-10")}
                       value={signupData.fullName}
                       onChange={(e) => setSignupData({ ...signupData, fullName: e.target.value })}
                       required
@@ -363,7 +414,7 @@ export default function Auth() {
                       type="tel"
                       inputMode="numeric"
                       placeholder="0912345678"
-                      className={cn(isRTL ? "pr-10 text-left" : "pl-10")}
+                      className={cn("h-12 rounded-2xl", isRTL ? "pr-10 text-left" : "pl-10")}
                       dir="ltr"
                       value={signupData.phone}
                       onChange={(e) => {
@@ -388,7 +439,7 @@ export default function Auth() {
                       id="signup-password"
                       type="password"
                       placeholder="••••••••"
-                      className={cn(isRTL ? "pr-10" : "pl-10")}
+                      className={cn("h-12 rounded-2xl", isRTL ? "pr-10" : "pl-10")}
                       value={signupData.password}
                       onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
                       required
