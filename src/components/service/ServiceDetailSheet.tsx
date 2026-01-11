@@ -28,8 +28,6 @@ interface ServiceProvider {
   category: string;
   image_url: string | null;
 
-  // user_id can be null for unclaimed / imported services.
-  // In that case we still allow calling/WhatsApp, but disable provider-linked features (reviews, call logs).
   user_id: string | null;
   provider_name: string;
   provider_avatar: string;
@@ -45,47 +43,39 @@ interface ServiceDetailSheetProps {
     id: string;
     titleKey: string;
     descKey: string;
-    category: string; // this must match services.category in DB
+    category: string;
     categoryName?: string;
     categoryNameAr?: string;
     color: string;
     icon: LucideIcon;
   } | null;
   filters?: SearchFiltersState;
-
-  // ✅ if Hub passes a service id, open that provider directly
   initialProviderServiceId?: string | null;
 }
 
-function digitsOnly(v: string) {
-  return (v || "").replace(/\D/g, "");
-}
+const digitsOnly = (v: string) => (v || "").replace(/\D/g, "");
 
 /**
- * Normalize Libyan phone numbers into:
- * - tel: "+2189xxxxxxx" (preferred for tel)
- * - wa:  "2189xxxxxxx"  (digits only for wa.me)
+ * Normalize Libya phone for:
+ * - tel: +218xxxxxxxxx
+ * - wa: 218xxxxxxxxx (digits only)
  */
 function normalizeLibyaPhone(raw: string) {
   const d = digitsOnly(raw);
   if (!d) return { tel: "", wa: "" };
 
-  // already has country code
   if (d.startsWith("218")) return { tel: `+${d}`, wa: d };
 
-  // common local format: 0XXXXXXXXX
   if (d.length === 10 && d.startsWith("0")) {
     const cc = `218${d.slice(1)}`;
     return { tel: `+${cc}`, wa: cc };
   }
 
-  // sometimes stored without leading 0
   if (d.length === 9) {
     const cc = `218${d}`;
     return { tel: `+${cc}`, wa: cc };
   }
 
-  // fallback: best-effort
   return { tel: d.startsWith("+") ? d : `+${d}`, wa: d };
 }
 
@@ -116,7 +106,6 @@ export function ServiceDetailSheet({
   const [isLoggingCall, setIsLoggingCall] = useState(false);
 
   const { reviews, rating, userReview, submitReview, loading: reviewsLoading } = useReviews(selectedProvider?.id);
-
   const { ratings: providerRatings } = useServiceRatings(providers.map((p) => p.id));
 
   const getCityLabel = (cityId: string | null) => {
@@ -305,7 +294,17 @@ export function ServiceDetailSheet({
       ? service.categoryNameAr
       : service.categoryName || t.categories[service.category as keyof typeof t.categories] || service.category;
 
-  const handleProviderClick = (provider: ServiceProvider) => setSelectedProvider(provider);
+  const handleCallLogOnly = (provider: ServiceProvider) => {
+    if (!user || !provider.user_id) return;
+    setIsLoggingCall(true);
+    logCall
+      .mutateAsync({
+        service_id: provider.id,
+        provider_id: provider.user_id,
+      })
+      .catch((err) => console.error("Error logging call:", err))
+      .finally(() => setIsLoggingCall(false));
+  };
 
   const handleToggleFavorite = async (serviceId: string) => {
     if (!user) {
@@ -365,30 +364,15 @@ export function ServiceDetailSheet({
 
   const drawerPageClass = "h-[85dvh] max-h-[85dvh] flex flex-col overflow-hidden mt-0";
 
-  // ---------------- Provider detail view ----------------
   if (selectedProvider) {
     const isProviderFavorite = isFavorite(selectedProvider.id);
     const hasRating = rating.totalReviews > 0;
 
     const normalized = normalizeLibyaPhone(selectedProvider.provider_phone || "");
-    const telHref = normalized.tel ? `tel:${normalized.tel}` : "";
-    const waHref = normalized.wa ? `https://wa.me/${normalized.wa}` : "";
+    const hasPhone = Boolean(normalized.wa);
 
-    const handleLogCall = async () => {
-      // Call logging is optional and only for logged-in + claimed providers.
-      if (!user || !selectedProvider.user_id) return;
-      setIsLoggingCall(true);
-      try {
-        await logCall.mutateAsync({
-          service_id: selectedProvider.id,
-          provider_id: selectedProvider.user_id,
-        });
-      } catch (err) {
-        console.error("Error logging call:", err);
-      } finally {
-        setIsLoggingCall(false);
-      }
-    };
+    const callHref = hasPhone ? `tel:${normalized.tel}` : "#";
+    const waHref = hasPhone ? `https://wa.me/${normalized.wa}` : "#";
 
     return (
       <>
@@ -485,45 +469,48 @@ export function ServiceDetailSheet({
                   <ReviewList reviews={reviews} loading={reviewsLoading} />
                 </div>
 
-                {/* ✅ Call / WhatsApp: use real anchor links (no popup blockers) */}
+                {/* In embedded previews, popups are blocked. Use SAME-TAB navigation. */}
                 <div className="flex gap-3 pt-2">
-                  <Button
-                    asChild
-                    variant="outline"
-                    size="lg"
-                    className="flex-1 h-14 rounded-2xl"
-                    disabled={!telHref || isLoggingCall}
-                    onClick={() => {
-                      if (!selectedProvider.provider_phone) {
+                  <a
+                    href={callHref}
+                    className={cn(
+                      "flex-1",
+                      !hasPhone && "pointer-events-none opacity-50",
+                    )}
+                    onClick={(e) => {
+                      if (!hasPhone) {
+                        e.preventDefault();
                         toast.error(isRTL ? "رقم الهاتف غير متوفر" : "Phone number not available");
+                        return;
                       }
-                      // log call only if eligible
-                      void handleLogCall();
+                      handleCallLogOnly(selectedProvider);
                     }}
                   >
-                    <a href={telHref || "#"} aria-disabled={!telHref || isLoggingCall}>
+                    <Button variant="outline" size="lg" className="w-full h-14 rounded-2xl" disabled={!hasPhone || isLoggingCall}>
                       <Phone className="h-5 w-5 mr-2" />
                       {isLoggingCall ? (isRTL ? "جاري..." : "Calling...") : isRTL ? "اتصل" : "Call"}
-                    </a>
-                  </Button>
+                    </Button>
+                  </a>
 
-                  <Button asChild variant="outline" size="lg" className="flex-1 h-14 rounded-2xl" disabled={!waHref}>
-                    <a
-                      href={waHref || "#"}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-disabled={!waHref}
-                      onClick={(e) => {
-                        if (!waHref) {
-                          e.preventDefault();
-                          toast.error(isRTL ? "رقم الهاتف غير متوفر" : "Phone number not available");
-                        }
-                      }}
-                    >
+                  <a
+                    href={waHref}
+                    className={cn(
+                      "flex-1",
+                      !hasPhone && "pointer-events-none opacity-50",
+                    )}
+                    onClick={(e) => {
+                      if (!hasPhone) {
+                        e.preventDefault();
+                        toast.error(isRTL ? "رقم الهاتف غير متوفر" : "Phone number not available");
+                      }
+                      // same-tab navigation to WhatsApp
+                    }}
+                  >
+                    <Button variant="outline" size="lg" className="w-full h-14 rounded-2xl" disabled={!hasPhone}>
                       <MessageSquare className="h-5 w-5 mr-2" />
                       {isRTL ? "واتساب" : "WhatsApp"}
-                    </a>
-                  </Button>
+                    </Button>
+                  </a>
                 </div>
 
                 <div className="flex gap-3">
@@ -583,7 +570,6 @@ export function ServiceDetailSheet({
     );
   }
 
-  // ---------------- Providers list view ----------------
   return (
     <Drawer
       open={open}
@@ -634,7 +620,7 @@ export function ServiceDetailSheet({
                   return (
                     <button
                       key={provider.id}
-                      onClick={() => handleProviderClick(provider)}
+                      onClick={() => setSelectedProvider(provider)}
                       className={cn(
                         "w-full flex items-center gap-4 p-4 bg-card rounded-2xl border border-border transition-colors hover:bg-muted/50 active:bg-muted",
                         isRTL && "flex-row-reverse text-right",
