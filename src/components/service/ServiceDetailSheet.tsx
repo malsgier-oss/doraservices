@@ -1,4 +1,3 @@
-```tsx
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, Phone, Star, Clock, ChevronRight, Heart, MessageSquare, MapPin, Flag } from "lucide-react";
@@ -464,7 +463,9 @@ export function ServiceDetailSheet({
                       .slice(0, 2)}
                   </AvatarFallback>
                 </Avatar>
-                <DrawerTitle className="text-xl font-bold text-foreground">{selectedProvider.provider_name}</DrawerTitle>
+                <DrawerTitle className="text-xl font-bold text-foreground">
+                  {selectedProvider.provider_name}
+                </DrawerTitle>
                 <p className="text-sm text-muted-foreground mt-1">{selectedProvider.title}</p>
               </div>
             </DrawerHeader>
@@ -669,7 +670,9 @@ export function ServiceDetailSheet({
                         </div>
 
                         {provider.provider_sub_city && (
-                          <div className="text-xs text-muted-foreground mt-1">{getSubCityLabel(provider.provider_sub_city)}</div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {getSubCityLabel(provider.provider_sub_city)}
+                          </div>
                         )}
                       </div>
 
@@ -696,8 +699,12 @@ export function ServiceDetailSheet({
             ) : (
               <div className="text-center py-12">
                 <div className="text-4xl mb-3">🔍</div>
-                <p className="text-muted-foreground font-medium">{isRTL ? "لا يوجد مقدمي خدمة" : "No providers available"}</p>
-                <p className="text-sm text-muted-foreground mt-1">{isRTL ? "جرب تصفية مختلفة" : "Try different filters"}</p>
+                <p className="text-muted-foreground font-medium">
+                  {isRTL ? "لا يوجد مقدمي خدمة" : "No providers available"}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {isRTL ? "جرب تصفية مختلفة" : "Try different filters"}
+                </p>
               </div>
             )}
           </div>
@@ -706,4 +713,3 @@ export function ServiceDetailSheet({
     </Drawer>
   );
 }
-```
