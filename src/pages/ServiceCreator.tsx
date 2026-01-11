@@ -130,7 +130,8 @@ export default function ServiceCreator() {
 
     const role = (profile.role || "").toLowerCase();
     const isAdmin = role === "admin";
-    const isProvider = role === "provider";
+    // DB enum uses "business"; we also accept legacy "provider" reads.
+    const isProvider = role === "business" || role === "provider";
 
     if (!isAdmin && !isProvider) {
       toast.error(isRTL ? "هذه الصفحة لمقدمي الخدمة فقط" : "This page is for providers only");
