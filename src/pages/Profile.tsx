@@ -65,8 +65,9 @@ function extractStoragePathFromPublicUrl(publicUrl: string) {
 
 function isProviderLike(role: string | null | undefined) {
   const r = (role || "").toLowerCase();
-  // DB enum uses "business". Accept legacy "provider" reads.
-  return r === "business" || r === "provider";
+  // "provider" is the canonical provider role.
+  // "business" is legacy (older builds) and is treated the same.
+  return r === "provider" || r === "business";
 }
 
 export default function Profile() {
@@ -330,11 +331,13 @@ export default function Profile() {
 
     setBecomingProvider(true);
     try {
-      // IMPORTANT: profiles.role is constrained by DB to: user | business | admin
+      // IMPORTANT: profiles.role is constrained by DB to: user | provider | admin
       const { error } = await supabase
         .from("profiles")
         .update({
-          role: "business",
+          role: "provider",
+          // Dora P0: auto-approve when upgrading from user -> provider.
+          // (If you re-introduce manual approval later, switch this back to "pending".)
           provider_status: "approved",
         })
         .eq("user_id", user.id);
