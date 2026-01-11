@@ -114,14 +114,14 @@ export default function ServiceCreator() {
     category: "",
     subcategory: "",
     bio: "",
-    city: "",
+    cityId: "",
     subCity: "",
   });
 
   // Get subcategories for selected category
   const selectedCategory = categories?.find((c) => c.id === formData.category);
   const { data: subcategories } = useSubcategories(formData.category || undefined);
-  const { data: subCities } = useSubCities(formData.city || profile?.city || null);
+  const { data: subCities } = useSubCities(formData.cityId || profile?.city_id || null);
 
   // Guard (Dora P0): providers (or admins) can add services immediately.
   useEffect(() => {
@@ -174,7 +174,14 @@ export default function ServiceCreator() {
       return;
     }
 
-    const cityValue = formData.city || profile?.city;
+    const selectedCity = cities?.find((c) => c.id === formData.cityId) || null;
+    const cityValue =
+      (selectedCity
+        ? language === "ar"
+          ? selectedCity.name_ar || selectedCity.name
+          : selectedCity.name || selectedCity.name_ar
+        : null) || profile?.city;
+
     if (!cityValue) {
       toast.error(isRTL ? "يرجى اختيار المدينة" : "Please select your city");
       return;
@@ -190,9 +197,12 @@ export default function ServiceCreator() {
 
     setIsSubmitting(true);
     try {
-      // Update profile with city if provided
-      if (formData.city && formData.city !== profile?.city) {
-        await updateProfile({ city: formData.city });
+      // Update profile with city if user selected a city (P0.2: keep city_id + city text)
+      if (formData.cityId && formData.cityId !== profile?.city_id) {
+        await updateProfile({
+          city_id: formData.cityId,
+          city: cityValue,
+        });
       }
 
       // Update profile with subCity if selected (optional)
@@ -282,8 +292,10 @@ export default function ServiceCreator() {
               {isRTL ? "المدينة" : "City"} <span className="text-destructive">*</span>
             </Label>
             <Select
-              value={formData.city || profile?.city || "none"}
-              onValueChange={(value) => setFormData({ ...formData, city: value === "none" ? "" : value, subCity: "" })}
+              value={formData.cityId || profile?.city_id || "none"}
+              onValueChange={(value) =>
+                setFormData({ ...formData, cityId: value === "none" ? "" : value, subCity: "" })
+              }
             >
               <SelectTrigger className="rounded-xl h-12">
                 <SelectValue placeholder={isRTL ? "اختر مدينتك" : "Select your city"} />
@@ -302,7 +314,7 @@ export default function ServiceCreator() {
             </p>
           </div>
 
-          {(formData.city || profile?.city) && subCities && subCities.length > 0 && (
+          {(formData.cityId || profile?.city_id) && subCities && subCities.length > 0 && (
             <div className="space-y-2">
               <Label className={cn("flex items-center gap-2", isRTL ? "flex-row-reverse justify-end" : "")}>
                 <MapPin className="h-4 w-4" />
@@ -317,11 +329,14 @@ export default function ServiceCreator() {
                 </SelectTrigger>
                 <SelectContent className="bg-card border-border z-50">
                   <SelectItem value="none">{isRTL ? "-- اختر منطقة --" : "-- Select area --"}</SelectItem>
-                  {subCities.map((sc) => (
-                    <SelectItem key={sc.id} value={sc.id}>
-                      {language === "ar" && sc.name_ar ? sc.name_ar : sc.name}
-                    </SelectItem>
-                  ))}
+                  {subCities.map((sc) => {
+                    const label = language === "ar" && sc.name_ar ? sc.name_ar : sc.name;
+                    return (
+                      <SelectItem key={sc.id} value={label}>
+                        {label}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
