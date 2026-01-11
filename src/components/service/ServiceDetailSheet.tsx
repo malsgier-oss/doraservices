@@ -1,3 +1,4 @@
+```tsx
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, Phone, Star, Clock, ChevronRight, Heart, MessageSquare, MapPin, Flag } from "lucide-react";
@@ -30,6 +31,8 @@ interface ServiceProvider {
 
   // user_id can be null for unclaimed / imported services.
   user_id: string | null;
+
+  // denormalized provider fields (P0: must work for guests)
   provider_name: string;
   provider_avatar: string;
   provider_phone: string;
@@ -83,7 +86,9 @@ function normalizeLibyaPhone(raw: string) {
   }
 
   // fallback
-  return { tel: d.startsWith("+") ? d : `+${d}`, wa: d };
+  const wa = d;
+  const tel = d.startsWith("+") ? d : `+${d}`;
+  return { tel, wa };
 }
 
 /**
@@ -94,10 +99,7 @@ function normalizeLibyaPhone(raw: string) {
 function openExternal(url: string) {
   try {
     const w = window.open(url, "_blank", "noopener,noreferrer");
-    if (!w) {
-      // popup blocked or disallowed -> same-tab
-      window.location.href = url;
-    }
+    if (!w) window.location.href = url;
   } catch {
     window.location.href = url;
   }
@@ -254,7 +256,11 @@ export function ServiceDetailSheet({
 
       const enriched: ServiceProvider[] = (servicesData as any[]).map((svc) => {
         const p = svc.user_id ? profileMap.get(svc.user_id) : null;
-        const phone = (p?.phone || svc.provider_phone || "").trim();
+
+        // ✅ P0: prefer denormalized service row FIRST (works for guests; avoids RLS issues)
+        const phoneRaw = String(svc.provider_phone || p?.phone || "").trim();
+        const nameRaw = String(svc.provider_name || p?.full_name || "").trim();
+        const avatarRaw = String(svc.provider_avatar || p?.avatar_url || "").trim();
 
         return {
           id: svc.id,
@@ -264,11 +270,11 @@ export function ServiceDetailSheet({
           image_url: svc.image_url,
 
           user_id: svc.user_id ?? null,
-          provider_name: p?.full_name || svc.provider_name || (isRTL ? "مقدم الخدمة" : "Provider"),
-          provider_avatar: p?.avatar_url || "",
-          provider_phone: phone,
-          provider_city: p?.city || svc.city || null,
-          provider_sub_city: p?.sub_city || svc.sub_city || null,
+          provider_name: nameRaw || (isRTL ? "مقدم الخدمة" : "Provider"),
+          provider_avatar: avatarRaw || "",
+          provider_phone: phoneRaw || "",
+          provider_city: (svc.city || p?.city || null) as any,
+          provider_sub_city: (svc.sub_city || p?.sub_city || null) as any,
         };
       });
 
@@ -414,7 +420,6 @@ export function ServiceDetailSheet({
         return;
       }
 
-      // Try new tab, fallback to same tab if blocked
       openExternal(`https://wa.me/${normalized.wa}`);
     };
 
@@ -459,9 +464,7 @@ export function ServiceDetailSheet({
                       .slice(0, 2)}
                   </AvatarFallback>
                 </Avatar>
-                <DrawerTitle className="text-xl font-bold text-foreground">
-                  {selectedProvider.provider_name}
-                </DrawerTitle>
+                <DrawerTitle className="text-xl font-bold text-foreground">{selectedProvider.provider_name}</DrawerTitle>
                 <p className="text-sm text-muted-foreground mt-1">{selectedProvider.title}</p>
               </div>
             </DrawerHeader>
@@ -666,9 +669,7 @@ export function ServiceDetailSheet({
                         </div>
 
                         {provider.provider_sub_city && (
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {getSubCityLabel(provider.provider_sub_city)}
-                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">{getSubCityLabel(provider.provider_sub_city)}</div>
                         )}
                       </div>
 
@@ -695,12 +696,8 @@ export function ServiceDetailSheet({
             ) : (
               <div className="text-center py-12">
                 <div className="text-4xl mb-3">🔍</div>
-                <p className="text-muted-foreground font-medium">
-                  {isRTL ? "لا يوجد مقدمي خدمة" : "No providers available"}
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {isRTL ? "جرب تصفية مختلفة" : "Try different filters"}
-                </p>
+                <p className="text-muted-foreground font-medium">{isRTL ? "لا يوجد مقدمي خدمة" : "No providers available"}</p>
+                <p className="text-sm text-muted-foreground mt-1">{isRTL ? "جرب تصفية مختلفة" : "Try different filters"}</p>
               </div>
             )}
           </div>
@@ -709,3 +706,4 @@ export function ServiceDetailSheet({
     </Drawer>
   );
 }
+```
