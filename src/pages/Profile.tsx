@@ -7,6 +7,8 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useCities } from "@/hooks/useCities";
 import { useSubCities } from "@/hooks/useSubCities";
 
+import { cleanPhoneForStorage, isValidLibyanPhone } from "@/lib/phoneUtils";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,7 +30,6 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
-  AlertTriangle,
   Building2,
   Camera,
   KeyRound,
@@ -67,8 +68,6 @@ function extractStoragePathFromPublicUrl(publicUrl: string) {
 
 function isProviderLike(role: string | null | undefined) {
   const r = (role || "").toLowerCase();
-  // "provider" is the canonical provider role.
-  // "business" is legacy (older builds) and is treated the same.
   return r === "provider" || r === "business";
 }
 
@@ -82,6 +81,7 @@ export default function Profile() {
 
   const [saving, setSaving] = useState(false);
   const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState(""); // only editable if empty in DB
   const [bio, setBio] = useState("");
   const [cityId, setCityId] = useState<string>("");
   const [subCity, setSubCity] = useState<string>("");
@@ -107,12 +107,6 @@ export default function Profile() {
 
     if (!profile) return;
 
-    // @ts-expect-error - older schema may contain must_change_password
-    if (profile.must_change_password) {
-      navigate("/change-password", { replace: true });
-      return;
-    }
-
     const st = (profile.status || "").toLowerCase();
     if (st === "deleted" || st === "inactive") {
       navigate("/auth", { replace: true });
@@ -126,6 +120,7 @@ export default function Profile() {
     setBio(profile.bio || "");
     setCityId(profile.city_id || "");
     setSubCity(profile.sub_city || "");
+    setPhone(profile.phone || ""); // if null in DB, allow set
   }, [profile]);
 
   // If city changes and the selected sub-city doesn't belong to the city, clear it.
@@ -169,6 +164,12 @@ export default function Profile() {
     return "account";
   }, [showWelcome, isProvider]);
 
+  const canEditPhone = useMemo(() => {
+    // Editing phone freely can break login (phone->internal email mapping).
+    // P0 rule: allow edit ONLY if it's empty in DB.
+    return !profile?.phone;
+  }, [profile?.phone]);
+
   const handleSave = async () => {
     if (!user) return;
 
@@ -182,6 +183,20 @@ export default function Profile() {
       return;
     }
 
+    let cleanedPhone: string | null = null;
+    if (canEditPhone) {
+      const p = cleanPhoneForStorage(phone);
+      if (p && !isValidLibyanPhone(p)) {
+        toast({
+          title: isRTL ? "رقم غير صالح" : "Invalid phone",
+          description: isRTL ? "اكتب رقم ليبي صحيح مثل 09XXXXXXXX" : "Enter a valid Libyan phone like 09XXXXXXXX",
+          variant: "destructive",
+        });
+        return;
+      }
+      cleanedPhone = p || null;
+    }
+
     const selected = cities?.find((c) => c.id === cityId);
     const cityName = selected
       ? language === "ar"
@@ -190,16 +205,18 @@ export default function Profile() {
       : null;
 
     setSaving(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        full_name: trimmed,
-        bio: bio?.trim() || null,
-        city_id: cityId || null,
-        city: cityName,
-        sub_city: subCity?.trim() || null,
-      })
-      .eq("user_id", user.id);
+
+    const payload: any = {
+      full_name: trimmed,
+      bio: bio?.trim() || null,
+      city_id: cityId || null,
+      city: cityName,
+      sub_city: subCity?.trim() || null,
+    };
+
+    if (canEditPhone) payload.phone = cleanedPhone;
+
+    const { error } = await supabase.from("profiles").update(payload).eq("user_id", user.id);
 
     setSaving(false);
 
@@ -359,13 +376,10 @@ export default function Profile() {
 
     setBecomingProvider(true);
     try {
-      // IMPORTANT: profiles.role is constrained by DB to: user | provider | admin
       const { error } = await supabase
         .from("profiles")
         .update({
           role: "provider",
-          // Dora P0: auto-approve when upgrading from user -> provider.
-          // (If you re-introduce manual approval later, switch this back to "pending".)
           provider_status: "approved",
         })
         .eq("user_id", user.id);
@@ -440,7 +454,6 @@ export default function Profile() {
 
   if (!user) return null;
 
-  // RLS / profile not readable
   if (!profile) {
     return (
       <div className="min-h-screen p-4 flex items-center justify-center" dir={isRTL ? "rtl" : "ltr"}>
@@ -496,10 +509,11 @@ export default function Profile() {
                 <div className="text-xl sm:text-2xl font-semibold truncate">
                   {profile.full_name || (isRTL ? "بدون اسم" : "No name")}
                 </div>
+
                 <div className="mt-1 text-sm text-muted-foreground flex items-center gap-2">
                   <Phone className="h-4 w-4" />
                   <span dir="ltr" className="truncate">
-                    {profile.phone || "—"}
+                    {profile.phone || phone || "—"}
                   </span>
                 </div>
 
@@ -569,7 +583,6 @@ export default function Profile() {
             </div>
           </div>
 
-          {/* Provider quick actions strip (only for providers) */}
           {!isAdmin && isProvider && (
             <CardContent className="pt-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -592,17 +605,11 @@ export default function Profile() {
                   </Link>
                 </Button>
               </div>
-
-              {!isProviderApproved && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {isRTL ? "حساب المزود غير مفعل بالكامل بعد." : "Your provider account is not fully active yet."}
-                </p>
-              )}
             </CardContent>
           )}
         </Card>
 
-        {/* Tabs Layout (Modern Cards Style) */}
+        {/* Tabs */}
         <Tabs defaultValue={defaultTab} className="w-full">
           <TabsList className="grid grid-cols-3 w-full rounded-2xl h-12">
             <TabsTrigger value="account" className="rounded-xl">
@@ -616,7 +623,7 @@ export default function Profile() {
             </TabsTrigger>
           </TabsList>
 
-          {/* Account Tab */}
+          {/* Account */}
           <TabsContent value="account" className="mt-4 space-y-4">
             <Card>
               <CardHeader className="pb-3">
@@ -624,9 +631,7 @@ export default function Profile() {
                   <User2 className="h-4 w-4" />
                   {isRTL ? "بيانات الحساب" : "Account details"}
                 </CardTitle>
-                <CardDescription>
-                  {isRTL ? "حدث اسمك والنبذة وموقعك." : "Update your name, bio, and location."}
-                </CardDescription>
+                <CardDescription>{isRTL ? "حدث بياناتك الأساسية." : "Update your basic info."}</CardDescription>
               </CardHeader>
 
               <CardContent className="space-y-4">
@@ -635,7 +640,25 @@ export default function Profile() {
                   <Input value={fullName} onChange={(e) => setFullName(e.target.value)} className="h-12 rounded-xl" />
                 </div>
 
-                {/* Location */}
+                <div className="grid gap-2">
+                  <Label>{isRTL ? "رقم الهاتف" : "Phone number"}</Label>
+                  <Input
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="h-12 rounded-xl"
+                    placeholder={isRTL ? "09XXXXXXXX" : "09XXXXXXXX"}
+                    disabled={!canEditPhone}
+                    readOnly={!canEditPhone}
+                  />
+                  {!canEditPhone && (
+                    <p className="text-xs text-muted-foreground">
+                      {isRTL
+                        ? "لأسباب أمنية، تغيير رقم الهاتف قد يسبب مشاكل في تسجيل الدخول. (حالياً للعرض فقط)"
+                        : "For security, changing phone can break login. (Currently display-only)"}
+                    </p>
+                  )}
+                </div>
+
                 <div className="grid gap-3">
                   <div className="text-sm font-medium flex items-center gap-2">
                     <MapPin className="h-4 w-4" />
@@ -656,11 +679,6 @@ export default function Profile() {
                         ))}
                       </SelectContent>
                     </Select>
-                    {!!cityLabel && (
-                      <p className="text-xs text-muted-foreground">
-                        {isRTL ? "الحالية:" : "Current:"} {cityLabel}
-                      </p>
-                    )}
                   </div>
 
                   <div className="grid gap-2">
@@ -691,10 +709,6 @@ export default function Profile() {
                         className="h-12 rounded-xl"
                       />
                     )}
-
-                    <p className="text-xs text-muted-foreground">
-                      {isRTL ? "اختياري. يساعدنا لاحقاً في نتائج أدق." : "Optional. Helps improve results later."}
-                    </p>
                   </div>
                 </div>
 
@@ -722,7 +736,7 @@ export default function Profile() {
             </Card>
           </TabsContent>
 
-          {/* Provider Tab */}
+          {/* Provider */}
           <TabsContent value="provider" className="mt-4 space-y-4">
             {!isAdmin && (
               <Card>
@@ -744,31 +758,18 @@ export default function Profile() {
 
                 <CardContent className="space-y-4">
                   {!isProvider ? (
-                    <div className="space-y-3">
-                      <div className="rounded-2xl border bg-muted/30 p-4">
-                        <div className="text-sm font-medium">
-                          {isRTL ? "ماذا تحصل كمزود؟" : "What you get as a provider"}
-                        </div>
-                        <ul className="mt-2 text-sm text-muted-foreground space-y-1 list-disc ps-5">
-                          <li>{isRTL ? "إضافة خدماتك في دُورا" : "Create service listings on Dora"}</li>
-                          <li>{isRTL ? "ظهور في البحث والتصنيفات" : "Appear in search and categories"}</li>
-                          <li>{isRTL ? "تواصل مباشر عبر الهاتف" : "Direct calls from customers"}</li>
-                        </ul>
-                      </div>
-
-                      <Button
-                        onClick={handleBecomeProvider}
-                        disabled={becomingProvider}
-                        className="h-12 rounded-xl w-full gap-2"
-                      >
-                        {becomingProvider ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Building2 className="h-4 w-4" />
-                        )}
-                        {isRTL ? "أريد أن أكون مزود" : "I want to be a provider"}
-                      </Button>
-                    </div>
+                    <Button
+                      onClick={handleBecomeProvider}
+                      disabled={becomingProvider}
+                      className="h-12 rounded-xl w-full gap-2"
+                    >
+                      {becomingProvider ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Building2 className="h-4 w-4" />
+                      )}
+                      {isRTL ? "أريد أن أكون مزود" : "I want to be a provider"}
+                    </Button>
                   ) : (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between text-sm">
@@ -798,38 +799,14 @@ export default function Profile() {
                           </Link>
                         </Button>
                       </div>
-
-                      {!isProviderApproved && (
-                        <p className="text-xs text-muted-foreground">
-                          {isRTL ? "حسابك غير مفعل بالكامل بعد." : "Your provider account is not fully active yet."}
-                        </p>
-                      )}
                     </div>
                   )}
                 </CardContent>
               </Card>
             )}
-
-            {isAdmin && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">{isRTL ? "أنت أدمن" : "Admin account"}</CardTitle>
-                  <CardDescription>
-                    {isRTL
-                      ? "حسابك أدمن، لا تحتاج لتفعيل مزود."
-                      : "You’re an admin; provider activation is not needed."}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button asChild className="h-12 rounded-xl">
-                    <Link to="/admin">{isRTL ? "لوحة الأدمن" : "Admin panel"}</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
           </TabsContent>
 
-          {/* Security Tab */}
+          {/* Security */}
           <TabsContent value="security" className="mt-4 space-y-4">
             <Card>
               <CardHeader className="pb-3">
@@ -843,21 +820,6 @@ export default function Profile() {
               </CardHeader>
 
               <CardContent className="space-y-3">
-                {/* @ts-expect-error - older schema may contain must_change_password */}
-                {profile.must_change_password && (
-                  <div className="rounded-xl border border-destructive/40 p-3 flex items-start gap-2">
-                    <AlertTriangle className="h-4 w-4 text-destructive mt-0.5" />
-                    <div className="text-sm">
-                      <div className="font-medium text-destructive">
-                        {isRTL ? "مطلوب تغيير كلمة المرور" : "Password change required"}
-                      </div>
-                      <div className="text-muted-foreground">
-                        {isRTL ? "يرجى تغيير كلمة المرور للمتابعة." : "Please change your password to continue."}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
                 <div className="flex flex-col sm:flex-row gap-2">
                   <Button asChild variant="outline" className="h-12 rounded-xl justify-start gap-2">
                     <Link to="/change-password">
@@ -874,7 +836,6 @@ export default function Profile() {
               </CardContent>
             </Card>
 
-            {/* Danger */}
             <Card className="border-destructive/40">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base text-destructive flex items-center gap-2">
@@ -889,12 +850,6 @@ export default function Profile() {
               </CardHeader>
 
               <CardContent className="space-y-3">
-                <div className="text-sm text-muted-foreground">
-                  {isRTL
-                    ? "هذا حذف Soft delete. لن يتم حذف البيانات التاريخية مثل الخدمات/المراجعات، لكن سيتم إخفاء اسمك وبياناتك."
-                    : "This is a soft delete. Historical data (services/reviews) stays, but your name and personal info are removed."}
-                </div>
-
                 <Button
                   variant="destructive"
                   className="h-12 rounded-xl"
@@ -927,11 +882,6 @@ export default function Profile() {
                         onChange={(e) => setDeleteConfirmText(e.target.value)}
                         placeholder="DELETE"
                       />
-                      <p className="text-xs text-muted-foreground">
-                        {isRTL
-                          ? "سيتم تعطيل حسابك وإخفاء اسمك/نبذتك/صورتك."
-                          : "Your account will be deactivated and your name/bio/avatar will be removed."}
-                      </p>
                     </div>
 
                     <DialogFooter className="gap-2">
