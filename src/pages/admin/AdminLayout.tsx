@@ -1,51 +1,77 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import {
-  LayoutDashboard,
-  Users,
-  Store,
-  Tag,
-  Flag,
-  Settings,
-  MessageSquare,
-  History,
-  ArrowLeft,
-  Menu,
-  MapPin,
-  KeyRound,
-} from "lucide-react";
+import { LayoutDashboard, Users, Store, Tag, Flag, Settings, MessageSquare, History, ArrowLeft, Menu, MapPin, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import doraLogo from "@/assets/dora-logo.png";
-
-const navItems = [
-  { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/admin/users", label: "Users", icon: Users },
-  { to: "/admin/providers", label: "Providers", icon: Users },
-  { to: "/admin/services", label: "Services", icon: Store },
-  { to: "/admin/reviews", label: "Reviews", icon: MessageSquare },
-  { to: "/admin/categories", label: "Categories", icon: Tag },
-  { to: "/admin/cities", label: "Cities", icon: Flag },
-  { to: "/admin/sub-cities", label: "Sub-Cities", icon: MapPin },
-  { to: "/admin/reports", label: "Reports", icon: Flag },
-  { to: "/admin/messages", label: "Messages", icon: MessageSquare },
-  { to: "/admin/password-resets", label: "Password Resets", icon: KeyRound },
-  { to: "/admin/analytics", label: "Analytics", icon: LayoutDashboard },
-  { to: "/admin/media", label: "Media", icon: Store },
-  { to: "/admin/bulk-upload", label: "Bulk Upload", icon: Settings },
-  { to: "/admin/settings", label: "Settings", icon: Settings },
-  { to: "/admin/audit-log", label: "Audit Log", icon: History },
-];
-
+const navItems = [{
+  to: "/admin",
+  label: "Dashboard",
+  icon: LayoutDashboard,
+  end: true
+}, {
+  to: "/admin/users",
+  label: "Users",
+  icon: Users
+}, {
+  to: "/admin/providers",
+  label: "Providers",
+  icon: Users
+}, {
+  to: "/admin/services",
+  label: "Services",
+  icon: Store
+}, {
+  to: "/admin/reviews",
+  label: "Reviews",
+  icon: MessageSquare
+}, {
+  to: "/admin/categories",
+  label: "Categories",
+  icon: Tag
+}, {
+  to: "/admin/cities",
+  label: "Cities",
+  icon: Flag
+}, {
+  to: "/admin/sub-cities",
+  label: "Sub-Cities",
+  icon: MapPin
+}, {
+  to: "/admin/reports",
+  label: "Reports",
+  icon: Flag
+}, {
+  to: "/admin/messages",
+  label: "Messages",
+  icon: MessageSquare
+}, {
+  to: "/admin/password-resets",
+  label: "Password Resets",
+  icon: KeyRound
+}, {
+  to: "/admin/analytics",
+  label: "Analytics",
+  icon: LayoutDashboard
+}, {
+  to: "/admin/media",
+  label: "Media",
+  icon: Store
+}, {
+  to: "/admin/bulk-upload",
+  label: "Bulk Upload",
+  icon: Settings
+}, {
+  to: "/admin/settings",
+  label: "Settings",
+  icon: Settings
+}, {
+  to: "/admin/audit-log",
+  label: "Audit Log",
+  icon: History
+}];
 export default function AdminLayout() {
-  return (
-    <div className="min-h-screen bg-background">
+  return <div className="min-h-screen bg-background">
       <div className="flex">
         {/* Sidebar */}
         <aside className="w-64 border-r bg-card min-h-screen p-4 hidden md:block">
@@ -56,31 +82,19 @@ export default function AdminLayout() {
             </NavLink>
           </div>
           <div className="mb-6 flex items-center gap-3">
-            <img src={doraLogo} alt="Dora Logo" className="w-10 h-10 rounded-full object-cover" />
+            <img alt="Dora Logo" className="w-10 h-10 rounded-full object-cover" src="/lovable-uploads/233227f3-d354-4dc4-992f-9958935db848.png" />
             <div>
               <h2 className="text-xl font-display font-bold text-foreground">Admin Panel</h2>
               <p className="text-sm text-muted-foreground">Dora - دورة</p>
             </div>
           </div>
           <nav className="space-y-1">
-            {navItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  cn(
-                    "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                    isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )
-                }
-              >
+            {navItems.map(item => <NavLink key={item.to} to={item.to} end={item.end} className={({
+            isActive
+          }) => cn("flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors", isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
                 <item.icon className="h-4 w-4" />
                 {item.label}
-              </NavLink>
-            ))}
+              </NavLink>)}
           </nav>
         </aside>
 
@@ -99,24 +113,12 @@ export default function AdminLayout() {
                     <SheetTitle className="font-display">Admin Panel</SheetTitle>
                   </SheetHeader>
                   <nav className="mt-4 space-y-1">
-                    {navItems.map((item) => (
-                      <NavLink
-                        key={item.to}
-                        to={item.to}
-                        end={item.end}
-                        className={({ isActive }) =>
-                          cn(
-                            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                            isActive
-                              ? "bg-primary text-primary-foreground"
-                              : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                          )
-                        }
-                      >
+                    {navItems.map(item => <NavLink key={item.to} to={item.to} end={item.end} className={({
+                    isActive
+                  }) => cn("flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors", isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
                         <item.icon className="h-4 w-4" />
                         {item.label}
-                      </NavLink>
-                    ))}
+                      </NavLink>)}
                   </nav>
                 </SheetContent>
               </Sheet>
@@ -139,6 +141,5 @@ export default function AdminLayout() {
         </main>
       </div>
 
-    </div>
-  );
+    </div>;
 }
