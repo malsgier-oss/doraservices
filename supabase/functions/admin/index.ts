@@ -366,7 +366,31 @@ Deno.serve(async (req) => {
       // Some systems store with '+' in the local-part, so try both.
       const internalEmailA = `${digitsOnly.replace(/^0+/, "")}@phone.dora.ly`;
       const internalEmailB = `+${digitsOnly.replace(/^0+/, "")}@phone.dora.ly`;
-      console.log("Looking for user with email:", internalEmailA, "or", internalEmailB, "or phone:", cleanedPhone);
+
+      // Dora may also store accounts as plain email like: 091XXXXXXXX@dora.ly (email provider)
+      // Build a small set of likely @dora.ly emails from our phone variants.
+      const doraEmailCandidates: string[] = [];
+      for (const pf of phoneFormats) {
+        const digits = String(pf).replace(/\D/g, "");
+        if (!digits) continue;
+
+        // Keep the "0..." local format when present, because that's what we see in the wild (e.g., 091...@dora.ly)
+        if (digits.startsWith("0")) doraEmailCandidates.push(`${digits}@dora.ly`);
+
+        // Also try without leading zeros
+        const no0 = digits.replace(/^0+/, "");
+        if (no0 && no0 !== digits) doraEmailCandidates.push(`${no0}@dora.ly`);
+
+        // If it's 218..., try local derivations too
+        if (digits.startsWith("218") && digits.length > 3) {
+          const local = digits.slice(3);
+          doraEmailCandidates.push(`0${local}@dora.ly`);
+          doraEmailCandidates.push(`${local}@dora.ly`);
+        }
+      }
+      // De-dupe
+      const uniqueDoraEmails = Array.from(new Set(doraEmailCandidates.map((e) => e.toLowerCase())));
+      console.log("Looking for user with email:", internalEmailA, "or", internalEmailB, "or @dora.ly:", uniqueDoraEmails.slice(0, 3), "or phone:", cleanedPhone);
 
       let targetUser: any = null;
 
@@ -398,7 +422,7 @@ Deno.serve(async (req) => {
 
       // Strategy 2: paginate through auth users and match on email (covers older accounts without profiles.phone)
       if (!targetUser) {
-        const matchEmails = new Set([internalEmailA.toLowerCase(), internalEmailB.toLowerCase()]);
+        const matchEmails = new Set([internalEmailA.toLowerCase(), internalEmailB.toLowerCase(), ...uniqueDoraEmails]);
 
         // Supabase Admin listUsers is paginated. Scan a bounded number of pages.
         // Each page is small enough to avoid timeouts; stop early when found.
@@ -412,9 +436,17 @@ Deno.serve(async (req) => {
           }
 
           const users = pageData?.users ?? [];
+          const phoneDigitSet = new Set(phoneFormats.map((pf) => String(pf).replace(/\D/g, "")).filter(Boolean));
           const found = users.find((u: any) => {
             const em = (u.email ?? "").toLowerCase();
-            return matchEmails.has(em);
+            if (matchEmails.has(em)) return true;
+
+            // Some Dora accounts are created as email provider (e.g., 091XXXXXXXX@dora.ly) with phone stored in user_metadata.
+            const metaPhone = (u.user_metadata?.phone ?? u.user_metadata?.phone_number ?? "").toString();
+            const metaDigits = metaPhone.replace(/\D/g, "");
+            if (metaDigits && phoneDigitSet.has(metaDigits)) return true;
+
+            return false;
           });
 
           if (found) {
