@@ -18,7 +18,7 @@ const passwordSchema = z.string().min(6, "Password must be at least 6 characters
 
 export default function ChangePassword() {
   const navigate = useNavigate();
-  const { user, profile, refreshProfile } = useAuth();
+  const { refreshProfile } = useAuth();
   const { t, isRTL } = useLanguage();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -58,29 +58,23 @@ export default function ChangePassword() {
 
       if (authError) throw authError;
 
-      // Update must_change_password flag
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({ must_change_password: false })
-        .eq("user_id", user?.id);
+      // NOTE:
+      // Some older builds used a profiles.must_change_password column.
+      // Your DB does NOT have it, so we must not update it.
+      // Password gating should be handled by Auth only (or add the column later if desired).
 
-      if (profileError) throw profileError;
-
-      // Refresh profile to get updated state
-      await refreshProfile();
+      await refreshProfile?.();
 
       toast({
         title: isRTL ? "تم تغيير كلمة المرور" : "Password changed",
         description: isRTL ? "تم تحديث كلمة المرور بنجاح" : "Your password has been updated successfully",
       });
 
-      // Dora P0: don't block users by a verification flag. Provider approval is enforced
-      // only on provider-only routes.
-      navigate("/");
+      navigate("/", { replace: true });
     } catch (error: any) {
       toast({
         title: isRTL ? "خطأ" : "Error",
-        description: error.message || (isRTL ? "حدث خطأ أثناء تغيير كلمة المرور" : "Error changing password"),
+        description: error?.message || (isRTL ? "حدث خطأ أثناء تغيير كلمة المرور" : "Error changing password"),
         variant: "destructive",
       });
     } finally {
@@ -90,12 +84,10 @@ export default function ChangePassword() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4" dir={isRTL ? "rtl" : "ltr"}>
-      {/* Language Toggle */}
       <div className="absolute top-4 left-4">
         <LanguageToggle />
       </div>
 
-      {/* Logo */}
       <div className="flex items-center gap-2 mb-8">
         <img src={doraLogo} alt="Dora Logo" className="w-10 h-10 rounded-full object-cover" />
         <span className="text-2xl font-bold text-foreground">{t.appName}</span>
@@ -106,25 +98,23 @@ export default function ChangePassword() {
           <div className="w-16 h-16 rounded-full bg-primary/10 mx-auto mb-4 flex items-center justify-center">
             <KeyRound className="h-8 w-8 text-primary" />
           </div>
-          <CardTitle className="text-xl">
-            {isRTL ? "تغيير كلمة المرور" : "Change Password"}
-          </CardTitle>
+          <CardTitle className="text-xl">{isRTL ? "تغيير كلمة المرور" : "Change Password"}</CardTitle>
           <CardDescription>
-            {isRTL 
-              ? "يرجى إنشاء كلمة مرور جديدة لحسابك"
-              : "Please create a new password for your account"
-            }
+            {isRTL ? "يرجى إنشاء كلمة مرور جديدة لحسابك" : "Please create a new password for your account"}
           </CardDescription>
         </CardHeader>
 
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="new-password">
-                {isRTL ? "كلمة المرور الجديدة" : "New Password"}
-              </Label>
+              <Label htmlFor="new-password">{isRTL ? "كلمة المرور الجديدة" : "New Password"}</Label>
               <div className="relative">
-                <Lock className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground", isRTL ? "right-3" : "left-3")} />
+                <Lock
+                  className={cn(
+                    "absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground",
+                    isRTL ? "right-3" : "left-3",
+                  )}
+                />
                 <Input
                   id="new-password"
                   type="password"
@@ -138,11 +128,14 @@ export default function ChangePassword() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirm-password">
-                {isRTL ? "تأكيد كلمة المرور" : "Confirm Password"}
-              </Label>
+              <Label htmlFor="confirm-password">{isRTL ? "تأكيد كلمة المرور" : "Confirm Password"}</Label>
               <div className="relative">
-                <Lock className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground", isRTL ? "right-3" : "left-3")} />
+                <Lock
+                  className={cn(
+                    "absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground",
+                    isRTL ? "right-3" : "left-3",
+                  )}
+                />
                 <Input
                   id="confirm-password"
                   type="password"
@@ -156,7 +149,7 @@ export default function ChangePassword() {
             </div>
 
             <Button type="submit" className="w-full rounded-full" disabled={isLoading}>
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (isRTL ? "تغيير كلمة المرور" : "Change Password")}
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : isRTL ? "تغيير كلمة المرور" : "Change Password"}
             </Button>
           </form>
         </CardContent>
