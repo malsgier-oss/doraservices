@@ -237,8 +237,14 @@ export function useUserMutations() {
 
   const deleteUser = useMutation({
     mutationFn: async (userId: string) => {
+      // Explicitly attach the access token. In some environments, invoke() may not
+      // automatically send the user's session token.
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+
       const { data, error } = await supabase.functions.invoke("admin", {
         body: { action: "deleteUser", userId },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
 
       if (error) {
@@ -267,7 +273,109 @@ export function useUserMutations() {
       toast({ title: "User deleted" });
     },
     onError: (error) => {
-      toast({ title: "Error deleting user", description: error.message, variant: "destructive" });
+      const msg = error.message || "Unknown error";
+      const hint = msg.toLowerCase().includes("failed to send a request to the edge function")
+        ? "\n\nHint: Deploy the 'admin' Edge Function in Supabase and set secrets (SUPABASE_SERVICE_ROLE_KEY). If you can't, use Soft delete instead."
+        : "";
+      toast({ title: "Error deleting user", description: msg + hint, variant: "destructive" });
+    },
+  });
+
+  const softDeleteUser = useMutation({
+    mutationFn: async (userId: string) => {
+      const nowIso = new Date().toISOString();
+
+      // Hide services first (best effort)
+      await supabase
+        .from("services")
+        .update({ is_active: false, is_visible: false, is_paused: true })
+        .eq("user_id", userId);
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          status: "deleted",
+          suspended_at: nowIso,
+          suspended_reason: "admin_deleted",
+          full_name: null,
+          bio: null,
+          avatar_url: null,
+        })
+        .eq("user_id", userId);
+      if (error) throw error;
+
+      await supabase.rpc("log_admin_action", {
+        p_action: "soft_delete_user",
+        p_target_type: "user",
+        p_target_id: userId,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin"] });
+      toast({ title: "User soft-deleted" });
+    },
+    onError: (error) => {
+      toast({ title: "Error soft-deleting user", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const bulkSoftDeleteUsers = useMutation({
+    mutationFn: async (userIds: string[]) => {
+      for (const id of userIds) {
+        await softDeleteUser.mutateAsync(id);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin"] });
+      toast({ title: "Bulk soft delete completed" });
+    },
+    onError: (error) => {
+      toast({ title: "Bulk soft delete failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const bulkDeleteUsers = useMutation({
+    mutationFn: async (userIds: string[]) => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+
+      const { data, error } = await supabase.functions.invoke("admin", {
+        body: { action: "bulkDeleteUsers", userIds },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+
+      if (error) {
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const payload = await error.context.json();
+            const msg = typeof payload?.error === "string" ? payload.error : error.message;
+            throw new Error(msg);
+          } catch {
+            throw new Error(error.message);
+          }
+        }
+        throw new Error(error.message);
+      }
+
+      // If the function returns per-user results, surface failures.
+      if (data && typeof data === "object" && "results" in (data as any)) {
+        const results = (data as any).results as Array<{ userId: string; ok: boolean; error?: string }>;
+        const failed = results.filter((r) => !r.ok);
+        if (failed.length > 0) {
+          throw new Error(`Failed to delete ${failed.length} users: ${failed.map((f) => f.userId).join(", ")}`);
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin"] });
+      toast({ title: "Bulk delete completed" });
+    },
+    onError: (error) => {
+      const msg = error.message || "Unknown error";
+      const hint = msg.toLowerCase().includes("failed to send a request to the edge function")
+        ? "\n\nHint: Deploy the 'admin' Edge Function in Supabase and set secrets (SUPABASE_SERVICE_ROLE_KEY). Or switch to Soft delete."
+        : "";
+      toast({ title: "Bulk delete failed", description: msg + hint, variant: "destructive" });
     },
   });
 
@@ -353,7 +461,18 @@ export function useUserMutations() {
     },
   });
 
-  return { suspendUser, reactivateUser, archiveUser, deleteUser, changeUserRole, verifyUser, unverifyUser };
+  return {
+    suspendUser,
+    reactivateUser,
+    archiveUser,
+    deleteUser,
+    softDeleteUser,
+    bulkSoftDeleteUsers,
+    bulkDeleteUsers,
+    changeUserRole,
+    verifyUser,
+    unverifyUser,
+  };
 }
 
 // Businesses Management
