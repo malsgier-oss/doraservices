@@ -24,7 +24,7 @@ interface Profile {
   // Note: some deployments do not have an `is_verified` column anymore.
   // Do not rely on this flag for core navigation.
   is_verified?: boolean | null;
-  must_change_password: boolean;
+
   created_at: string;
   updated_at: string;
 }
@@ -65,14 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
 
-  /**
-   * ✅ Key fix:
-   * - First try to read profile.
-   * - Only INSERT/UPSERT if profile is missing (or overrides are provided explicitly).
-   * This prevents overwriting edits like full_name/bio on refresh.
-   */
   const ensureProfile = async (authUser: User, overrides?: EnsureOverrides): Promise<Profile | null> => {
-    // 1) Try fetch existing profile first
     const { data: existing, error: fetchExistingError } = await supabase
       .from("profiles")
       .select("*")
@@ -81,15 +74,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (fetchExistingError) {
       console.error("[ensureProfile] fetch existing error:", fetchExistingError);
-      // continue; sometimes RLS could be weird, but we try create minimal
     }
 
-    // If profile exists and no overrides, return it (don't overwrite it)
     if (existing && !overrides) {
       return existing as Profile;
     }
 
-    // 2) Need to create or update because missing or overrides exist
     const meta = (authUser.user_metadata || {}) as Record<string, unknown>;
 
     const metaPhone = typeof meta.phone === "string" ? cleanPhoneForStorage(meta.phone) : null;
@@ -97,8 +87,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const metaCityId = typeof meta.city_id === "string" ? (meta.city_id as string) : null;
     const metaCityName = typeof meta.city === "string" ? (meta.city as string) : null;
 
-    // If missing and no overrides, fill from metadata if present.
-    // If overrides provided (signup), prefer overrides.
     const payload: TablesInsert<"profiles"> = {
       user_id: authUser.id,
       full_name: overrides?.fullName ?? (existing ? undefined : metaFullName),
@@ -107,7 +95,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       city: overrides?.cityName ?? (existing ? undefined : metaCityName),
     };
 
-    // If we already have an existing profile and overrides exist, use UPDATE not UPSERT
     if (existing) {
       const { error: updateError } = await supabase
         .from("profiles")
@@ -131,7 +118,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // 3) Read back final
     const { data: prof, error: fetchError } = await supabase
       .from("profiles")
       .select("*")
@@ -259,32 +245,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             ),
           };
         }
-
-        return {
-          error: new Error(signInErr.message || "Signup created but auto-login failed"),
-        };
+        return { error: new Error(signInErr.message) };
       }
     }
 
-    const { data: sessData } = await supabase.auth.getSession();
-    const sessUser = sessData.session?.user;
-    if (!sessUser) {
-      return { error: new Error("Signup failed: could not establish session") };
-    }
-
-    const prof = await ensureProfile(sessUser, {
+    // Ensure profile exists and fill with overrides
+    await ensureProfile(data.user, {
       fullName,
       phone: cleanedPhone,
       cityId,
       cityName,
     });
-
-    if (!prof) {
-      await supabase.auth.signOut();
-      return {
-        error: new Error("Signup failed: profile could not be created/loaded. Please try again."),
-      };
-    }
 
     return { error: null };
   };
@@ -303,26 +274,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
     });
 
-    if (error) {
-      console.error("[signIn] error:", error);
-      return { error: new Error(error.message || "Invalid phone or password") };
-    }
-
-    const { data: sessData } = await supabase.auth.getSession();
-    const sessUser = sessData.session?.user;
-    if (!sessUser) return { error: new Error("Sign in failed: session not available") };
-
-    const prof = await ensureProfile(sessUser);
-    if (!prof) {
-      await supabase.auth.signOut();
-      return { error: new Error("Sign in failed: profile could not be loaded. Please try again.") };
-    }
+    if (error) return { error: new Error(error.message) };
 
     return { error: null };
   };
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    setUser(null);
+    setSession(null);
     setProfile(null);
   };
 
@@ -345,8 +305,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within an AuthProvider");
-  return context;
-}
+export const useAuth = () => {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
+};
