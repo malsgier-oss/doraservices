@@ -329,7 +329,7 @@ export default function AdminCategories() {
     setSelectedCategoryId(null);
   };
 
-  const handleSubSubmit = () => {
+  const handleSubSubmit = async () => {
     if (!subForm.name.trim()) {
       toast.error("Name is required");
       return;
@@ -347,22 +347,27 @@ export default function AdminCategories() {
       name_ar: subForm.name_ar,
       icon: subForm.icon,
       is_active: subForm.is_active,
+      // These two may be ignored automatically on older DB schemas by the hook retry logic
       is_popular: Boolean(subForm.is_popular),
       popular_order,
     };
 
-    if (editingSubcategory) {
-      updateSubcategory.mutate({ id: editingSubcategory.id, ...payload });
-    } else if (selectedCategoryId) {
-      const categorySubcats = subcategories?.filter((s) => s.category_id === selectedCategoryId) || [];
-      const maxOrder = Math.max(...categorySubcats.map((s) => s.display_order ?? 0), 0);
-      createSubcategory.mutate({
-        category_id: selectedCategoryId,
-        ...payload,
-        display_order: maxOrder + 1,
-      });
+    try {
+      if (editingSubcategory) {
+        await updateSubcategory.mutateAsync({ id: editingSubcategory.id, ...payload });
+      } else if (selectedCategoryId) {
+        const categorySubcats = subcategories?.filter((s) => s.category_id === selectedCategoryId) || [];
+        const maxOrder = Math.max(...categorySubcats.map((s) => s.display_order ?? 0), 0);
+        await createSubcategory.mutateAsync({
+          category_id: selectedCategoryId,
+          ...payload,
+          display_order: maxOrder + 1,
+        });
+      }
+      closeSubDialog();
+    } catch {
+      // Errors are toasted inside the hook; keep dialog open so user can fix inputs.
     }
-    closeSubDialog();
   };
 
   const toggleExpanded = (categoryId: string) => {
