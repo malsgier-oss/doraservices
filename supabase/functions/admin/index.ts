@@ -329,103 +329,116 @@ Deno.serve(async (req) => {
       // Clean and normalize phone for lookups
       const cleanedPhone = phone.replace(/\s/g, "").trim();
       let digitsOnly = phone.replace(/\D/g, "");
-      
-      // Convert to international format for email lookup
-      if (digitsOnly.startsWith("0")) {
-        digitsOnly = "218" + digitsOnly.slice(1);
-      }
-      if (!digitsOnly.startsWith("218")) {
-        digitsOnly = "218" + digitsOnly;
-      }
-      
-      // Some older accounts used a leading '+' inside the internal email.
-      // We'll check both variants to avoid "User not found" when the email mapping differs.
-      const internalEmailNoPlus = `${digitsOnly}@phone.dora.ly`;
-      const internalEmailWithPlus = `+${digitsOnly}@phone.dora.ly`;
 
-      console.log(
-        "Looking for user with email:",
-        internalEmailNoPlus,
-        "or",
-        internalEmailWithPlus,
-        "| phone:",
-        cleanedPhone,
-      );
+      // Normalize Libya formats:
+      // - If it starts with 0XXXXXXXXX => digitsOnly already has leading 0
+      // - If it starts with 218XXXXXXXXX => convert to local 0XXXXXXXXX variants too
+      const phoneFormats: string[] = [];
+      const pushUnique = (v?: string | null) => {
+        if (!v) return;
+        const vv = String(v).trim();
+        if (!vv) return;
+        if (!phoneFormats.includes(vv)) phoneFormats.push(vv);
+      };
 
-      // Strategy 1: Find by internal email format.
-      // IMPORTANT: listUsers is paginated; if you have many users, the target may not be in the first page.
-      let targetUser: { id: string; email?: string | null } | null = null;
-      let usersData: { users: Array<{ id: string; email?: string | null }> } | null = null;
-      for (let page = 1; page <= 50; page++) {
-        const { data, error: listError } = await adminClient.auth.admin.listUsers({ page, perPage: 200 });
-        if (listError) {
-          console.error("listUsers failed", { page, error: listError });
-          return new Response(JSON.stringify({ error: "Failed to lookup user" }), {
-            status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+      // Base variants from raw input
+      pushUnique(cleanedPhone);
+      pushUnique(digitsOnly);
+      pushUnique("+" + digitsOnly);
+
+      // If digitsOnly looks like Libya country code (218...), add local variants
+      if (digitsOnly.startsWith("218") && digitsOnly.length > 3) {
+        const local = digitsOnly.slice(3); // e.g. 9XXXXXXXX
+        pushUnique("0" + local);         // 0XXXXXXXXX
+        pushUnique(local);                // XXXXXXXXX
+        pushUnique("+218" + local);
+        pushUnique("218" + local);
+      }
+
+      // If digitsOnly starts with 0, add international variants
+      if (digitsOnly.startsWith("0") && digitsOnly.length >= 9) {
+        const no0 = digitsOnly.replace(/^0+/, "");
+        pushUnique("+218" + no0);
+        pushUnique("218" + no0);
+      }
+
+      // Internal email variants we may have stored for phone-based auth
+      // Some systems store with '+' in the local-part, so try both.
+      const internalEmailA = `${digitsOnly.replace(/^0+/, "")}@phone.dora.ly`;
+      const internalEmailB = `+${digitsOnly.replace(/^0+/, "")}@phone.dora.ly`;
+      console.log("Looking for user with email:", internalEmailA, "or", internalEmailB, "or phone:", cleanedPhone);
+
+      let targetUser: any = null;
+
+      // Strategy 1: If we can resolve user_id from profiles.phone, fetch auth user directly
+      let profileUserId: string | null = null;
+      for (const pf of phoneFormats) {
+        const { data: profileData } = await adminClient
+          .from("profiles")
+          .select("user_id")
+          .eq("phone", pf)
+          .maybeSingle();
+
+        if (profileData?.user_id) {
+          profileUserId = profileData.user_id;
+          console.log("Found profile with phone format:", pf, "user_id:", profileUserId);
+          break;
         }
-
-        usersData = data;
-        targetUser =
-          data.users.find((u) => u.email === internalEmailNoPlus) ||
-          data.users.find((u) => u.email === internalEmailWithPlus) ||
-          null;
-
-        // Stop early if found or if we've reached the last page.
-        if (targetUser || data.users.length < 200) break;
       }
-      
-      // Strategy 2: If not found by email, lookup profile by phone, get user_id, find auth user
+
+      if (profileUserId) {
+        const { data: byId, error: byIdErr } = await adminClient.auth.admin.getUserById(profileUserId);
+        if (!byIdErr && byId?.user) {
+          targetUser = byId.user;
+          console.log("Found auth user by profile user_id:", targetUser.id);
+        } else {
+          console.log("Auth user not found by profile user_id (may be deleted or different project)." );
+        }
+      }
+
+      // Strategy 2: paginate through auth users and match on email (covers older accounts without profiles.phone)
       if (!targetUser) {
-        console.log("User not found by email, trying profile lookup...");
-        
-        // Try multiple phone formats
-        const phoneFormats = [
-          cleanedPhone,                                    // as-is (e.g., 0913200935)
-          cleanedPhone.replace(/^0/, "+218"),             // +218913200935
-          cleanedPhone.replace(/^0/, "218"),              // 218913200935
-          "+" + digitsOnly,                                // +218913200935
-        ];
-        
-        let profileUserId: string | null = null;
-        for (const phoneFormat of phoneFormats) {
-          const { data: profileData } = await adminClient
-            .from("profiles")
-            .select("user_id")
-            .eq("phone", phoneFormat)
-            .maybeSingle();
-          
-          if (profileData?.user_id) {
-            profileUserId = profileData.user_id;
-            console.log("Found profile with phone format:", phoneFormat, "user_id:", profileUserId);
+        const matchEmails = new Set([internalEmailA.toLowerCase(), internalEmailB.toLowerCase()]);
+
+        // Supabase Admin listUsers is paginated. Scan a bounded number of pages.
+        // Each page is small enough to avoid timeouts; stop early when found.
+        const PER_PAGE = 200;
+        const MAX_PAGES = 50; // up to 10k users
+        for (let page = 1; page <= MAX_PAGES; page++) {
+          const { data: pageData, error: pageErr } = await adminClient.auth.admin.listUsers({ page, perPage: PER_PAGE });
+          if (pageErr) {
+            console.error("listUsers failed", pageErr);
             break;
           }
-        }
-        
-        if (profileUserId) {
-          // If we didn't cache the full user list (pagination), fetch directly by id when possible.
-          // Supabase Admin API supports getUserById.
-          const { data: byId, error: byIdError } = await adminClient.auth.admin.getUserById(profileUserId);
-          if (byIdError) {
-            console.warn("getUserById failed", byIdError);
-            // Fallback: if we have any last-page usersData, try it.
-            targetUser = usersData?.users.find((u) => u.id === profileUserId) || null;
-          } else {
-            targetUser = byId.user || null;
+
+          const users = pageData?.users ?? [];
+          const found = users.find((u: any) => {
+            const em = (u.email ?? "").toLowerCase();
+            return matchEmails.has(em);
+          });
+
+          if (found) {
+            targetUser = found;
+            console.log("Found auth user by email on page", page, ":", targetUser.id);
+            break;
           }
-          if (targetUser) {
-            console.log("Found auth user by profile user_id:", targetUser.id);
-          }
+
+          // Stop if this page returned fewer than perPage results (last page)
+          if (users.length < PER_PAGE) break;
         }
       }
 
       if (!targetUser) {
-        console.error("User not found for phone:", cleanedPhone, "or email:", internalEmailNoPlus, "/", internalEmailWithPlus);
-        return new Response(JSON.stringify({ error: "User not found for this phone number. Make sure the user has registered." }), {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        console.error("User not found for phone:", cleanedPhone, "or email:", internalEmailA);
+        return new Response(
+          JSON.stringify({
+            error: "User not found for this phone number. Make sure the user has registered.",
+          }),
+          {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
       }
 
       // Update user password
