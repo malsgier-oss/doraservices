@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -55,6 +56,11 @@ export default function AdminUsers() {
   });
   const [deleteConfirm, setDeleteConfirm] = useState("");
 
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [bulkDeleteDialog, setBulkDeleteDialog] = useState(false);
+  const [bulkMode, setBulkMode] = useState<"soft" | "hard">("soft");
+  const [bulkConfirm, setBulkConfirm] = useState("");
+
   const { data: users, isLoading } = useAdminUsers({
     status: statusFilter,
     role: roleFilter,
@@ -62,8 +68,41 @@ export default function AdminUsers() {
   });
   const { data: cities } = useCities();
 
-  const { suspendUser, reactivateUser, archiveUser, deleteUser, changeUserRole, verifyUser, unverifyUser } =
+  const {
+    suspendUser,
+    reactivateUser,
+    archiveUser,
+    deleteUser,
+    softDeleteUser,
+    bulkSoftDeleteUsers,
+    bulkDeleteUsers,
+    changeUserRole,
+    verifyUser,
+    unverifyUser,
+  } =
     useUserMutations();
+
+  const visibleUserIds = useMemo(() => (users || []).map((u) => u.user_id), [users]);
+  const selectedIds = useMemo(
+    () => visibleUserIds.filter((id) => selected[id]),
+    [selected, visibleUserIds],
+  );
+
+  const allSelected = selectedIds.length > 0 && selectedIds.length === visibleUserIds.length;
+  const someSelected = selectedIds.length > 0 && selectedIds.length < visibleUserIds.length;
+
+  const toggleSelectAll = (checked: boolean) => {
+    if (!users) return;
+    const next: Record<string, boolean> = {};
+    if (checked) {
+      for (const u of users) next[u.user_id] = true;
+    }
+    setSelected(next);
+  };
+
+  const toggleSelectOne = (userId: string, checked: boolean) => {
+    setSelected((prev) => ({ ...prev, [userId]: checked }));
+  };
 
   const getCityName = (cityId: string | null) => {
     if (!cityId) return "-";
@@ -84,6 +123,35 @@ export default function AdminUsers() {
     deleteUser.mutate(deleteDialog.userId);
     setDeleteDialog({ open: false, userId: null });
     setDeleteConfirm("");
+  };
+
+  const handleSoftDelete = () => {
+    if (!deleteDialog.userId) return;
+    softDeleteUser.mutate(deleteDialog.userId);
+    setDeleteDialog({ open: false, userId: null });
+    setDeleteConfirm("");
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (bulkConfirm !== "DELETE") return;
+
+    if (bulkMode === "hard") {
+      bulkDeleteUsers.mutate(selectedIds, {
+        onSuccess: () => {
+          setSelected({});
+        },
+      });
+    } else {
+      bulkSoftDeleteUsers.mutate(selectedIds, {
+        onSuccess: () => {
+          setSelected({});
+        },
+      });
+    }
+
+    setBulkDeleteDialog(false);
+    setBulkConfirm("");
   };
 
   const getRoleBadges = (roles: string[]) => {
@@ -162,11 +230,49 @@ export default function AdminUsers() {
             </Select>
           </div>
 
+          {/* Bulk actions */}
+          {selectedIds.length > 0 && (
+            <div className="mb-4 flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between rounded-lg border p-3 bg-muted/30">
+              <div className="text-sm">
+                <span className="font-medium">Selected:</span> {selectedIds.length}
+                {someSelected ? " (partial)" : ""}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setSelected({})}
+                  disabled={bulkDeleteUsers.isPending || bulkSoftDeleteUsers.isPending}
+                >
+                  Clear
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    setBulkConfirm("");
+                    setBulkMode("soft");
+                    setBulkDeleteDialog(true);
+                  }}
+                  disabled={bulkDeleteUsers.isPending || bulkSoftDeleteUsers.isPending}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete selected
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Table */}
           <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[44px]">
+                    <Checkbox
+                      checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                      onCheckedChange={(v) => toggleSelectAll(Boolean(v))}
+                      aria-label="Select all"
+                    />
+                  </TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>City</TableHead>
@@ -181,6 +287,9 @@ export default function AdminUsers() {
                 {isLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}>
+                      <TableCell>
+                        <Skeleton className="h-4 w-4" />
+                      </TableCell>
                       <TableCell>
                         <Skeleton className="h-4 w-32" />
                       </TableCell>
@@ -209,13 +318,20 @@ export default function AdminUsers() {
                   ))
                 ) : users?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                       No users found
                     </TableCell>
                   </TableRow>
                 ) : (
                   users?.map((user) => (
                     <TableRow key={user.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={!!selected[user.user_id]}
+                          onCheckedChange={(v) => toggleSelectOne(user.user_id, Boolean(v))}
+                          aria-label={`Select ${user.full_name || "user"}`}
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">{user.full_name || "Unnamed User"}</TableCell>
                       <TableCell>
                         {user.phone ? (
@@ -428,7 +544,7 @@ export default function AdminUsers() {
           <DialogHeader>
             <DialogTitle>Delete User</DialogTitle>
             <DialogDescription>
-              This permanently deletes the user account and removes their data. Type DELETE to confirm.
+              Type DELETE to confirm. "Soft delete" hides the user & their services (safer). "Hard delete" also deletes the auth account via Edge Function.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -452,10 +568,80 @@ export default function AdminUsers() {
             </Button>
             <Button
               variant="destructive"
+              onClick={handleSoftDelete}
+              disabled={deleteConfirm !== "DELETE" || softDeleteUser.isPending}
+            >
+              Soft delete
+            </Button>
+
+            <Button
+              variant="destructive"
               onClick={handleDelete}
               disabled={deleteConfirm !== "DELETE" || deleteUser.isPending}
             >
-              Delete User
+              Hard delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Dialog */}
+      <Dialog
+        open={bulkDeleteDialog}
+        onOpenChange={(open) => {
+          setBulkDeleteDialog(open);
+          if (!open) {
+            setBulkConfirm("");
+            setBulkMode("soft");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete selected users</DialogTitle>
+            <DialogDescription>
+              You selected <b>{selectedIds.length}</b> users. Choose mode, then type DELETE.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Mode</Label>
+              <Select value={bulkMode} onValueChange={(v) => setBulkMode(v as any)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select mode" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="soft">Soft delete (recommended)</SelectItem>
+                  <SelectItem value="hard">Hard delete (Edge Function)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Soft delete hides profiles & services. Hard delete requires the "admin" Edge Function to be deployed.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="bulk-delete-confirm">Confirmation</Label>
+              <Input
+                id="bulk-delete-confirm"
+                value={bulkConfirm}
+                onChange={(e) => setBulkConfirm(e.target.value)}
+                placeholder="Type DELETE"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleBulkDelete}
+              disabled={bulkConfirm !== "DELETE" || bulkDeleteUsers.isPending || bulkSoftDeleteUsers.isPending}
+            >
+              Delete {selectedIds.length}
             </Button>
           </DialogFooter>
         </DialogContent>

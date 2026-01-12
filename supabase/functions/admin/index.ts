@@ -10,6 +10,9 @@ const corsHeaders = {
 
 type AdminActionBody =
   | { action: "deleteUser"; userId: string }
+  | { action: "bulkDeleteUsers"; userIds: string[] }
+  | { action: "softDeleteUser"; userId: string }
+  | { action: "bulkSoftDeleteUsers"; userIds: string[] }
   | { action: "set_temp_password"; phone: string; password: string; requestId: string }
   | { action: "fix_admin_email"; userId: string; phone: string };
 
@@ -86,27 +89,46 @@ Deno.serve(async (req) => {
       });
     }
 
-    const body = (await req.json()) as AdminActionBody;
-    console.log("admin action request", { callerId, action: body?.action });
+    const softDeleteUserInternal = async (targetUserId: string) => {
+      // Soft delete = keep rows, but hide + scrub personal info + hide services.
+      // This is safer as a fallback when Edge Functions can't delete auth users.
+      const nowIso = new Date().toISOString();
 
-    // ==================== DELETE USER ====================
-    if (body.action === "deleteUser") {
-      const targetUserId = body.userId;
+      // Hide services (best effort)
+      await adminClient
+        .from("services")
+        .update({ is_active: false, is_visible: false, is_paused: true })
+        .eq("user_id", targetUserId);
 
-      if (!targetUserId) {
-        return new Response(JSON.stringify({ error: "Missing userId" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      // Scrub profile and mark deleted
+      const { error: profileErr } = await adminClient
+        .from("profiles")
+        .update({
+          status: "deleted",
+          suspended_at: nowIso,
+          suspended_reason: "admin_deleted",
+          full_name: null,
+          bio: null,
+          avatar_url: null,
+          // Keep phone for audit/login mapping; do not null it here.
+        })
+        .eq("user_id", targetUserId);
 
-      if (targetUserId === callerId) {
-        return new Response(JSON.stringify({ error: "You cannot delete your own account" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      if (profileErr) throw profileErr;
 
+      // Audit log (best effort)
+      await adminClient.from("admin_audit_log").insert({
+        admin_id: callerId,
+        action: "soft_delete_user",
+        target_type: "user",
+        target_id: targetUserId,
+        details: { deleted_by: callerId },
+      });
+
+      return { ok: true };
+    };
+
+    const hardDeleteUserInternal = async (targetUserId: string) => {
       // Clean up app tables first (order matters for foreign key dependencies)
       const firstPassResults = await Promise.all([
         adminClient.from("review_prompts").delete().eq("user_id", targetUserId),
@@ -122,9 +144,12 @@ Deno.serve(async (req) => {
         adminClient.from("password_reset_requests").delete().eq("user_id", targetUserId),
       ]);
 
-      const firstPassErrors = firstPassResults.filter(r => r.error);
+      const firstPassErrors = firstPassResults.filter((r) => r.error);
       if (firstPassErrors.length > 0) {
-        console.warn("first pass cleanup warnings", firstPassErrors.map(r => r.error?.message));
+        console.warn(
+          "first pass cleanup warnings",
+          firstPassErrors.map((r) => r.error?.message),
+        );
       }
 
       // Second pass: delete records where user is a provider
@@ -138,9 +163,12 @@ Deno.serve(async (req) => {
         adminClient.from("posts").delete().eq("user_id", targetUserId),
       ]);
 
-      const secondPassErrors = secondPassResults.filter(r => r.error);
+      const secondPassErrors = secondPassResults.filter((r) => r.error);
       if (secondPassErrors.length > 0) {
-        console.warn("second pass cleanup warnings", secondPassErrors.map(r => r.error?.message));
+        console.warn(
+          "second pass cleanup warnings",
+          secondPassErrors.map((r) => r.error?.message),
+        );
       }
 
       // Final pass: delete core user records
@@ -149,23 +177,19 @@ Deno.serve(async (req) => {
         adminClient.from("profiles").delete().eq("user_id", targetUserId),
       ]);
 
-      const finalErrors = finalResults.filter(r => r.error);
+      const finalErrors = finalResults.filter((r) => r.error);
       if (finalErrors.length > 0) {
-        console.error("final cleanup failed", finalErrors.map(r => r.error));
-        return new Response(JSON.stringify({ error: "Failed to delete user data", details: finalErrors.map(r => r.error?.message) }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        console.error("final cleanup failed", finalErrors.map((r) => r.error));
+        throw new Error(
+          `Failed to delete user data: ${finalErrors.map((r) => r.error?.message).join(" | ")}`,
+        );
       }
 
       // Finally remove the auth user
       const { error: deleteAuthError } = await adminClient.auth.admin.deleteUser(targetUserId);
       if (deleteAuthError) {
         console.error("auth admin delete failed", deleteAuthError);
-        return new Response(JSON.stringify({ error: "Failed to delete auth user", details: deleteAuthError.message }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        throw new Error(`Failed to delete auth user: ${deleteAuthError.message}`);
       }
 
       // Audit log
@@ -177,7 +201,109 @@ Deno.serve(async (req) => {
         details: { deleted_by: callerId },
       });
 
+      return { ok: true };
+    };
+
+    const body = (await req.json()) as AdminActionBody;
+    console.log("admin action request", { callerId, action: body?.action });
+
+    // ==================== HARD DELETE USER ====================
+    if (body.action === "deleteUser") {
+      const targetUserId = body.userId;
+
+      if (!targetUserId) {
+        return new Response(JSON.stringify({ error: "Missing userId" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (targetUserId === callerId) {
+        return new Response(JSON.stringify({ error: "You cannot delete your own account" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      await hardDeleteUserInternal(targetUserId);
       return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ==================== HARD DELETE USERS (BULK) ====================
+    if (body.action === "bulkDeleteUsers") {
+      const userIds = Array.isArray(body.userIds) ? body.userIds : [];
+      const ids = userIds.filter(Boolean).filter((id) => id !== callerId);
+      if (ids.length === 0) {
+        return new Response(JSON.stringify({ error: "Missing userIds" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const results: Array<{ userId: string; ok: boolean; error?: string }> = [];
+      for (const id of ids) {
+        try {
+          await hardDeleteUserInternal(id);
+          results.push({ userId: id, ok: true });
+        } catch (e) {
+          results.push({ userId: id, ok: false, error: e instanceof Error ? e.message : "Unknown error" });
+        }
+      }
+
+      return new Response(JSON.stringify({ ok: true, results }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ==================== SOFT DELETE USER ====================
+    if (body.action === "softDeleteUser") {
+      const targetUserId = body.userId;
+
+      if (!targetUserId) {
+        return new Response(JSON.stringify({ error: "Missing userId" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (targetUserId === callerId) {
+        return new Response(JSON.stringify({ error: "You cannot delete your own account" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      await softDeleteUserInternal(targetUserId);
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ==================== SOFT DELETE USERS (BULK) ====================
+    if (body.action === "bulkSoftDeleteUsers") {
+      const userIds = Array.isArray(body.userIds) ? body.userIds : [];
+      const ids = userIds.filter(Boolean).filter((id) => id !== callerId);
+      if (ids.length === 0) {
+        return new Response(JSON.stringify({ error: "Missing userIds" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const results: Array<{ userId: string; ok: boolean; error?: string }> = [];
+      for (const id of ids) {
+        try {
+          await softDeleteUserInternal(id);
+          results.push({ userId: id, ok: true });
+        } catch (e) {
+          results.push({ userId: id, ok: false, error: e instanceof Error ? e.message : "Unknown error" });
+        }
+      }
+
+      return new Response(JSON.stringify({ ok: true, results }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -284,15 +410,8 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Set must_change_password flag
-      const { error: profileError } = await adminClient
-        .from("profiles")
-        .update({ must_change_password: true })
-        .eq("user_id", targetUser.id);
-
-      if (profileError) {
-        console.warn("Failed to set must_change_password:", profileError);
-      }
+      // NOTE: Dora no longer uses profiles.must_change_password (column removed in DB).
+      // If you want a "force password change" feature later, implement it as a separate table/flag.
 
       // Update reset request status
       if (requestId) {
