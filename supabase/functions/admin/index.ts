@@ -338,20 +338,43 @@ Deno.serve(async (req) => {
         digitsOnly = "218" + digitsOnly;
       }
       
-      const internalEmail = `${digitsOnly}@phone.dora.ly`;
-      console.log("Looking for user with email:", internalEmail, "or phone:", cleanedPhone);
+      // Some older accounts used a leading '+' inside the internal email.
+      // We'll check both variants to avoid "User not found" when the email mapping differs.
+      const internalEmailNoPlus = `${digitsOnly}@phone.dora.ly`;
+      const internalEmailWithPlus = `+${digitsOnly}@phone.dora.ly`;
 
-      // Strategy 1: Find by internal email format
-      const { data: usersData, error: listError } = await adminClient.auth.admin.listUsers();
-      if (listError) {
-        console.error("listUsers failed", listError);
-        return new Response(JSON.stringify({ error: "Failed to lookup user" }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      console.log(
+        "Looking for user with email:",
+        internalEmailNoPlus,
+        "or",
+        internalEmailWithPlus,
+        "| phone:",
+        cleanedPhone,
+      );
+
+      // Strategy 1: Find by internal email format.
+      // IMPORTANT: listUsers is paginated; if you have many users, the target may not be in the first page.
+      let targetUser: { id: string; email?: string | null } | null = null;
+      let usersData: { users: Array<{ id: string; email?: string | null }> } | null = null;
+      for (let page = 1; page <= 50; page++) {
+        const { data, error: listError } = await adminClient.auth.admin.listUsers({ page, perPage: 200 });
+        if (listError) {
+          console.error("listUsers failed", { page, error: listError });
+          return new Response(JSON.stringify({ error: "Failed to lookup user" }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        usersData = data;
+        targetUser =
+          data.users.find((u) => u.email === internalEmailNoPlus) ||
+          data.users.find((u) => u.email === internalEmailWithPlus) ||
+          null;
+
+        // Stop early if found or if we've reached the last page.
+        if (targetUser || data.users.length < 200) break;
       }
-
-      let targetUser = usersData.users.find(u => u.email === internalEmail);
       
       // Strategy 2: If not found by email, lookup profile by phone, get user_id, find auth user
       if (!targetUser) {
@@ -381,7 +404,16 @@ Deno.serve(async (req) => {
         }
         
         if (profileUserId) {
-          targetUser = usersData.users.find(u => u.id === profileUserId);
+          // If we didn't cache the full user list (pagination), fetch directly by id when possible.
+          // Supabase Admin API supports getUserById.
+          const { data: byId, error: byIdError } = await adminClient.auth.admin.getUserById(profileUserId);
+          if (byIdError) {
+            console.warn("getUserById failed", byIdError);
+            // Fallback: if we have any last-page usersData, try it.
+            targetUser = usersData?.users.find((u) => u.id === profileUserId) || null;
+          } else {
+            targetUser = byId.user || null;
+          }
           if (targetUser) {
             console.log("Found auth user by profile user_id:", targetUser.id);
           }
@@ -389,7 +421,7 @@ Deno.serve(async (req) => {
       }
 
       if (!targetUser) {
-        console.error("User not found for phone:", cleanedPhone, "or email:", internalEmail);
+        console.error("User not found for phone:", cleanedPhone, "or email:", internalEmailNoPlus, "/", internalEmailWithPlus);
         return new Response(JSON.stringify({ error: "User not found for this phone number. Make sure the user has registered." }), {
           status: 404,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
