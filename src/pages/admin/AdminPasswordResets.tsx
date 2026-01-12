@@ -26,6 +26,28 @@ type ResetRequest = {
   city?: { name: string } | null;
 };
 
+function normalizeLibyaPhone(input: string): string {
+  const raw = String(input ?? "").trim();
+  const digits = raw.replace(/\D/g, "");
+
+  // +2189xxxxxxxx -> 09xxxxxxxx
+  if (digits.startsWith("218") && digits.length > 3) {
+    const national = digits.slice(3);
+    if (!national) return raw;
+    return national.startsWith("0") ? national : `0${national}`;
+  }
+
+  // 9xxxxxxxx -> 09xxxxxxxx
+  if (!digits.startsWith("0") && digits.length === 9 && digits.startsWith("9")) {
+    return `0${digits}`;
+  }
+
+  // Already local 0xxxxxxxx
+  if (digits.startsWith("0")) return digits;
+
+  return raw;
+}
+
 const AdminPasswordResets = () => {
   const queryClient = useQueryClient();
   const [selectedRequest, setSelectedRequest] = useState<ResetRequest | null>(null);
@@ -76,10 +98,11 @@ const AdminPasswordResets = () => {
 
   const setTempPasswordMutation = useMutation({
     mutationFn: async ({ phone, password, requestId }: { phone: string; password: string; requestId: string }) => {
+      const normalizedPhone = normalizeLibyaPhone(phone);
       const { data, error } = await supabase.functions.invoke("admin", {
         body: {
           action: "set_temp_password",
-          phone,
+          phone: normalizedPhone,
           password,
           requestId,
         },

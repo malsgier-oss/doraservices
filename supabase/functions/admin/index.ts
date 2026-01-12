@@ -3,6 +3,8 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.89.0";
 
+const FUNCTION_VERSION = "2026-01-12-reset-v3";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -23,6 +25,7 @@ Deno.serve(async (req) => {
   }
 
   try {
+    console.log("admin fn version", FUNCTION_VERSION);
     const url = Deno.env.get("SUPABASE_URL");
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const serviceRoleKey = Deno.env.get("SERVICE_ROLE_KEY");
@@ -244,6 +247,7 @@ Deno.serve(async (req) => {
       const results: Array<{ userId: string; ok: boolean; error?: string }> = [];
       for (const id of ids) {
         try {
+    console.log("admin fn version", FUNCTION_VERSION);
           await hardDeleteUserInternal(id);
           results.push({ userId: id, ok: true });
         } catch (e) {
@@ -295,6 +299,7 @@ Deno.serve(async (req) => {
       const results: Array<{ userId: string; ok: boolean; error?: string }> = [];
       for (const id of ids) {
         try {
+    console.log("admin fn version", FUNCTION_VERSION);
           await softDeleteUserInternal(id);
           results.push({ userId: id, ok: true });
         } catch (e) {
@@ -490,11 +495,12 @@ Deno.serve(async (req) => {
       }
 
       if (!targetUser) {
-        console.error("User not found for input:", phone, "emails tried:", Array.from(emailCandidates).slice(0, 5));
+        console.error("User not found for input:", phone, "version:", FUNCTION_VERSION, "emails tried:", Array.from(emailCandidates).slice(0, 20), "phones tried:", phoneCandidates.slice(0, 20));
         return new Response(
           JSON.stringify({
             error:
-              "User not found for this phone. In this project, users are stored as email like 091xxxxxxx@dora.ly. Try entering the local phone (09...) or ensure the user has registered.",
+              "User not found for this phone. Try local format (09xxxxxxxx). If the user exists, contact support with code: "+FUNCTION_VERSION,
+
           }),
           {
             status: 404,
