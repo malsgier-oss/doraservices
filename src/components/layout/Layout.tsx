@@ -20,7 +20,7 @@ export function Layout({
 
   return (
     <div
-      className="min-h-screen flex flex-col touch-manipulation no-tap-highlight bg-[#F9F9F9] pb-16"
+      className="min-h-screen flex flex-col touch-manipulation no-tap-highlight bg-background pb-16"
       dir={isRTL ? "rtl" : "ltr"}
     >
       {shouldShowHeader && <Header />}
@@ -31,7 +31,7 @@ export function Layout({
 
       <MobileNav />
 
-      <footer className="hidden md:block border-t border-border bg-white py-6">
+      <footer className="hidden md:block border-t border-border bg-background py-6">
         <div className="container">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
@@ -40,9 +40,9 @@ export function Layout({
                   {isRTL ? "د" : "D"}
                 </span>
               </div>
-              <span className="font-medium text-[#333]">{t.appName}</span>
+              <span className="font-medium text-foreground">{t.appName}</span>
             </div>
-            <p className="text-sm text-[#777]">
+            <p className="text-sm text-muted-foreground">
               © 2024 {t.appName}. {t.appTagline}.
             </p>
           </div>

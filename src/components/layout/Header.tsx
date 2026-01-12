@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Bell, CheckCheck } from "lucide-react";
 import {
   useNotifications,
@@ -25,16 +26,17 @@ export function Header() {
   const { markAsRead, markAllAsRead } = useNotificationMutations();
 
   return (
-    <header className="sticky top-0 z-40 bg-[#F9F9F9] border-b border-gray-100">
+    <header className="sticky top-0 z-40 bg-background border-b border-border">
       <div className="container flex h-14 items-center justify-end">
         {/* Actions: ONLY Language + Notifications */}
         <div className="flex items-center gap-2">
           <LanguageToggle />
+          <ThemeToggle />
 
           <Popover>
             <PopoverTrigger asChild>
-              <button className="relative h-9 w-9 rounded-full bg-white shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors">
-                <Bell className="h-4 w-4 text-[#333]" />
+              <button className="relative h-9 w-9 rounded-full bg-white shadow-sm flex items-center justify-center hover:bg-muted transition-colors">
+                <Bell className="h-4 w-4 text-foreground" />
 
                 {user && unreadCount && unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
@@ -47,7 +49,7 @@ export function Header() {
             {user && (
               <PopoverContent
                 align={isRTL ? "start" : "end"}
-                className="w-80 p-0 bg-white border-gray-200"
+                className="w-80 p-0 bg-popover border-border"
               >
                 <div className="p-3 border-b flex items-center justify-between">
                   <h3 className="font-semibold text-sm">
