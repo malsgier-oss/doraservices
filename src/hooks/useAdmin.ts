@@ -235,38 +235,45 @@ export function useUserMutations() {
     },
   });
 
+  // Shared helper used by single + bulk hard delete.
+  // Bulk hard delete can fail when one Edge Function request is asked to delete many users
+  // (timeouts / termination / transient errors). Doing per-user requests keeps each call small.
+  const hardDeleteUserFn = async (userId: string) => {
+    // Explicitly attach the access token. In some environments, invoke() may not
+    // automatically send the user's session token.
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+
+    const { data, error } = await supabase.functions.invoke("admin", {
+      body: { action: "deleteUser", userId },
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+
+    if (error) {
+      if (error instanceof FunctionsHttpError) {
+        try {
+          const payload = await error.context.json();
+          const msg = typeof payload?.error === "string" ? payload.error : error.message;
+          const details = payload?.details
+            ? ` (${typeof payload.details === "string" ? payload.details : JSON.stringify(payload.details)})`
+            : "";
+          throw new Error(`${msg}${details}`);
+        } catch {
+          // fallback when body isn't JSON
+          throw new Error(error.message);
+        }
+      }
+      throw new Error(error.message);
+    }
+
+    if (data && typeof data === "object" && "error" in (data as Record<string, unknown>)) {
+      throw new Error(String((data as Record<string, unknown>).error));
+    }
+  };
+
   const deleteUser = useMutation({
     mutationFn: async (userId: string) => {
-      // Explicitly attach the access token. In some environments, invoke() may not
-      // automatically send the user's session token.
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-
-      const { data, error } = await supabase.functions.invoke("admin", {
-        body: { action: "deleteUser", userId },
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
-
-      if (error) {
-        if (error instanceof FunctionsHttpError) {
-          try {
-            const payload = await error.context.json();
-            const msg = typeof payload?.error === "string" ? payload.error : error.message;
-            const details = payload?.details
-              ? ` (${typeof payload.details === "string" ? payload.details : JSON.stringify(payload.details)})`
-              : "";
-            throw new Error(`${msg}${details}`);
-          } catch {
-            // fallback when body isn't JSON
-            throw new Error(error.message);
-          }
-        }
-        throw new Error(error.message);
-      }
-
-      if (data && typeof data === "object" && "error" in (data as Record<string, unknown>)) {
-        throw new Error(String((data as Record<string, unknown>).error));
-      }
+      await hardDeleteUserFn(userId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin"] });
@@ -336,34 +343,25 @@ export function useUserMutations() {
 
   const bulkDeleteUsers = useMutation({
     mutationFn: async (userIds: string[]) => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
+      const failed: Array<{ userId: string; error: string }> = [];
 
-      const { data, error } = await supabase.functions.invoke("admin", {
-        body: { action: "bulkDeleteUsers", userIds },
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
-
-      if (error) {
-        if (error instanceof FunctionsHttpError) {
-          try {
-            const payload = await error.context.json();
-            const msg = typeof payload?.error === "string" ? payload.error : error.message;
-            throw new Error(msg);
-          } catch {
-            throw new Error(error.message);
-          }
+      // Sequential deletes are safer here (avoid hammering Edge Functions + auth).
+      for (const id of userIds) {
+        try {
+          await hardDeleteUserFn(id);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          failed.push({ userId: id, error: msg });
         }
-        throw new Error(error.message);
       }
 
-      // If the function returns per-user results, surface failures.
-      if (data && typeof data === "object" && "results" in (data as any)) {
-        const results = (data as any).results as Array<{ userId: string; ok: boolean; error?: string }>;
-        const failed = results.filter((r) => !r.ok);
-        if (failed.length > 0) {
-          throw new Error(`Failed to delete ${failed.length} users: ${failed.map((f) => f.userId).join(", ")}`);
-        }
+      if (failed.length > 0) {
+        const preview = failed
+          .slice(0, 5)
+          .map((f) => f.userId)
+          .join(", ");
+        const more = failed.length > 5 ? ` (+${failed.length - 5} more)` : "";
+        throw new Error(`Failed to hard delete ${failed.length}/${userIds.length}: ${preview}${more}`);
       }
     },
     onSuccess: () => {
