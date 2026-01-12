@@ -852,10 +852,14 @@ export function useSettingsMutations() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+      // Use upsert so new settings keys can be introduced from the UI without
+      // requiring a manual DB row insert.
       const { error } = await supabase
         .from("platform_settings")
-        .update({ value: value, updated_at: new Date().toISOString(), updated_by: user?.id })
-        .eq("key", key);
+        .upsert(
+          { key, value, updated_at: new Date().toISOString(), updated_by: user?.id },
+          { onConflict: "key" },
+        );
       if (error) throw error;
 
       await supabase.rpc("log_admin_action", {

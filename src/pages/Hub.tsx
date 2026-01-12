@@ -128,6 +128,15 @@ type SearchFiltersState = {
   minRating: boolean; // kept for ServiceDetailSheet compatibility
 };
 
+type HubConfig = {
+  featuredEnabled: boolean;
+  featuredLimit: number;
+  recentEnabled: boolean;
+  recentLimit: number;
+  suggestionsEnabled: boolean;
+  suggestionsOverride: HubSuggestionChip[] | null;
+};
+
 // -------- Header suggestion chips (static for now; connect to control panel later) ----------
 type HubSuggestionChip = {
   id: string;
@@ -181,6 +190,15 @@ const HUB_SUGGESTIONS: HubSuggestionChip[] = [
     icon: Home,
   },
 ];
+
+function safeParseJson<T>(raw: string | null | undefined): T | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
 
 function FilterSuggestionChip({
   icon,
@@ -300,6 +318,106 @@ export default function Hub() {
 
   const [recentCards, setRecentCards] = useState<FeaturedProviderCard[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
+
+  const [hubConfig, setHubConfig] = useState<HubConfig>({
+    featuredEnabled: true,
+    featuredLimit: 12,
+    recentEnabled: true,
+    recentLimit: 12,
+    suggestionsEnabled: true,
+    suggestionsOverride: null,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadHubConfig = async () => {
+      try {
+        const keys = [
+          "hub_featured_enabled",
+          "hub_featured_limit",
+          "hub_recent_enabled",
+          "hub_recent_limit",
+          "hub_suggestions_enabled",
+          "hub_suggestions_json",
+        ];
+
+        const { data, error } = await supabase
+          .from("platform_settings")
+          .select("key,value")
+          .in("key", keys);
+
+        if (error) {
+          // If settings are not readable (RLS), keep defaults.
+          return;
+        }
+
+        const map: Record<string, string> = {};
+        (data || []).forEach((row: any) => {
+          map[row.key] = typeof row.value === "string" ? row.value : JSON.stringify(row.value);
+        });
+
+        const toBool = (v: string | undefined, fallback: boolean) => {
+          if (v === undefined || v === null || v === "") return fallback;
+          return String(v) === "true";
+        };
+
+        const toNum = (v: string | undefined, fallback: number) => {
+          const n = Number.parseInt(String(v ?? ""), 10);
+          return Number.isFinite(n) && n > 0 ? n : fallback;
+        };
+
+        // Suggestions JSON override (advanced)
+        let suggestionsOverride: HubSuggestionChip[] | null = null;
+        const raw = (map.hub_suggestions_json || "").trim();
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              suggestionsOverride = parsed
+                .map((x: any, idx: number) => {
+                  const title_en = String(x.title_en || "").trim();
+                  const title_ar = String(x.title_ar || "").trim();
+                  const match = Array.isArray(x.subcategory_match) ? x.subcategory_match.map((m: any) => String(m)) : [];
+                  const iconName = String(x.icon_name || x.icon || "").trim();
+                  const icon = iconName && ICON_MAP[iconName] ? ICON_MAP[iconName] : undefined;
+                  if (!title_en && !title_ar) return null;
+                  if (match.length === 0) return null;
+                  return {
+                    id: String(x.id || `${idx}`),
+                    title_en: title_en || title_ar,
+                    title_ar: title_ar || title_en,
+                    subcategory_match: match,
+                    icon,
+                  } as HubSuggestionChip;
+                })
+                .filter(Boolean) as HubSuggestionChip[];
+            }
+          } catch {
+            // ignore parse errors
+          }
+        }
+
+        const next: HubConfig = {
+          featuredEnabled: toBool(map.hub_featured_enabled, true),
+          featuredLimit: toNum(map.hub_featured_limit, 12),
+          recentEnabled: toBool(map.hub_recent_enabled, true),
+          recentLimit: toNum(map.hub_recent_limit, 12),
+          suggestionsEnabled: toBool(map.hub_suggestions_enabled, true),
+          suggestionsOverride,
+        };
+
+        if (!cancelled) setHubConfig(next);
+      } catch {
+        // keep defaults
+      }
+    };
+
+    void loadHubConfig();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const getCityLabel = (cityIdOrName: string | null) => {
     if (!cityIdOrName) return null;
@@ -477,6 +595,10 @@ export default function Hub() {
 
   useEffect(() => {
     const fetchFeaturedProviders = async () => {
+      if (!hubConfig.featuredEnabled) {
+        setFeaturedProviders([]);
+        return;
+      }
       setFeaturedLoading(true);
       try {
         const selectCols =
@@ -535,7 +657,7 @@ export default function Hub() {
           };
         });
 
-        setFeaturedProviders(cards.slice(0, 12));
+        setFeaturedProviders(cards.slice(0, hubConfig.featuredLimit));
       } catch (e) {
         console.error("Featured providers fetch error:", e);
         setFeaturedProviders([]);
@@ -545,11 +667,88 @@ export default function Hub() {
     };
 
     fetchFeaturedProviders();
-  }, [isRTL]);
+  }, [isRTL, hubConfig.featuredEnabled, hubConfig.featuredLimit]);
+
+  useEffect(() => {
+    const fetchRecentServices = async () => {
+      if (!hubConfig.recentEnabled) {
+        setRecentCards([]);
+        return;
+      }
+
+      setRecentLoading(true);
+      try {
+        const selectCols =
+          "id, category, title, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused, is_featured, created_at";
+
+        const { data: servicesData, error } = await supabase
+          .from("services")
+          .select(selectCols)
+          .eq("is_active", true)
+          .eq("is_visible", true)
+          .eq("approval_status", "approved")
+          .or("is_paused.is.null,is_paused.eq.false")
+          .or("is_featured.is.null,is_featured.eq.false")
+          .order("created_at", { ascending: false })
+          .limit(50);
+
+        if (error) {
+          console.error("Error fetching recent services:", error);
+          setRecentCards([]);
+          return;
+        }
+
+        const recent = servicesData || [];
+        if (recent.length === 0) {
+          setRecentCards([]);
+          return;
+        }
+
+        const userIds = [...new Set(recent.map((s: any) => s.user_id).filter(Boolean))];
+        let profileMap = new Map<string, any>();
+
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("user_id, full_name, avatar_url, phone, city, sub_city")
+            .in("user_id", userIds);
+          profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
+        }
+
+        const cards: FeaturedProviderCard[] = recent.map((svc: any) => {
+          const p = svc.user_id ? profileMap.get(svc.user_id) : null;
+          return {
+            service_id: svc.id,
+            category: svc.category,
+            service_title: svc.title || (isRTL ? "خدمة" : "Service"),
+            provider_name: p?.full_name || svc.provider_name || (isRTL ? "مقدم الخدمة" : "Provider"),
+            provider_phone: p?.phone || svc.provider_phone || "",
+            provider_avatar: p?.avatar_url || null,
+            provider_city: p?.city || svc.city || null,
+            provider_sub_city: p?.sub_city || svc.sub_city || null,
+            subcategory_id: null,
+          };
+        });
+
+        setRecentCards(cards.slice(0, hubConfig.recentLimit));
+      } catch (e) {
+        console.error("Recent services fetch error:", e);
+        setRecentCards([]);
+      } finally {
+        setRecentLoading(false);
+      }
+    };
+
+    void fetchRecentServices();
+  }, [isRTL, hubConfig.recentEnabled, hubConfig.recentLimit]);
 
   const featuredProvidersFiltered = useMemo(() => {
     return featuredProviders.filter((fp) => matchesSelectedCity(fp.provider_city));
   }, [featuredProviders, searchFilters.city, language, cities]);
+
+  const recentCardsFiltered = useMemo(() => {
+    return recentCards.filter((c) => matchesSelectedCity(c.provider_city));
+  }, [recentCards, searchFilters.city, language, cities]);
 
   const popularServices: ServiceItem[] = useMemo(() => {
     const flagged = serviceItems.filter((s) => s.is_popular);
@@ -966,8 +1165,9 @@ export default function Hub() {
           )}
 
           {/* Header service suggestions (chips) */}
-          <div className="mt-3 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-            {HUB_SUGGESTIONS.map((chip) => {
+          {hubConfig.suggestionsEnabled && (hubConfig.suggestionsOverride ?? HUB_SUGGESTIONS).length > 0 && (
+            <div className="mt-3 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+              {(hubConfig.suggestionsOverride ?? HUB_SUGGESTIONS).map((chip) => {
               const Icon = chip.icon || Sparkles;
               const label = isRTL ? chip.title_ar : chip.title_en;
 
@@ -985,8 +1185,9 @@ export default function Hub() {
                   {label}
                 </button>
               );
-            })}
-          </div>
+              })}
+            </div>
+          )}
         </div>
       </header>
 
@@ -1038,9 +1239,10 @@ export default function Hub() {
         </section>
 
         {/* Featured Providers */}
-        <section className="mt-8">
-          <SectionHeader title={isRTL ? "مقدمي خدمة مختارين" : "Featured providers"} />
-          {featuredLoading ? (
+        {hubConfig.featuredEnabled && (
+          <section className="mt-8">
+            <SectionHeader title={isRTL ? "مقدمي خدمة مختارين" : "Featured providers"} />
+            {featuredLoading ? (
             <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
               {[...Array(3)].map((_, i) => (
                 <div key={i} className="flex-shrink-0 w-[330px] h-[128px] rounded-2xl bg-gray-200 animate-pulse" />
@@ -1099,24 +1301,25 @@ export default function Hub() {
                 );
               })}
             </div>
-          ) : null}
-        </section>
+            ) : null}
+          </section>
+        )}
 
-        {/* Recently viewed (providers) */}
-        {recentLoading ? (
+        {/* Recently added services */}
+        {hubConfig.recentEnabled && recentLoading ? (
           <section className="mt-8">
-            <SectionHeader title={isRTL ? "شوهد مؤخراً" : "Recently viewed"} />
+            <SectionHeader title={isRTL ? "مضاف حديثاً" : "Recently added"} />
             <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
               {[...Array(3)].map((_, i) => (
                 <div key={i} className="flex-shrink-0 w-[330px] h-[128px] rounded-2xl bg-gray-200 animate-pulse" />
               ))}
             </div>
           </section>
-        ) : recentCards.length > 0 ? (
+        ) : hubConfig.recentEnabled && recentCardsFiltered.length > 0 ? (
           <section className="mt-8">
-            <SectionHeader title={isRTL ? "شوهد مؤخراً" : "Recently viewed"} />
+            <SectionHeader title={isRTL ? "مضاف حديثاً" : "Recently added"} />
             <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 snap-x snap-mandatory">
-              {recentCards.map((fp) => (
+              {recentCardsFiltered.map((fp) => (
                 <button
                   key={`recent-${fp.service_id}`}
                   onClick={() => openProviderDetailsFromFeatured(fp)}
