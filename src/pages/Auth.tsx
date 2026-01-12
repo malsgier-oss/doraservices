@@ -72,12 +72,6 @@ export default function Auth() {
     if (!user) return;
     if (profileLoading) return;
     if (!profile) return;
-    if (profile.must_change_password) {
-      navigate("/change-password", {
-        replace: true
-      });
-      return;
-    }
 
     // App-first routing:
     // - After signup: go to Profile (welcome mode)

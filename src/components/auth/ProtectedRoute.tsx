@@ -34,10 +34,6 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     return <Navigate to="/profile" replace />;
   }
 
-  if (profile.must_change_password) {
-    return <Navigate to="/change-password" replace />;
-  }
-
   const st = (profile.status || "").toLowerCase();
   if (st === "deleted" || st === "inactive") {
     return <Navigate to="/auth" replace />;

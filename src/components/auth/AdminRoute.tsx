@@ -28,11 +28,6 @@ export function AdminRoute({ children }: AdminRouteProps) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  // Always enforce password change if required (even for admins)
-  if (profile.must_change_password) {
-    return <Navigate to="/change-password" replace />;
-  }
-
   // If the user is an admin, allow access even if the account is not verified yet.
   // (Admins are not subject to provider verification gating.)
   if (isAdmin || (profile.role || "").toLowerCase() === "admin") {

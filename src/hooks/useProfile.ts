@@ -18,7 +18,6 @@ export interface Profile {
   is_verified?: boolean | null;
   verified_at: string | null;
   verified_by: string | null;
-  must_change_password: boolean | null;
   status: string;
   created_at: string;
   updated_at: string;

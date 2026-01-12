@@ -69,6 +69,10 @@ export default function Favorites() {
       const { data: services } = await supabase
         .from("services")
         .select("id, title, category, user_id, provider_name, provider_phone")
+        .eq("is_active", true)
+        .eq("is_visible", true)
+        .eq("is_paused", false)
+        .eq("approval_status", "approved")
         .in("id", serviceIds);
 
       if (!services || services.length === 0) {

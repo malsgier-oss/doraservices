@@ -120,8 +120,8 @@ export default function Profile() {
     setBio(profile.bio || "");
     setCityId(profile.city_id || "");
     setSubCity(profile.sub_city || "");
-    setPhone(profile.phone || ""); // if null in DB, allow set
-  }, [profile]);
+    setPhone((profile.phone || (typeof (user as any)?.user_metadata?.phone === "string" ? (user as any).user_metadata.phone : "")) as string); // fallback to auth metadata
+  }, [profile, user]);
 
   // If city changes and the selected sub-city doesn't belong to the city, clear it.
   useEffect(() => {
@@ -421,6 +421,22 @@ export default function Profile() {
         avatar_url: null,
       })
       .eq("user_id", user.id);
+
+    // P0: hide any services owned by this user so they no longer appear in Hub/search.
+    // (There is no FK between services.user_id and profiles.user_id, and guests may not be able
+    // to read profiles due to RLS, so we enforce visibility at the services row too.)
+    const { error: hideServicesError } = await supabase
+      .from("services")
+      .update({
+        is_active: false,
+        is_visible: false,
+        is_paused: true,
+      })
+      .eq("user_id", user.id);
+
+    if (hideServicesError) {
+      console.warn("Failed to hide services for deleted user:", hideServicesError);
+    }
 
     setDeleting(false);
 

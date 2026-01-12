@@ -487,6 +487,8 @@ export default function Hub() {
           .select(selectCols)
           .eq("is_active", true)
           .eq("is_featured", true)
+          .eq("is_visible", true)
+          .eq("approval_status", "approved")
           .or("is_paused.is.null,is_paused.eq.false")
           .order("featured_order", { ascending: true })
           .order("created_at", { ascending: false })
@@ -590,6 +592,8 @@ export default function Hub() {
           .from("services")
           .select("id, title, category, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused")
           .eq("is_active", true)
+          .eq("is_visible", true)
+          .eq("approval_status", "approved")
           .or("is_paused.is.null,is_paused.eq.false")
           .or(
             [
@@ -657,6 +661,8 @@ export default function Hub() {
           .select("id, category, title, user_id, city, sub_city, is_active, is_paused")
           .in("id", ids)
           .eq("is_active", true)
+          .eq("is_visible", true)
+          .eq("approval_status", "approved")
           .or("is_paused.is.null,is_paused.eq.false");
 
         if (error) {
