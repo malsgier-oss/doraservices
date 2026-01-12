@@ -326,90 +326,101 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Clean and normalize phone for lookups
-      const cleanedPhone = phone.replace(/\s/g, "").trim();
-      let digitsOnly = phone.replace(/\D/g, "");
+      // Normalize & generate candidate phones/emails.
+      // Dora has two historical auth patterns:
+      // 1) phone-based internal email: 2189xxxxxxx@phone.dora.ly (sometimes with a leading '+')
+      // 2) email-based auth: 091xxxxxxx@dora.ly (Libyan local mobile as email)
+      const raw = String(phone ?? "").trim();
+      const cleanedPhone = raw.replace(/\s/g, "");
+      const digits = raw.replace(/\D/g, ""); // numbers only
 
-      // Normalize Libya formats:
-      // - If it starts with 0XXXXXXXXX => digitsOnly already has leading 0
-      // - If it starts with 218XXXXXXXXX => convert to local 0XXXXXXXXX variants too
-      const phoneFormats: string[] = [];
-      const pushUnique = (v?: string | null) => {
+      const phoneCandidates: string[] = [];
+      const pushUnique = (arr: string[], v?: string | null) => {
         if (!v) return;
         const vv = String(v).trim();
         if (!vv) return;
-        if (!phoneFormats.includes(vv)) phoneFormats.push(vv);
+        if (!arr.includes(vv)) arr.push(vv);
       };
 
-      // Base variants from raw input
-      pushUnique(cleanedPhone);
-      pushUnique(digitsOnly);
-      pushUnique("+" + digitsOnly);
+      // Helper: normalize Libya mobile formats into local (09xxxxxxxx) and international (2189xxxxxxxx) digits
+      const deriveLibya = (d: string) => {
+        const out = {
+          localWith0: [] as string[],
+          localNo0: [] as string[],
+          intlNoPlus: [] as string[],
+        };
 
-      // If digitsOnly looks like Libya country code (218...), add local variants
-      if (digitsOnly.startsWith("218") && digitsOnly.length > 3) {
-        const local = digitsOnly.slice(3); // e.g. 9XXXXXXXX
-        pushUnique("0" + local);         // 0XXXXXXXXX
-        pushUnique(local);                // XXXXXXXXX
-        pushUnique("+218" + local);
-        pushUnique("218" + local);
-      }
+        if (!d) return out;
 
-      // If digitsOnly starts with 0, add international variants
-      if (digitsOnly.startsWith("0") && digitsOnly.length >= 9) {
-        const no0 = digitsOnly.replace(/^0+/, "");
-        pushUnique("+218" + no0);
-        pushUnique("218" + no0);
-      }      // Internal email variants we may have stored for phone-based auth
-      // Some systems store with '+' in the local-part, so try both.
-      const baseDigits = digitsOnly.replace(/^0+/, "");
-      const internalEmailA = `${baseDigits}@phone.dora.ly`;
-      const internalEmailB = `+${baseDigits}@phone.dora.ly`;
-
-      // Dora "email-auth" variants: some users are created as normal email accounts like 091xxxxxxx@dora.ly
-      // Build a wide set of email candidates from the phone formats we generated above.
-      const doraEmailCandidates: string[] = [];
-      const pushEmail = (e?: string | null) => {
-        if (!e) return;
-        const ee = String(e).trim().toLowerCase();
-        if (!ee) return;
-        if (!doraEmailCandidates.includes(ee)) doraEmailCandidates.push(ee);
-      };
-
-      for (const pf of phoneFormats) {
-        const d = String(pf).replace(/\D/g, "");
-        if (!d) continue;
-
-        // Direct digit form (e.g., 091..., 218..., 9...)
-        pushEmail(`${d}@dora.ly`);
-
-        // If looks like 218 + local, add local email forms too
+        // If starts with 218..., treat remainder as national number (usually 9xxxxxxxx)
         if (d.startsWith("218") && d.length > 3) {
-          const local = d.slice(3);      // 9XXXXXXXX
-          pushEmail(`${"0" + local}@dora.ly`);
-          pushEmail(`${local}@dora.ly`);
+          const national = d.slice(3); // e.g. 9xxxxxxxx
+          if (national) {
+            pushUnique(out.localNo0, national);
+            pushUnique(out.localWith0, national.startsWith("0") ? national : "0" + national);
+            pushUnique(out.intlNoPlus, "218" + national.replace(/^0+/, ""));
+          }
+          return out;
         }
 
-        // If looks like 0 + local, add 218 form too
+        // If starts with 0..., treat as local
         if (d.startsWith("0") && d.length >= 9) {
           const no0 = d.replace(/^0+/, "");
-          pushEmail(`${"218" + no0}@dora.ly`);
-          pushEmail(`${"+218" + no0}@dora.ly`);
+          pushUnique(out.localWith0, d);
+          pushUnique(out.localNo0, no0);
+          pushUnique(out.intlNoPlus, "218" + no0);
+          return out;
         }
+
+        // Otherwise, could already be national (9xxxxxxxx) or other.
+        if (d.length >= 8) {
+          pushUnique(out.localNo0, d);
+          pushUnique(out.localWith0, d.startsWith("0") ? d : "0" + d);
+          pushUnique(out.intlNoPlus, d.startsWith("218") ? d : "218" + d.replace(/^0+/, ""));
+        }
+
+        return out;
+      };
+
+      // Phone candidates (what profiles.phone or user_metadata.phone might contain)
+      pushUnique(phoneCandidates, cleanedPhone);
+      pushUnique(phoneCandidates, digits);
+      pushUnique(phoneCandidates, "+" + digits);
+
+      const lib = deriveLibya(digits);
+      for (const v of lib.localWith0) pushUnique(phoneCandidates, v);
+      for (const v of lib.localNo0) pushUnique(phoneCandidates, v);
+      for (const v of lib.intlNoPlus) {
+        pushUnique(phoneCandidates, v);
+        pushUnique(phoneCandidates, "+" + v);
       }
 
-      console.log("Looking for user with emails/phone", {
-        internalEmailA,
-        internalEmailB,
-        doraEmailCandidatesCount: doraEmailCandidates.length,
-        phoneFormatsCount: phoneFormats.length,
+      // Build email candidates
+      const emailCandidates = new Set<string>();
+
+      // phone.dora.ly style (expects intl digits without leading 0)
+      const baseIntl = lib.intlNoPlus[0] ?? (digits.startsWith("218") ? digits : "218" + digits.replace(/^0+/, ""));
+      const intlLocalPart = baseIntl.replace(/^0+/, "");
+      if (intlLocalPart) {
+        emailCandidates.add(`${intlLocalPart}@phone.dora.ly`.toLowerCase());
+        emailCandidates.add(`+${intlLocalPart}@phone.dora.ly`.toLowerCase());
+      }
+
+      // dora.ly style based on localWith0 and localNo0 (most common in your project)
+      for (const v of lib.localWith0) emailCandidates.add(`${v}@dora.ly`.toLowerCase());
+      for (const v of lib.localNo0) emailCandidates.add(`${v}@dora.ly`.toLowerCase());
+
+      console.log("set_temp_password lookup", {
+        input: phone,
+        phoneCandidatesCount: phoneCandidates.length,
+        emailCandidatesCount: emailCandidates.size,
       });
 
       let targetUser: any = null;
 
-      // Strategy 1: If we can resolve user_id from profiles.phone, fetch auth user directly
+      // Strategy 1: Resolve user_id from profiles.phone, then fetch auth user directly (fast + reliable)
       let profileUserId: string | null = null;
-      for (const pf of phoneFormats) {
+      for (const pf of phoneCandidates) {
         const { data: profileData } = await adminClient
           .from("profiles")
           .select("user_id")
@@ -418,7 +429,7 @@ Deno.serve(async (req) => {
 
         if (profileData?.user_id) {
           profileUserId = profileData.user_id;
-          console.log("Found profile with phone format:", pf, "user_id:", profileUserId);
+          console.log("Found profile by phone:", pf, "user_id:", profileUserId);
           break;
         }
       }
@@ -429,16 +440,16 @@ Deno.serve(async (req) => {
           targetUser = byId.user;
           console.log("Found auth user by profile user_id:", targetUser.id);
         } else {
-          console.log("Auth user not found by profile user_id (may be deleted or different project)." );
+          console.log("Auth user not found by profile user_id (may be deleted).");
         }
       }
 
-      // Strategy 2: paginate through auth users and match on email (covers older accounts without profiles.phone)
+      // Strategy 2: paginate through auth users and match on email OR user_metadata.phone
       if (!targetUser) {
-        const matchEmails = new Set([internalEmailA.toLowerCase(), internalEmailB.toLowerCase(), ...doraEmailCandidates]);
+        const phoneDigitsSet = new Set(
+          phoneCandidates.map((p) => String(p).replace(/\D/g, "")).filter(Boolean),
+        );
 
-        // Supabase Admin listUsers is paginated. Scan a bounded number of pages.
-        // Each page is small enough to avoid timeouts; stop early when found.
         const PER_PAGE = 200;
         const MAX_PAGES = 50; // up to 10k users
         for (let page = 1; page <= MAX_PAGES; page++) {
@@ -449,39 +460,46 @@ Deno.serve(async (req) => {
           }
 
           const users = pageData?.users ?? [];
-          const phoneDigitsSet = new Set(phoneFormats.map((p) => String(p).replace(/\D/g, "")));
           const found = users.find((u: any) => {
             const em = (u.email ?? "").toLowerCase();
-            if (matchEmails.has(em)) return true;
+            if (em && emailCandidates.has(em)) return true;
 
-            const mdPhone = (u.user_metadata?.phone ?? u.raw_user_meta_data?.phone ?? "").toString().trim();
-            if (!mdPhone) return false;
+            const metaPhone = u.user_metadata?.phone ?? u.user_metadata?.phone_number ?? null;
+            if (metaPhone) {
+              const md = String(metaPhone).replace(/\D/g, "");
+              if (md && phoneDigitsSet.has(md)) return true;
+            }
 
-            const mdDigits = mdPhone.replace(/\D/g, "");
-            return phoneDigitsSet.has(mdDigits);
+            // Some projects might store phone in u.phone (rare when using email provider)
+            if (u.phone) {
+              const pd = String(u.phone).replace(/\D/g, "");
+              if (pd && phoneDigitsSet.has(pd)) return true;
+            }
+
+            return false;
           });
 
           if (found) {
             targetUser = found;
-            console.log("Found auth user by email on page", page, ":", targetUser.id);
+            console.log("Found auth user via listUsers on page", page, ":", targetUser.id);
             break;
           }
 
-          // Stop if this page returned fewer than perPage results (last page)
           if (users.length < PER_PAGE) break;
         }
       }
 
       if (!targetUser) {
-        console.error("User not found for phone:", cleanedPhone, "or email:", internalEmailA);
+        console.error("User not found for input:", phone, "emails tried:", Array.from(emailCandidates).slice(0, 5));
         return new Response(
           JSON.stringify({
-            error: "User not found for this phone number. Make sure the user has registered.",
+            error:
+              "User not found for this phone. In this project, users are stored as email like 091xxxxxxx@dora.ly. Try entering the local phone (09...) or ensure the user has registered.",
           }),
           {
             status: 404,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          },
         );
       }
 
@@ -498,10 +516,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      // NOTE: Dora no longer uses profiles.must_change_password (column removed in DB).
-      // If you want a "force password change" feature later, implement it as a separate table/flag.
-
-      // Update reset request status
+      // Update reset request status (best effort)
       if (requestId) {
         await adminClient
           .from("password_reset_requests")
@@ -531,7 +546,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ==================== FIX ADMIN EMAIL ====================
+// ==================== FIX ADMIN EMAIL ====================
     if (body.action === "fix_admin_email") {
       const { userId, phone } = body;
 
