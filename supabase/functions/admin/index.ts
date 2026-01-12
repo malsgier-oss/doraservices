@@ -328,13 +328,11 @@ Deno.serve(async (req) => {
 
       // Clean and normalize phone for lookups
       const cleanedPhone = phone.replace(/\s/g, "").trim();
-      let digitsOnly = cleanedPhone.replace(/\D/g, "");
+      let digitsOnly = phone.replace(/\D/g, "");
 
-      // Normalize Libya formats into multiple possible representations.
-      // We do this because Dora historically stored users as:
-      //  - email auth: 091xxxxxxx@dora.ly (user_metadata.phone = 091xxxxxxx)
-      //  - phone-mapped auth: 2189xxxxxxx@phone.dora.ly (sometimes with '+' in the local-part)
-      //  - profiles.phone may or may not be populated
+      // Normalize Libya formats:
+      // - If it starts with 0XXXXXXXXX => digitsOnly already has leading 0
+      // - If it starts with 218XXXXXXXXX => convert to local 0XXXXXXXXX variants too
       const phoneFormats: string[] = [];
       const pushUnique = (v?: string | null) => {
         if (!v) return;
@@ -362,39 +360,50 @@ Deno.serve(async (req) => {
         const no0 = digitsOnly.replace(/^0+/, "");
         pushUnique("+218" + no0);
         pushUnique("218" + no0);
-      }
+      }      // Internal email variants we may have stored for phone-based auth
+      // Some systems store with '+' in the local-part, so try both.
+      const baseDigits = digitsOnly.replace(/^0+/, "");
+      const internalEmailA = `${baseDigits}@phone.dora.ly`;
+      const internalEmailB = `+${baseDigits}@phone.dora.ly`;
 
-      // Build email candidates (historical + current Dora formats)
-      const emailCandidates: string[] = [];
+      // Dora "email-auth" variants: some users are created as normal email accounts like 091xxxxxxx@dora.ly
+      // Build a wide set of email candidates from the phone formats we generated above.
+      const doraEmailCandidates: string[] = [];
       const pushEmail = (e?: string | null) => {
         if (!e) return;
         const ee = String(e).trim().toLowerCase();
         if (!ee) return;
-        if (!emailCandidates.includes(ee)) emailCandidates.push(ee);
+        if (!doraEmailCandidates.includes(ee)) doraEmailCandidates.push(ee);
       };
 
-      // 1) phone-mapped auth format
-      const baseDigitsNo0 = digitsOnly.replace(/^0+/, "");
-      pushEmail(`${baseDigitsNo0}@phone.dora.ly`);
-      pushEmail(`+${baseDigitsNo0}@phone.dora.ly`);
-
-      // 2) email auth format used in your DB: 091xxxxxxx@dora.ly
-      // Use phoneFormats to derive possible local numbers.
       for (const pf of phoneFormats) {
-        const pfDigits = pf.replace(/\D/g, "");
-        if (!pfDigits) continue;
+        const d = String(pf).replace(/\D/g, "");
+        if (!d) continue;
 
-        // If local begins with 0, try @dora.ly (most common)
-        if (pfDigits.startsWith("0") && pfDigits.length >= 9) {
-          pushEmail(`${pfDigits}@dora.ly`);
+        // Direct digit form (e.g., 091..., 218..., 9...)
+        pushEmail(`${d}@dora.ly`);
+
+        // If looks like 218 + local, add local email forms too
+        if (d.startsWith("218") && d.length > 3) {
+          const local = d.slice(3);      // 9XXXXXXXX
+          pushEmail(`${"0" + local}@dora.ly`);
+          pushEmail(`${local}@dora.ly`);
         }
-        // Some legacy tests used no leading 0: 9xxxxxxx@dora.ly
-        if (!pfDigits.startsWith("218") && !pfDigits.startsWith("0") && pfDigits.length >= 8) {
-          pushEmail(`${pfDigits}@dora.ly`);
+
+        // If looks like 0 + local, add 218 form too
+        if (d.startsWith("0") && d.length >= 9) {
+          const no0 = d.replace(/^0+/, "");
+          pushEmail(`${"218" + no0}@dora.ly`);
+          pushEmail(`${"+218" + no0}@dora.ly`);
         }
       }
 
-      console.log("Looking for user. phone=", cleanedPhone, "phoneFormats=", phoneFormats, "emailCandidates=", emailCandidates);
+      console.log("Looking for user with emails/phone", {
+        internalEmailA,
+        internalEmailB,
+        doraEmailCandidatesCount: doraEmailCandidates.length,
+        phoneFormatsCount: phoneFormats.length,
+      });
 
       let targetUser: any = null;
 
@@ -426,8 +435,7 @@ Deno.serve(async (req) => {
 
       // Strategy 2: paginate through auth users and match on email (covers older accounts without profiles.phone)
       if (!targetUser) {
-        const matchEmails = new Set(emailCandidates.map((e) => e.toLowerCase()));
-        const matchDigits = new Set(phoneFormats.map((p) => p.replace(/\D/g, "")).filter(Boolean));
+        const matchEmails = new Set([internalEmailA.toLowerCase(), internalEmailB.toLowerCase(), ...doraEmailCandidates]);
 
         // Supabase Admin listUsers is paginated. Scan a bounded number of pages.
         // Each page is small enough to avoid timeouts; stop early when found.
@@ -441,22 +449,21 @@ Deno.serve(async (req) => {
           }
 
           const users = pageData?.users ?? [];
+          const phoneDigitsSet = new Set(phoneFormats.map((p) => String(p).replace(/\D/g, "")));
           const found = users.find((u: any) => {
             const em = (u.email ?? "").toLowerCase();
             if (matchEmails.has(em)) return true;
 
-            // Also match on user_metadata.phone (Dora often stores phone here)
-            const metaPhone =
-              (u.user_metadata?.phone ?? u.user_metadata?.phone_number ?? u.user_metadata?.mobile ?? u.phone ?? "").toString();
-            const metaDigits = metaPhone.replace(/\D/g, "");
-            if (metaDigits && matchDigits.has(metaDigits)) return true;
+            const mdPhone = (u.user_metadata?.phone ?? u.raw_user_meta_data?.phone ?? "").toString().trim();
+            if (!mdPhone) return false;
 
-            return false;
+            const mdDigits = mdPhone.replace(/\D/g, "");
+            return phoneDigitsSet.has(mdDigits);
           });
 
           if (found) {
             targetUser = found;
-            console.log("Found auth user by email/metadata on page", page, ":", targetUser.id, "email=", targetUser.email);
+            console.log("Found auth user by email on page", page, ":", targetUser.id);
             break;
           }
 
@@ -466,7 +473,7 @@ Deno.serve(async (req) => {
       }
 
       if (!targetUser) {
-        console.error("User not found", { cleanedPhone, phoneFormats, emailCandidates });
+        console.error("User not found for phone:", cleanedPhone, "or email:", internalEmailA);
         return new Response(
           JSON.stringify({
             error: "User not found for this phone number. Make sure the user has registered.",
