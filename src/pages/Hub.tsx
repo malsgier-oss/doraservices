@@ -42,6 +42,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
 import { ReviewPromptBanner } from "@/components/review/ReviewPromptBanner";
+import { ActivityBadge } from "@/components/providers/ActivityBadge";
 
 import { Drawer, DrawerClose, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -55,6 +56,7 @@ import { useCategories } from "@/hooks/useCategories";
 import { useAllSubcategories } from "@/hooks/useSubcategories";
 import { useCities } from "@/hooks/useCities";
 import { useServiceRatings } from "@/hooks/useReviews";
+import { useRecentlyActiveProviders } from "@/hooks/useRecentlyActiveProviders";
 
 import { useNotifications, useUnreadCount, useNotificationMutations } from "@/hooks/useNotifications";
 import type { Notification } from "@/hooks/useNotifications";
@@ -113,6 +115,7 @@ type FeaturedProviderCard = {
   provider_city: string | null;
   provider_sub_city: string | null;
   subcategory_id: string | null;
+  last_activity_at?: string | null;
 };
 
 type AppNotification = {
@@ -467,6 +470,20 @@ export default function Hub() {
     return false;
   };
 
+  const selectedCityDisplay = useMemo(() => {
+    if (!searchFilters.city) return isRTL ? "ليبيا" : "Libya";
+    return getCityLabel(searchFilters.city) || (isRTL ? "ليبيا" : "Libya");
+  }, [searchFilters.city, isRTL, language, cities]);
+
+  const {
+    data: recentlyActiveProviders,
+    loading: recentlyActiveLoading,
+  } = useRecentlyActiveProviders({ limit: 14 });
+
+  const recentlyActiveFiltered = useMemo(() => {
+    return (recentlyActiveProviders || []).filter((p) => matchesSelectedCity(p.provider_city)).slice(0, 8);
+  }, [recentlyActiveProviders, searchFilters.city, language, cities]);
+
   const getFeaturedRatingDisplay = (serviceId: string) => {
     const r = featuredRatings.get(serviceId);
     if (!r || r.totalReviews === 0) return { text: isRTL ? "جديد" : "New", hasRating: false };
@@ -603,7 +620,7 @@ export default function Hub() {
       setFeaturedLoading(true);
       try {
         const selectCols =
-          "id, category, title, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused, is_featured, featured_order, created_at";
+          "id, category, title, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused, is_featured, featured_order, created_at, last_activity_at";
 
         const { data: servicesData, error } = await supabase
           .from("services")
@@ -655,6 +672,7 @@ export default function Hub() {
             provider_city: p?.city || svc.city || null,
             provider_sub_city: p?.sub_city || svc.sub_city || null,
             subcategory_id: null,
+            last_activity_at: svc.last_activity_at || null,
           };
         });
 
@@ -680,7 +698,7 @@ export default function Hub() {
       setRecentLoading(true);
       try {
         const selectCols =
-          "id, category, title, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused, is_featured, created_at";
+          "id, category, title, user_id, provider_name, provider_phone, city, sub_city, is_active, is_paused, is_featured, created_at, last_activity_at";
 
         const { data: servicesData, error } = await supabase
           .from("services")
@@ -728,6 +746,7 @@ export default function Hub() {
             provider_city: p?.city || svc.city || null,
             provider_sub_city: p?.sub_city || svc.sub_city || null,
             subcategory_id: null,
+            last_activity_at: svc.last_activity_at || null,
           };
         });
 
@@ -1099,6 +1118,10 @@ export default function Hub() {
             />
           </div>
 
+          <p className="mt-2 text-[12px] text-muted-foreground">
+            {isRTL ? `مزودون متاحون في ${selectedCityDisplay} الآن` : `Providers available in ${selectedCityDisplay} now`}
+          </p>
+
           {/* Inline search input */}
           {searchOpen && (
             <div className="mt-3">
@@ -1197,9 +1220,80 @@ export default function Hub() {
       <main className="px-4 pt-5 pb-10">
         <ReviewPromptBanner />
 
-        {/* Categories FIRST */}
-        <section className="mt-5">
-          <SectionHeader title={isRTL ? "الفئات" : "Categories"} />
+        {/* Featured · Active now */}
+        {hubConfig.featuredEnabled && (
+          <section className="mt-8">
+            <SectionHeader title={isRTL ? "⭐ مختارون · نشطون الآن" : "⭐ Featured · Active now"} />
+            {featuredLoading ? (
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="flex-shrink-0 w-[330px] h-[128px] rounded-2xl bg-gray-200 animate-pulse" />
+              ))}
+            </div>
+          ) : featuredProvidersFiltered.length > 0 ? (
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 snap-x snap-mandatory">
+              {featuredProvidersFiltered.map((fp) => {
+                const r = getFeaturedRatingDisplay(fp.service_id);
+
+                return (
+                  <button
+                    key={`${fp.service_id}-${fp.provider_phone || fp.provider_name}`}
+                    onClick={() => openProviderDetailsFromFeatured(fp)}
+                    className={cn(
+                      "snap-start flex-shrink-0 w-[330px] rounded-2xl bg-card border border-border p-4 text-left transition-all active:scale-[0.98]",
+                      isRTL && "text-right",
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-14 w-14">
+                        <AvatarImage src={fp.provider_avatar || undefined} />
+                        <AvatarFallback className="bg-foreground text-background font-semibold">
+                          {(fp.provider_name || (isRTL ? "م" : "P"))
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .slice(0, 2)}
+                        </AvatarFallback>
+                      </Avatar>
+
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-[16px] font-semibold text-foreground truncate">{fp.provider_name}</h3>
+                        <p className="text-[13px] text-muted-foreground mt-1 truncate">{fp.service_title}</p>
+
+                        <div className="mt-1.5">
+                          <ActivityBadge rtl={isRTL} lastActivityAt={fp.last_activity_at || null} />
+                        </div>
+
+                        <div className="mt-1.5 flex items-center gap-1 text-[12px]">
+                          <Star
+                            className={cn("h-4 w-4", r.hasRating ? "text-yellow-500 fill-yellow-500" : "text-[#999]")}
+                          />
+                          <span className={cn(r.hasRating ? "text-foreground font-semibold" : "text-muted-foreground")}>
+                            {r.text}
+                          </span>
+                        </div>
+                      </div>
+
+                      <ChevronRight className={cn("h-6 w-6 text-[#C9C9C9]", isRTL && "rotate-180")} />
+                    </div>
+
+                    <div className="mt-3 text-[12px] text-muted-foreground">
+                      {fp.provider_city ? (isRTL ? "المدينة: " : "City: ") : ""}
+                      <span className="text-foreground font-semibold">
+                        {getCityLabel(fp.provider_city) || (isRTL ? "غير محدد" : "Not set")}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            ) : null}
+          </section>
+        )}
+
+        {/* Categories */}
+        <section className="mt-6">
+          <SectionHeader title={isRTL ? "شن تحتاج؟" : "What do you need help with?"} />
           {categoriesLoading ? (
             <div className="grid grid-cols-4 gap-3">
               {[...Array(8)].map((_, i) => (
@@ -1240,72 +1334,66 @@ export default function Hub() {
           )}
         </section>
 
-        {/* Featured Providers */}
-        {hubConfig.featuredEnabled && (
-          <section className="mt-8">
-            <SectionHeader title={isRTL ? "مقدمي خدمة مختارين" : "Featured providers"} />
-            {featuredLoading ? (
-            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="flex-shrink-0 w-[330px] h-[128px] rounded-2xl bg-gray-200 animate-pulse" />
+        {/* Recently active providers */}
+        <section className="mt-8">
+          <SectionHeader title={isRTL ? "⚡ مزودون نشطون مؤخراً" : "⚡ Recently active providers"} />
+
+          {recentlyActiveLoading ? (
+            <div className="space-y-2">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-20 rounded-2xl bg-gray-200 animate-pulse" />
               ))}
             </div>
-          ) : featuredProvidersFiltered.length > 0 ? (
-            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 snap-x snap-mandatory">
-              {featuredProvidersFiltered.map((fp) => {
-                const r = getFeaturedRatingDisplay(fp.service_id);
+          ) : recentlyActiveFiltered.length > 0 ? (
+            <div className="space-y-2">
+              {recentlyActiveFiltered.map((p) => (
+                <button
+                  key={`ra-${p.service_id}`}
+                  onClick={() => openProviderDetailsFromFeatured(p as any)}
+                  className={cn(
+                    "w-full rounded-2xl bg-card border border-border p-4 text-left transition-all active:scale-[0.99]",
+                    isRTL && "text-right",
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-12 w-12">
+                      <AvatarImage src={p.provider_avatar || undefined} />
+                      <AvatarFallback className="bg-foreground text-background font-semibold">
+                        {(p.provider_name || (isRTL ? "م" : "P"))
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .slice(0, 2)}
+                      </AvatarFallback>
+                    </Avatar>
 
-                return (
-                  <button
-                    key={`${fp.service_id}-${fp.provider_phone || fp.provider_name}`}
-                    onClick={() => openProviderDetailsFromFeatured(fp)}
-                    className={cn(
-                      "snap-start flex-shrink-0 w-[330px] rounded-2xl bg-card border border-border p-4 text-left transition-all active:scale-[0.98]",
-                      isRTL && "text-right",
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-14 w-14">
-                        <AvatarImage src={fp.provider_avatar || undefined} />
-                        <AvatarFallback className="bg-foreground text-background font-semibold">
-                          {(fp.provider_name || (isRTL ? "م" : "P"))
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")
-                            .slice(0, 2)}
-                        </AvatarFallback>
-                      </Avatar>
-
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-[16px] font-semibold text-foreground truncate">{fp.provider_name}</h3>
-                        <p className="text-[13px] text-muted-foreground mt-1 truncate">{fp.service_title}</p>
-
-                        <div className="mt-1.5 flex items-center gap-1 text-[12px]">
-                          <Star
-                            className={cn("h-4 w-4", r.hasRating ? "text-yellow-500 fill-yellow-500" : "text-[#999]")}
-                          />
-                          <span className={cn(r.hasRating ? "text-foreground font-semibold" : "text-muted-foreground")}>
-                            {r.text}
-                          </span>
-                        </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-[15px] font-semibold text-foreground truncate">{p.provider_name}</h3>
+                        <ActivityBadge rtl={isRTL} lastActivityAt={p.last_activity_at} />
                       </div>
-
-                      <ChevronRight className={cn("h-6 w-6 text-[#C9C9C9]", isRTL && "rotate-180")} />
+                      <p className="text-[12px] text-muted-foreground mt-1 truncate">{p.service_title}</p>
+                      {p.provider_city ? (
+                        <p className="text-[12px] text-muted-foreground mt-1 truncate">
+                          {isRTL ? "المدينة: " : "City: "}
+                          <span className="text-foreground font-semibold">
+                            {getCityLabel(p.provider_city) || (isRTL ? "غير محدد" : "Not set")}
+                          </span>
+                        </p>
+                      ) : null}
                     </div>
 
-                    <div className="mt-3 text-[12px] text-muted-foreground">
-                      {fp.provider_city ? (isRTL ? "المدينة: " : "City: ") : ""}
-                      <span className="text-foreground font-semibold">
-                        {getCityLabel(fp.provider_city) || (isRTL ? "غير محدد" : "Not set")}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
+                    <ChevronRight className={cn("h-6 w-6 text-[#C9C9C9]", isRTL && "rotate-180")} />
+                  </div>
+                </button>
+              ))}
             </div>
-            ) : null}
-          </section>
-        )}
+          ) : (
+            <div className="rounded-2xl bg-card border border-border p-4 text-[13px] text-muted-foreground">
+              {isRTL ? "لا توجد حركة كافية بعد." : "Not enough activity yet."}
+            </div>
+          )}
+        </section>
 
         {/* Recently added services */}
         {hubConfig.recentEnabled && recentLoading ? (

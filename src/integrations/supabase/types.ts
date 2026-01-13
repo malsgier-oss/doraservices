@@ -932,6 +932,7 @@ export type Database = {
           updated_at: string
           user_id: string | null
           views_count: number
+          last_activity_at: string | null
         }
         Insert: {
           admin_note?: string | null
@@ -955,6 +956,7 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           views_count?: number
+          last_activity_at?: string | null
         }
         Update: {
           admin_note?: string | null
@@ -978,8 +980,44 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           views_count?: number
+          last_activity_at?: string | null
         }
         Relationships: []
+      }
+      service_events: {
+        Row: {
+          id: string
+          service_id: string
+          provider_id: string | null
+          user_id: string | null
+          event_type: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          service_id: string
+          provider_id?: string | null
+          user_id?: string | null
+          event_type: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          service_id?: string
+          provider_id?: string | null
+          user_id?: string | null
+          event_type?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_events_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sub_cities: {
         Row: {

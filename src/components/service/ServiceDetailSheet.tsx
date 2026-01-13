@@ -15,6 +15,7 @@ import { useReviews, useServiceRatings } from "@/hooks/useReviews";
 import { useCities } from "@/hooks/useCities";
 import { useSubCities } from "@/hooks/useSubCities";
 import { useCallLogs } from "@/hooks/useCallLogs";
+import { logServiceEvent } from "@/hooks/useServiceEvents";
 import { ReviewDialog } from "./ReviewDialog";
 import { ReviewList } from "./ReviewList";
 import { ReportDialog } from "@/components/report/ReportDialog";
@@ -307,6 +308,20 @@ export function ServiceDetailSheet({
 
   const handleProviderClick = (provider: ServiceProvider) => setSelectedProvider(provider);
 
+  // Record a provider view when the user opens a provider detail.
+  useEffect(() => {
+    if (!open) return;
+    if (!selectedProvider) return;
+
+    logServiceEvent({
+      event_type: "view",
+      service_id: selectedProvider.id,
+      provider_id: selectedProvider.user_id,
+      user_id: user?.id ?? null,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, selectedProvider?.id]);
+
   const handleCall = async (provider: ServiceProvider) => {
     const normalized = normalizeLibyaPhone(provider.provider_phone || "");
     if (!normalized.wa) {
@@ -316,6 +331,14 @@ export function ServiceDetailSheet({
 
     setIsLoggingCall(true);
     try {
+      // Anonymous-safe telemetry for Hub + health signals.
+      await logServiceEvent({
+        event_type: "call",
+        service_id: provider.id,
+        provider_id: provider.user_id,
+        user_id: user?.id ?? null,
+      });
+
       // Only log calls when the caller is logged in AND the provider is claimed.
       if (user && provider.user_id) {
         await logCall.mutateAsync({
@@ -338,6 +361,14 @@ export function ServiceDetailSheet({
       toast.error(isRTL ? "رقم الهاتف غير متوفر" : "Phone number not available");
       return;
     }
+
+    // Anonymous-safe telemetry for Hub + health signals.
+    logServiceEvent({
+      event_type: "whatsapp",
+      service_id: provider.id,
+      provider_id: provider.user_id,
+      user_id: user?.id ?? null,
+    });
 
     window.open(`https://wa.me/${normalized.wa}`, "_blank", "noopener,noreferrer");
   };
