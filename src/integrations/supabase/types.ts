@@ -613,6 +613,8 @@ export type Database = {
           full_name: string | null
           id: string
           is_verified: boolean | null
+          availability_status: string | null
+          availability_updated_at: string | null
           must_change_password: boolean | null
           phone: string | null
           points: number
@@ -637,6 +639,8 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_verified?: boolean | null
+          availability_status?: string | null
+          availability_updated_at?: string | null
           must_change_password?: boolean | null
           phone?: string | null
           points?: number
@@ -661,6 +665,8 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_verified?: boolean | null
+          availability_status?: string | null
+          availability_updated_at?: string | null
           must_change_password?: boolean | null
           phone?: string | null
           points?: number
@@ -1171,7 +1177,80 @@ export type Database = {
         Insert: {
           created_at?: string | null
           id?: string
-          role?: Database["public"]["Enums"]["app_role"]
+          role?: 
+      hub_suggestions: {
+        Row: {
+          id: string
+          type: string
+          label_en: string | null
+          label_ar: string | null
+          display_order: number | null
+          is_active: boolean | null
+          city_key: string | null
+          action_type: string | null
+          action_value: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          type: string
+          label_en?: string | null
+          label_ar?: string | null
+          display_order?: number | null
+          is_active?: boolean | null
+          city_key?: string | null
+          action_type?: string | null
+          action_value?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          type?: string
+          label_en?: string | null
+          label_ar?: string | null
+          display_order?: number | null
+          is_active?: boolean | null
+          city_key?: string | null
+          action_type?: string | null
+          action_value?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      site_pages: {
+        Row: {
+          slug: string
+          title_en: string | null
+          title_ar: string | null
+          content_en: string | null
+          content_ar: string | null
+          is_published: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          slug: string
+          title_en?: string | null
+          title_ar?: string | null
+          content_en?: string | null
+          content_ar?: string | null
+          is_published?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          slug?: string
+          title_en?: string | null
+          title_ar?: string | null
+          content_en?: string | null
+          content_ar?: string | null
+          is_published?: boolean | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Update: {

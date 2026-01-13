@@ -22,7 +22,7 @@ export function useReports() {
       if (!user) throw new Error("Must be logged in to report");
 
       const { error } = await supabase.from("user_reports").insert({
-        reporter_id: user.id,
+        reporter_id: user?.id ?? null,
         report_type: params.reportType,
         reason: params.reason,
         reported_service_id: params.reportedServiceId || null,

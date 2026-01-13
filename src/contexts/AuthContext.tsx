@@ -24,6 +24,8 @@ interface Profile {
   // Note: some deployments do not have an `is_verified` column anymore.
   // Do not rely on this flag for core navigation.
   is_verified?: boolean | null;
+  availability_status?: string | null;
+  availability_updated_at?: string | null;
 
   created_at: string;
   updated_at: string;
