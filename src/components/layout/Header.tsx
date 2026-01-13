@@ -35,7 +35,7 @@ export function Header() {
 
           <Popover>
             <PopoverTrigger asChild>
-              <button className="relative h-9 w-9 rounded-full bg-background border border-border shadow-sm flex items-center justify-center hover:bg-muted transition-colors">
+              <button className="relative h-9 w-9 rounded-full bg-white shadow-sm flex items-center justify-center hover:bg-muted transition-colors">
                 <Bell className="h-4 w-4 text-foreground" />
 
                 {user && unreadCount && unreadCount > 0 && (
@@ -51,7 +51,7 @@ export function Header() {
                 align={isRTL ? "start" : "end"}
                 className="w-80 p-0 bg-popover border-border"
               >
-                <div className="p-3 border-b border-border flex items-center justify-between">
+                <div className="p-3 border-b flex items-center justify-between">
                   <h3 className="font-semibold text-sm">
                     {isRTL ? "الإشعارات" : "Notifications"}
                   </h3>

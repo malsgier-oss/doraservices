@@ -31,7 +31,7 @@ export function Layout({
 
       <MobileNav />
 
-      <footer className="hidden md:block border-t border-border bg-background py-6">
+      <footer className="hidden md:block border-t border-border bg-white py-6">
         <div className="container">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
