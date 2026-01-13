@@ -1,4 +1,5 @@
 import { Header } from "./Header";
+import { Footer } from "./Footer";
 import { MobileNav } from "./MobileNav";
 import { PageTransition } from "./PageTransition";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -31,23 +32,7 @@ export function Layout({
 
       <MobileNav />
 
-      <footer className="hidden md:block border-t border-border bg-white py-6">
-        <div className="container">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-full bg-[#333] flex items-center justify-center">
-                <span className="text-white font-bold text-sm">
-                  {isRTL ? "د" : "D"}
-                </span>
-              </div>
-              <span className="font-medium text-foreground">{t.appName}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              © 2024 {t.appName}. {t.appTagline}.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
