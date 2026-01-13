@@ -43,6 +43,9 @@ import AdminPasswordResets from "./pages/admin/AdminPasswordResets";
 
 // ✅ NEW: Env Debug page (optional)
 import EnvDebug from "./pages/EnvDebug";
+import SitePage from "./pages/SitePage";
+import AdminHubSuggestions from "./pages/admin/AdminHubSuggestions";
+import AdminPages from "./pages/admin/AdminPages";
 
 // ✅ keep QueryClient stable
 const queryClient = new QueryClient();
@@ -119,6 +122,9 @@ const AppRoutes = () => {
       <Route path="/onboarding" element={<Onboarding />} />
       {/* Hub is public */}
       <Route path="/" element={<Hub />} />
+
+      {/* Public site pages */}
+      <Route path="/:slug(about|contact|terms|privacy)" element={<SitePage />} />
 
       {/* ✅ ENV DEBUG ROUTE (optional) */}
       <Route path="/env" element={<EnvDebug />} />
@@ -205,6 +211,8 @@ const AppRoutes = () => {
         <Route path="users" element={<AdminUsers />} />
         <Route path="providers" element={<AdminProviders />} />
         <Route path="services" element={<AdminServices />} />
+        <Route path="hub-suggestions" element={<AdminHubSuggestions />} />
+        <Route path="pages" element={<AdminPages />} />
         <Route path="reviews" element={<AdminReviews />} />
         <Route path="categories" element={<AdminCategories />} />
         <Route path="cities" element={<AdminCities />} />
