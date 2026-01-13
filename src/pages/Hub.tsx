@@ -38,6 +38,7 @@ import {
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
 import { ReviewPromptBanner } from "@/components/review/ReviewPromptBanner";
@@ -934,6 +935,7 @@ export default function Hub() {
 
             <div className="flex items-center gap-2">
               <LanguageToggle />
+              <ThemeToggle />
 
               <Popover open={notifOpen} onOpenChange={setNotifOpen}>
                 <PopoverTrigger asChild>
