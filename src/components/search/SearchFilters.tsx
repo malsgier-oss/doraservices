@@ -85,7 +85,7 @@ export function SearchFilters({ filters, onFiltersChange }: SearchFiltersProps) 
           variant="outline"
           size="icon"
           className={cn(
-            "h-12 w-12 rounded-full bg-white border-0 shadow-sm relative",
+            "h-12 w-12 rounded-full bg-card border-0 shadow-sm relative",
             hasActiveFilters && "ring-2 ring-primary"
           )}
         >

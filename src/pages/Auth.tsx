@@ -380,7 +380,7 @@ export default function Auth() {
                       <SelectValue placeholder={isRTL ? "اختر مدينتك" : "Select your city"} />
                     </SelectTrigger>
 
-                    <SelectContent position="popper" sideOffset={8} avoidCollisions className="z-[9999] bg-white border border-border shadow-lg">
+                    <SelectContent position="popper" sideOffset={8} avoidCollisions className="z-[9999] bg-popover border border-border shadow-lg">
                       {cities?.map(city => <SelectItem key={city.id} value={city.id}>
                           {language === "ar" && city.name_ar ? city.name_ar : city.name}
                         </SelectItem>)}

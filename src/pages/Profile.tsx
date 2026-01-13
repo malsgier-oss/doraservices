@@ -687,7 +687,7 @@ export default function Profile() {
                       <SelectTrigger className="h-12 rounded-xl">
                         <SelectValue placeholder={isRTL ? "اختر المدينة" : "Select city"} />
                       </SelectTrigger>
-                      <SelectContent className="z-[9999] bg-white border border-border shadow-lg">
+                      <SelectContent className="z-[9999] bg-popover border border-border shadow-lg">
                         {(cities || []).map((c) => (
                           <SelectItem key={c.id} value={c.id}>
                             {language === "ar" ? c.name_ar || c.name : c.name || c.name_ar}
@@ -705,7 +705,7 @@ export default function Profile() {
                         <SelectTrigger className="h-12 rounded-xl">
                           <SelectValue placeholder={isRTL ? "اختر المنطقة" : "Select sub-city"} />
                         </SelectTrigger>
-                        <SelectContent className="z-[9999] bg-white border border-border shadow-lg">
+                        <SelectContent className="z-[9999] bg-popover border border-border shadow-lg">
                           <SelectItem value="none">{isRTL ? "بدون" : "None"}</SelectItem>
                           {subCities.map((sc) => {
                             const label = language === "ar" && sc.name_ar ? sc.name_ar : sc.name;

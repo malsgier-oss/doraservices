@@ -216,7 +216,7 @@ function FilterSuggestionChip({
       onClick={onClick}
       className={cn(
         "flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-full text-[13px] font-semibold transition-all border",
-        isActive ? "bg-[#111] text-white border-[#111]" : "bg-white text-[#111] border-gray-200 hover:bg-gray-50",
+        isActive ? "bg-foreground text-background border-foreground" : "bg-background text-foreground border-border hover:bg-muted",
       )}
     >
       {icon}
@@ -228,7 +228,7 @@ function FilterSuggestionChip({
 function SectionHeader({ title, action }: { title: string; action?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 mb-3">
-      <h2 className="text-[18px] font-semibold text-[#111]">{title}</h2>
+      <h2 className="text-[18px] font-semibold text-foreground">{title}</h2>
       {action}
     </div>
   );
@@ -479,7 +479,7 @@ export default function Hub() {
       .map((sub: any) => ({
         id: sub.id,
         icon: ICON_MAP[sub.icon] || Wrench,
-        color: sub.color || categories?.find((c: any) => c.id === sub.category_id)?.color || "bg-[#F2F2F2]",
+        color: sub.color || categories?.find((c: any) => c.id === sub.category_id)?.color || "bg-muted",
         name: sub.name,
         name_ar: sub.name_ar,
         category_id: sub.category_id,
@@ -580,7 +580,7 @@ export default function Hub() {
       setSelectedService({
         id: subId || fp.service_id,
         icon: sc?.icon || Wrench,
-        color: sc?.color || "bg-[#F2F2F2]",
+        color: sc?.color || "bg-muted",
         titleKey: sc ? sc.name : fp.service_title,
         descKey: "",
         category: fp.category, // ✅ already matches services.category in DB
@@ -915,9 +915,9 @@ export default function Hub() {
   }, [user?.id, searchFilters.city, sheetOpen]);
 
   return (
-    <div className="min-h-screen bg-[#F7F7F8] pb-24" dir={isRTL ? "rtl" : "ltr"}>
+    <div className="min-h-screen bg-background pb-24" dir={isRTL ? "rtl" : "ltr"}>
       {/* Sticky Top Bar */}
-      <header className="sticky top-0 z-40 bg-[#F7F7F8]/90 backdrop-blur supports-[backdrop-filter]:bg-[#F7F7F8]/75 border-b border-gray-100">
+      <header className="sticky top-0 z-40 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75 border-b border-border">
         <div className="px-4 pt-4 pb-3">
           <div className="flex items-center justify-between">
             <div className="h-10 w-10" />
@@ -928,8 +928,8 @@ export default function Hub() {
               className="flex flex-col items-center leading-none"
               aria-label={t.appName}
             >
-              <span className="text-[14px] font-semibold text-[#111]">{t.appName}</span>
-              <span className="text-[12px] text-[#777] mt-0.5">{isRTL ? "خدمات قريبة منك" : "Local services"}</span>
+              <span className="text-[14px] font-semibold text-foreground">{t.appName}</span>
+              <span className="text-[12px] text-muted-foreground mt-0.5">{isRTL ? "خدمات قريبة منك" : "Local services"}</span>
             </button>
 
             <div className="flex items-center gap-2">
@@ -939,12 +939,12 @@ export default function Hub() {
                 <PopoverTrigger asChild>
                   <button
                     type="button"
-                    className="relative h-10 w-10 rounded-full bg-white border border-gray-200 flex items-center justify-center"
+                    className="relative h-10 w-10 rounded-full bg-card border border-border flex items-center justify-center"
                     aria-label={isRTL ? "الإشعارات" : "Notifications"}
                   >
-                    <Bell className="h-5 w-5 text-[#111]" />
+                    <Bell className="h-5 w-5 text-foreground" />
                     {unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 rounded-full bg-red-600 text-white text-[11px] font-bold flex items-center justify-center">
+                      <span className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 rounded-full bg-red-600 text-background text-[11px] font-bold flex items-center justify-center">
                         {unreadCount > 99 ? "99+" : unreadCount}
                       </span>
                     )}
@@ -955,13 +955,13 @@ export default function Hub() {
                   align={isRTL ? "start" : "end"}
                   side="bottom"
                   sideOffset={10}
-                  className="w-[92vw] max-w-sm p-0 overflow-hidden rounded-2xl border border-gray-200 bg-white"
+                  className="w-[92vw] max-w-sm p-0 overflow-hidden rounded-2xl border border-border bg-card"
                 >
-                  <div className="px-4 pt-4 pb-3 border-b border-gray-100">
+                  <div className="px-4 pt-4 pb-3 border-b border-border">
                     <div className="flex items-start justify-between gap-3">
                       <div className={cn("min-w-0", isRTL && "text-right")}>
-                        <p className="text-[14px] font-bold text-[#111]">{isRTL ? "الإشعارات" : "Notifications"}</p>
-                        <p className="text-[12px] text-[#777] mt-1">
+                        <p className="text-[14px] font-bold text-foreground">{isRTL ? "الإشعارات" : "Notifications"}</p>
+                        <p className="text-[12px] text-muted-foreground mt-1">
                           {user
                             ? isRTL
                               ? "آخر التحديثات"
@@ -976,7 +976,7 @@ export default function Hub() {
                         <button
                           type="button"
                           onClick={() => markAllAsRead()}
-                          className="text-[12px] font-semibold text-[#111] underline underline-offset-4"
+                          className="text-[12px] font-semibold text-foreground underline underline-offset-4"
                         >
                           {isRTL ? "تمييز الكل كمقروء" : "Mark all as read"}
                         </button>
@@ -987,7 +987,7 @@ export default function Hub() {
                   <div className="max-h-[55vh]">
                     <ScrollArea className="h-[55vh] px-4 py-4">
                       {!user ? (
-                        <div className="rounded-2xl bg-white border border-gray-200 p-4 text-[13px] text-[#777]">
+                        <div className="rounded-2xl bg-card border border-border p-4 text-[13px] text-muted-foreground">
                           {isRTL ? "سجّل الدخول لعرض إشعاراتك." : "Please sign in to view your notifications."}
                         </div>
                       ) : notifLoading ? (
@@ -997,7 +997,7 @@ export default function Hub() {
                           ))}
                         </div>
                       ) : notifications.length === 0 ? (
-                        <div className="rounded-2xl bg-white border border-gray-200 p-4 text-[13px] text-[#777]">
+                        <div className="rounded-2xl bg-card border border-border p-4 text-[13px] text-muted-foreground">
                           {isRTL ? "لا توجد إشعارات حالياً." : "No notifications yet."}
                         </div>
                       ) : (
@@ -1010,17 +1010,17 @@ export default function Hub() {
                                 if (!n.is_read) markAsRead(n.id);
                               }}
                               className={cn(
-                                "w-full text-left rounded-2xl bg-white border border-gray-200 p-4 transition-all active:scale-[0.99]",
+                                "w-full text-left rounded-2xl bg-card border border-border p-4 transition-all active:scale-[0.99]",
                                 !n.is_read && "border-[#111]",
                                 isRTL && "text-right",
                               )}
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                  <p className="text-[14px] font-semibold text-[#111] truncate">
+                                  <p className="text-[14px] font-semibold text-foreground truncate">
                                     {n.title || (isRTL ? "إشعار" : "Notification")}
                                   </p>
-                                  <p className="text-[12px] text-[#777] mt-1 whitespace-pre-wrap">
+                                  <p className="text-[12px] text-muted-foreground mt-1 whitespace-pre-wrap">
                                     {n.body || (isRTL ? "تفاصيل الإشعار" : "Notification details")}
                                   </p>
                                   {n.created_at && (
@@ -1053,10 +1053,10 @@ export default function Hub() {
                 setSearchQuery("");
                 setSearchResults([]);
               }}
-              className="h-10 w-10 rounded-full bg-white border border-gray-200 flex items-center justify-center flex-shrink-0"
+              className="h-10 w-10 rounded-full bg-card border border-border flex items-center justify-center flex-shrink-0"
               aria-label={isRTL ? "بحث" : "Search"}
             >
-              <Search className="h-5 w-5 text-[#111]" />
+              <Search className="h-5 w-5 text-foreground" />
             </button>
 
             <FilterSuggestionChip
@@ -1100,8 +1100,8 @@ export default function Hub() {
           {/* Inline search input */}
           {searchOpen && (
             <div className="mt-3">
-              <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-2xl px-3 py-2">
-                <Search className="h-4 w-4 text-[#777]" />
+              <div className="flex items-center gap-2 bg-card border border-border rounded-2xl px-3 py-2">
+                <Search className="h-4 w-4 text-muted-foreground" />
                 <input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -1118,17 +1118,17 @@ export default function Hub() {
                     className="h-8 w-8 rounded-full hover:bg-gray-100 flex items-center justify-center"
                     aria-label={isRTL ? "مسح" : "Clear"}
                   >
-                    <X className="h-4 w-4 text-[#777]" />
+                    <X className="h-4 w-4 text-muted-foreground" />
                   </button>
                 )}
               </div>
 
               {(searchLoading || searchResults.length > 0 || (searchQuery.trim().length >= 2 && !searchLoading)) && (
-                <div className="mt-2 rounded-2xl bg-white border border-gray-200 overflow-hidden">
+                <div className="mt-2 rounded-2xl bg-card border border-border overflow-hidden">
                   {searchLoading ? (
-                    <div className="p-4 text-[13px] text-[#777]">{isRTL ? "جاري البحث..." : "Searching..."}</div>
+                    <div className="p-4 text-[13px] text-muted-foreground">{isRTL ? "جاري البحث..." : "Searching..."}</div>
                   ) : searchResults.length === 0 ? (
-                    <div className="p-4 text-[13px] text-[#777]">{isRTL ? "لا توجد نتائج." : "No results."}</div>
+                    <div className="p-4 text-[13px] text-muted-foreground">{isRTL ? "لا توجد نتائج." : "No results."}</div>
                   ) : (
                     <div className="divide-y divide-gray-100">
                       {searchResults.slice(0, 10).map((r) => (
@@ -1145,16 +1145,16 @@ export default function Hub() {
                               category: r.category,
                               categoryName: r.category,
                               categoryNameAr: r.category,
-                              color: "bg-[#F2F2F2]",
+                              color: "bg-muted",
                               icon: Wrench,
                             });
 
                             setSheetOpen(true);
                           }}
-                          className={cn("w-full px-4 py-3 text-left hover:bg-gray-50", isRTL && "text-right")}
+                          className={cn("w-full px-4 py-3 text-left hover:bg-muted", isRTL && "text-right")}
                         >
-                          <div className="text-[14px] font-semibold text-[#111] truncate">{r.title}</div>
-                          <div className="text-[12px] text-[#777] truncate mt-0.5">{r.subtitle}</div>
+                          <div className="text-[14px] font-semibold text-foreground truncate">{r.title}</div>
+                          <div className="text-[12px] text-muted-foreground truncate mt-0.5">{r.subtitle}</div>
                         </button>
                       ))}
                     </div>
@@ -1179,7 +1179,7 @@ export default function Hub() {
                     const target = resolveSuggestionTarget(chip);
                     if (target) openServiceSheetFromSubcategory(target);
                   }}
-                  className="flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-full text-[13px] font-semibold bg-white text-[#111] border border-gray-200 hover:bg-gray-50"
+                  className="flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-full text-[13px] font-semibold bg-card text-foreground border border-border hover:bg-muted"
                 >
                   <Icon className="h-4 w-4" />
                   {label}
@@ -1214,21 +1214,21 @@ export default function Hub() {
                   <button
                     key={cat.id}
                     onClick={() => openCategoryDrawer(cat.id)}
-                    className="relative overflow-hidden h-[108px] rounded-2xl border bg-white border-gray-200 flex flex-col items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                    className="relative overflow-hidden h-[108px] rounded-2xl border bg-card border-border flex flex-col items-center justify-center gap-2 transition-all active:scale-[0.98]"
                   >
-                    <div className={cn("absolute inset-0 opacity-10", cat.color || "bg-[#F2F2F2]")} />
+                    <div className={cn("absolute inset-0 opacity-10", cat.color || "bg-muted")} />
                     <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/70" />
 
                     <div
                       className={cn(
                         "relative h-14 w-14 rounded-2xl flex items-center justify-center",
-                        cat.color || "bg-[#F2F2F2]",
+                        cat.color || "bg-muted",
                       )}
                     >
-                      <IconComponent className="h-7 w-7 text-[#111]" strokeWidth={1.7} />
+                      <IconComponent className="h-7 w-7 text-foreground" strokeWidth={1.7} />
                     </div>
 
-                    <span className="relative text-[12px] font-semibold text-[#111] text-center px-1 leading-tight line-clamp-1">
+                    <span className="relative text-[12px] font-semibold text-foreground text-center px-1 leading-tight line-clamp-1">
                       {displayName}
                     </span>
                   </button>
@@ -1258,14 +1258,14 @@ export default function Hub() {
                     key={`${fp.service_id}-${fp.provider_phone || fp.provider_name}`}
                     onClick={() => openProviderDetailsFromFeatured(fp)}
                     className={cn(
-                      "snap-start flex-shrink-0 w-[330px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
+                      "snap-start flex-shrink-0 w-[330px] rounded-2xl bg-card border border-border p-4 text-left transition-all active:scale-[0.98]",
                       isRTL && "text-right",
                     )}
                   >
                     <div className="flex items-center gap-3">
                       <Avatar className="h-14 w-14">
                         <AvatarImage src={fp.provider_avatar || undefined} />
-                        <AvatarFallback className="bg-[#111] text-white font-semibold">
+                        <AvatarFallback className="bg-foreground text-background font-semibold">
                           {(fp.provider_name || (isRTL ? "م" : "P"))
                             .split(" ")
                             .map((n) => n[0])
@@ -1275,14 +1275,14 @@ export default function Hub() {
                       </Avatar>
 
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-[16px] font-semibold text-[#111] truncate">{fp.provider_name}</h3>
-                        <p className="text-[13px] text-[#777] mt-1 truncate">{fp.service_title}</p>
+                        <h3 className="text-[16px] font-semibold text-foreground truncate">{fp.provider_name}</h3>
+                        <p className="text-[13px] text-muted-foreground mt-1 truncate">{fp.service_title}</p>
 
                         <div className="mt-1.5 flex items-center gap-1 text-[12px]">
                           <Star
                             className={cn("h-4 w-4", r.hasRating ? "text-yellow-500 fill-yellow-500" : "text-[#999]")}
                           />
-                          <span className={cn(r.hasRating ? "text-[#111] font-semibold" : "text-[#777]")}>
+                          <span className={cn(r.hasRating ? "text-foreground font-semibold" : "text-muted-foreground")}>
                             {r.text}
                           </span>
                         </div>
@@ -1291,9 +1291,9 @@ export default function Hub() {
                       <ChevronRight className={cn("h-6 w-6 text-[#C9C9C9]", isRTL && "rotate-180")} />
                     </div>
 
-                    <div className="mt-3 text-[12px] text-[#777]">
+                    <div className="mt-3 text-[12px] text-muted-foreground">
                       {fp.provider_city ? (isRTL ? "المدينة: " : "City: ") : ""}
-                      <span className="text-[#111] font-semibold">
+                      <span className="text-foreground font-semibold">
                         {getCityLabel(fp.provider_city) || (isRTL ? "غير محدد" : "Not set")}
                       </span>
                     </div>
@@ -1324,14 +1324,14 @@ export default function Hub() {
                   key={`recent-${fp.service_id}`}
                   onClick={() => openProviderDetailsFromFeatured(fp)}
                   className={cn(
-                    "snap-start flex-shrink-0 w-[330px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
+                    "snap-start flex-shrink-0 w-[330px] rounded-2xl bg-card border border-border p-4 text-left transition-all active:scale-[0.98]",
                     isRTL && "text-right",
                   )}
                 >
                   <div className="flex items-center gap-3">
                     <Avatar className="h-14 w-14">
                       <AvatarImage src={fp.provider_avatar || undefined} />
-                      <AvatarFallback className="bg-[#111] text-white font-semibold">
+                      <AvatarFallback className="bg-foreground text-background font-semibold">
                         {(fp.provider_name || (isRTL ? "م" : "P"))
                           .split(" ")
                           .map((n) => n[0])
@@ -1341,8 +1341,8 @@ export default function Hub() {
                     </Avatar>
 
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-[16px] font-semibold text-[#111] truncate">{fp.provider_name}</h3>
-                      <p className="text-[13px] text-[#777] mt-1 truncate">{fp.service_title}</p>
+                      <h3 className="text-[16px] font-semibold text-foreground truncate">{fp.provider_name}</h3>
+                      <p className="text-[13px] text-muted-foreground mt-1 truncate">{fp.service_title}</p>
                     </div>
 
                     <ChevronRight className={cn("h-6 w-6 text-[#C9C9C9]", isRTL && "rotate-180")} />
@@ -1367,18 +1367,18 @@ export default function Hub() {
                     key={service.id}
                     onClick={() => openServiceSheetFromSubcategory(service)}
                     className={cn(
-                      "snap-start flex-shrink-0 w-[260px] rounded-2xl bg-white border border-gray-200 p-4 text-left transition-all active:scale-[0.98]",
+                      "snap-start flex-shrink-0 w-[260px] rounded-2xl bg-card border border-border p-4 text-left transition-all active:scale-[0.98]",
                       isRTL && "text-right",
                     )}
                   >
                     <div className="flex items-center gap-3">
                       <div className={cn("h-14 w-14 rounded-2xl flex items-center justify-center", service.color)}>
-                        <IconComponent className="h-7 w-7 text-[#111]" strokeWidth={1.7} />
+                        <IconComponent className="h-7 w-7 text-foreground" strokeWidth={1.7} />
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-[15px] font-semibold text-[#111] line-clamp-1">{displayName}</h3>
-                        <p className="text-[12px] text-[#777] mt-1">{isRTL ? "عرض مقدمي الخدمة" : "View providers"}</p>
+                        <h3 className="text-[15px] font-semibold text-foreground line-clamp-1">{displayName}</h3>
+                        <p className="text-[12px] text-muted-foreground mt-1">{isRTL ? "عرض مقدمي الخدمة" : "View providers"}</p>
                       </div>
 
                       <ChevronRight className={cn("h-6 w-6 text-[#C9C9C9]", isRTL && "rotate-180")} />
@@ -1392,28 +1392,28 @@ export default function Hub() {
 
         {/* Footer */}
         <section className="mt-10">
-          <div className="border-t border-gray-200 pt-4 pb-2 text-[12px] text-[#777] flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+          <div className="border-t border-border pt-4 pb-2 text-[12px] text-muted-foreground flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
             <button
               onClick={() => window.alert(isRTL ? "قريباً" : "Coming soon")}
-              className="hover:text-[#111] transition-colors"
+              className="hover:text-foreground transition-colors"
             >
               {isRTL ? "من نحن" : "About"}
             </button>
             <button
               onClick={() => (window.location.href = "mailto:support@dora.ly")}
-              className="hover:text-[#111] transition-colors"
+              className="hover:text-foreground transition-colors"
             >
               {isRTL ? "تواصل معنا" : "Contact"}
             </button>
             <button
               onClick={() => window.alert(isRTL ? "سيتم إضافة الشروط قريباً" : "Terms will be added soon")}
-              className="hover:text-[#111] transition-colors"
+              className="hover:text-foreground transition-colors"
             >
               {isRTL ? "الشروط" : "Terms"}
             </button>
             <button
               onClick={() => window.alert(isRTL ? "سيتم إضافة الخصوصية قريباً" : "Privacy will be added soon")}
-              className="hover:text-[#111] transition-colors"
+              className="hover:text-foreground transition-colors"
             >
               {isRTL ? "الخصوصية" : "Privacy"}
             </button>
@@ -1469,7 +1469,7 @@ export default function Hub() {
                           openServiceSheetFromSubcategory(service);
                         }}
                         className={cn(
-                          "relative overflow-hidden w-full flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-200 transition-colors hover:bg-gray-50 active:bg-gray-100",
+                          "relative overflow-hidden w-full flex items-center gap-4 p-4 bg-card rounded-2xl border border-border transition-colors hover:bg-muted active:bg-muted",
                           isRTL && "flex-row-reverse text-right",
                         )}
                       >
@@ -1482,12 +1482,12 @@ export default function Hub() {
                             service.color,
                           )}
                         >
-                          <IconComponent className="h-7 w-7 text-[#111]" strokeWidth={1.7} />
+                          <IconComponent className="h-7 w-7 text-foreground" strokeWidth={1.7} />
                         </div>
 
                         <div className="relative flex-1 min-w-0">
-                          <h3 className="text-[16px] font-semibold text-[#111] line-clamp-1">{displayName}</h3>
-                          <p className="text-[13px] text-[#777] mt-1">
+                          <h3 className="text-[16px] font-semibold text-foreground line-clamp-1">{displayName}</h3>
+                          <p className="text-[13px] text-muted-foreground mt-1">
                             {isRTL ? "عرض مقدمي الخدمة" : "View providers"}
                           </p>
                         </div>
