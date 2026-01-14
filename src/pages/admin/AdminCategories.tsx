@@ -151,7 +151,6 @@ export default function AdminCategories() {
   const [iconSearch, setIconSearch] = useState("");
   const [subIconSearch, setSubIconSearch] = useState("");
 
-
   // Track expanded categories
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
@@ -163,7 +162,6 @@ export default function AdminCategories() {
     (subcategories || []).forEach((s) => {
       map[s.id] = s.popular_order === null || s.popular_order === undefined ? "" : String(s.popular_order);
     });
-
 
     setPopularOrderDraft(map);
   }, [subcategories]);
@@ -266,6 +264,7 @@ export default function AdminCategories() {
   const openCreateDialog = () => {
     setEditingCategory(null);
     setForm({ name: "", name_ar: "", icon: "Home", color: "bg-[#FFEBD4]", is_active: true });
+    setIconSearch("");
     setDialogOpen(true);
   };
 
@@ -278,6 +277,7 @@ export default function AdminCategories() {
       color: category.color,
       is_active: category.is_active,
     });
+    setIconSearch("");
     setDialogOpen(true);
   };
 
@@ -312,6 +312,7 @@ export default function AdminCategories() {
       is_popular: false,
       popular_order: "",
     });
+    setSubIconSearch("");
     setSubDialogOpen(true);
   };
 
@@ -326,6 +327,7 @@ export default function AdminCategories() {
       is_popular: Boolean(sub.is_popular),
       popular_order: sub.popular_order === null || sub.popular_order === undefined ? "" : String(sub.popular_order),
     });
+    setSubIconSearch("");
     setSubDialogOpen(true);
   };
 
@@ -422,6 +424,9 @@ export default function AdminCategories() {
     }
     updateSubcategory.mutate({ id: sub.id, popular_order: next });
   };
+
+  const filteredIconOptions = ICON_OPTIONS.filter((n) => n.toLowerCase().includes(iconSearch.toLowerCase()));
+  const filteredSubIconOptions = ICON_OPTIONS.filter((n) => n.toLowerCase().includes(subIconSearch.toLowerCase()));
 
   return (
     <div className="space-y-6">
@@ -748,10 +753,22 @@ export default function AdminCategories() {
             {/* Icon Selection */}
             <div>
               <Label>Icon</Label>
+
               <div className="mt-2 grid grid-cols-2 gap-2">
+                <Input
+                  value={iconSearch}
+                  onChange={(e) => setIconSearch(e.target.value)}
+                  placeholder="Search icons..."
+                />
+                <Input
+                  value={form.icon}
+                  onChange={(e) => setForm({ ...form, icon: e.target.value })}
+                  placeholder="Or type icon key (e.g., Home)"
+                />
+              </div>
 
               <div className="grid grid-cols-8 gap-2 mt-2 max-h-32 overflow-y-auto p-1">
-                {ICON_OPTIONS.filter((n) => n.toLowerCase().includes(iconSearch.toLowerCase())).map((iconName) => {
+                {filteredIconOptions.map((iconName) => {
                   const IconComp = ICON_MAP[iconName];
                   return (
                     <button
@@ -771,6 +788,10 @@ export default function AdminCategories() {
                   );
                 })}
               </div>
+
+              <p className="text-xs text-muted-foreground mt-1">
+                Tip: click an icon to select it, or type the exact key (e.g., Home, Wrench).
+              </p>
             </div>
 
             {/* Color Selection */}
@@ -794,10 +815,7 @@ export default function AdminCategories() {
             </div>
 
             <div className="flex items-center gap-2">
-              <Switch
-                checked={form.is_active}
-                onCheckedChange={(checked) => setForm({ ...form, is_active: checked })}
-              />
+              <Switch checked={form.is_active} onCheckedChange={(checked) => setForm({ ...form, is_active: checked })} />
               <Label>Active (visible on main page)</Label>
             </div>
           </div>
@@ -855,7 +873,7 @@ export default function AdminCategories() {
                 />
               </div>
               <div className="grid grid-cols-8 gap-2 mt-2 max-h-32 overflow-y-auto p-1">
-                {ICON_OPTIONS.filter((n) => n.toLowerCase().includes(subIconSearch.toLowerCase())).map((iconName) => {
+                {filteredSubIconOptions.map((iconName) => {
                   const IconComp = ICON_MAP[iconName];
                   return (
                     <button
