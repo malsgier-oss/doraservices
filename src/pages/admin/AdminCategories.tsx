@@ -55,8 +55,57 @@ import {
   Hammer,
   Battery,
   Calculator,
-  LucideIcon,
   Star,
+
+  // Expanded Dora-friendly icon set (common service-marketplace needs)
+  Phone,
+  Shield,
+  Wifi,
+  PaintRoller,
+  SprayCan,
+  Leaf,
+  Brush,
+  Sofa,
+  BedDouble,
+  Bath,
+  Key,
+  Lock,
+  Package,
+  Truck,
+  MapPin,
+  Store,
+  Shirt,
+  Fan,
+  Thermometer,
+  Snowflake,
+  Coins,
+  HandCoins,
+  CreditCard,
+  FileText,
+  Landmark,
+  Gavel,
+  Pill,
+  Ambulance,
+  ChefHat,
+  Microwave,
+  Refrigerator,
+  TreePalm,
+  Gamepad2,
+  Smartphone,
+  Monitor,
+  Printer,
+  Router,
+  Lightbulb,
+  PlugZap,
+  HardHat,
+  Construction,
+  Ruler,
+  Bug,
+  Bike,
+  Bus,
+  Taxi,
+
+  LucideIcon,
 } from "lucide-react";
 import { Category, useAllCategories } from "@/hooks/useCategories";
 import { Subcategory, useAllSubcategories, useSubcategoryMutations } from "@/hooks/useSubcategories";
@@ -100,6 +149,54 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Hammer,
   Battery,
   Calculator,
+
+  // Expanded Dora-friendly icon set
+  Phone,
+  Shield,
+  Wifi,
+  PaintRoller,
+  SprayCan,
+  Leaf,
+  Brush,
+  Sofa,
+  BedDouble,
+  Bath,
+  Key,
+  Lock,
+  Package,
+  Truck,
+  MapPin,
+  Store,
+  Shirt,
+  Fan,
+  Thermometer,
+  Snowflake,
+  Coins,
+  HandCoins,
+  CreditCard,
+  FileText,
+  Landmark,
+  Gavel,
+  Pill,
+  Ambulance,
+  ChefHat,
+  Microwave,
+  Refrigerator,
+  TreePalm,
+  Gamepad2,
+  Smartphone,
+  Monitor,
+  Printer,
+  Router,
+  Lightbulb,
+  PlugZap,
+  HardHat,
+  Construction,
+  Ruler,
+  Bug,
+  Bike,
+  Bus,
+  Taxi,
 };
 
 const ICON_OPTIONS = Object.keys(ICON_MAP);
@@ -355,7 +452,6 @@ export default function AdminCategories() {
       name_ar: subForm.name_ar,
       icon: subForm.icon,
       is_active: subForm.is_active,
-      // These two may be ignored automatically on older DB schemas by the hook retry logic
       is_popular: Boolean(subForm.is_popular),
       popular_order,
     };
@@ -471,7 +567,7 @@ export default function AdminCategories() {
                         category.color,
                       )}
                     >
-                      <IconComponent className="h-7 w-7 text-[#333]" strokeWidth={1.5} />
+                      <IconComponent className="h-9 w-9 text-[#333]" strokeWidth={1.5} />
                       <span className="text-[10px] font-medium text-[#333] text-center px-1 leading-tight">
                         {category.name}
                       </span>
@@ -516,7 +612,7 @@ export default function AdminCategories() {
                               category.color,
                             )}
                           >
-                            <IconComponent className="h-7 w-7 text-[#333]" strokeWidth={1.5} />
+                            <IconComponent className="h-9 w-9 text-[#333]" strokeWidth={1.5} />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
@@ -555,12 +651,7 @@ export default function AdminCategories() {
                             >
                               <ArrowDown className="h-4 w-4" />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => openEditDialog(category)}
-                            >
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(category)}>
                               <Edit className="h-4 w-4" />
                             </Button>
                             <Button
@@ -617,8 +708,9 @@ export default function AdminCategories() {
                                     )}
                                   >
                                     <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center">
-                                      <SubIcon className="h-4 w-4" />
+                                      <SubIcon className="h-5 w-5" />
                                     </div>
+
                                     <div className="flex-1 min-w-0">
                                       <p className="text-sm font-medium truncate">{sub.name}</p>
                                       {sub.name_ar && (
@@ -635,6 +727,7 @@ export default function AdminCategories() {
                                         )}
                                       </div>
                                     </div>
+
                                     <div className="flex items-center gap-1">
                                       <Button
                                         variant="ghost"
@@ -669,14 +762,10 @@ export default function AdminCategories() {
                                         title="Popular order"
                                       />
 
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7"
-                                        onClick={() => openEditSubDialog(sub)}
-                                      >
+                                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditSubDialog(sub)}>
                                         <Edit className="h-3 w-3" />
                                       </Button>
+
                                       <Button
                                         variant="ghost"
                                         size="icon"
@@ -723,7 +812,7 @@ export default function AdminCategories() {
             >
               {(() => {
                 const IconComp = ICON_MAP[form.icon] || Home;
-                return <IconComp className="h-7 w-7 text-[#333]" strokeWidth={1.5} />;
+                return <IconComp className="h-9 w-9 text-[#333]" strokeWidth={1.5} />;
               })()}
               <span className="text-[10px] font-medium text-[#333] text-center px-1 leading-tight">
                 {form.name || "Category"}
@@ -755,11 +844,7 @@ export default function AdminCategories() {
               <Label>Icon</Label>
 
               <div className="mt-2 grid grid-cols-2 gap-2">
-                <Input
-                  value={iconSearch}
-                  onChange={(e) => setIconSearch(e.target.value)}
-                  placeholder="Search icons..."
-                />
+                <Input value={iconSearch} onChange={(e) => setIconSearch(e.target.value)} placeholder="Search icons..." />
                 <Input
                   value={form.icon}
                   onChange={(e) => setForm({ ...form, icon: e.target.value })}
@@ -783,7 +868,7 @@ export default function AdminCategories() {
                       onClick={() => setForm({ ...form, icon: iconName })}
                       title={iconName}
                     >
-                      <IconComp className="h-4 w-4" />
+                      <IconComp className="h-5 w-5" />
                     </button>
                   );
                 })}
@@ -861,17 +946,14 @@ export default function AdminCategories() {
             <div>
               <Label>Icon</Label>
               <div className="mt-2 grid grid-cols-2 gap-2">
-                <Input
-                  value={subIconSearch}
-                  onChange={(e) => setSubIconSearch(e.target.value)}
-                  placeholder="Search icons..."
-                />
+                <Input value={subIconSearch} onChange={(e) => setSubIconSearch(e.target.value)} placeholder="Search icons..." />
                 <Input
                   value={subForm.icon}
                   onChange={(e) => setSubForm({ ...subForm, icon: e.target.value })}
                   placeholder="Or type icon key (e.g., Wrench)"
                 />
               </div>
+
               <div className="grid grid-cols-8 gap-2 mt-2 max-h-32 overflow-y-auto p-1">
                 {filteredSubIconOptions.map((iconName) => {
                   const IconComp = ICON_MAP[iconName];
@@ -888,7 +970,7 @@ export default function AdminCategories() {
                       onClick={() => setSubForm({ ...subForm, icon: iconName })}
                       title={iconName}
                     >
-                      <IconComp className="h-4 w-4" />
+                      <IconComp className="h-5 w-5" />
                     </button>
                   );
                 })}
