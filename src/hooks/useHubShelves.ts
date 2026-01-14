@@ -17,7 +17,10 @@ export interface HubShelf {
 export interface HubShelfItem {
   id: string;
   shelf_id: string;
-  category_id: string;
+  // P0: manual shelves should curate *subcategories* (services) primarily.
+  // For backward compatibility, some rows may still have category_id.
+  subcategory_id?: string | null;
+  category_id?: string | null;
   display_order: number;
 }
 
