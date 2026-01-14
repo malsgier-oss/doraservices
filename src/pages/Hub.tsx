@@ -440,8 +440,10 @@ export default function Hub() {
               );
             }
 
-            // Manual shelf: show curated category tiles
+            // Manual shelf: primarily curated *subcategories*.
+            // Backward compatibility: if some rows still have category_id, we show category tiles.
             const items = itemsByShelf[shelf.id] || [];
+
             const subcats = (items
               .map((it) => {
                 const sid = (it as any).subcategory_id as string | null | undefined;
@@ -449,7 +451,16 @@ export default function Hub() {
                 return (allSubcategories || []).find((s) => s.id === sid) || null;
               })
               .filter(Boolean) as any[]) as SubcategoryRow[];
-            if (subcats.length === 0) return null;
+
+            const catsFallback = items
+              .map((it) => {
+                const cid = (it as any).category_id as string | null | undefined;
+                if (!cid) return null;
+                return categoriesById[cid] || null;
+              })
+              .filter(Boolean) as any[];
+
+            if (subcats.length === 0 && catsFallback.length === 0) return null;
 
             return (
               <div key={shelf.id} className="space-y-2">
@@ -474,6 +485,25 @@ export default function Hub() {
                             <Icon className="h-5 w-5" />
                           </div>
                           <div className="text-xs text-center leading-tight line-clamp-2">{s.name_ar || s.name}</div>
+                        </button>
+                      );
+                    })}
+
+                    {catsFallback.map((c) => {
+                      const Icon = ICON_MAP[c.icon] || Wrench;
+                      return (
+                        <button
+                          key={c.id}
+                          className="min-w-[34%] md:min-w-[22%] rounded-xl border bg-card p-3 hover:bg-accent transition flex flex-col items-center gap-2"
+                          onClick={() => openCategoryBrowse(c.id)}
+                        >
+                          <div
+                            className="h-10 w-10 rounded-full flex items-center justify-center"
+                            style={{ backgroundColor: (c.color || "#888") + "22" }}
+                          >
+                            <Icon className="h-5 w-5" />
+                          </div>
+                          <div className="text-xs text-center leading-tight line-clamp-2">{c.name_ar || c.name}</div>
                         </button>
                       );
                     })}
