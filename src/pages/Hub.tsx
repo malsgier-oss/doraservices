@@ -136,21 +136,16 @@ export default function Hub() {
   }, [categories, queryTrim]);
 
   // Bottom sheets
-  // 1) Category browse (shows subcategories)
-  const [browseOpen, setBrowseOpen] = useState(false);
-  const [browseCategoryId, setBrowseCategoryId] = useState<string | null>(null);
+  // IMPORTANT: Do NOT mount two Drawers at the same time.
+  // On mobile, Radix/shadcn Drawers can crash (minified React error) when
+  // one Drawer is closing while another is mounting.
+  // We use a simple state machine so only one Drawer exists in the tree.
+  type ActiveSheet = "none" | "browse" | "providers";
+  const [activeSheet, setActiveSheet] = useState<ActiveSheet>("none");
 
-  // When using Radix/Drawer, opening a second drawer while the first is still
-  // closing can fail on some mobile browsers (focus/aria-hidden race).
-  // We queue the subcategory selection and only open the provider list sheet
-  // after the category browse drawer is fully closed.
-  const [pendingSubcategory, setPendingSubcategory] = useState<{
-    id: string;
-    name: string;
-    name_ar?: string | null;
-    icon: LucideIcon;
-    color: string | null;
-  } | null>(null);
+  // 1) Category browse (shows subcategories)
+  const browseOpen = activeSheet === "browse";
+  const [browseCategoryId, setBrowseCategoryId] = useState<string | null>(null);
 
   const browseCategory = useMemo(() => {
     if (!browseCategoryId) return null;
@@ -159,11 +154,11 @@ export default function Hub() {
 
   function openCategoryBrowse(categoryId: string) {
     setBrowseCategoryId(categoryId);
-    setBrowseOpen(true);
+    setActiveSheet("browse");
   }
 
   // 2) Provider list sheet (for a selected subcategory)
-  const [serviceSheetOpen, setServiceSheetOpen] = useState(false);
+  const serviceSheetOpen = activeSheet === "providers";
   const [initialProviderServiceId, setInitialProviderServiceId] = useState<string | null>(null);
   const [selectedSubcategory, setSelectedSubcategory] = useState<{
     id: string;
@@ -192,18 +187,28 @@ export default function Hub() {
   function openSubcategoryProviders(subcat: { id: string; name: string; name_ar?: string | null; icon: LucideIcon; color: string | null }, providerServiceId?: string | null) {
     setSelectedSubcategory(subcat);
     setInitialProviderServiceId(providerServiceId || null);
-    setServiceSheetOpen(true);
+    setActiveSheet("providers");
   }
 
+  // When selecting a subcategory from the browse sheet, we must close/unmount the browse Drawer
+  // before mounting the provider Drawer. Otherwise mobile browsers can crash.
+  const [pendingSubcategory, setPendingSubcategory] = useState<{
+    id: string;
+    name: string;
+    name_ar?: string | null;
+    icon: LucideIcon;
+    color: string | null;
+  } | null>(null);
+
   useEffect(() => {
-    if (browseOpen) return;
+    if (activeSheet !== "none") return;
     if (!pendingSubcategory) return;
 
-    // Now that the browse drawer is closed, safely open the providers sheet.
+    // Browse sheet is unmounted now; safe to open providers.
     openSubcategoryProviders(pendingSubcategory);
     setPendingSubcategory(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [browseOpen, pendingSubcategory]);
+  }, [activeSheet, pendingSubcategory]);
 
   // Shelves data (category shelves load subcategories)
   const [subcatsByShelfId, setSubcatsByShelfId] = useState<Record<string, SubcategoryRow[]>>({});
@@ -538,27 +543,39 @@ export default function Hub() {
         </div>
       </div>
 
-      <CategoryBrowseSheet
-        open={browseOpen}
-        onOpenChange={setBrowseOpen}
-        category={browseCategory}
-        iconMap={ICON_MAP}
-        onSelectSubcategory={(subcat) => {
-          // Close first drawer, then open provider list after it's fully closed.
-          setPendingSubcategory(subcat);
-          setBrowseOpen(false);
-        }}
-      />
+      {activeSheet === "browse" && (
+        <CategoryBrowseSheet
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) {
+              setActiveSheet("none");
+              setBrowseCategoryId(null);
+            }
+          }}
+          category={browseCategory}
+          iconMap={ICON_MAP}
+          onSelectSubcategory={(subcat) => {
+            // Close/unmount browse sheet first; provider sheet opens via pendingSubcategory effect.
+            setPendingSubcategory(subcat);
+            setActiveSheet("none");
+            setBrowseCategoryId(null);
+          }}
+        />
+      )}
 
-      <ServiceDetailSheet
-        open={serviceSheetOpen}
-        onOpenChange={(open) => {
-          setServiceSheetOpen(open);
-          if (!open) setInitialProviderServiceId(null);
-        }}
-        service={selectedSheetService}
-        initialProviderServiceId={initialProviderServiceId}
-      />
+      {activeSheet === "providers" && selectedSheetService && (
+        <ServiceDetailSheet
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) {
+              setActiveSheet("none");
+              setInitialProviderServiceId(null);
+            }
+          }}
+          service={selectedSheetService}
+          initialProviderServiceId={initialProviderServiceId}
+        />
+      )}
 
       <MobileNav />
     </div>
