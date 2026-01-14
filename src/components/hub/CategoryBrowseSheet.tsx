@@ -1,0 +1,117 @@
+import { useMemo } from "react";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from "@/components/ui/drawer";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { X, Wrench } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
+import { useSubcategories } from "@/hooks/useSubcategories";
+
+type Category = {
+  id: string;
+  name: string;
+  name_ar: string | null;
+  icon: string;
+  color: string | null;
+};
+
+type SubcategoryRow = {
+  id: string;
+  name: string;
+  name_ar: string | null;
+  icon: string;
+  color: string | null;
+};
+
+export type CategoryBrowseSheetSelect = (subcat: {
+  id: string;
+  name: string;
+  name_ar?: string | null;
+  icon: LucideIcon;
+  color: string | null;
+}) => void;
+
+export function CategoryBrowseSheet({
+  open,
+  onOpenChange,
+  category,
+  iconMap,
+  onSelectSubcategory,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  category: Category | null;
+  iconMap: Record<string, LucideIcon>;
+  onSelectSubcategory: CategoryBrowseSheetSelect;
+}) {
+  const categoryId = category?.id;
+  const { data: subcats, isLoading } = useSubcategories(categoryId || undefined);
+
+  const list = useMemo(() => {
+    return (subcats || [])
+      .filter((s) => (s as any).is_active !== false)
+      .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0)) as unknown as SubcategoryRow[];
+  }, [subcats]);
+
+  if (!category) return null;
+
+  return (
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerContent className="h-[70dvh] max-h-[70dvh] flex flex-col overflow-hidden mt-0">
+        <DrawerHeader className="relative pb-0">
+          <DrawerClose className="absolute top-0 right-4 h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+            <X className="h-4 w-4 text-muted-foreground" />
+          </DrawerClose>
+
+          <div className="flex flex-col items-center pt-2">
+            <DrawerTitle className="text-xl font-bold text-foreground">{category.name_ar || category.name}</DrawerTitle>
+            <p className="text-sm text-muted-foreground mt-1">اختر خدمة</p>
+          </div>
+        </DrawerHeader>
+
+        <ScrollArea className="flex-1">
+          <div className="px-4 py-4">
+            {isLoading ? (
+              <div className="text-sm text-muted-foreground">Loading...</div>
+            ) : list.length === 0 ? (
+              <div className="text-center py-10">
+                <div className="text-4xl mb-3">🧩</div>
+                <div className="text-muted-foreground">لا توجد خدمات داخل هذا القسم بعد</div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {list.map((s) => {
+                  const Icon = iconMap[s.icon] || Wrench;
+                  return (
+                    <button
+                      key={s.id}
+                      className="flex items-center gap-3 rounded-xl border bg-card p-3 hover:bg-accent transition"
+                      onClick={() => onSelectSubcategory({ id: s.id, name: s.name, name_ar: s.name_ar, icon: Icon, color: s.color })}
+                    >
+                      <div
+                        className="h-10 w-10 rounded-full flex items-center justify-center"
+                        style={{ backgroundColor: (s.color || "#888") + "22" }}
+                      >
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0 text-right">
+                        <div className="text-sm font-semibold truncate">{s.name_ar || s.name}</div>
+                        <div className="text-xs text-muted-foreground truncate">{category.name_ar || category.name}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="pt-4">
+              <Button variant="secondary" className="w-full" onClick={() => onOpenChange(false)}>
+                إغلاق
+              </Button>
+            </div>
+          </div>
+        </ScrollArea>
+      </DrawerContent>
+    </Drawer>
+  );
+}
