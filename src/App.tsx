@@ -45,6 +45,7 @@ import AdminPasswordResets from "./pages/admin/AdminPasswordResets";
 import EnvDebug from "./pages/EnvDebug";
 import SitePage from "./pages/SitePage";
 import AdminHubSuggestions from "./pages/admin/AdminHubSuggestions";
+import AdminHub from "./pages/admin/AdminHub";
 import AdminPages from "./pages/admin/AdminPages";
 
 // ✅ keep QueryClient stable
@@ -211,6 +212,7 @@ const AppRoutes = () => {
         <Route path="users" element={<AdminUsers />} />
         <Route path="providers" element={<AdminProviders />} />
         <Route path="services" element={<AdminServices />} />
+        <Route path="hub" element={<AdminHub />} />
         <Route path="hub-suggestions" element={<AdminHubSuggestions />} />
         <Route path="pages" element={<AdminPages />} />
         <Route path="reviews" element={<AdminReviews />} />

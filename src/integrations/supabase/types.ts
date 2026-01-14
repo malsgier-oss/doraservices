@@ -932,7 +932,6 @@ export type Database = {
           updated_at: string
           user_id: string | null
           views_count: number
-          last_activity_at: string | null
         }
         Insert: {
           admin_note?: string | null
@@ -956,7 +955,6 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           views_count?: number
-          last_activity_at?: string | null
         }
         Update: {
           admin_note?: string | null
@@ -980,44 +978,8 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           views_count?: number
-          last_activity_at?: string | null
         }
         Relationships: []
-      }
-      service_events: {
-        Row: {
-          id: string
-          service_id: string
-          provider_id: string | null
-          user_id: string | null
-          event_type: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          service_id: string
-          provider_id?: string | null
-          user_id?: string | null
-          event_type: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          service_id?: string
-          provider_id?: string | null
-          user_id?: string | null
-          event_type?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "service_events_service_id_fkey"
-            columns: ["service_id"]
-            isOneToOne: false
-            referencedRelation: "services"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       sub_cities: {
         Row: {
@@ -1216,7 +1178,171 @@ export type Database = {
           created_at?: string | null
           id?: string
           role?: 
-      hub_suggestions: {
+      
+hub_banners: {
+  Row: {
+    id: string
+    title_ar: string
+    subtitle_ar: string | null
+    cta_text_ar: string | null
+    image_path: string
+    target_type: string
+    target_category_id: string | null
+    target_url: string | null
+    city_id: string | null
+    display_order: number
+    is_active: boolean
+    start_at: string | null
+    end_at: string | null
+    created_at: string
+    updated_at: string
+  }
+  Insert: {
+    id?: string
+    title_ar: string
+    subtitle_ar?: string | null
+    cta_text_ar?: string | null
+    image_path: string
+    target_type?: string
+    target_category_id?: string | null
+    target_url?: string | null
+    city_id?: string | null
+    display_order?: number
+    is_active?: boolean
+    start_at?: string | null
+    end_at?: string | null
+    created_at?: string
+    updated_at?: string
+  }
+  Update: {
+    id?: string
+    title_ar?: string
+    subtitle_ar?: string | null
+    cta_text_ar?: string | null
+    image_path?: string
+    target_type?: string
+    target_category_id?: string | null
+    target_url?: string | null
+    city_id?: string | null
+    display_order?: number
+    is_active?: boolean
+    start_at?: string | null
+    end_at?: string | null
+    created_at?: string
+    updated_at?: string
+  }
+  Relationships: [
+    {
+      foreignKeyName: "hub_banners_city_id_fkey"
+      columns: ["city_id"]
+      isOneToOne: false
+      referencedRelation: "cities"
+      referencedColumns: ["id"]
+    },
+    {
+      foreignKeyName: "hub_banners_target_category_id_fkey"
+      columns: ["target_category_id"]
+      isOneToOne: false
+      referencedRelation: "categories"
+      referencedColumns: ["id"]
+    },
+  ]
+}
+hub_shelves: {
+  Row: {
+    id: string
+    title_ar: string
+    shelf_type: string
+    category_id: string | null
+    city_id: string | null
+    display_order: number
+    is_active: boolean
+    max_items: number
+    created_at: string
+    updated_at: string
+  }
+  Insert: {
+    id?: string
+    title_ar: string
+    shelf_type?: string
+    category_id?: string | null
+    city_id?: string | null
+    display_order?: number
+    is_active?: boolean
+    max_items?: number
+    created_at?: string
+    updated_at?: string
+  }
+  Update: {
+    id?: string
+    title_ar?: string
+    shelf_type?: string
+    category_id?: string | null
+    city_id?: string | null
+    display_order?: number
+    is_active?: boolean
+    max_items?: number
+    created_at?: string
+    updated_at?: string
+  }
+  Relationships: [
+    {
+      foreignKeyName: "hub_shelves_category_id_fkey"
+      columns: ["category_id"]
+      isOneToOne: false
+      referencedRelation: "categories"
+      referencedColumns: ["id"]
+    },
+    {
+      foreignKeyName: "hub_shelves_city_id_fkey"
+      columns: ["city_id"]
+      isOneToOne: false
+      referencedRelation: "cities"
+      referencedColumns: ["id"]
+    },
+  ]
+}
+hub_shelf_items: {
+  Row: {
+    id: string
+    shelf_id: string
+    category_id: string
+    display_order: number
+    created_at: string
+  }
+  Insert: {
+    id?: string
+    shelf_id: string
+    category_id: string
+    display_order?: number
+    created_at?: string
+  }
+  Update: {
+    id?: string
+    shelf_id?: string
+    category_id?: string
+    display_order?: number
+    created_at?: string
+  }
+  Relationships: [
+    {
+      foreignKeyName: "hub_shelf_items_category_id_fkey"
+      columns: ["category_id"]
+      isOneToOne: false
+      referencedRelation: "categories"
+      referencedColumns: ["id"]
+    },
+    {
+      foreignKeyName: "hub_shelf_items_shelf_id_fkey"
+      columns: ["shelf_id"]
+      isOneToOne: false
+      referencedRelation: "hub_shelves"
+      referencedColumns: ["id"]
+    },
+  ]
+}
+
+hub_suggestions: {
         Row: {
           id: string
           type: string
