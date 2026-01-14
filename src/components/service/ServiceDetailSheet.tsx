@@ -639,7 +639,14 @@ export function ServiceDetailSheet({
           </DrawerClose>
 
           <div className="flex flex-col items-center pt-2">
-            <div className={cn("h-16 w-16 rounded-full flex items-center justify-center mb-3", service.color)}>
+            <div
+              className={cn("h-16 w-16 rounded-full flex items-center justify-center mb-3")}
+              style={{
+                backgroundColor: String(service.color || "#888").startsWith("#")
+                  ? `${service.color}22`
+                  : undefined,
+              }}
+            >
               <IconComponent className="h-8 w-8 text-foreground" strokeWidth={1.5} />
             </div>
             <DrawerTitle className="text-xl font-bold text-foreground">{title}</DrawerTitle>
