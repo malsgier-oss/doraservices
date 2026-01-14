@@ -17,9 +17,14 @@ import { useCategories } from "@/hooks/useCategories";
 import { useCities } from "@/hooks/useCities";
 import { useHubBanners } from "@/hooks/useHubBanners";
 import { useHubShelves } from "@/hooks/useHubShelves";
+import { useHubChips } from "@/hooks/useHubChips";
+import { useHubTopCategories } from "@/hooks/useHubTopCategories";
+import { useFeaturedSubcategories } from "@/hooks/useFeaturedSubcategories";
 import { useAllSubcategories } from "@/hooks/useSubcategories";
 import { CategoryBrowseSheet } from "@/components/hub/CategoryBrowseSheet";
 import { supabase } from "@/integrations/supabase/client";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 type ServiceRow = {
   id: string;
@@ -100,6 +105,7 @@ async function fetchShelfSubcategories(params: { categoryId: string; limit: numb
 }
 
 export default function Hub() {
+  const { language, isRTL } = useLanguage();
   const { data: categoriesData, isLoading: categoriesLoading } = useCategories();
   const { data: citiesData } = useCities();
 
@@ -112,8 +118,11 @@ export default function Hub() {
   const selectedCityName = selectedCity?.name || null;
 
   const { banners, publicUrlsById } = useHubBanners(cityId);
+  const { chips } = useHubChips(cityId);
+  const { categoryIds: topCategoryIds } = useHubTopCategories(cityId);
   const { shelves, itemsByShelf } = useHubShelves(cityId);
   const { data: allSubcategories } = useAllSubcategories();
+  const { rows: featuredSubcats } = useFeaturedSubcategories(cityId);
 
   const categories = useMemo(() => {
     return (categoriesData || []).filter((c) => c.is_active !== false).sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
@@ -244,19 +253,28 @@ export default function Hub() {
     };
   }, [shelves, categoriesById]);
 
-  // Services grid (top 8 categories)
-  const gridCategories = useMemo(() => categories.slice(0, 8), [categories]);
+  // Services grid (Top 8 MAIN categories)
+  const gridCategories = useMemo(() => {
+    const configured = (topCategoryIds || [])
+      .map((id) => categoriesById[id])
+      .filter(Boolean);
+    if (configured.length === 8) return configured;
+    // fallback: first 8 active categories
+    return categories.slice(0, 8);
+  }, [topCategoryIds, categoriesById, categories]);
 
   const cityLabel = selectedCity ? (selectedCity.name_ar || selectedCity.name) : "كل المدن";
 
+  const t = (ar: string, en: string) => (language === "ar" ? ar : en);
+
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className={`min-h-screen bg-background pb-20 ${isRTL ? "rtl" : ""}`}>
       <div className="mx-auto max-w-3xl px-4 pt-4 space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-xl font-semibold leading-tight">شن تحتاج اليوم؟</div>
-            <div className="text-sm text-muted-foreground">ابحث وتواصل مباشرة</div>
+            <div className={`text-xl font-semibold leading-tight ${isRTL ? "text-right" : "text-left"}`}>{t("شن تحتاج اليوم؟", "What do you need today?")}</div>
+            <div className={`text-sm text-muted-foreground ${isRTL ? "text-right" : "text-left"}`}>{t("ابحث وتواصل مباشرة", "Search and contact directly")}</div>
           </div>
           <div className="flex items-center gap-2">
             <LanguageToggle />
@@ -275,7 +293,7 @@ export default function Hub() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="pl-9"
-              placeholder="ابحث عن خدمة… كهرباء، سباكة، تكييف"
+              placeholder={t("ابحث عن خدمة… كهرباء، سباكة، تكييف", "Search services… electricity, plumbing, AC")}
             />
           </div>
 
@@ -293,7 +311,7 @@ export default function Hub() {
                   className="w-full justify-start"
                   onClick={() => setCityId(null)}
                 >
-                  كل المدن
+                  {t("كل المدن", "All cities")}
                 </Button>
                 {(citiesData || [])
                   .filter((c) => c.is_active)
@@ -317,7 +335,7 @@ export default function Hub() {
             <Card>
               <CardContent className="p-2 space-y-1">
                 {filteredCategories.length === 0 ? (
-                  <div className="text-sm text-muted-foreground p-2">لا توجد نتائج</div>
+                  <div className="text-sm text-muted-foreground p-2">{t("لا توجد نتائج", "No results")}</div>
                 ) : (
                   filteredCategories.map((c) => (
                     <Button
@@ -338,34 +356,76 @@ export default function Hub() {
           )}
         </div>
 
-        {/* Banner carousel (admin-controlled) */}
+        {/* Chips (admin-controlled, subcategories) */}
+        {chips.length > 0 && (
+          <ScrollArea className="w-full">
+            <div className="flex gap-2 pb-2">
+              {chips.map((chip) => {
+                const label = (language === "ar" ? chip.label_ar : chip.label_en) || chip.label_ar || chip.label_en || "";
+                if (!label) return null;
+                return (
+                  <Button
+                    key={chip.id}
+                    variant="secondary"
+                    className="rounded-full"
+                    onClick={() => {
+                      if (chip.target_type === "category" && chip.target_category_id) {
+                        openCategoryBrowse(chip.target_category_id);
+                      } else if (chip.target_type === "subcategory" && chip.target_subcategory_id) {
+                        const sc = (allSubcategories || []).find((s) => s.id === chip.target_subcategory_id);
+                        if (!sc) return;
+                        const Icon = ICON_MAP[sc.icon] || Wrench;
+                        openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color });
+                      } else if (chip.target_type === "shelf" && chip.target_shelf_id) {
+                        const el = chip.target_shelf_id === "featured-services"
+                          ? document.getElementById("featured-services")
+                          : document.getElementById(`shelf-${chip.target_shelf_id}`);
+                        el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }
+                    }}
+                  >
+                    {label}
+                  </Button>
+                );
+              })}
+            </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        )}
+
+        {/* Banner carousel (admin-controlled, image-only) */}
         {banners.length > 0 && (
           <div className="space-y-2">
             <ScrollArea className="w-full">
               <div className="flex gap-3 pb-2">
                 {banners.map((b) => {
                   const url = publicUrlsById[b.id];
+                  const clickable = b.target_type !== "none";
                   return (
                     <button
                       key={b.id}
-                      className="min-w-[85%] md:min-w-[70%] rounded-xl overflow-hidden border bg-card text-left"
+                      className={`min-w-[85%] md:min-w-[70%] rounded-xl overflow-hidden border bg-card ${clickable ? "cursor-pointer" : "cursor-default"}`}
                       onClick={() => {
+                        if (b.target_type === "none") return;
                         if (b.target_type === "category" && b.target_category_id) {
                           openCategoryBrowse(b.target_category_id);
-                        } else if (b.target_type === "url" && b.target_url) {
-                          window.open(b.target_url, "_blank", "noopener,noreferrer");
+                        } else if (b.target_type === "subcategory" && b.target_subcategory_id) {
+                          const sc = (allSubcategories || []).find((s) => s.id === b.target_subcategory_id);
+                          if (!sc) return;
+                          const Icon = ICON_MAP[sc.icon] || Wrench;
+                          openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color });
+                        } else if (b.target_type === "shelf" && b.target_shelf_id) {
+                          const el = b.target_shelf_id === "featured-services"
+                            ? document.getElementById("featured-services")
+                            : document.getElementById(`shelf-${b.target_shelf_id}`);
+                          el?.scrollIntoView({ behavior: "smooth", block: "start" });
                         }
                       }}
                     >
                       <div className="h-36 w-full bg-muted">
                         {url ? (
-                          <img src={url} alt={b.title_ar} className="h-full w-full object-cover" />
+                          <img src={url} alt="" className="h-full w-full object-cover" />
                         ) : null}
-                      </div>
-                      <div className="p-3">
-                        <div className="font-semibold">{b.title_ar}</div>
-                        {b.subtitle_ar ? <div className="text-sm text-muted-foreground">{b.subtitle_ar}</div> : null}
-                        {b.cta_text_ar ? <div className="mt-2 text-sm font-medium text-primary">{b.cta_text_ar}</div> : null}
                       </div>
                     </button>
                   );
@@ -376,11 +436,10 @@ export default function Hub() {
           </div>
         )}
 
-        {/* Services (categories) grid */}
+        {/* Services (MAIN categories) grid - exactly 8 */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <div className="text-base font-semibold">الخدمات</div>
-            {/* P0: keep "عرض الكل" simple by scrolling to the full list later. */}
+            <div className="text-base font-semibold">{t("الخدمات", "Categories")}</div>
           </div>
 
           {categoriesLoading ? (
@@ -402,21 +461,36 @@ export default function Hub() {
                   </button>
                 );
               })}
-
-              {/* More */}
-              <button
-                className="flex flex-col items-center gap-2 rounded-xl border bg-card p-3 hover:bg-accent transition"
-                onClick={() => setQuery(" ")}
-                title="المزيد"
-              >
-                <div className="h-10 w-10 rounded-full flex items-center justify-center bg-muted">
-                  <ChevronDown className="h-5 w-5" />
-                </div>
-                <div className="text-xs text-center">المزيد</div>
-              </button>
             </div>
           )}
         </div>
+
+        {/* Featured services (subcategories) */}
+        {featuredSubcats.length > 0 && (
+          <div className="space-y-2" id="featured-services">
+            <div className="text-base font-semibold">{t("الخدمات المميزة", "Featured services")}</div>
+            <ScrollArea className="w-full">
+              <div className="flex gap-3 pb-2">
+                {featuredSubcats.map((sc) => {
+                  const Icon = ICON_MAP[sc.icon] || Wrench;
+                  return (
+                    <button
+                      key={sc.id}
+                      className="min-w-[34%] md:min-w-[22%] rounded-xl border bg-card p-3 hover:bg-accent transition flex flex-col items-center gap-2"
+                      onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
+                    >
+                      <div className="h-10 w-10 rounded-full flex items-center justify-center" style={{ backgroundColor: (sc.color || "#888") + "22" }}>
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <div className="text-xs text-center leading-tight line-clamp-2">{sc.name_ar || sc.name}</div>
+                    </button>
+                  );
+                })}
+              </div>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </div>
+        )}
 
         {/* Shelves (admin-controlled) */}
         <div className="space-y-6">
@@ -432,7 +506,7 @@ export default function Hub() {
               if (subcats.length === 0) return null;
 
               return (
-                <div key={shelf.id} className="space-y-2">
+                <div key={shelf.id} className="space-y-2" id={`shelf-${shelf.id}`}>
                   <div className="flex items-center justify-between">
                     <div className="text-base font-semibold">{shelf.title_ar}</div>
                     <Button variant="ghost" size="sm" onClick={() => openCategoryBrowse(cat.id)}>
@@ -490,7 +564,7 @@ export default function Hub() {
             if (subcats.length === 0 && catsFallback.length === 0) return null;
 
             return (
-              <div key={shelf.id} className="space-y-2">
+              <div key={shelf.id} className="space-y-2" id={`shelf-${shelf.id}`}>
                 <div className="flex items-center justify-between">
                   <div className="text-base font-semibold">{shelf.title_ar}</div>
                 </div>
@@ -540,6 +614,19 @@ export default function Hub() {
               </div>
             );
           })}
+        </div>
+
+        {/* Footer links */}
+        <div className="pt-6 pb-2 border-t text-sm text-muted-foreground space-y-3">
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            <a className="hover:text-foreground" href="/about">{t("من نحن", "About Us")}</a>
+            <a className="hover:text-foreground" href="/help">{t("مركز المساعدة", "Help Center")}</a>
+            <a className="hover:text-foreground" href="/become-provider">{t("انضم كمزود خدمة", "Become a Provider")}</a>
+          </div>
+          <div className="flex gap-4 text-xs">
+            <a className="hover:text-foreground" href="/terms">{t("الشروط", "Terms")}</a>
+            <a className="hover:text-foreground" href="/privacy">{t("الخصوصية", "Privacy")}</a>
+          </div>
         </div>
       </div>
 
