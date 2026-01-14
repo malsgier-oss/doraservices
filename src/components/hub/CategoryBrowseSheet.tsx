@@ -89,10 +89,10 @@ export function CategoryBrowseSheet({
                       onClick={() => onSelectSubcategory({ id: s.id, name: s.name, name_ar: s.name_ar, icon: Icon, color: s.color })}
                     >
                       <div
-                        className="h-10 w-10 rounded-full flex items-center justify-center"
+                        className="h-12 w-12 rounded-full flex items-center justify-center"
                         style={{ backgroundColor: (s.color || "#888") + "22" }}
                       >
-                        <Icon className="h-5 w-5" />
+                        <Icon className="h-6 w-6" />
                       </div>
                       <div className="min-w-0 text-right">
                         <div className="text-sm font-semibold truncate">{s.name_ar || s.name}</div>
