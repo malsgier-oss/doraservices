@@ -72,6 +72,7 @@ interface ServiceDetailSheetProps {
     category: string; // this must match services.category in DB
     categoryName?: string;
     categoryNameAr?: string;
+    // Either a Tailwind class (e.g. "bg-primary") OR a hex color (e.g. "#14b8a6").
     color: string;
     icon: LucideIcon;
   } | null;
@@ -297,6 +298,13 @@ export function ServiceDetailSheet({
   }, [providers, filters?.city, filters?.subCity, filters?.minRating, providerRatings]);
 
   if (!service) return null;
+
+  const isHexColor = typeof service.color === "string" && service.color.trim().startsWith("#");
+  const iconWrapperClass = cn(
+    "h-16 w-16 rounded-full flex items-center justify-center mb-3",
+    isHexColor ? "bg-muted" : service.color,
+  );
+  const iconWrapperStyle = isHexColor ? ({ backgroundColor: service.color } as React.CSSProperties) : undefined;
 
   const IconComponent = service.icon;
   const title = t.featuredList[service.titleKey as keyof typeof t.featuredList] || service.titleKey;
@@ -639,7 +647,7 @@ export function ServiceDetailSheet({
           </DrawerClose>
 
           <div className="flex flex-col items-center pt-2">
-            <div className={cn("h-16 w-16 rounded-full flex items-center justify-center mb-3", service.color)}>
+            <div className={iconWrapperClass} style={iconWrapperStyle}>
               <IconComponent className="h-8 w-8 text-foreground" strokeWidth={1.5} />
             </div>
             <DrawerTitle className="text-xl font-bold text-foreground">{title}</DrawerTitle>
