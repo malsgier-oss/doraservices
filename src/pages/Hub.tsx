@@ -280,7 +280,7 @@ export default function Hub() {
             <LanguageToggle />
             <ThemeToggle />
             <Button variant="ghost" size="icon" aria-label="Notifications">
-              <Bell className="h-5 w-5" />
+              <Bell className="h-6 w-6" />
             </Button>
           </div>
         </div>
@@ -454,8 +454,8 @@ export default function Hub() {
                     className="flex flex-col items-center gap-2 rounded-xl border bg-card p-3 hover:bg-accent transition"
                     onClick={() => openCategoryBrowse(c.id)}
                   >
-                    <div className="h-10 w-10 rounded-full flex items-center justify-center" style={{ backgroundColor: c.color + "22" }}>
-                      <Icon className="h-5 w-5" />
+                    <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ backgroundColor: c.color + "22" }}>
+                      <Icon className="h-6 w-6" />
                     </div>
                     <div className="text-xs text-center leading-tight line-clamp-2">{c.name_ar || c.name}</div>
                   </button>
@@ -479,8 +479,8 @@ export default function Hub() {
                       className="min-w-[34%] md:min-w-[22%] rounded-xl border bg-card p-3 hover:bg-accent transition flex flex-col items-center gap-2"
                       onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
                     >
-                      <div className="h-10 w-10 rounded-full flex items-center justify-center" style={{ backgroundColor: (sc.color || "#888") + "22" }}>
-                        <Icon className="h-5 w-5" />
+                      <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ backgroundColor: (sc.color || "#888") + "22" }}>
+                        <Icon className="h-6 w-6" />
                       </div>
                       <div className="text-xs text-center leading-tight line-clamp-2">{sc.name_ar || sc.name}</div>
                     </button>
@@ -525,10 +525,10 @@ export default function Hub() {
                           onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
                         >
                           <div
-                            className="h-10 w-10 rounded-full flex items-center justify-center"
+                            className="h-12 w-12 rounded-full flex items-center justify-center"
                             style={{ backgroundColor: (sc.color || "#888") + "22" }}
                           >
-                            <Icon className="h-5 w-5" />
+                            <Icon className="h-6 w-6" />
                           </div>
                           <div className="text-xs text-center leading-tight line-clamp-2">{sc.name_ar || sc.name}</div>
                         </button>
@@ -580,10 +580,10 @@ export default function Hub() {
                           onClick={() => openSubcategoryProviders({ id: s.id, name: s.name, name_ar: s.name_ar, icon: Icon, color: s.color })}
                         >
                           <div
-                            className="h-10 w-10 rounded-full flex items-center justify-center"
+                            className="h-12 w-12 rounded-full flex items-center justify-center"
                             style={{ backgroundColor: (s.color || "#888") + "22" }}
                           >
-                            <Icon className="h-5 w-5" />
+                            <Icon className="h-6 w-6" />
                           </div>
                           <div className="text-xs text-center leading-tight line-clamp-2">{s.name_ar || s.name}</div>
                         </button>
@@ -599,10 +599,10 @@ export default function Hub() {
                           onClick={() => openCategoryBrowse(c.id)}
                         >
                           <div
-                            className="h-10 w-10 rounded-full flex items-center justify-center"
+                            className="h-12 w-12 rounded-full flex items-center justify-center"
                             style={{ backgroundColor: (c.color || "#888") + "22" }}
                           >
-                            <Icon className="h-5 w-5" />
+                            <Icon className="h-6 w-6" />
                           </div>
                           <div className="text-xs text-center leading-tight line-clamp-2">{c.name_ar || c.name}</div>
                         </button>
