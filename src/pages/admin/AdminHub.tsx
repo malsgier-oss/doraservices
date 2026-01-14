@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 
 type City = { id: string; name: string; name_ar: string | null };
 type Category = { id: string; name: string; name_ar: string | null; is_active: boolean; display_order: number };
+type Subcategory = { id: string; category_id: string; name: string; name_ar: string | null; is_active: boolean | null; display_order: number | null };
 
 type HubBanner = {
   id: string;
@@ -42,7 +43,8 @@ type HubShelf = {
 type HubShelfItem = {
   id: string;
   shelf_id: string;
-  category_id: string;
+  subcategory_id: string | null;
+  category_id: string | null; // backward compatibility
   display_order: number;
 };
 
@@ -57,25 +59,10 @@ export default function AdminHub() {
 
   const [cities, setCities] = useState<City[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
 
   const [banners, setBanners] = useState<HubBanner[]>([]);
   const [shelves, setShelves] = useState<HubShelf[]>([]);
-
-  // Hub Layout settings (single-page control)
-  const [layoutCityId, setLayoutCityId] = useState<string | null>(null);
-  const [layoutRowId, setLayoutRowId] = useState<string | null>(null);
-  const [sectionOrder, setSectionOrder] = useState<Array<"banner" | "services" | "shelves" | "active">>([
-    "banner",
-    "services",
-    "shelves",
-    "active",
-  ]);
-  const [sectionEnabled, setSectionEnabled] = useState<Record<"banner" | "services" | "shelves" | "active", boolean>>({
-    banner: true,
-    services: true,
-    shelves: true,
-    active: true,
-  });
 
   const [loading, setLoading] = useState(true);
 
@@ -109,94 +96,18 @@ export default function AdminHub() {
   // Manual items dialog
   const [itemsOpenForShelf, setItemsOpenForShelf] = useState<string | null>(null);
   const [items, setItems] = useState<HubShelfItem[]>([]);
-  const [newItemCategoryId, setNewItemCategoryId] = useState<string>("");
+  const [newItemSubcategoryId, setNewItemSubcategoryId] = useState<string>("");
+  const [subcatSearch, setSubcatSearch] = useState<string>("");
 
   useEffect(() => {
     refreshAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    loadLayoutSettings(layoutCityId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layoutCityId]);
-
   async function refreshAll() {
     setLoading(true);
-    await Promise.all([loadCities(), loadCategories(), loadBanners(), loadShelves(), loadLayoutSettings(layoutCityId)]);
+    await Promise.all([loadCities(), loadCategories(), loadSubcategories(), loadBanners(), loadShelves()]);
     setLoading(false);
-  }
-
-  async function loadLayoutSettings(cityId: string | null) {
-    try {
-      let q = supabase.from("hub_layout_settings").select("id, city_id, sections").limit(5);
-      if (cityId) q = q.or(`city_id.eq.${cityId},city_id.is.null`);
-      else q = q.is("city_id", null);
-
-      const { data, error } = await q;
-      if (error) throw error;
-
-      const rows = (data as any[]) || [];
-      const best = cityId ? rows.find((r) => r.city_id === cityId) ?? rows.find((r) => r.city_id == null) : rows[0];
-      setLayoutRowId(best?.id ?? null);
-
-      const order = Array.isArray(best?.sections?.order) ? best.sections.order : ["banner", "services", "shelves", "active"];
-      const enabled = typeof best?.sections?.enabled === "object" && best.sections.enabled ? best.sections.enabled : {};
-
-      const cleanedOrder = (order as any[]).filter((k) => ["banner", "services", "shelves", "active"].includes(String(k)));
-      const fullOrder = Array.from(new Set([...cleanedOrder, "banner", "services", "shelves", "active"])) as any;
-      setSectionOrder(fullOrder);
-      setSectionEnabled({
-        banner: enabled.banner !== false,
-        services: enabled.services !== false,
-        shelves: enabled.shelves !== false,
-        active: enabled.active !== false,
-      });
-    } catch (e) {
-      console.warn("loadLayoutSettings failed", e);
-      setLayoutRowId(null);
-      setSectionOrder(["banner", "services", "shelves", "active"]);
-      setSectionEnabled({ banner: true, services: true, shelves: true, active: true });
-    }
-  }
-
-  async function saveLayoutSettings() {
-    try {
-      const payload = {
-        city_id: layoutCityId,
-        sections: {
-          order: sectionOrder,
-          enabled: sectionEnabled,
-        },
-      };
-
-      if (layoutRowId) {
-        const { error } = await supabase.from("hub_layout_settings").update(payload).eq("id", layoutRowId);
-        if (error) throw error;
-      } else {
-        // No reliable ON CONFLICT (expression index), so insert after verifying none exists.
-        const { data: existing, error: existingError } = await supabase
-          .from("hub_layout_settings")
-          .select("id")
-          .match(layoutCityId ? { city_id: layoutCityId } : { city_id: null })
-          .limit(1);
-        if (existingError) throw existingError;
-        if (existing && (existing as any[]).length > 0) {
-          const existingId = (existing as any[])[0].id;
-          const { error } = await supabase.from("hub_layout_settings").update(payload).eq("id", existingId);
-          if (error) throw error;
-          setLayoutRowId(existingId);
-        } else {
-          const { data, error } = await supabase.from("hub_layout_settings").insert(payload).select("id").single();
-          if (error) throw error;
-          setLayoutRowId((data as any)?.id ?? null);
-        }
-      }
-
-      toast({ title: "Hub layout saved" });
-    } catch (e: any) {
-      toast({ title: "Failed", description: e.message || String(e), variant: "destructive" });
-    }
   }
 
   async function loadCities() {
@@ -215,6 +126,15 @@ export default function AdminHub() {
       .order("display_order", { ascending: true });
     if (error) console.error(error);
     setCategories((((data as any[]) || []) as Category[]).filter(c => c.is_active));
+  }
+
+  async function loadSubcategories() {
+    const { data, error } = await supabase
+      .from("subcategories")
+      .select("id,category_id,name,name_ar,is_active,display_order")
+      .order("display_order", { ascending: true });
+    if (error) console.error(error);
+    setSubcategories((((data as any[]) || []) as Subcategory[]).filter((s) => s.is_active !== false));
   }
 
   async function loadBanners() {
@@ -390,7 +310,8 @@ export default function AdminHub() {
 
   async function openItemsDialog(shelfId: string) {
     setItemsOpenForShelf(shelfId);
-    setNewItemCategoryId("");
+    setNewItemSubcategoryId("");
+    setSubcatSearch("");
     const { data, error } = await supabase
       .from("hub_shelf_items")
       .select("*")
@@ -406,16 +327,16 @@ export default function AdminHub() {
 
   async function addManualItem() {
     if (!itemsOpenForShelf) return;
-    if (!newItemCategoryId) {
-      toast({ title: "Pick a category first", variant: "destructive" });
+    if (!newItemSubcategoryId) {
+      toast({ title: "Pick a service first", variant: "destructive" });
       return;
     }
     const nextOrder = items.length > 0 ? Math.max(...items.map(i => i.display_order)) + 1 : 0;
     const { error } = await supabase.from("hub_shelf_items").insert({
       shelf_id: itemsOpenForShelf,
-      category_id: newItemCategoryId,
+      subcategory_id: newItemSubcategoryId,
       display_order: nextOrder,
-    });
+    } as any);
     if (error) {
       toast({ title: "Failed", description: error.message, variant: "destructive" });
       return;
@@ -442,94 +363,13 @@ export default function AdminHub() {
       {loading ? (
         <div className="p-6 text-muted-foreground">Loading...</div>
       ) : (
-        <div className="space-y-6">
-          {/* One-page Hub Layout control (P0) */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Hub Layout</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1">
-                  <div className="text-sm font-medium">City</div>
-                  <Select
-                    value={layoutCityId || "__all__"}
-                    onValueChange={(v) => setLayoutCityId(v === "__all__" ? null : v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="All cities" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__all__">All cities</SelectItem>
-                      {cities.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name_ar || c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <div className="text-xs text-muted-foreground">
-                    Editing layout for {layoutCityId ? (citiesById[layoutCityId]?.name_ar || citiesById[layoutCityId]?.name || "city") : "all cities"}.
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="text-sm font-medium">Order (top → bottom)</div>
-                  <div className="space-y-2">
-                    {sectionOrder.map((k, idx) => (
-                      <div key={k} className="flex items-center justify-between rounded-lg border p-2">
-                        <div className="flex items-center gap-3">
-                          <Switch
-                            checked={!!sectionEnabled[k]}
-                            onCheckedChange={(v) => setSectionEnabled((p) => ({ ...p, [k]: !!v }))}
-                          />
-                          <div className="font-medium capitalize">{k}</div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={idx === 0}
-                            onClick={() => {
-                              const next = [...sectionOrder];
-                              const tmp = next[idx - 1];
-                              next[idx - 1] = next[idx];
-                              next[idx] = tmp;
-                              setSectionOrder(next);
-                            }}
-                          >
-                            Up
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={idx === sectionOrder.length - 1}
-                            onClick={() => {
-                              const next = [...sectionOrder];
-                              const tmp = next[idx + 1];
-                              next[idx + 1] = next[idx];
-                              next[idx] = tmp;
-                              setSectionOrder(next);
-                            }}
-                          >
-                            Down
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <Button onClick={saveLayoutSettings}>Save Layout</Button>
-            </CardContent>
-          </Card>
-
-          <Separator />
-
-          {/* Banners */}
-          <div className="space-y-4">
+        <div className="space-y-10">
+          <div>
             <h2 className="text-lg font-semibold">Banners</h2>
+            <p className="text-sm text-muted-foreground">Shown on the Hub, can be city-targeted. Image source: Supabase Storage.</p>
+          </div>
+
+          <div className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle>Create Banner</CardTitle>
@@ -682,9 +522,12 @@ export default function AdminHub() {
 
           <Separator />
 
-          {/* Shelves */}
-          <div className="space-y-4">
+          <div>
             <h2 className="text-lg font-semibold">Shelves</h2>
+            <p className="text-sm text-muted-foreground">Control Hub layout sections (city-targeted). Manual shelves curate services (subcategories).</p>
+          </div>
+
+          <div className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle>Create Shelf</CardTitle>
@@ -821,18 +664,37 @@ export default function AdminHub() {
 
                               <div className="space-y-3">
                                 <div className="flex gap-2">
-                                  <Select value={newItemCategoryId} onValueChange={setNewItemCategoryId}>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Select category to add" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {categories.map((c) => (
-                                        <SelectItem key={c.id} value={c.id}>
-                                          {c.name_ar || c.name}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
+                                  <div className="flex-1 space-y-2">
+                                    <Input
+                                      placeholder="Search services (subcategories)..."
+                                      value={subcatSearch}
+                                      onChange={(e) => setSubcatSearch(e.target.value)}
+                                    />
+                                    <Select value={newItemSubcategoryId} onValueChange={setNewItemSubcategoryId}>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select service to add" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {subcategories
+                                          .filter((sc) => sc.is_active !== false)
+                                          .filter((sc) => {
+                                            const q = subcatSearch.trim().toLowerCase();
+                                            if (!q) return true;
+                                            return `${sc.name_ar || ""} ${sc.name}`.toLowerCase().includes(q);
+                                          })
+                                          .slice(0, 50)
+                                          .map((sc) => {
+                                            const cat = categoriesById[sc.category_id];
+                                            const label = `${sc.name_ar || sc.name} • ${cat ? (cat.name_ar || cat.name) : ""}`;
+                                            return (
+                                              <SelectItem key={sc.id} value={sc.id}>
+                                                {label}
+                                              </SelectItem>
+                                            );
+                                          })}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
                                   <Button onClick={addManualItem}>Add</Button>
                                 </div>
 
@@ -843,7 +705,9 @@ export default function AdminHub() {
                                     {items.map((it) => (
                                       <div key={it.id} className="flex items-center justify-between border rounded-md p-2">
                                         <div className="text-sm">
-                                          {categoriesById[it.category_id]?.name_ar || categoriesById[it.category_id]?.name || it.category_id}
+                                          {it.subcategory_id
+                                            ? (subcategories.find((sc) => sc.id === it.subcategory_id)?.name_ar || subcategories.find((sc) => sc.id === it.subcategory_id)?.name || it.subcategory_id)
+                                            : (categoriesById[it.category_id || ""]?.name_ar || categoriesById[it.category_id || ""]?.name || it.category_id || "—")}
                                         </div>
                                         <Button variant="destructive" size="sm" onClick={() => removeManualItem(it.id)}>
                                           Remove
