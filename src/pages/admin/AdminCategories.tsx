@@ -103,7 +103,6 @@ import {
   Bug,
   Bike,
   Bus,
-  Taxi,
 
   LucideIcon,
 } from "lucide-react";
@@ -196,7 +195,6 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Bug,
   Bike,
   Bus,
-  Taxi,
 };
 
 const ICON_OPTIONS = Object.keys(ICON_MAP);
@@ -953,7 +951,6 @@ export default function AdminCategories() {
                   placeholder="Or type icon key (e.g., Wrench)"
                 />
               </div>
-
               <div className="grid grid-cols-8 gap-2 mt-2 max-h-32 overflow-y-auto p-1">
                 {filteredSubIconOptions.map((iconName) => {
                   const IconComp = ICON_MAP[iconName];
