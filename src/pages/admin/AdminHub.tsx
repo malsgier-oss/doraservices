@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 
@@ -61,6 +61,22 @@ export default function AdminHub() {
   const [banners, setBanners] = useState<HubBanner[]>([]);
   const [shelves, setShelves] = useState<HubShelf[]>([]);
 
+  // Hub Layout settings (single-page control)
+  const [layoutCityId, setLayoutCityId] = useState<string | null>(null);
+  const [layoutRowId, setLayoutRowId] = useState<string | null>(null);
+  const [sectionOrder, setSectionOrder] = useState<Array<"banner" | "services" | "shelves" | "active">>([
+    "banner",
+    "services",
+    "shelves",
+    "active",
+  ]);
+  const [sectionEnabled, setSectionEnabled] = useState<Record<"banner" | "services" | "shelves" | "active", boolean>>({
+    banner: true,
+    services: true,
+    shelves: true,
+    active: true,
+  });
+
   const [loading, setLoading] = useState(true);
 
   // Banner form state
@@ -100,10 +116,87 @@ export default function AdminHub() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    loadLayoutSettings(layoutCityId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layoutCityId]);
+
   async function refreshAll() {
     setLoading(true);
-    await Promise.all([loadCities(), loadCategories(), loadBanners(), loadShelves()]);
+    await Promise.all([loadCities(), loadCategories(), loadBanners(), loadShelves(), loadLayoutSettings(layoutCityId)]);
     setLoading(false);
+  }
+
+  async function loadLayoutSettings(cityId: string | null) {
+    try {
+      let q = supabase.from("hub_layout_settings").select("id, city_id, sections").limit(5);
+      if (cityId) q = q.or(`city_id.eq.${cityId},city_id.is.null`);
+      else q = q.is("city_id", null);
+
+      const { data, error } = await q;
+      if (error) throw error;
+
+      const rows = (data as any[]) || [];
+      const best = cityId ? rows.find((r) => r.city_id === cityId) ?? rows.find((r) => r.city_id == null) : rows[0];
+      setLayoutRowId(best?.id ?? null);
+
+      const order = Array.isArray(best?.sections?.order) ? best.sections.order : ["banner", "services", "shelves", "active"];
+      const enabled = typeof best?.sections?.enabled === "object" && best.sections.enabled ? best.sections.enabled : {};
+
+      const cleanedOrder = (order as any[]).filter((k) => ["banner", "services", "shelves", "active"].includes(String(k)));
+      const fullOrder = Array.from(new Set([...cleanedOrder, "banner", "services", "shelves", "active"])) as any;
+      setSectionOrder(fullOrder);
+      setSectionEnabled({
+        banner: enabled.banner !== false,
+        services: enabled.services !== false,
+        shelves: enabled.shelves !== false,
+        active: enabled.active !== false,
+      });
+    } catch (e) {
+      console.warn("loadLayoutSettings failed", e);
+      setLayoutRowId(null);
+      setSectionOrder(["banner", "services", "shelves", "active"]);
+      setSectionEnabled({ banner: true, services: true, shelves: true, active: true });
+    }
+  }
+
+  async function saveLayoutSettings() {
+    try {
+      const payload = {
+        city_id: layoutCityId,
+        sections: {
+          order: sectionOrder,
+          enabled: sectionEnabled,
+        },
+      };
+
+      if (layoutRowId) {
+        const { error } = await supabase.from("hub_layout_settings").update(payload).eq("id", layoutRowId);
+        if (error) throw error;
+      } else {
+        // No reliable ON CONFLICT (expression index), so insert after verifying none exists.
+        const { data: existing, error: existingError } = await supabase
+          .from("hub_layout_settings")
+          .select("id")
+          .match(layoutCityId ? { city_id: layoutCityId } : { city_id: null })
+          .limit(1);
+        if (existingError) throw existingError;
+        if (existing && (existing as any[]).length > 0) {
+          const existingId = (existing as any[])[0].id;
+          const { error } = await supabase.from("hub_layout_settings").update(payload).eq("id", existingId);
+          if (error) throw error;
+          setLayoutRowId(existingId);
+        } else {
+          const { data, error } = await supabase.from("hub_layout_settings").insert(payload).select("id").single();
+          if (error) throw error;
+          setLayoutRowId((data as any)?.id ?? null);
+        }
+      }
+
+      toast({ title: "Hub layout saved" });
+    } catch (e: any) {
+      toast({ title: "Failed", description: e.message || String(e), variant: "destructive" });
+    }
   }
 
   async function loadCities() {
@@ -349,13 +442,94 @@ export default function AdminHub() {
       {loading ? (
         <div className="p-6 text-muted-foreground">Loading...</div>
       ) : (
-        <Tabs defaultValue="banners">
-          <TabsList>
-            <TabsTrigger value="banners">Banners</TabsTrigger>
-            <TabsTrigger value="shelves">Shelves</TabsTrigger>
-          </TabsList>
+        <div className="space-y-6">
+          {/* One-page Hub Layout control (P0) */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Hub Layout</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">City</div>
+                  <Select
+                    value={layoutCityId || "__all__"}
+                    onValueChange={(v) => setLayoutCityId(v === "__all__" ? null : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="All cities" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">All cities</SelectItem>
+                      {cities.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name_ar || c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="text-xs text-muted-foreground">
+                    Editing layout for {layoutCityId ? (citiesById[layoutCityId]?.name_ar || citiesById[layoutCityId]?.name || "city") : "all cities"}.
+                  </div>
+                </div>
 
-          <TabsContent value="banners" className="space-y-4">
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">Order (top → bottom)</div>
+                  <div className="space-y-2">
+                    {sectionOrder.map((k, idx) => (
+                      <div key={k} className="flex items-center justify-between rounded-lg border p-2">
+                        <div className="flex items-center gap-3">
+                          <Switch
+                            checked={!!sectionEnabled[k]}
+                            onCheckedChange={(v) => setSectionEnabled((p) => ({ ...p, [k]: !!v }))}
+                          />
+                          <div className="font-medium capitalize">{k}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={idx === 0}
+                            onClick={() => {
+                              const next = [...sectionOrder];
+                              const tmp = next[idx - 1];
+                              next[idx - 1] = next[idx];
+                              next[idx] = tmp;
+                              setSectionOrder(next);
+                            }}
+                          >
+                            Up
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={idx === sectionOrder.length - 1}
+                            onClick={() => {
+                              const next = [...sectionOrder];
+                              const tmp = next[idx + 1];
+                              next[idx + 1] = next[idx];
+                              next[idx] = tmp;
+                              setSectionOrder(next);
+                            }}
+                          >
+                            Down
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <Button onClick={saveLayoutSettings}>Save Layout</Button>
+            </CardContent>
+          </Card>
+
+          <Separator />
+
+          {/* Banners */}
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold">Banners</h2>
             <Card>
               <CardHeader>
                 <CardTitle>Create Banner</CardTitle>
@@ -504,9 +678,13 @@ export default function AdminHub() {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
+          </div>
 
-          <TabsContent value="shelves" className="space-y-4">
+          <Separator />
+
+          {/* Shelves */}
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold">Shelves</h2>
             <Card>
               <CardHeader>
                 <CardTitle>Create Shelf</CardTitle>
@@ -692,8 +870,8 @@ export default function AdminHub() {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
+          </div>
+        </div>
       )}
     </div>
   );
