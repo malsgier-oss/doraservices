@@ -148,6 +148,10 @@ export default function AdminCategories() {
     popular_order: "" as string,
   });
 
+  const [iconSearch, setIconSearch] = useState("");
+  const [subIconSearch, setSubIconSearch] = useState("");
+
+
   // Track expanded categories
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
@@ -159,6 +163,8 @@ export default function AdminCategories() {
     (subcategories || []).forEach((s) => {
       map[s.id] = s.popular_order === null || s.popular_order === undefined ? "" : String(s.popular_order);
     });
+
+
     setPopularOrderDraft(map);
   }, [subcategories]);
 
@@ -742,8 +748,10 @@ export default function AdminCategories() {
             {/* Icon Selection */}
             <div>
               <Label>Icon</Label>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+
               <div className="grid grid-cols-8 gap-2 mt-2 max-h-32 overflow-y-auto p-1">
-                {ICON_OPTIONS.map((iconName) => {
+                {ICON_OPTIONS.filter((n) => n.toLowerCase().includes(iconSearch.toLowerCase())).map((iconName) => {
                   const IconComp = ICON_MAP[iconName];
                   return (
                     <button
@@ -834,8 +842,20 @@ export default function AdminCategories() {
             {/* Icon Selection */}
             <div>
               <Label>Icon</Label>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <Input
+                  value={subIconSearch}
+                  onChange={(e) => setSubIconSearch(e.target.value)}
+                  placeholder="Search icons..."
+                />
+                <Input
+                  value={subForm.icon}
+                  onChange={(e) => setSubForm({ ...subForm, icon: e.target.value })}
+                  placeholder="Or type icon key (e.g., Wrench)"
+                />
+              </div>
               <div className="grid grid-cols-8 gap-2 mt-2 max-h-32 overflow-y-auto p-1">
-                {ICON_OPTIONS.map((iconName) => {
+                {ICON_OPTIONS.filter((n) => n.toLowerCase().includes(subIconSearch.toLowerCase())).map((iconName) => {
                   const IconComp = ICON_MAP[iconName];
                   return (
                     <button
