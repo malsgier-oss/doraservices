@@ -11,22 +11,54 @@ import { useToast } from "@/hooks/use-toast";
 
 type City = { id: string; name: string; name_ar: string | null };
 type Category = { id: string; name: string; name_ar: string | null; is_active: boolean; display_order: number };
-type Subcategory = { id: string; category_id: string; name: string; name_ar: string | null; is_active: boolean | null; display_order: number | null };
+type Subcategory = {
+  id: string;
+  category_id: string;
+  name: string;
+  name_ar: string | null;
+  is_active: boolean | null;
+  display_order: number | null;
+  is_featured?: boolean | null;
+  featured_order?: number | null;
+};
 
 type HubBanner = {
   id: string;
-  title_ar: string;
+  title_ar: string | null;
   subtitle_ar: string | null;
   cta_text_ar: string | null;
   image_path: string;
-  target_type: "category" | "url";
+  target_type: "none" | "category" | "subcategory" | "shelf";
   target_category_id: string | null;
-  target_url: string | null;
+  target_subcategory_id: string | null;
+  target_shelf_id: string | null;
   city_id: string | null;
   display_order: number;
   is_active: boolean;
   start_at: string | null;
   end_at: string | null;
+};
+
+type HubChip = {
+  id: string;
+  label_ar: string | null;
+  label_en: string | null;
+  target_type: "category" | "subcategory" | "shelf";
+  target_category_id: string | null;
+  target_subcategory_id: string | null;
+  target_shelf_id: string | null;
+  city_id: string | null;
+  display_order: number;
+  is_active: boolean;
+};
+
+type HubTopCategory = {
+  id: string;
+  scope: "global" | "city";
+  city_id: string | null;
+  category_id: string;
+  display_order: number;
+  is_active: boolean;
 };
 
 type HubShelf = {
@@ -62,18 +94,21 @@ export default function AdminHub() {
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
 
   const [banners, setBanners] = useState<HubBanner[]>([]);
+  const [chips, setChips] = useState<HubChip[]>([]);
+  const [topCategories, setTopCategories] = useState<HubTopCategory[]>([]);
   const [shelves, setShelves] = useState<HubShelf[]>([]);
 
   const [loading, setLoading] = useState(true);
 
   // Banner form state
   const [bannerForm, setBannerForm] = useState<Partial<HubBanner>>({
-    title_ar: "",
-    subtitle_ar: "",
-    cta_text_ar: "",
-    target_type: "category",
+    title_ar: null,
+    subtitle_ar: null,
+    cta_text_ar: null,
+    target_type: "none",
     target_category_id: null,
-    target_url: null,
+    target_subcategory_id: null,
+    target_shelf_id: null,
     city_id: null,
     display_order: 0,
     is_active: true,
@@ -81,6 +116,23 @@ export default function AdminHub() {
     end_at: null,
   });
   const [bannerImage, setBannerImage] = useState<File | null>(null);
+
+  // Chips form state
+  const [chipForm, setChipForm] = useState<Partial<HubChip>>({
+    label_ar: "",
+    label_en: "",
+    target_type: "subcategory",
+    target_category_id: null,
+    target_subcategory_id: null,
+    target_shelf_id: null,
+    city_id: null,
+    display_order: 0,
+    is_active: true,
+  });
+
+  // Top-8 selector state
+  const [topScope, setTopScope] = useState<"global" | "city">("global");
+  const [topCityId, setTopCityId] = useState<string | null>(null);
 
   // Shelf form state
   const [shelfForm, setShelfForm] = useState<Partial<HubShelf>>({
@@ -106,7 +158,7 @@ export default function AdminHub() {
 
   async function refreshAll() {
     setLoading(true);
-    await Promise.all([loadCities(), loadCategories(), loadSubcategories(), loadBanners(), loadShelves()]);
+    await Promise.all([loadCities(), loadCategories(), loadSubcategories(), loadBanners(), loadChips(), loadTopCategories(), loadShelves()]);
     setLoading(false);
   }
 
@@ -131,7 +183,7 @@ export default function AdminHub() {
   async function loadSubcategories() {
     const { data, error } = await supabase
       .from("subcategories")
-      .select("id,category_id,name,name_ar,is_active,display_order")
+      .select("id,category_id,name,name_ar,is_active,display_order,is_featured,featured_order")
       .order("display_order", { ascending: true });
     if (error) console.error(error);
     setSubcategories((((data as any[]) || []) as Subcategory[]).filter((s) => s.is_active !== false));
@@ -144,6 +196,26 @@ export default function AdminHub() {
       .order("display_order", { ascending: true });
     if (error) console.error(error);
     setBanners(((data as any[]) || []) as HubBanner[]);
+  }
+
+  async function loadChips() {
+    const { data, error } = await supabase
+      .from("hub_chips")
+      .select("*")
+      .order("display_order", { ascending: true });
+    if (error) console.error(error);
+    setChips(((data as any[]) || []) as HubChip[]);
+  }
+
+  async function loadTopCategories() {
+    const { data, error } = await supabase
+      .from("hub_top_categories")
+      .select("id,scope,city_id,category_id,display_order,is_active")
+      .order("scope", { ascending: true })
+      .order("city_id", { ascending: true, nullsFirst: true })
+      .order("display_order", { ascending: true });
+    if (error) console.error(error);
+    setTopCategories(((data as any[]) || []) as HubTopCategory[]);
   }
 
   async function loadShelves() {
@@ -181,26 +253,29 @@ export default function AdminHub() {
 
   async function createBanner() {
     try {
-      if (!bannerForm.title_ar?.trim()) throw new Error("Banner title (Arabic) is required.");
       if (!bannerImage) throw new Error("Banner image is required.");
 
       if (bannerForm.target_type === "category" && !bannerForm.target_category_id) {
         throw new Error("Select a target category.");
       }
-      if (bannerForm.target_type === "url" && !bannerForm.target_url?.trim()) {
-        throw new Error("Enter a target URL.");
+      if (bannerForm.target_type === "subcategory" && !bannerForm.target_subcategory_id) {
+        throw new Error("Select a target subcategory.");
+      }
+      if (bannerForm.target_type === "shelf" && !bannerForm.target_shelf_id) {
+        throw new Error("Select a target shelf.");
       }
 
       const image_path = await uploadBannerImage(bannerImage);
 
       const { error } = await supabase.from("hub_banners").insert({
-        title_ar: bannerForm.title_ar,
+        title_ar: bannerForm.title_ar || null,
         subtitle_ar: bannerForm.subtitle_ar || null,
         cta_text_ar: bannerForm.cta_text_ar || null,
         image_path,
-        target_type: bannerForm.target_type || "category",
+        target_type: bannerForm.target_type || "none",
         target_category_id: bannerForm.target_type === "category" ? bannerForm.target_category_id : null,
-        target_url: bannerForm.target_type === "url" ? bannerForm.target_url : null,
+        target_subcategory_id: bannerForm.target_type === "subcategory" ? bannerForm.target_subcategory_id : null,
+        target_shelf_id: bannerForm.target_type === "shelf" ? bannerForm.target_shelf_id : null,
         city_id: bannerForm.city_id || null,
         display_order: Number(bannerForm.display_order || 0),
         is_active: !!bannerForm.is_active,
@@ -212,12 +287,13 @@ export default function AdminHub() {
 
       toast({ title: "Banner created" });
       setBannerForm({
-        title_ar: "",
-        subtitle_ar: "",
-        cta_text_ar: "",
-        target_type: "category",
+        title_ar: null,
+        subtitle_ar: null,
+        cta_text_ar: null,
+        target_type: "none",
         target_category_id: null,
-        target_url: null,
+        target_subcategory_id: null,
+        target_shelf_id: null,
         city_id: null,
         display_order: 0,
         is_active: true,
@@ -249,6 +325,154 @@ export default function AdminHub() {
     }
     toast({ title: "Deleted" });
     await loadBanners();
+  }
+
+  // --- Chips ---
+  async function createChip() {
+    try {
+      const labelAr = (chipForm.label_ar || "").trim();
+      const labelEn = (chipForm.label_en || "").trim();
+      if (!labelAr && !labelEn) throw new Error("Chip label (AR or EN) is required.");
+      if (!chipForm.target_type) throw new Error("Chip target type is required.");
+
+      if (chipForm.target_type === "category" && !chipForm.target_category_id) throw new Error("Select a target category.");
+      if (chipForm.target_type === "subcategory" && !chipForm.target_subcategory_id) throw new Error("Select a target subcategory.");
+      if (chipForm.target_type === "shelf" && !chipForm.target_shelf_id) throw new Error("Select a target shelf.");
+
+      const { error } = await supabase.from("hub_chips").insert({
+        label_ar: labelAr || null,
+        label_en: labelEn || null,
+        target_type: chipForm.target_type,
+        target_category_id: chipForm.target_type === "category" ? chipForm.target_category_id : null,
+        target_subcategory_id: chipForm.target_type === "subcategory" ? chipForm.target_subcategory_id : null,
+        target_shelf_id: chipForm.target_type === "shelf" ? chipForm.target_shelf_id : null,
+        city_id: chipForm.city_id || null,
+        display_order: Number(chipForm.display_order || 0),
+        is_active: !!chipForm.is_active,
+      });
+      if (error) throw error;
+      toast({ title: "Chip created" });
+      setChipForm({
+        label_ar: "",
+        label_en: "",
+        target_type: "subcategory",
+        target_category_id: null,
+        target_subcategory_id: null,
+        target_shelf_id: null,
+        city_id: null,
+        display_order: 0,
+        is_active: true,
+      });
+      await loadChips();
+    } catch (e: any) {
+      toast({ title: "Failed", description: e.message || String(e), variant: "destructive" });
+    }
+  }
+
+  async function toggleChipActive(id: string, is_active: boolean) {
+    const { error } = await supabase.from("hub_chips").update({ is_active }).eq("id", id);
+    if (error) {
+      toast({ title: "Failed to update", description: error.message, variant: "destructive" });
+      return;
+    }
+    await loadChips();
+  }
+
+  async function deleteChip(id: string) {
+    if (!confirm("Delete this chip?")) return;
+    const { error } = await supabase.from("hub_chips").delete().eq("id", id);
+    if (error) {
+      toast({ title: "Delete failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Deleted" });
+    await loadChips();
+  }
+
+  // --- Top 8 categories (global + per-city override) ---
+  const scopedTop = useMemo(() => {
+    return topCategories
+      .filter((r) => r.is_active !== false)
+      .filter((r) => (topScope === "global" ? r.scope === "global" : r.scope === "city" && r.city_id === topCityId))
+      .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+  }, [topCategories, topScope, topCityId]);
+
+  async function addTopCategory(category_id: string) {
+    try {
+      if (!category_id) throw new Error("Select a category.");
+      if (topScope === "city" && !topCityId) throw new Error("Select a city.");
+      if (scopedTop.length >= 8) throw new Error("Top list already has 8 categories.");
+      if (scopedTop.some((r) => r.category_id === category_id)) throw new Error("Category already added.");
+
+      const { error } = await supabase.from("hub_top_categories").insert({
+        scope: topScope,
+        city_id: topScope === "city" ? topCityId : null,
+        category_id,
+        display_order: scopedTop.length,
+        is_active: true,
+      });
+      if (error) throw error;
+      toast({ title: "Added" });
+      await loadTopCategories();
+    } catch (e: any) {
+      toast({ title: "Failed", description: e.message || String(e), variant: "destructive" });
+    }
+  }
+
+  async function removeTopCategory(id: string) {
+    if (!confirm("Remove this category from top list?")) return;
+    const { error } = await supabase.from("hub_top_categories").delete().eq("id", id);
+    if (error) {
+      toast({ title: "Failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    await loadTopCategories();
+  }
+
+  async function moveTopCategory(id: string, direction: "up" | "down") {
+    const list = scopedTop;
+    const idx = list.findIndex((r) => r.id === id);
+    if (idx === -1) return;
+    const swapWith = direction === "up" ? idx - 1 : idx + 1;
+    if (swapWith < 0 || swapWith >= list.length) return;
+    const a = list[idx];
+    const b = list[swapWith];
+    const { error } = await supabase
+      .from("hub_top_categories")
+      .upsert([
+        { id: a.id, display_order: b.display_order },
+        { id: b.id, display_order: a.display_order },
+      ], { onConflict: "id" });
+    if (error) {
+      toast({ title: "Failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    await loadTopCategories();
+  }
+
+  // --- Featured services ---
+  async function setFeatured(subcategory_id: string, is_featured: boolean) {
+    const { error } = await supabase
+      .from("subcategories")
+      .update({ is_featured, featured_order: is_featured ? 0 : null })
+      .eq("id", subcategory_id);
+    if (error) {
+      toast({ title: "Failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    await loadSubcategories();
+  }
+
+  async function setFeaturedOrder(subcategory_id: string, featured_order: number | null) {
+    const { error } = await supabase
+      .from("subcategories")
+      .update({ featured_order })
+      .eq("id", subcategory_id);
+    if (error) {
+      toast({ title: "Failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    await loadSubcategories();
   }
 
   async function createShelf() {
@@ -429,13 +653,14 @@ export default function AdminHub() {
                 />
 
                 <Select
-                  value={bannerForm.target_type || "category"}
+                  value={bannerForm.target_type || "none"}
                   onValueChange={(v: any) =>
                     setBannerForm((p) => ({
                       ...p,
                       target_type: v,
                       target_category_id: v === "category" ? p.target_category_id : null,
-                      target_url: v === "url" ? p.target_url : null,
+                      target_subcategory_id: v === "subcategory" ? p.target_subcategory_id : null,
+                      target_shelf_id: v === "shelf" ? p.target_shelf_id : null,
                     }))
                   }
                 >
@@ -443,8 +668,10 @@ export default function AdminHub() {
                     <SelectValue placeholder="Target type" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">None (image only)</SelectItem>
                     <SelectItem value="category">Category</SelectItem>
-                    <SelectItem value="url">URL</SelectItem>
+                    <SelectItem value="subcategory">Subcategory</SelectItem>
+                    <SelectItem value="shelf">Shelf (scroll)</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -464,12 +691,42 @@ export default function AdminHub() {
                       ))}
                     </SelectContent>
                   </Select>
+
+                ) : bannerForm.target_type === "subcategory" ? (
+                  <Select
+                    value={bannerForm.target_subcategory_id || ""}
+                    onValueChange={(v) => setBannerForm((p) => ({ ...p, target_subcategory_id: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Target subcategory" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {subcategories.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name_ar || s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : bannerForm.target_type === "shelf" ? (
+                  <Select
+                    value={bannerForm.target_shelf_id || ""}
+                    onValueChange={(v) => setBannerForm((p) => ({ ...p, target_shelf_id: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Target shelf" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {shelves.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.title_ar}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="featured-services">Featured services</SelectItem>
+                    </SelectContent>
+                  </Select>
                 ) : (
-                  <Input
-                    placeholder="Target URL"
-                    value={bannerForm.target_url || ""}
-                    onChange={(e) => setBannerForm((p) => ({ ...p, target_url: e.target.value }))}
-                  />
+                  <div className="text-sm text-muted-foreground">No target (banner is decorative).</div>
                 )}
 
                 <Select
@@ -529,11 +786,12 @@ export default function AdminHub() {
                   banners.map((b) => (
                     <div key={b.id} className="flex flex-col md:flex-row md:items-center gap-2 justify-between border rounded-md p-3">
                       <div className="min-w-0">
-                        <div className="font-medium truncate">{b.title_ar}</div>
+                        <div className="font-medium truncate">{b.title_ar || "(Image banner)"}</div>
                         <div className="text-xs text-muted-foreground">
-                          {b.target_type === "category"
-                            ? `Category: ${b.target_category_id ? (categoriesById[b.target_category_id]?.name_ar || categoriesById[b.target_category_id]?.name) : "—"}`
-                            : `URL: ${b.target_url || "—"}`}
+                          {b.target_type === "none" ? "Target: None" :
+                           b.target_type === "category" ? `Category: ${b.target_category_id ? (categoriesById[b.target_category_id]?.name_ar || categoriesById[b.target_category_id]?.name) : "—"}` :
+                           b.target_type === "subcategory" ? `Subcategory: ${b.target_subcategory_id ? (subcategories.find(s=>s.id===b.target_subcategory_id)?.name_ar || subcategories.find(s=>s.id===b.target_subcategory_id)?.name) : "—"}` :
+                           `Shelf: ${b.target_shelf_id || "—"}`}
                           {" • "}
                           City: {b.city_id ? (citiesById[b.city_id]?.name_ar || citiesById[b.city_id]?.name) : "All"}
                           {" • "}
@@ -558,6 +816,235 @@ export default function AdminHub() {
           </div>
 
           <Separator />
+
+          <div>
+            <h2 className="text-lg font-semibold">Top 8 categories</h2>
+            <p className="text-sm text-muted-foreground">These control the 8 tiles grid on the Hub. You can set a global list, or override per city.</p>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Configure Top 8</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-3">
+                <Select value={topScope} onValueChange={(v: any) => { setTopScope(v); if (v === "global") setTopCityId(null); }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Scope" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="global">Global</SelectItem>
+                    <SelectItem value="city">City override</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={topCityId || "__none__"}
+                  onValueChange={(v) => setTopCityId(v === "__none__" ? null : v)}
+                  disabled={topScope !== "city"}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="City" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Select city</SelectItem>
+                    {cities.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name_ar || c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value="" onValueChange={(v) => addTopCategory(v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Add category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name_ar || c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                {scopedTop.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">No categories selected yet.</div>
+                ) : (
+                  scopedTop.map((r, idx) => (
+                    <div key={r.id} className="flex items-center justify-between gap-2 border rounded-md p-2">
+                      <div className="text-sm">#{idx + 1} — {categoriesById[r.category_id]?.name_ar || categoriesById[r.category_id]?.name}</div>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => moveTopCategory(r.id, "up")}>Up</Button>
+                        <Button size="sm" variant="outline" onClick={() => moveTopCategory(r.id, "down")}>Down</Button>
+                        <Button size="sm" variant="destructive" onClick={() => removeTopCategory(r.id)}>Remove</Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Separator />
+
+          <div>
+            <h2 className="text-lg font-semibold">Search chips</h2>
+            <p className="text-sm text-muted-foreground">Scrollable chips under the search bar (city-targeted). Each chip can lead to a category, subcategory, or scroll to a shelf.</p>
+          </div>
+
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Create Chip</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-3 md:grid-cols-2">
+                <Input placeholder="Label AR" value={chipForm.label_ar || ""} onChange={(e) => setChipForm((p) => ({ ...p, label_ar: e.target.value }))} />
+                <Input placeholder="Label EN" value={chipForm.label_en || ""} onChange={(e) => setChipForm((p) => ({ ...p, label_en: e.target.value }))} />
+
+                <Select
+                  value={chipForm.target_type || "subcategory"}
+                  onValueChange={(v: any) =>
+                    setChipForm((p) => ({
+                      ...p,
+                      target_type: v,
+                      target_category_id: v === "category" ? p.target_category_id : null,
+                      target_subcategory_id: v === "subcategory" ? p.target_subcategory_id : null,
+                      target_shelf_id: v === "shelf" ? p.target_shelf_id : null,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Target type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="category">Category</SelectItem>
+                    <SelectItem value="subcategory">Subcategory</SelectItem>
+                    <SelectItem value="shelf">Shelf (scroll)</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {chipForm.target_type === "category" ? (
+                  <Select value={chipForm.target_category_id || ""} onValueChange={(v) => setChipForm((p) => ({ ...p, target_category_id: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Target category" /></SelectTrigger>
+                    <SelectContent>
+                      {categories.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.name_ar || c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : chipForm.target_type === "subcategory" ? (
+                  <Select value={chipForm.target_subcategory_id || ""} onValueChange={(v) => setChipForm((p) => ({ ...p, target_subcategory_id: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Target subcategory" /></SelectTrigger>
+                    <SelectContent>
+                      {subcategories.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.name_ar || s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Select value={chipForm.target_shelf_id || ""} onValueChange={(v) => setChipForm((p) => ({ ...p, target_shelf_id: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Target shelf" /></SelectTrigger>
+                    <SelectContent>
+                      {shelves.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.title_ar}</SelectItem>
+                      ))}
+                      <SelectItem value="featured-services">Featured services</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+
+                <Select value={chipForm.city_id || "__all__"} onValueChange={(v) => setChipForm((p) => ({ ...p, city_id: v === "__all__" ? null : v }))}>
+                  <SelectTrigger><SelectValue placeholder="City" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All cities</SelectItem>
+                    {cities.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name_ar || c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Input type="number" placeholder="Display order" value={chipForm.display_order ?? 0} onChange={(e) => setChipForm((p) => ({ ...p, display_order: Number(e.target.value) }))} />
+
+                <div className="flex items-center gap-2">
+                  <Switch checked={!!chipForm.is_active} onCheckedChange={(v) => setChipForm((p) => ({ ...p, is_active: v }))} />
+                  <span className="text-sm">Active</span>
+                </div>
+
+                <div className="md:col-span-2">
+                  <Button onClick={createChip}>Create Chip</Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Existing Chips</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {chips.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">No chips yet.</div>
+                ) : (
+                  chips.map((c) => (
+                    <div key={c.id} className="flex items-center justify-between gap-2 border rounded-md p-2">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">{c.label_ar || c.label_en}</div>
+                        <div className="text-xs text-muted-foreground">Target: {c.target_type} • City: {c.city_id ? (citiesById[c.city_id]?.name_ar || citiesById[c.city_id]?.name) : "All"} • Order: {c.display_order}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch checked={c.is_active} onCheckedChange={(v) => toggleChipActive(c.id, v)} />
+                        <Button size="sm" variant="destructive" onClick={() => deleteChip(c.id)}>Delete</Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <Separator />
+
+          <div>
+            <h2 className="text-lg font-semibold">Featured services</h2>
+            <p className="text-sm text-muted-foreground">Mark subcategories as featured to show them in the "Featured services" shelf.</p>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Manage Featured Subcategories</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {subcategories
+                .slice()
+                .sort((a, b) => {
+                  const ao = a.featured_order ?? 9999;
+                  const bo = b.featured_order ?? 9999;
+                  return ao - bo;
+                })
+                .map((s) => (
+                  <div key={s.id} className="flex flex-col md:flex-row md:items-center justify-between gap-2 border rounded-md p-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{s.name_ar || s.name}</div>
+                      <div className="text-xs text-muted-foreground">Order: {s.featured_order ?? "—"}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch checked={!!s.is_featured} onCheckedChange={(v) => setFeatured(s.id, v)} />
+                      <Input
+                        className="w-28"
+                        type="number"
+                        placeholder="Order"
+                        value={s.featured_order ?? ""}
+                        onChange={(e) => setFeaturedOrder(s.id, e.target.value === "" ? null : Number(e.target.value))}
+                        disabled={!s.is_featured}
+                      />
+                    </div>
+                  </div>
+                ))}
+            </CardContent>
+          </Card>
 
           <div>
             <h2 className="text-lg font-semibold">Shelves</h2>
