@@ -125,7 +125,7 @@ const AppRoutes = () => {
       <Route path="/" element={<Hub />} />
 
       {/* Public site pages */}
-      <Route path="/:slug(about|contact|terms|privacy)" element={<SitePage />} />
+      <Route path="/:slug(about|contact|help|become-provider|terms|privacy)" element={<SitePage />} />
 
       {/* ✅ ENV DEBUG ROUTE (optional) */}
       <Route path="/env" element={<EnvDebug />} />
