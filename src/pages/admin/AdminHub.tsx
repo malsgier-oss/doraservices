@@ -96,8 +96,8 @@ export default function AdminHub() {
   // Manual items dialog
   const [itemsOpenForShelf, setItemsOpenForShelf] = useState<string | null>(null);
   const [items, setItems] = useState<HubShelfItem[]>([]);
-  const [newItemSubcategoryId, setNewItemSubcategoryId] = useState<string>("");
   const [subcatSearch, setSubcatSearch] = useState<string>("");
+  const [subcatFilterCategoryId, setSubcatFilterCategoryId] = useState<string>("all");
 
   useEffect(() => {
     refreshAll();
@@ -310,8 +310,8 @@ export default function AdminHub() {
 
   async function openItemsDialog(shelfId: string) {
     setItemsOpenForShelf(shelfId);
-    setNewItemSubcategoryId("");
     setSubcatSearch("");
+    setSubcatFilterCategoryId("all");
     const { data, error } = await supabase
       .from("hub_shelf_items")
       .select("*")
@@ -325,22 +325,59 @@ export default function AdminHub() {
     setItems(((data as any[]) || []) as HubShelfItem[]);
   }
 
-  async function addManualItem() {
+  async function addManualItem(subcategoryId: string) {
     if (!itemsOpenForShelf) return;
-    if (!newItemSubcategoryId) {
-      toast({ title: "Pick a service first", variant: "destructive" });
+    if (!subcategoryId) return;
+
+    // prevent duplicates in UI (DB also has unique index after migration)
+    if (items.some((i) => i.subcategory_id === subcategoryId)) {
+      toast({ title: "Already added" });
       return;
     }
-    const nextOrder = items.length > 0 ? Math.max(...items.map(i => i.display_order)) + 1 : 0;
+
+    const nextOrder = items.length > 0 ? Math.max(...items.map((i) => i.display_order)) + 1 : 0;
+
     const { error } = await supabase.from("hub_shelf_items").insert({
       shelf_id: itemsOpenForShelf,
-      subcategory_id: newItemSubcategoryId,
+      subcategory_id: subcategoryId,
       display_order: nextOrder,
     } as any);
     if (error) {
       toast({ title: "Failed", description: error.message, variant: "destructive" });
       return;
     }
+    await openItemsDialog(itemsOpenForShelf);
+  }
+
+  async function moveManualItem(itemId: string, direction: "up" | "down") {
+    if (!itemsOpenForShelf) return;
+    const idx = items.findIndex((i) => i.id === itemId);
+    if (idx === -1) return;
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= items.length) return;
+
+    const a = items[idx];
+    const b = items[swapIdx];
+
+    // swap display_order in DB
+    const { error } = await supabase
+      .from("hub_shelf_items")
+      .update({ display_order: b.display_order })
+      .eq("id", a.id);
+    if (error) {
+      toast({ title: "Failed", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    const { error: error2 } = await supabase
+      .from("hub_shelf_items")
+      .update({ display_order: a.display_order })
+      .eq("id", b.id);
+    if (error2) {
+      toast({ title: "Failed", description: error2.message, variant: "destructive" });
+      return;
+    }
+
     await openItemsDialog(itemsOpenForShelf);
   }
 
@@ -663,57 +700,84 @@ export default function AdminHub() {
                               </DialogHeader>
 
                               <div className="space-y-3">
-                                <div className="flex gap-2">
-                                  <div className="flex-1 space-y-2">
+                                <div className="grid gap-2 md:grid-cols-3">
+                                  <Select value={subcatFilterCategoryId} onValueChange={setSubcatFilterCategoryId}>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Filter category" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="all">All categories</SelectItem>
+                                      {categories.map((c) => (
+                                        <SelectItem key={c.id} value={c.id}>
+                                          {c.name_ar || c.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+
+                                  <div className="md:col-span-2">
                                     <Input
                                       placeholder="Search services (subcategories)..."
                                       value={subcatSearch}
                                       onChange={(e) => setSubcatSearch(e.target.value)}
                                     />
-                                    <Select value={newItemSubcategoryId} onValueChange={setNewItemSubcategoryId}>
-                                      <SelectTrigger>
-                                        <SelectValue placeholder="Select service to add" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {subcategories
-                                          .filter((sc) => sc.is_active !== false)
-                                          .filter((sc) => {
-                                            const q = subcatSearch.trim().toLowerCase();
-                                            if (!q) return true;
-                                            return `${sc.name_ar || ""} ${sc.name}`.toLowerCase().includes(q);
-                                          })
-                                          .slice(0, 50)
-                                          .map((sc) => {
-                                            const cat = categoriesById[sc.category_id];
-                                            const label = `${sc.name_ar || sc.name} • ${cat ? (cat.name_ar || cat.name) : ""}`;
-                                            return (
-                                              <SelectItem key={sc.id} value={sc.id}>
-                                                {label}
-                                              </SelectItem>
-                                            );
-                                          })}
-                                      </SelectContent>
-                                    </Select>
                                   </div>
-                                  <Button onClick={addManualItem}>Add</Button>
+                                </div>
+
+                                <div className="border rounded-md p-2 max-h-56 overflow-auto">
+                                  {(subcategories || [])
+                                    .filter((sc) => sc.is_active !== false)
+                                    .filter((sc) => (subcatFilterCategoryId === "all" ? true : sc.category_id === subcatFilterCategoryId))
+                                    .filter((sc) => {
+                                      const q = subcatSearch.trim().toLowerCase();
+                                      if (!q) return true;
+                                      return `${sc.name_ar || ""} ${sc.name}`.toLowerCase().includes(q);
+                                    })
+                                    .slice(0, 40)
+                                    .map((sc) => {
+                                      const cat = categoriesById[sc.category_id];
+                                      const already = items.some((i) => i.subcategory_id === sc.id);
+                                      return (
+                                        <div key={sc.id} className="flex items-center justify-between gap-2 py-1">
+                                          <div className="min-w-0">
+                                            <div className="text-sm font-medium truncate">{sc.name_ar || sc.name}</div>
+                                            <div className="text-xs text-muted-foreground truncate">{cat ? (cat.name_ar || cat.name) : ""}</div>
+                                          </div>
+                                          <Button size="sm" variant={already ? "secondary" : "default"} disabled={already} onClick={() => addManualItem(sc.id)}>
+                                            {already ? "Added" : "Add"}
+                                          </Button>
+                                        </div>
+                                      );
+                                    })}
+
+                                  {subcategories.length === 0 ? (
+                                    <div className="text-sm text-muted-foreground p-2">No subcategories yet.</div>
+                                  ) : null}
                                 </div>
 
                                 {items.length === 0 ? (
                                   <div className="text-sm text-muted-foreground">No items yet.</div>
                                 ) : (
                                   <div className="space-y-2">
-                                    {items.map((it) => (
-                                      <div key={it.id} className="flex items-center justify-between border rounded-md p-2">
-                                        <div className="text-sm">
-                                          {it.subcategory_id
-                                            ? (subcategories.find((sc) => sc.id === it.subcategory_id)?.name_ar || subcategories.find((sc) => sc.id === it.subcategory_id)?.name || it.subcategory_id)
-                                            : (categoriesById[it.category_id || ""]?.name_ar || categoriesById[it.category_id || ""]?.name || it.category_id || "—")}
+                                    {items.map((it, idx) => {
+                                      const label = it.subcategory_id
+                                        ? (subcategories.find((sc) => sc.id === it.subcategory_id)?.name_ar || subcategories.find((sc) => sc.id === it.subcategory_id)?.name || it.subcategory_id)
+                                        : (categoriesById[it.category_id || ""]?.name_ar || categoriesById[it.category_id || ""]?.name || it.category_id || "—");
+
+                                      return (
+                                        <div key={it.id} className="flex items-center justify-between border rounded-md p-2 gap-2">
+                                          <div className="text-sm min-w-0 truncate">{label}</div>
+
+                                          <div className="flex items-center gap-1">
+                                            <Button size="sm" variant="secondary" disabled={idx === 0} onClick={() => moveManualItem(it.id, "up")}>↑</Button>
+                                            <Button size="sm" variant="secondary" disabled={idx === items.length - 1} onClick={() => moveManualItem(it.id, "down")}>↓</Button>
+                                            <Button variant="destructive" size="sm" onClick={() => removeManualItem(it.id)}>
+                                              Remove
+                                            </Button>
+                                          </div>
                                         </div>
-                                        <Button variant="destructive" size="sm" onClick={() => removeManualItem(it.id)}>
-                                          Remove
-                                        </Button>
-                                      </div>
-                                    ))}
+                                      );
+                                    })}
                                   </div>
                                 )}
                               </div>
