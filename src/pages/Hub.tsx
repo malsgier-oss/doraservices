@@ -140,6 +140,17 @@ export default function Hub() {
   const [browseOpen, setBrowseOpen] = useState(false);
   const [browseCategoryId, setBrowseCategoryId] = useState<string | null>(null);
 
+  // When a subcategory is selected inside the category browse sheet, we close the browse sheet first
+  // then open the provider list sheet on the next render tick. This avoids Drawer/Portal race conditions
+  // on mobile where two drawers opening/closing in the same tick can result in a blank screen.
+  const [pendingSubcategoryToOpen, setPendingSubcategoryToOpen] = useState<{
+    id: string;
+    name: string;
+    name_ar?: string | null;
+    icon: LucideIcon;
+    color: string | null;
+  } | null>(null);
+
   const browseCategory = useMemo(() => {
     if (!browseCategoryId) return null;
     return categoriesById[browseCategoryId] || null;
@@ -182,6 +193,21 @@ export default function Hub() {
     setInitialProviderServiceId(providerServiceId || null);
     setServiceSheetOpen(true);
   }
+
+  // If a subcategory was selected from inside the CategoryBrowseSheet, open the provider sheet
+  // only after the browse sheet is closed to avoid drawer stacking issues on mobile.
+  useEffect(() => {
+    if (browseOpen) return;
+    if (!pendingSubcategoryToOpen) return;
+    // Open on the next tick (after Drawer state settles).
+    const id = window.setTimeout(() => {
+      openSubcategoryProviders(pendingSubcategoryToOpen);
+      setPendingSubcategoryToOpen(null);
+    }, 0);
+
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [browseOpen, pendingSubcategoryToOpen]);
 
   // Shelves data (category shelves load subcategories)
   const [subcatsByShelfId, setSubcatsByShelfId] = useState<Record<string, SubcategoryRow[]>>({});
@@ -522,8 +548,9 @@ export default function Hub() {
         category={browseCategory}
         iconMap={ICON_MAP}
         onSelectSubcategory={(subcat) => {
+          // Close the category browse sheet first, then open the providers sheet on next tick.
+          setPendingSubcategoryToOpen(subcat);
           setBrowseOpen(false);
-          openSubcategoryProviders(subcat);
         }}
       />
 
