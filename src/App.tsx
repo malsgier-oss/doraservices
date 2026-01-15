@@ -40,6 +40,7 @@ import AdminBulkUpload from "./pages/admin/AdminBulkUpload";
 import AdminSubCities from "./pages/admin/AdminSubCities";
 import AdminPasswordResets from "./pages/admin/AdminPasswordResets";
 import AdminReviews from "./pages/admin/AdminReviews";
+import AdminAnnouncements from "./pages/admin/AdminAnnouncements";
 
 // ✅ NEW: Env Debug page (optional)
 import EnvDebug from "./pages/EnvDebug";
@@ -221,6 +222,7 @@ const AppRoutes = () => {
         <Route path="cities" element={<AdminCities />} />
         <Route path="sub-cities" element={<AdminSubCities />} />
         <Route path="reviews" element={<AdminReviews />} />
+        <Route path="announcements" element={<AdminAnnouncements />} />
         <Route path="reports" element={<AdminReports />} />
         <Route path="settings" element={<AdminSettings />} />
         <Route path="messages" element={<AdminMessages />} />
