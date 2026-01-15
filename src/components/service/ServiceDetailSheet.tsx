@@ -11,13 +11,11 @@ import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useFavorites } from "@/hooks/useFavorites";
-import { useReviews, useServiceRatings } from "@/hooks/useReviews";
+import { useServiceRatings } from "@/hooks/useReviews";
 import { useCities } from "@/hooks/useCities";
 import { useSubCities } from "@/hooks/useSubCities";
 import { useCallLogs } from "@/hooks/useCallLogs";
 import { logServiceEvent } from "@/hooks/useServiceEvents";
-import { ReviewDialog } from "./ReviewDialog";
-import { ReviewList } from "./ReviewList";
 import { ReportDialog } from "@/components/report/ReportDialog";
 import { toast } from "sonner";
 import { SearchFiltersState } from "@/components/search/SearchFilters";
@@ -105,14 +103,8 @@ export function ServiceDetailSheet({
   const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
 
   const [pendingOpenProviderId, setPendingOpenProviderId] = useState<string | null>(null);
-
-  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
-  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [isLoggingCall, setIsLoggingCall] = useState(false);
-
-  const { reviews, rating, userReview, submitReview, loading: reviewsLoading } = useReviews(selectedProvider?.id);
-
   const { ratings: providerRatings } = useServiceRatings(providers.map((p) => p.id));
 
   const getCityLabel = (cityId: string | null) => {
@@ -403,38 +395,6 @@ export function ServiceDetailSheet({
     }
   };
 
-  const handleOpenReviewDialog = () => {
-    if (!user) {
-      toast.info(isRTL ? "يرجى تسجيل الدخول" : "Please sign in first");
-      onOpenChange(false);
-      navigate("/auth");
-      return;
-    }
-    setReviewDialogOpen(true);
-  };
-
-  const handleSubmitReview = async (reviewRating: number, content: string) => {
-    if (!selectedProvider) return;
-    if (!selectedProvider.user_id) {
-      toast.error(isRTL ? "لا يمكن تقييم هذا المزود حالياً" : "This provider can't be reviewed yet");
-      return;
-    }
-
-    setIsSubmittingReview(true);
-    const { error } = await submitReview({
-      rating: reviewRating,
-      content: content || undefined,
-      providerId: selectedProvider.user_id,
-    });
-    setIsSubmittingReview(false);
-
-    if (error) toast.error(isRTL ? "حدث خطأ" : "Error submitting review");
-    else {
-      toast.success(isRTL ? "تم حفظ التقييم" : "Review saved");
-      setReviewDialogOpen(false);
-    }
-  };
-
   const handleBack = () => setSelectedProvider(null);
 
   const getRatingDisplay = (serviceId: string) => {
@@ -448,7 +408,7 @@ export function ServiceDetailSheet({
   // ---------------- Provider detail view ----------------
   if (selectedProvider) {
     const isProviderFavorite = isFavorite(selectedProvider.id);
-    const hasRating = rating.totalReviews > 0;
+    const ratingInfo = getRatingDisplay(selectedProvider.id);
 
     return (
       <>
@@ -504,17 +464,12 @@ export function ServiceDetailSheet({
             <ScrollArea className="flex-1">
               <div className="px-6 py-6 space-y-6" dir={isRTL ? "rtl" : "ltr"}>
                 <div className="flex items-center justify-center gap-6 text-sm">
-                  <button
-                    onClick={handleOpenReviewDialog}
-                    className="flex items-center gap-1 hover:opacity-70 transition-opacity"
-                  >
-                    <Star
-                      className={cn("h-4 w-4", hasRating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground")}
-                    />
-                    <span className={cn("font-medium", hasRating ? "text-foreground" : "text-muted-foreground")}>
-                      {hasRating ? `${rating.averageRating} (${rating.totalReviews})` : isRTL ? "جديد" : "New"}
+                  <div className="flex items-center gap-1">
+                    <Star className={cn("h-4 w-4", ratingInfo.hasRating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground")} />
+                    <span className={cn("font-medium", ratingInfo.hasRating ? "text-foreground" : "text-muted-foreground")}>
+                      {ratingInfo.text}
                     </span>
-                  </button>
+                  </div>
 
                   {selectedProvider.provider_city && (
                     <div className="flex items-center gap-1 text-muted-foreground">
@@ -535,17 +490,6 @@ export function ServiceDetailSheet({
                     <p className="text-sm text-muted-foreground leading-relaxed">{selectedProvider.description}</p>
                   </div>
                 )}
-
-                <div className="space-y-3">
-                  <div className={cn("flex items-center justify-between", isRTL && "flex-row-reverse")}>
-                    <h3 className="font-semibold text-foreground">{isRTL ? "التقييمات" : "Reviews"}</h3>
-                    <Button variant="ghost" size="sm" onClick={handleOpenReviewDialog} className="text-primary">
-                      <MessageSquare className="h-4 w-4 mr-1" />
-                      {userReview ? (isRTL ? "تعديل تقييمك" : "Edit Review") : isRTL ? "أضف تقييم" : "Add Review"}
-                    </Button>
-                  </div>
-                  <ReviewList reviews={reviews} loading={reviewsLoading} />
-                </div>
 
                 <div className="flex gap-3 pt-2">
                   <Button
@@ -607,15 +551,6 @@ export function ServiceDetailSheet({
             </ScrollArea>
           </DrawerContent>
         </Drawer>
-
-        <ReviewDialog
-          open={reviewDialogOpen}
-          onOpenChange={setReviewDialogOpen}
-          providerName={selectedProvider.provider_name}
-          existingReview={userReview ? { rating: userReview.rating, content: userReview.content } : undefined}
-          onSubmit={handleSubmitReview}
-          isSubmitting={isSubmittingReview}
-        />
 
         <ReportDialog
           open={reportDialogOpen}
