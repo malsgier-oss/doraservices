@@ -39,6 +39,7 @@ import AdminMedia from "./pages/admin/AdminMedia";
 import AdminBulkUpload from "./pages/admin/AdminBulkUpload";
 import AdminSubCities from "./pages/admin/AdminSubCities";
 import AdminPasswordResets from "./pages/admin/AdminPasswordResets";
+import AdminReviews from "./pages/admin/AdminReviews";
 
 // ✅ NEW: Env Debug page (optional)
 import EnvDebug from "./pages/EnvDebug";
@@ -46,6 +47,8 @@ import SitePage from "./pages/SitePage";
 import AdminHubSuggestions from "./pages/admin/AdminHubSuggestions";
 import AdminHub from "./pages/admin/AdminHub";
 import AdminPages from "./pages/admin/AdminPages";
+
+import { PendingRatingPrompt } from "@/components/service/PendingRatingPrompt";
 
 // ✅ keep QueryClient stable
 const queryClient = new QueryClient();
@@ -217,6 +220,7 @@ const AppRoutes = () => {
         <Route path="categories" element={<AdminCategories />} />
         <Route path="cities" element={<AdminCities />} />
         <Route path="sub-cities" element={<AdminSubCities />} />
+        <Route path="reviews" element={<AdminReviews />} />
         <Route path="reports" element={<AdminReports />} />
         <Route path="settings" element={<AdminSettings />} />
         <Route path="messages" element={<AdminMessages />} />
@@ -243,6 +247,7 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <AppRoutes />
+            <PendingRatingPrompt />
           </BrowserRouter>
           </TooltipProvider>
         </ThemeProvider>
