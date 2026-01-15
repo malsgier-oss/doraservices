@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Heart, Loader2, Phone, Trash2, Filter } from "lucide-react";
+import { Heart, Loader2, Phone, Trash2, Filter, Home } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,6 +16,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
+import { LucideIcon } from "lucide-react";
 
 interface FavoriteService {
   id: string;
@@ -27,6 +29,15 @@ interface FavoriteService {
   provider_phone: string;
 }
 
+type SheetService = {
+  titleKey: string;
+  descKey: string;
+  category: string;
+  categoryName?: string;
+  icon: LucideIcon;
+  color: string;
+};
+
 export default function Favorites() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -34,6 +45,11 @@ export default function Favorites() {
   const [favorites, setFavorites] = useState<FavoriteService[]>([]);
   const [loading, setLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+
+  // Provider detail sheet opener (used when tapping a favorite card)
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetService, setSheetService] = useState<SheetService | null>(null);
+  const [initialProviderServiceId, setInitialProviderServiceId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -150,6 +166,22 @@ export default function Favorites() {
     }
   };
 
+  const openProviderDetailFromFavorite = (fav: FavoriteService) => {
+    const categoryLabel =
+      t.categories[fav.service_category as keyof typeof t.categories] || fav.service_category;
+
+    setSheetService({
+      titleKey: fav.service_category,
+      descKey: "",
+      category: fav.service_category,
+      categoryName: categoryLabel,
+      icon: Home,
+      color: "bg-primary/10",
+    });
+    setInitialProviderServiceId(fav.service_id);
+    setSheetOpen(true);
+  };
+
   // Get unique categories from favorites
   const categories = useMemo(() => {
     const unique = [...new Set(favorites.map((f) => f.service_category))];
@@ -219,12 +251,14 @@ export default function Favorites() {
         <div className="space-y-3">
           {filteredFavorites.length > 0 ? (
             filteredFavorites.map((fav) => (
-              <div
+              <button
                 key={fav.id}
+                type="button"
                 className={cn(
-                  "bg-card rounded-2xl border border-border p-4 flex items-center gap-4",
+                  "w-full text-left bg-card rounded-2xl border border-border p-4 flex items-center gap-4 transition-colors hover:bg-muted/40 active:bg-muted",
                   isRTL && "flex-row-reverse"
                 )}
+                onClick={() => openProviderDetailFromFavorite(fav)}
               >
                 <Avatar className="h-14 w-14">
                   <AvatarImage src={fav.provider_avatar || undefined} />
@@ -252,7 +286,10 @@ export default function Favorites() {
                       variant="outline"
                       size="icon"
                       className="h-10 w-10 rounded-full"
-                      onClick={() => handleCall(fav.provider_phone)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCall(fav.provider_phone);
+                      }}
                     >
                       <Phone className="h-4 w-4" />
                     </Button>
@@ -261,12 +298,15 @@ export default function Favorites() {
                     variant="ghost"
                     size="icon"
                     className="h-10 w-10 rounded-full text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => handleRemoveFavorite(fav.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveFavorite(fav.id);
+                    }}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
-              </div>
+              </button>
             ))
           ) : favorites.length > 0 && categoryFilter !== "all" ? (
             // No results for current filter
@@ -303,6 +343,21 @@ export default function Favorites() {
           )}
         </div>
       </div>
+
+      {sheetService && (
+        <ServiceDetailSheet
+          open={sheetOpen}
+          onOpenChange={(open) => {
+            setSheetOpen(open);
+            if (!open) {
+              setSheetService(null);
+              setInitialProviderServiceId(null);
+            }
+          }}
+          service={sheetService}
+          initialProviderServiceId={initialProviderServiceId || undefined}
+        />
+      )}
     </Layout>
   );
 }
