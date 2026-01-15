@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { X, Phone, Star, Clock, ChevronRight, Heart, MessageSquare, MapPin, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Drawer, DrawerClose, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -479,7 +478,7 @@ export function ServiceDetailSheet({
   };
 
   // Drawer open height locked to 90%
-  const drawerPageClass = "h-[90dvh] max-h-[90dvh] flex flex-col overflow-hidden mt-0";
+  const drawerPageClass = "h-[90dvh] max-h-[90dvh] flex flex-col overflow-hidden mt-0 bg-background text-foreground";
 
   // ---------------- Provider detail view ----------------
   if (selectedProvider) {
@@ -537,7 +536,7 @@ export function ServiceDetailSheet({
               </div>
             </DrawerHeader>
 
-            <ScrollArea className="flex-1">
+            <div className="flex-1 overflow-y-auto">
               <div className="px-6 py-6 space-y-6" dir={isRTL ? "rtl" : "ltr"}>
                 <div className="flex items-center justify-center gap-6 text-sm">
                   <div className="flex items-center gap-1">
@@ -624,7 +623,7 @@ export function ServiceDetailSheet({
                   </Button>
                 </div>
               </div>
-            </ScrollArea>
+            </div>
           </DrawerContent>
         </Drawer>
 
@@ -666,28 +665,14 @@ export function ServiceDetailSheet({
           </div>
         </DrawerHeader>
 
-        <ScrollArea className="flex-1">
+        <div className="flex-1 overflow-y-auto">
           <div className="px-4 py-4" dir={isRTL ? "rtl" : "ltr"}>
             {/* Sub-city chips (scrollable) */}
             {availableSubCityIds.length > 0 && (
               <div className="mb-4">
-                <div
-                  className={cn(
-                    "flex gap-2 overflow-x-auto pb-2 px-2",
-                    isRTL && "flex-row-reverse",
-                  )}
-                  style={{ WebkitOverflowScrolling: "touch" }}
-                >
-                  <Button
-                    variant={subCityChip ? "outline" : "default"}
-                    size="sm"
-                    className="rounded-full flex-shrink-0"
-                    onClick={() => setSubCityChip(null)}
-                  >
-                    {isRTL ? "الكل" : "All"}
-                  </Button>
-
-                  {availableSubCityIds.map((id) => {
+                <div className={cn("overflow-x-auto pb-2", isRTL && "flex-row-reverse")}>
+                  <div className={cn("flex gap-2 w-max px-2", isRTL && "flex-row-reverse")}>
+{availableSubCityIds.map((id) => {
                     const label = getSubCityLabel(id) || id;
                     const selected = subCityChip === id;
                     return (
@@ -696,7 +681,7 @@ export function ServiceDetailSheet({
                         variant={selected ? "default" : "outline"}
                         size="sm"
                         className="rounded-full flex-shrink-0"
-                        onClick={() => setSubCityChip(id)}
+                        onClick={() => setSubCityChip((prev) => (prev === id ? null : id))}
                       >
                         {label}
                       </Button>
@@ -800,7 +785,7 @@ export function ServiceDetailSheet({
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
       </DrawerContent>
     </Drawer>
   );
