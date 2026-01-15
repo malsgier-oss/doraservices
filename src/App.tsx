@@ -32,7 +32,6 @@ import AdminMessages from "./pages/admin/AdminMessages";
 import AdminAuditLog from "./pages/admin/AdminAuditLog";
 import AdminProviders from "./pages/admin/AdminProviders";
 import AdminServices from "./pages/admin/AdminServices";
-import AdminReviews from "./pages/admin/AdminReviews";
 import AdminCategories from "./pages/admin/AdminCategories";
 import AdminCities from "./pages/admin/AdminCities";
 import AdminAnalytics from "./pages/admin/AdminAnalytics";
@@ -215,7 +214,6 @@ const AppRoutes = () => {
         <Route path="hub" element={<AdminHub />} />
         <Route path="hub-suggestions" element={<AdminHubSuggestions />} />
         <Route path="pages" element={<AdminPages />} />
-        <Route path="reviews" element={<AdminReviews />} />
         <Route path="categories" element={<AdminCategories />} />
         <Route path="cities" element={<AdminCities />} />
         <Route path="sub-cities" element={<AdminSubCities />} />
