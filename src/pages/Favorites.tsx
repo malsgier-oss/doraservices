@@ -171,9 +171,11 @@ export default function Favorites() {
       t.categories[fav.service_category as keyof typeof t.categories] || fav.service_category;
 
     setSheetService({
+      id: fav.service_id,
       titleKey: fav.service_category,
       descKey: "",
       category: fav.service_category,
+
       categoryName: categoryLabel,
       icon: Home,
       color: "bg-primary/10",
