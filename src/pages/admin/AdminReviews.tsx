@@ -39,7 +39,8 @@ interface Review {
   is_flagged: boolean;
   admin_hidden: boolean;
   created_at: string;
-  user_id: string;
+  user_id: string | null;
+  reviewer_key?: string | null;
   service_id: string;
   provider_id: string;
   service?: { title: string };
@@ -77,10 +78,18 @@ export default function AdminReviews() {
       // Get related info
       const reviewsWithInfo = await Promise.all(
         (data || []).map(async (review) => {
-          const [{ data: service }, { data: reviewer }] = await Promise.all([
-            supabase.from("services").select("title").eq("id", review.service_id).single(),
-            supabase.from("profiles").select("full_name").eq("user_id", review.user_id).single(),
-          ]);
+          const servicePromise = supabase
+            .from("services")
+            .select("title")
+            .eq("id", review.service_id)
+            .single();
+
+          const reviewerPromise = review.user_id
+            ? supabase.from("profiles").select("full_name").eq("user_id", review.user_id).single()
+            : Promise.resolve({ data: null as any });
+
+          const [{ data: service }, { data: reviewer }] = await Promise.all([servicePromise, reviewerPromise]);
+
           return { ...review, service, reviewer };
         })
       );
