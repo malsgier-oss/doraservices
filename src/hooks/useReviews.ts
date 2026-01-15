@@ -19,6 +19,20 @@ export interface ServiceRating {
   totalReviews: number;
 }
 
+const REVIEWER_KEY_STORAGE = "dora_reviewer_key_v1";
+
+function getOrCreateReviewerKey(): string {
+  try {
+    const existing = localStorage.getItem(REVIEWER_KEY_STORAGE);
+    if (existing) return existing;
+    const key = (crypto as any)?.randomUUID ? (crypto as any).randomUUID() : `${Date.now()}_${Math.random()}`;
+    localStorage.setItem(REVIEWER_KEY_STORAGE, key);
+    return key;
+  } catch {
+    return `${Date.now()}_${Math.random()}`;
+  }
+}
+
 export function useReviews(serviceId?: string) {
   const { user } = useAuth();
   const [reviews, setReviews] = useState<ServiceReview[]>([]);
@@ -95,7 +109,7 @@ export function useReviews(serviceId?: string) {
   };
 
   const submitReview = async (data: { rating: number; content?: string; providerId: string }) => {
-    if (!user || !serviceId) return { error: new Error("Not authenticated or no service") };
+    if (!serviceId) return { error: new Error("No service") };
 
     // Validate rating
     if (data.rating < 1 || data.rating > 5) {
@@ -119,29 +133,25 @@ export function useReviews(serviceId?: string) {
     }
 
     try {
-      if (userReview) {
-        // Update existing review
+      // If logged in, we can update. If anonymous, we only insert once per device.
+      if (userReview && user) {
         const { error } = await supabase
           .from("service_reviews")
-          .update({
-            rating: data.rating,
-            content: sanitizedContent,
-          })
+          .update({ rating: data.rating, content: sanitizedContent })
           .eq("id", userReview.id);
-
         if (error) return { error };
       } else {
-        // Create new review
+        const reviewerKey = user ? null : getOrCreateReviewerKey();
         const { error } = await supabase
           .from("service_reviews")
           .insert({
             service_id: serviceId,
-            user_id: user.id,
+            user_id: user?.id ?? null,
+            reviewer_key: reviewerKey,
             provider_id: data.providerId,
             rating: data.rating,
             content: sanitizedContent,
-          });
-
+          } as any);
         if (error) return { error };
       }
 
@@ -195,8 +205,8 @@ export function useServiceRatings(serviceIds: string[]) {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from("service_reviews")
-        .select("service_id, rating")
+        .from("service_review_stats")
+        .select("service_id, average_rating, total_reviews")
         .in("service_id", serviceIds);
 
       if (error) {
@@ -205,23 +215,20 @@ export function useServiceRatings(serviceIds: string[]) {
         return;
       }
 
-      // Calculate average ratings per service
-      const ratingsMap = new Map<string, ServiceRating>();
-      
-      serviceIds.forEach(id => {
-        const serviceReviews = data?.filter(r => r.service_id === id) || [];
-        if (serviceReviews.length > 0) {
-          const totalRating = serviceReviews.reduce((sum, r) => sum + r.rating, 0);
-          ratingsMap.set(id, {
-            averageRating: Math.round((totalRating / serviceReviews.length) * 10) / 10,
-            totalReviews: serviceReviews.length,
+      const map = new Map<string, ServiceRating>();
+      serviceIds.forEach((id) => {
+        const row = (data || []).find((r: any) => r.service_id === id);
+        if (row) {
+          map.set(id, {
+            averageRating: Math.round((Number(row.average_rating || 0)) * 10) / 10,
+            totalReviews: Number(row.total_reviews || 0),
           });
         } else {
-          ratingsMap.set(id, { averageRating: 0, totalReviews: 0 });
+          map.set(id, { averageRating: 0, totalReviews: 0 });
         }
       });
 
-      setRatings(ratingsMap);
+      setRatings(map);
     } catch (error) {
       console.error("Error:", error);
     } finally {
