@@ -20,6 +20,33 @@ import { ReportDialog } from "@/components/report/ReportDialog";
 import { toast } from "sonner";
 import { SearchFiltersState } from "@/components/search/SearchFilters";
 
+// Option A (locked): after Call/WhatsApp, ask for rating on next app open.
+const PENDING_RATINGS_KEY = "dora_pending_ratings_v1";
+
+type PendingRating = {
+  service_id: string;
+  provider_id: string;
+  provider_name: string;
+  created_at: number; // ms
+  source: "call" | "whatsapp";
+};
+
+function enqueuePendingRating(item: PendingRating) {
+  try {
+    const raw = localStorage.getItem(PENDING_RATINGS_KEY);
+    const list = (raw ? (JSON.parse(raw) as PendingRating[]) : []).filter(Boolean);
+
+    // De-dupe: keep only latest per (service_id, provider_id)
+    const filtered = list.filter(
+      (x) => !(x.service_id === item.service_id && x.provider_id === item.provider_id),
+    );
+    const next = [item, ...filtered].slice(0, 10);
+    localStorage.setItem(PENDING_RATINGS_KEY, JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+}
+
 const digitsOnly = (v: string) => (v || "").replace(/\D/g, "");
 
 /**
@@ -102,6 +129,10 @@ export function ServiceDetailSheet({
   const [loading, setLoading] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
 
+  // Local sub-city chip selection for the provider list drawer.
+  // We don't mutate global filters; we keep this view self-contained.
+  const [subCityChip, setSubCityChip] = useState<string | null>(filters?.subCity || null);
+
   const [pendingOpenProviderId, setPendingOpenProviderId] = useState<string | null>(null);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [isLoggingCall, setIsLoggingCall] = useState(false);
@@ -181,6 +212,7 @@ export function ServiceDetailSheet({
     if (open && service) {
       setSelectedProvider(null);
       setPendingOpenProviderId(initialProviderServiceId || null);
+      setSubCityChip(filters?.subCity || null);
       fetchProviders();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -275,8 +307,8 @@ export function ServiceDetailSheet({
       result = result.filter((p) => matchesSelectedCity(p.provider_city, filters.city));
     }
 
-    if (filters?.subCity) {
-      result = result.filter((p) => p.provider_sub_city === filters.subCity);
+    if (subCityChip) {
+      result = result.filter((p) => p.provider_sub_city === subCityChip);
     }
 
     if (filters?.minRating) {
@@ -287,7 +319,28 @@ export function ServiceDetailSheet({
     }
 
     return result;
-  }, [providers, filters?.city, filters?.subCity, filters?.minRating, providerRatings]);
+  }, [providers, filters?.city, subCityChip, filters?.minRating, providerRatings]);
+
+  const availableSubCityIds = useMemo(() => {
+    // Chip list should be based on available providers (after city filter, before sub-city filter)
+    let result = providers;
+    if (filters?.city) {
+      result = result.filter((p) => matchesSelectedCity(p.provider_city, filters.city));
+    }
+
+    const ids = Array.from(
+      new Set(result.map((p) => p.provider_sub_city).filter((x): x is string => Boolean(x))),
+    );
+
+    // Sort by label (Arabic/English)
+    ids.sort((a, b) => {
+      const la = (getSubCityLabel(a) || a).toString();
+      const lb = (getSubCityLabel(b) || b).toString();
+      return la.localeCompare(lb);
+    });
+
+    return ids;
+  }, [providers, filters?.city, subCities, language]);
 
   if (!service) return null;
 
@@ -352,6 +405,17 @@ export function ServiceDetailSheet({
       setIsLoggingCall(false);
     }
 
+    // Queue rating prompt (Option A) for claimed providers.
+    if (provider.user_id) {
+      enqueuePendingRating({
+        service_id: provider.id,
+        provider_id: provider.user_id,
+        provider_name: provider.provider_name,
+        created_at: Date.now(),
+        source: "call",
+      });
+    }
+
     window.location.href = `tel:${normalized.tel}`;
   };
 
@@ -369,6 +433,17 @@ export function ServiceDetailSheet({
       provider_id: provider.user_id,
       user_id: user?.id ?? null,
     });
+
+    // Queue rating prompt (Option A) for claimed providers.
+    if (provider.user_id) {
+      enqueuePendingRating({
+        service_id: provider.id,
+        provider_id: provider.user_id,
+        provider_name: provider.provider_name,
+        created_at: Date.now(),
+        source: "whatsapp",
+      });
+    }
 
     window.open(`https://wa.me/${normalized.wa}`, "_blank", "noopener,noreferrer");
   };
@@ -403,7 +478,8 @@ export function ServiceDetailSheet({
     return { text: `${r.averageRating} (${r.totalReviews})`, hasRating: true };
   };
 
-  const drawerPageClass = "h-[85dvh] max-h-[85dvh] flex flex-col overflow-hidden mt-0";
+  // Drawer open height locked to 90%
+  const drawerPageClass = "h-[90dvh] max-h-[90dvh] flex flex-col overflow-hidden mt-0";
 
   // ---------------- Provider detail view ----------------
   if (selectedProvider) {
@@ -592,6 +668,44 @@ export function ServiceDetailSheet({
 
         <ScrollArea className="flex-1">
           <div className="px-4 py-4" dir={isRTL ? "rtl" : "ltr"}>
+            {/* Sub-city chips (scrollable) */}
+            {availableSubCityIds.length > 0 && (
+              <div className="mb-4">
+                <div
+                  className={cn(
+                    "flex gap-2 overflow-x-auto pb-2 px-2",
+                    isRTL && "flex-row-reverse",
+                  )}
+                  style={{ WebkitOverflowScrolling: "touch" }}
+                >
+                  <Button
+                    variant={subCityChip ? "outline" : "default"}
+                    size="sm"
+                    className="rounded-full flex-shrink-0"
+                    onClick={() => setSubCityChip(null)}
+                  >
+                    {isRTL ? "الكل" : "All"}
+                  </Button>
+
+                  {availableSubCityIds.map((id) => {
+                    const label = getSubCityLabel(id) || id;
+                    const selected = subCityChip === id;
+                    return (
+                      <Button
+                        key={id}
+                        variant={selected ? "default" : "outline"}
+                        size="sm"
+                        className="rounded-full flex-shrink-0"
+                        onClick={() => setSubCityChip(id)}
+                      >
+                        {label}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <h3 className="text-sm font-semibold text-muted-foreground mb-3 px-2">
               {isRTL ? "مقدمي الخدمة المتاحين" : "Available Service Providers"}
             </h3>
