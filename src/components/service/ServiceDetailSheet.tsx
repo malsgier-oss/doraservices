@@ -25,7 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 /**
  * ServiceDetailSheet
- * - Provider list drawer + provider detail sheet
+ * - Provider list drawer + provider detail
  * - Drawer height = 90%
  * - Sub-city chips: horizontal scroll, NO "All" chip
  *   (tap selected chip again to reset)
@@ -137,12 +137,11 @@ export default function ServiceDetailSheet({
     providers.forEach((p) => {
       if (p.sub_city?.trim()) set.add(p.sub_city.trim());
     });
-    return Array.from(set).sort((a, b) => a.localeCompare(b, "ar"));
+    return Array.from(set);
   }, [providers]);
 
   const filteredProviders = useMemo(() => {
     const q = query.trim().toLowerCase();
-
     return providers.filter((p) => {
       if (selectedSubCity && p.sub_city !== selectedSubCity) return false;
       if (!q) return true;
@@ -359,7 +358,20 @@ export default function ServiceDetailSheet({
                 <Button
                   variant="outline"
                   className="w-full mt-3"
-                  onClick={() => handleReport(selectedProvider)}
+                  onClick={async () => {
+                    try {
+                      await supabase.from("events").insert([
+                        {
+                          event_type: "report",
+                          provider_id: selectedProvider.id,
+                          metadata: { source: "ServiceDetailSheet" },
+                        },
+                      ]);
+                      toast.success("تم إرسال البلاغ");
+                    } catch {
+                      toast.error("تعذر إرسال البلاغ");
+                    }
+                  }}
                 >
                   <Flag className="h-4 w-4 ml-1" />
                   إبلاغ عن مزود
