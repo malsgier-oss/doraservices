@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Users, Store, Tag, Flag, Settings, MessageSquare, History, ArrowLeft, Menu, MapPin, KeyRound } from "lucide-react";
+import { LayoutDashboard, Users, Store, Tag, Flag, Settings, MessageSquare, History, ArrowLeft, Menu, MapPin, KeyRound, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import doraLogo from "@/assets/dora-logo.png";
@@ -8,6 +8,7 @@ const navItems = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/admin/hub", label: "Hub", icon: LayoutDashboard },
   { to: "/admin/hub-suggestions", label: "Hub Suggestions", icon: LayoutDashboard },
+  { to: "/admin/announcements", label: "Announcements", icon: Megaphone },
   { to: "/admin/pages", label: "Pages", icon: Store },
 
   { to: "/admin/users", label: "Users", icon: Users },
@@ -49,13 +50,25 @@ export default function AdminLayout() {
             </div>
           </div>
           <nav className="space-y-1 max-h-[calc(100vh-260px)] overflow-y-auto pr-1">
-            {navItems.map(item => <NavLink key={item.to} to={item.to} end={item.end} className={({
-            isActive
-          }) => cn("flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors", isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </NavLink>)}
-          </nav>
+            {navItems.map((item) => (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        end={item.end}
+                        className={({ isActive }) =>
+                          cn(
+                            "flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-colors",
+                            isActive
+                              ? "bg-primary/10 text-primary"
+                              : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                          )
+                        }
+                      >
+                        <item.icon className="h-4 w-4" />
+                        {item.label}
+                      </NavLink>
+                    ))}
+                  </nav>
         </aside>
 
         {/* Mobile Header */}
@@ -73,12 +86,24 @@ export default function AdminLayout() {
                     <SheetTitle className="font-display">Admin Panel</SheetTitle>
                   </SheetHeader>
                   <nav className="mt-4 space-y-1 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
-                    {navItems.map(item => <NavLink key={item.to} to={item.to} end={item.end} className={({
-                    isActive
-                  }) => cn("flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors", isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+                    {navItems.map((item) => (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        end={item.end}
+                        className={({ isActive }) =>
+                          cn(
+                            "flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-colors",
+                            isActive
+                              ? "bg-primary/10 text-primary"
+                              : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                          )
+                        }
+                      >
                         <item.icon className="h-4 w-4" />
                         {item.label}
-                      </NavLink>)}
+                      </NavLink>
+                    ))}
                   </nav>
                 </SheetContent>
               </Sheet>
