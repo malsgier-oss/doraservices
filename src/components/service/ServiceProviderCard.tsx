@@ -9,7 +9,6 @@ interface ServiceProviderCardProps {
   providerAvatar?: string;
   serviceTitle: string;
   rating?: number;
-  reviewCount?: number;
   price: number;
   onBook: () => void;
 }
@@ -19,7 +18,6 @@ export function ServiceProviderCard({
   providerAvatar,
   serviceTitle,
   rating = 0,
-  reviewCount = 0,
   price,
   onBook,
 }: ServiceProviderCardProps) {
@@ -49,14 +47,11 @@ export function ServiceProviderCard({
             {serviceTitle}
           </p>
           
-          {/* Rating */}
-          {reviewCount > 0 && (
+          {/* Rating (stars + numeric only) */}
+          {rating > 0 && (
             <div className="flex items-center gap-1.5 mt-2">
               <Star className="h-4 w-4 fill-star text-star" />
               <span className="text-sm font-medium text-foreground">{rating.toFixed(1)}</span>
-              <span className="text-xs text-muted-foreground">
-                ({reviewCount} {t.rating.reviews})
-              </span>
             </div>
           )}
         </div>
