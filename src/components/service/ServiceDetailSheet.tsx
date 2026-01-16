@@ -27,8 +27,6 @@ import { supabase } from "@/integrations/supabase/client";
  * ServiceDetailSheet
  * - Provider list drawer + provider detail
  * - Drawer height = 90%
- * - Sub-city chips: horizontal scroll, NO "All" chip
- *   (tap selected chip again to reset)
  * - Favorites supported
  * - Reviews section REMOVED (rating handled later via in-app prompt)
  */
@@ -122,7 +120,6 @@ export default function ServiceDetailSheet({
   isFavorite,
 }: Props) {
   const [query, setQuery] = useState("");
-  const [selectedSubCity, setSelectedSubCity] = useState<string | null>(null);
   const [selectedProvider, setSelectedProvider] =
     useState<ServiceProvider | null>(initialSelectedProvider);
 
@@ -132,18 +129,9 @@ export default function ServiceDetailSheet({
     }
   }, [open, initialSelectedProvider]);
 
-  const availableSubCities = useMemo(() => {
-    const set = new Set<string>();
-    providers.forEach((p) => {
-      if (p.sub_city?.trim()) set.add(p.sub_city.trim());
-    });
-    return Array.from(set);
-  }, [providers]);
-
   const filteredProviders = useMemo(() => {
     const q = query.trim().toLowerCase();
     return providers.filter((p) => {
-      if (selectedSubCity && p.sub_city !== selectedSubCity) return false;
       if (!q) return true;
 
       const hay = [
@@ -159,7 +147,7 @@ export default function ServiceDetailSheet({
 
       return hay.includes(q);
     });
-  }, [providers, query, selectedSubCity]);
+  }, [providers, query]);
 
   const isDetailOpen = !!selectedProvider;
 
@@ -212,34 +200,6 @@ export default function ServiceDetailSheet({
                 placeholder="ابحث عن مزود..."
               />
             </div>
-
-            {availableSubCities.length > 0 && (
-              <div className="px-4 pb-2">
-                <div className="flex gap-2 overflow-x-auto whitespace-nowrap flex-nowrap">
-                  {availableSubCities.map((sc) => {
-                    const active = selectedSubCity === sc;
-                    return (
-                      <button
-                        key={sc}
-                        className={cn(
-                          "shrink-0 rounded-full px-3 py-1 text-sm border",
-                          active
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "bg-background border-border"
-                        )}
-                        onClick={() =>
-                          setSelectedSubCity((prev) =>
-                            prev === sc ? null : sc
-                          )
-                        }
-                      >
-                        {sc}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             <ScrollArea className="flex-1">
               <div className="px-4 pb-6 space-y-3">
