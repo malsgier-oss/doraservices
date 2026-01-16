@@ -46,7 +46,6 @@ export type ServiceProvider = {
   is_visible?: boolean | null;
   is_paused?: boolean | null;
   is_featured?: boolean | null;
-  is_verified?: boolean | null;
   approval_status?: ProviderStatus | string | null;
   views_count?: number | null;
 };
@@ -125,6 +124,7 @@ export default function ServiceDetailSheet({
   open,
   onOpenChange,
   service,
+  city,
   initialProviderServiceId = null,
   onToggleFavorite,
   isFavorite,
@@ -140,25 +140,30 @@ export default function ServiceDetailSheet({
     const run = async () => {
       setLoading(true);
       try {
+        // PostgREST `or` only supports a single `or=` param reliably.
+        // Keep filters simple and permissive to avoid accidentally returning 0 rows.
         let q = supabase
           .from("services")
           .select(
-            "id,title,description,category,subcategory,city,sub_city,provider_name,provider_phone,image_url,is_active,is_visible,is_paused,is_featured,is_verified,approval_status,views_count"
+            // NOTE: keep this list aligned with your DB schema.
+            // `is_verified` is NOT a services column in many Dora DB setups, so do not select it.
+            "id,title,description,category,subcategory,city,sub_city,provider_name,provider_phone,image_url,is_active,is_visible,is_paused,is_featured,approval_status,views_count"
           )
-          // Be permissive: older seeds sometimes leave these as NULL.
-          .or("is_visible.eq.true,is_visible.is.null")
-          .or("is_active.eq.true,is_active.is.null")
-          .or("is_paused.eq.false,is_paused.is.null")
-          // Only show approved providers; allow null during early data.
-          .or("approval_status.eq.approved,approval_status.is.null")
+          // Dora public browsing: the only truly required condition.
+          .eq("is_active", true)
           .order("is_featured", { ascending: false })
           .order("views_count", { ascending: false });
 
+        // Optional city filter (do not show it in the UI; just refine results when available)
+        if (city) {
+          q = q.eq("city", city);
+        }
+
         // IMPORTANT:
-        // Older seed/data sometimes stored the *subcategory name* in `services.category`.
-        // Newer data uses `services.subcategory`.
-        // To avoid empty sheets, match either column.
-        q = q.or(`subcategory.eq.${service.category},category.eq.${service.category}`);
+        // ServiceCreator stores the *subcategory English name* in `services.category`.
+        // Some older rows may use `services.subcategory`. Match either column.
+        const safe = String(service.category || "").replace(/"/g, "\\\"");
+        q = q.or(`category.eq."${safe}",subcategory.eq."${safe}"`);
 
         const { data, error } = await q;
         if (error) throw error;
@@ -179,7 +184,6 @@ export default function ServiceDetailSheet({
           is_visible: r.is_visible ?? null,
           is_paused: r.is_paused ?? null,
           is_featured: r.is_featured ?? null,
-          is_verified: r.is_verified ?? null,
           approval_status: r.approval_status ?? null,
           views_count: r.views_count ?? null,
         }));
@@ -206,7 +210,7 @@ export default function ServiceDetailSheet({
     return () => {
       alive = false;
     };
-  }, [open, service.category, initialProviderServiceId]);
+  }, [open, service.category, city, initialProviderServiceId]);
 
   // Keep it clean: no search in this sheet.
   const listProviders = Array.isArray(providers) ? providers : [];
@@ -268,9 +272,6 @@ export default function ServiceDetailSheet({
                       </div>
 
                       <div className="text-xs text-muted-foreground mt-1 flex gap-2 flex-wrap">
-                        {p.is_verified && (
-                          <Badge variant="secondary">موثّق</Badge>
-                        )}
                         {p.is_featured && <Badge>مميز</Badge>}
                       </div>
 
