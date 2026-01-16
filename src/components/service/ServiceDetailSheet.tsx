@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Drawer,
   DrawerContent,
@@ -53,15 +53,31 @@ export type ServiceProvider = {
   views_count?: number | null;
 };
 
+// This sheet is used by Hub + Favorites. They pass a small "service" object
+// describing which subcategory to show.
+export type SheetService = {
+  titleKey: string;
+  descKey?: string;
+  // NOTE: historically we store the *subcategory English name* in services.category.
+  category: string;
+  categoryName?: string;
+  categoryNameAr?: string;
+  color?: string;
+  // icon is used in the Hub tiles; not required inside the sheet.
+  // Keep it optional so callers can pass it without us depending on lucide types.
+  icon?: unknown;
+};
+
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  title?: string;
+  service: SheetService;
+  // Optional city filter (Hub has it, Favorites usually doesn't)
   city?: string | null;
-  category?: string | null;
-  subcategory?: string | null;
-  providers: ServiceProvider[];
-  initialSelectedProvider?: ServiceProvider | null;
+  // When opening from a specific provider card, scroll/select it.
+  initialProviderServiceId?: string | null;
+
+  // Optional favorites integration (used in some screens)
   onToggleFavorite?: (providerId: string) => void;
   isFavorite?: (providerId: string) => boolean;
 };
@@ -110,28 +126,92 @@ async function logContactEvent(
 export default function ServiceDetailSheet({
   open,
   onOpenChange,
-  title,
   city,
-  category,
-  subcategory,
-  providers,
-  initialSelectedProvider = null,
+  service,
+  initialProviderServiceId = null,
   onToggleFavorite,
   isFavorite,
 }: Props) {
   const [query, setQuery] = useState("");
-  const [selectedProvider, setSelectedProvider] =
-    useState<ServiceProvider | null>(initialSelectedProvider);
+  const [providers, setProviders] = useState<ServiceProvider[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
 
   useEffect(() => {
-    if (open && initialSelectedProvider) {
-      setSelectedProvider(initialSelectedProvider);
-    }
-  }, [open, initialSelectedProvider]);
+    if (!open) return;
+
+    let alive = true;
+    const run = async () => {
+      setLoading(true);
+      try {
+        let q = supabase
+          .from("services")
+          .select(
+            "id,title,description,category,subcategory,city,sub_city,provider_name,provider_phone,image_url,is_active,is_visible,is_paused,is_featured,is_verified,approval_status,views_count"
+          )
+          .eq("category", service.category)
+          .eq("is_visible", true)
+          .eq("is_active", true)
+          .eq("is_paused", false)
+          // Only show approved providers; allow null during early data.
+          .or("approval_status.eq.approved,approval_status.is.null")
+          .order("is_featured", { ascending: false })
+          .order("views_count", { ascending: false });
+
+        if (city) q = q.eq("city", city);
+
+        const { data, error } = await q;
+        if (error) throw error;
+
+        const rows = (data || []) as any[];
+        const normalized: ServiceProvider[] = rows.map((r) => ({
+          id: String(r.id),
+          title: r.title ?? null,
+          description: r.description ?? null,
+          category: r.category ?? null,
+          subcategory: r.subcategory ?? null,
+          city: r.city ?? null,
+          sub_city: r.sub_city ?? null,
+          provider_name: r.provider_name ?? null,
+          provider_phone: r.provider_phone ?? null,
+          image_url: r.image_url ?? null,
+          is_active: r.is_active ?? null,
+          is_visible: r.is_visible ?? null,
+          is_paused: r.is_paused ?? null,
+          is_featured: r.is_featured ?? null,
+          is_verified: r.is_verified ?? null,
+          approval_status: r.approval_status ?? null,
+          views_count: r.views_count ?? null,
+        }));
+
+        if (!alive) return;
+        setProviders(normalized);
+
+        // If we were opened for a specific provider service id, select it.
+        if (initialProviderServiceId) {
+          const match = normalized.find((p) => p.id === initialProviderServiceId) || null;
+          setSelectedProvider(match);
+        } else {
+          setSelectedProvider(null);
+        }
+      } catch (e) {
+        console.error("ServiceDetailSheet load error:", e);
+        if (alive) setProviders([]);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    };
+
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [open, service.category, city, initialProviderServiceId]);
 
   const filteredProviders = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return providers.filter((p) => {
+    const base = Array.isArray(providers) ? providers : [];
+    return base.filter((p) => {
       if (!q) return true;
 
       const hay = [
@@ -171,7 +251,7 @@ export default function ServiceDetailSheet({
               <DrawerTitle className="text-base">
                 {isDetailOpen
                   ? selectedProvider?.provider_name || "تفاصيل المزود"
-                  : title || subcategory || category || "المزودين"}
+                  : service.titleKey || service.categoryNameAr || service.categoryName || service.category || "المزودين"}
               </DrawerTitle>
 
               <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
@@ -181,7 +261,7 @@ export default function ServiceDetailSheet({
                     {city}
                   </span>
                 )}
-                {subcategory && <span>{subcategory}</span>}
+                {service.categoryNameAr && <span>{service.categoryNameAr}</span>}
               </div>
             </div>
           </div>
@@ -202,11 +282,15 @@ export default function ServiceDetailSheet({
 
             <ScrollArea className="flex-1">
               <div className="px-4 pb-6 space-y-3">
-                {filteredProviders.length === 0 && (
+                {loading ? (
+                  <div className="text-sm text-muted-foreground py-8 text-center">
+                    جارٍ التحميل...
+                  </div>
+                ) : filteredProviders.length === 0 ? (
                   <div className="text-sm text-muted-foreground py-8 text-center">
                     لا يوجد مزودون مطابقون
                   </div>
-                )}
+                ) : null}
 
                 {filteredProviders.map((p) => (
                   <div
