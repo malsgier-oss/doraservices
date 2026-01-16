@@ -54,6 +54,9 @@ export function useServices() {
       .from("services")
       .select("*")
       .eq("is_active", true)
+      .eq("is_visible", true)
+      .eq("is_paused", false)
+      .eq("approval_status", "approved")
       .order("created_at", { ascending: false });
 
     if (servicesError) {
