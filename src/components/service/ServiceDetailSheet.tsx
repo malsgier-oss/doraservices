@@ -107,7 +107,7 @@ async function logContactEvent(
   }
 }
 
-export default function ServiceDetailSheet({
+export function ServiceDetailSheet({
   open,
   onOpenChange,
   title,
