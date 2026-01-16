@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Drawer,
   DrawerContent,
@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -18,7 +17,6 @@ import {
   ChevronRight,
   Heart,
   MessageSquare,
-  MapPin,
   Flag,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -126,13 +124,11 @@ async function logContactEvent(
 export default function ServiceDetailSheet({
   open,
   onOpenChange,
-  city,
   service,
   initialProviderServiceId = null,
   onToggleFavorite,
   isFavorite,
 }: Props) {
-  const [query, setQuery] = useState("");
   const [providers, setProviders] = useState<ServiceProvider[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
@@ -149,16 +145,20 @@ export default function ServiceDetailSheet({
           .select(
             "id,title,description,category,subcategory,city,sub_city,provider_name,provider_phone,image_url,is_active,is_visible,is_paused,is_featured,is_verified,approval_status,views_count"
           )
-          .eq("category", service.category)
-          .eq("is_visible", true)
-          .eq("is_active", true)
-          .eq("is_paused", false)
+          // Be permissive: older seeds sometimes leave these as NULL.
+          .or("is_visible.eq.true,is_visible.is.null")
+          .or("is_active.eq.true,is_active.is.null")
+          .or("is_paused.eq.false,is_paused.is.null")
           // Only show approved providers; allow null during early data.
           .or("approval_status.eq.approved,approval_status.is.null")
           .order("is_featured", { ascending: false })
           .order("views_count", { ascending: false });
 
-        if (city) q = q.eq("city", city);
+        // IMPORTANT:
+        // Older seed/data sometimes stored the *subcategory name* in `services.category`.
+        // Newer data uses `services.subcategory`.
+        // To avoid empty sheets, match either column.
+        q = q.or(`subcategory.eq.${service.category},category.eq.${service.category}`);
 
         const { data, error } = await q;
         if (error) throw error;
@@ -206,27 +206,10 @@ export default function ServiceDetailSheet({
     return () => {
       alive = false;
     };
-  }, [open, service.category, city, initialProviderServiceId]);
+  }, [open, service.category, initialProviderServiceId]);
 
-  const filteredProviders = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const base = Array.isArray(providers) ? providers : [];
-    return base.filter((p) => {
-      if (!q) return true;
-
-      const hay = [
-        p.provider_name,
-        p.title,
-        p.description,
-        p.city,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return hay.includes(q);
-    });
-  }, [providers, query]);
+  // Keep it clean: no search in this sheet.
+  const listProviders = Array.isArray(providers) ? providers : [];
 
   const isDetailOpen = !!selectedProvider;
 
@@ -253,16 +236,6 @@ export default function ServiceDetailSheet({
                   ? selectedProvider?.provider_name || "تفاصيل المزود"
                   : service.titleKey || service.categoryNameAr || service.categoryName || service.category || "المزودين"}
               </DrawerTitle>
-
-              <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-                {city && (
-                  <span className="flex items-center gap-1">
-                    <MapPin className="h-3 w-3" />
-                    {city}
-                  </span>
-                )}
-                {service.categoryNameAr && <span>{service.categoryNameAr}</span>}
-              </div>
             </div>
           </div>
         </DrawerHeader>
@@ -272,27 +245,19 @@ export default function ServiceDetailSheet({
         {/* LIST VIEW */}
         {!isDetailOpen && (
           <div className="flex flex-col h-full">
-            <div className="px-4 py-3">
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="ابحث عن مزود..."
-              />
-            </div>
-
             <ScrollArea className="flex-1">
               <div className="px-4 pb-6 space-y-3">
                 {loading ? (
                   <div className="text-sm text-muted-foreground py-8 text-center">
                     جارٍ التحميل...
                   </div>
-                ) : filteredProviders.length === 0 ? (
+                ) : listProviders.length === 0 ? (
                   <div className="text-sm text-muted-foreground py-8 text-center">
-                    لا يوجد مزودون مطابقون
+                    لا يوجد مزودون
                   </div>
                 ) : null}
 
-                {filteredProviders.map((p) => (
+                {listProviders.map((p) => (
                   <div
                     key={p.id}
                     className="rounded-lg border p-3 bg-card flex gap-3"
@@ -303,12 +268,6 @@ export default function ServiceDetailSheet({
                       </div>
 
                       <div className="text-xs text-muted-foreground mt-1 flex gap-2 flex-wrap">
-                        {p.city && (
-                          <span className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {p.city}
-                          </span>
-                        )}
                         {p.is_verified && (
                           <Badge variant="secondary">موثّق</Badge>
                         )}
@@ -359,10 +318,6 @@ export default function ServiceDetailSheet({
               <div className="rounded-lg border p-4 bg-card">
                 <div className="text-lg font-semibold truncate">
                   {selectedProvider.provider_name}
-                </div>
-
-                <div className="text-sm text-muted-foreground mt-1">
-                  {selectedProvider.city}
                 </div>
 
                 {selectedProvider.description && (
