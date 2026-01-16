@@ -207,30 +207,66 @@ export default function ServiceDetailSheet({
     const run = async () => {
       setLoading(true);
       try {
-        let q = supabase
+        const escOrValue = (v: string) => {
+          // PostgREST OR filter needs quoted values when they contain spaces/symbols.
+          const escaped = v.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+          return `"${escaped}"`;
+        };
+
+        const categoryVal = (service?.category ?? "").trim();
+        const categoryOr = categoryVal
+          ? `subcategory.eq.${escOrValue(categoryVal)},category.eq.${escOrValue(categoryVal)}`
+          : "";
+
+        const base = supabase
           .from("services")
           .select(
             // NOTE: `image_urls` may not exist in all DBs. Selecting it is safe; it will be null if absent.
             "id,title,description,category,subcategory,city,sub_city,provider_name,provider_phone,image_url,image_urls,is_active,is_visible,is_paused,is_featured,is_verified,approval_status,views_count"
           )
-          // Be permissive: older seeds sometimes leave these as NULL.
-          .or("is_visible.eq.true,is_visible.is.null")
-          .or("is_active.eq.true,is_active.is.null")
-          .or("is_paused.eq.false,is_paused.is.null")
-          // Only show approved providers; allow null during early data.
-          .or("approval_status.eq.approved,approval_status.is.null")
           .order("is_featured", { ascending: false })
           .order("views_count", { ascending: false });
 
-        // IMPORTANT:
-        // Older seed/data sometimes stored the *subcategory name* in `services.category`.
-        // Newer data uses `services.subcategory`.
-        // To avoid empty sheets, match either column.
-        q = q.or(`subcategory.eq.${service.category},category.eq.${service.category}`);
+        const runQuery = async (mode: "strict" | "permissive") => {
+          let q = base;
 
-        const { data, error } = await q;
+          if (mode === "strict") {
+            q = q
+              .eq("is_visible", true)
+              .eq("is_active", true)
+              .eq("is_paused", false)
+              .eq("approval_status", "approved");
+          } else {
+            q = q
+              // Be permissive: older seeds sometimes leave these as NULL.
+              .or("is_visible.eq.true,is_visible.is.null")
+              .or("is_active.eq.true,is_active.is.null")
+              .or("is_paused.eq.false,is_paused.is.null")
+              // Only show approved providers; allow null during early data.
+              .or("approval_status.eq.approved,approval_status.is.null");
+          }
+
+          if (categoryOr) {
+            // IMPORTANT:
+            // Older seed/data sometimes stored the *subcategory name* in `services.category`.
+            // Newer data uses `services.subcategory`.
+            // Match either column.
+            q = q.or(categoryOr);
+          }
+
+          return await q;
+        };
+
+        let { data, error } = await runQuery("strict");
         if (error) throw error;
 
+        // Fallback: if strict filters return nothing, try permissive filters.
+        if (!data || data.length === 0) {
+          const res = await runQuery("permissive");
+          data = res.data;
+          error = res.error;
+          if (error) throw error;
+        }
         const rows = (data || []) as any[];
         const normalized: ServiceProvider[] = rows.map((r) => ({
           id: String(r.id),
