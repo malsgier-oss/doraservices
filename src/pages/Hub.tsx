@@ -24,7 +24,6 @@ import { useAllSubcategories } from "@/hooks/useSubcategories";
 import { CategoryBrowseSheet } from "@/components/hub/CategoryBrowseSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useLanguage } from "@/contexts/LanguageContext";
 
 type ServiceRow = {
   id: string;
@@ -737,6 +736,7 @@ export default function Hub() {
               setInitialProviderServiceId(null);
             }
           }}
+          city={selectedCityName}
           service={selectedSheetService}
           initialProviderServiceId={initialProviderServiceId}
         />
