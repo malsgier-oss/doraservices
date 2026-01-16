@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Drawer,
   DrawerContent,
@@ -20,6 +20,7 @@ import {
   Flag,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useServices, Service as DoraService } from "@/hooks/useServices";
 
 /**
  * ServiceDetailSheet
@@ -46,6 +47,7 @@ export type ServiceProvider = {
   is_visible?: boolean | null;
   is_paused?: boolean | null;
   is_featured?: boolean | null;
+  is_verified?: boolean | null;
   approval_status?: ProviderStatus | string | null;
   views_count?: number | null;
 };
@@ -129,91 +131,95 @@ export default function ServiceDetailSheet({
   onToggleFavorite,
   isFavorite,
 }: Props) {
-  const [providers, setProviders] = useState<ServiceProvider[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { services, loading } = useServices();
   const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
 
+  // "As it was": the sheet should show providers based on the already-loaded services list.
+  // This avoids RLS/joins issues and matches the rest of the app.
+  const listProviders = useMemo<ServiceProvider[]>(() => {
+    const rows: DoraService[] = Array.isArray(services) ? services : [];
+    const norm = (v: unknown) => String(v ?? "").trim().toLowerCase();
+
+    // "As it was": match what is stored in services.category, regardless of Arabic/English labels.
+    // The app sometimes passes English name, sometimes Arabic label for display.
+    const targets = [
+      service?.category,
+      (service as any)?.categoryName,
+      (service as any)?.categoryNameAr,
+      (service as any)?.titleKey,
+    ]
+      .filter(Boolean)
+      .map(norm)
+      .filter(Boolean);
+
+    // Keep UI clean: no city shown. But if caller passes city, we can still filter silently.
+    const cityFilter = city ?? undefined;
+
+    // Support both legacy and newer shapes:
+    // - some rows store the *subcategory* value in `services.category`
+    // - some rows may store subcategory in `services.subcategory` (if present in DB)
+    return rows
+      .filter((s: any) => {
+        if (!s) return false;
+        const cat = norm((s as any).category);
+        const sub = norm((s as any).subcategory);
+
+        const matchCategory = targets.length
+          ? targets.some((t) =>
+              cat === t ||
+              sub === t ||
+              (cat && t && (cat.includes(t) || t.includes(cat))) ||
+              (sub && t && (sub.includes(t) || t.includes(sub)))
+            )
+          : true;
+
+        const matchCity = cityFilter
+          ? norm((s as any).city) === norm(cityFilter)
+          : true;
+
+        // If these flags exist in the row, respect them. (Some older rows may not have them.)
+        const isVisible = (s as any).is_visible;
+        const isPaused = (s as any).is_paused;
+        const approval = (s as any).approval_status;
+
+        const okVisible = typeof isVisible === "boolean" ? isVisible : true;
+        const okPaused = typeof isPaused === "boolean" ? !isPaused : true;
+        const okApproved = typeof approval === "string" ? approval === "approved" : true;
+
+        return matchCategory && matchCity && okVisible && okPaused && okApproved;
+      })
+      .map((s: any) => ({
+        id: String(s.id),
+        title: s.title ?? null,
+        description: s.description ?? null,
+        category: s.category ?? null,
+        subcategory: (s as any).subcategory ?? null,
+        city: (s as any).city ?? null,
+        sub_city: (s as any).sub_city ?? null,
+        provider_name: s.provider_name ?? null,
+        provider_phone: s.provider_phone ?? null,
+        image_url: s.image_url ?? null,
+        is_active: s.is_active ?? null,
+        is_visible: (s as any).is_visible ?? null,
+        is_paused: (s as any).is_paused ?? null,
+        is_featured: (s as any).is_featured ?? null,
+        is_verified: (s as any).is_verified ?? null,
+        approval_status: (s as any).approval_status ?? null,
+        views_count: (s as any).views_count ?? null,
+      }));
+  }, [services, city, service?.category, (service as any)?.categoryName, (service as any)?.categoryNameAr, (service as any)?.titleKey]);
+
+  // Select the requested provider when the drawer opens.
   useEffect(() => {
     if (!open) return;
 
-    let alive = true;
-    const run = async () => {
-      setLoading(true);
-      try {
-        // PostgREST `or` only supports a single `or=` param reliably.
-        // Keep filters simple and permissive to avoid accidentally returning 0 rows.
-        let q = supabase
-          .from("services")
-          .select(
-            // NOTE: keep this list aligned with your DB schema.
-            // `is_verified` is NOT a services column in many Dora DB setups, so do not select it.
-            "id,title,description,category,subcategory,city,sub_city,provider_name,provider_phone,image_url,is_active,is_visible,is_paused,is_featured,approval_status,views_count"
-          )
-          // Dora public browsing: the only truly required condition.
-          .eq("is_active", true)
-          .order("is_featured", { ascending: false })
-          .order("views_count", { ascending: false });
-
-        // Optional city filter (do not show it in the UI; just refine results when available)
-        if (city) {
-          q = q.eq("city", city);
-        }
-
-        // IMPORTANT:
-        // ServiceCreator stores the *subcategory English name* in `services.category`.
-        // Some older rows may use `services.subcategory`. Match either column.
-        const safe = String(service.category || "").replace(/"/g, "\\\"");
-        q = q.or(`category.eq."${safe}",subcategory.eq."${safe}"`);
-
-        const { data, error } = await q;
-        if (error) throw error;
-
-        const rows = (data || []) as any[];
-        const normalized: ServiceProvider[] = rows.map((r) => ({
-          id: String(r.id),
-          title: r.title ?? null,
-          description: r.description ?? null,
-          category: r.category ?? null,
-          subcategory: r.subcategory ?? null,
-          city: r.city ?? null,
-          sub_city: r.sub_city ?? null,
-          provider_name: r.provider_name ?? null,
-          provider_phone: r.provider_phone ?? null,
-          image_url: r.image_url ?? null,
-          is_active: r.is_active ?? null,
-          is_visible: r.is_visible ?? null,
-          is_paused: r.is_paused ?? null,
-          is_featured: r.is_featured ?? null,
-          approval_status: r.approval_status ?? null,
-          views_count: r.views_count ?? null,
-        }));
-
-        if (!alive) return;
-        setProviders(normalized);
-
-        // If we were opened for a specific provider service id, select it.
-        if (initialProviderServiceId) {
-          const match = normalized.find((p) => p.id === initialProviderServiceId) || null;
-          setSelectedProvider(match);
-        } else {
-          setSelectedProvider(null);
-        }
-      } catch (e) {
-        console.error("ServiceDetailSheet load error:", e);
-        if (alive) setProviders([]);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    };
-
-    run();
-    return () => {
-      alive = false;
-    };
-  }, [open, service.category, city, initialProviderServiceId]);
-
-  // Keep it clean: no search in this sheet.
-  const listProviders = Array.isArray(providers) ? providers : [];
+    if (initialProviderServiceId) {
+      const match = listProviders.find((p) => p.id === initialProviderServiceId) || null;
+      setSelectedProvider(match);
+      return;
+    }
+    setSelectedProvider(null);
+  }, [open, initialProviderServiceId, listProviders]);
 
   const isDetailOpen = !!selectedProvider;
 
@@ -272,6 +278,9 @@ export default function ServiceDetailSheet({
                       </div>
 
                       <div className="text-xs text-muted-foreground mt-1 flex gap-2 flex-wrap">
+                        {p.is_verified && (
+                          <Badge variant="secondary">موثّق</Badge>
+                        )}
                         {p.is_featured && <Badge>مميز</Badge>}
                       </div>
 
