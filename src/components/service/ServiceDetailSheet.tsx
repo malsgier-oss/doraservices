@@ -36,21 +36,17 @@ export type ServiceProvider = {
   title?: string | null;
   description?: string | null;
   category?: string | null;
-  subcategory?: string | null;
   city?: string | null;
   sub_city?: string | null;
   provider_name?: string | null;
   provider_phone?: string | null;
   image_url?: string | null;
-  // Optional future-proof gallery support. Some environments may store multiple URLs.
-  // We treat this as best-effort and keep the UI resilient.
-  image_urls?: string[] | null;
   is_active?: boolean | null;
   is_visible?: boolean | null;
   is_paused?: boolean | null;
   is_featured?: boolean | null;
-  is_verified?: boolean | null;
   approval_status?: ProviderStatus | string | null;
+  price?: number | null;
   views_count?: number | null;
 };
 
@@ -88,13 +84,8 @@ function normalizePhone(phone?: string | null) {
   return phone.replace(/\s+/g, "").trim();
 }
 
-function parseImageUrls(provider: Pick<ServiceProvider, "image_url" | "image_urls">) {
-  // 1) Preferred: explicit array.
-  if (Array.isArray(provider.image_urls) && provider.image_urls.length > 0) {
-    return provider.image_urls.filter(Boolean).slice(0, 10);
-  }
-
-  // 2) Back-compat: single string can contain JSON array or comma-separated URLs.
+function parseImageUrls(provider: Pick<ServiceProvider, "image_url">) {
+  // Back-compat: single string can contain JSON array or comma-separated URLs.
   const raw = (provider.image_url || "").trim();
   if (!raw) return [] as string[];
 
@@ -207,85 +198,88 @@ export default function ServiceDetailSheet({
     const run = async () => {
       setLoading(true);
       try {
-        const escOrValue = (v: string) => {
-          // PostgREST OR filter needs quoted values when they contain spaces/symbols.
-          const escaped = v.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-          return `"${escaped}"`;
-        };
-
         const categoryVal = (service?.category ?? "").trim();
-        const categoryOr = categoryVal
-          ? `subcategory.eq.${escOrValue(categoryVal)},category.eq.${escOrValue(categoryVal)}`
-          : "";
 
         const base = supabase
           .from("services")
           .select(
-            // NOTE: `image_urls` may not exist in all DBs. Selecting it is safe; it will be null if absent.
-            "id,title,description,category,subcategory,city,sub_city,provider_name,provider_phone,image_url,image_urls,is_active,is_visible,is_paused,is_featured,is_verified,approval_status,views_count"
+            // Keep this list aligned with src/integrations/supabase/types.ts (public.services.Row)
+            "id,title,description,category,city,sub_city,provider_name,provider_phone,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count"
           )
           .order("is_featured", { ascending: false })
           .order("views_count", { ascending: false });
 
-        const runQuery = async (mode: "strict" | "permissive") => {
-          let q = base;
-
+        // NOTE: Supabase query builder types are complex; keep this helper loosely typed.
+        const applyVisibilityFilters = (q: any, mode: "strict" | "permissive") => {
           if (mode === "strict") {
-            q = q
+            return q
               .eq("is_visible", true)
               .eq("is_active", true)
               .eq("is_paused", false)
               .eq("approval_status", "approved");
-          } else {
-            q = q
-              // Be permissive: older seeds sometimes leave these as NULL.
-              .or("is_visible.eq.true,is_visible.is.null")
-              .or("is_active.eq.true,is_active.is.null")
-              .or("is_paused.eq.false,is_paused.is.null")
-              // Only show approved providers; allow null during early data.
-              .or("approval_status.eq.approved,approval_status.is.null");
           }
-
-          if (categoryOr) {
-            // IMPORTANT:
-            // Older seed/data sometimes stored the *subcategory name* in `services.category`.
-            // Newer data uses `services.subcategory`.
-            // Match either column.
-            q = q.or(categoryOr);
-          }
-
-          return await q;
+          return q
+            // Be permissive: older seeds sometimes leave these as NULL.
+            .or("is_visible.eq.true,is_visible.is.null")
+            .or("is_active.eq.true,is_active.is.null")
+            .or("is_paused.eq.false,is_paused.is.null")
+            // Only show approved providers; allow null during early data.
+            .or("approval_status.eq.approved,approval_status.is.null");
         };
 
-        let { data, error } = await runQuery("strict");
-        if (error) throw error;
+        const tryQueries = async () => {
+          const candidates = Array.from(
+            new Set(
+              [categoryVal, (service?.titleKey ?? "").trim()].filter((x) => x && x.length > 0)
+            )
+          );
 
-        // Fallback: if strict filters return nothing, try permissive filters.
-        if (!data || data.length === 0) {
-          const res = await runQuery("permissive");
-          data = res.data;
-          error = res.error;
-          if (error) throw error;
-        }
+          // 1) Exact match (strict)
+          for (const key of candidates) {
+            const res = await applyVisibilityFilters(base, "strict").eq("category", key);
+            if (res.error) throw res.error;
+            if (res.data && res.data.length > 0) return res.data;
+          }
+
+          // 2) Exact match (permissive)
+          for (const key of candidates) {
+            const res = await applyVisibilityFilters(base, "permissive").eq("category", key);
+            if (res.error) throw res.error;
+            if (res.data && res.data.length > 0) return res.data;
+          }
+
+          // 3) Partial match (strict) - handles small naming drift (spaces, suffixes)
+          for (const key of candidates) {
+            const res = await applyVisibilityFilters(base, "strict").ilike("category", `%${key}%`);
+            if (res.error) throw res.error;
+            if (res.data && res.data.length > 0) return res.data;
+          }
+
+          // 4) Last resort: still apply visibility filters but drop category filter.
+          // This prevents an empty sheet when data exists but is tagged differently.
+          const fallback = await applyVisibilityFilters(base, "strict");
+          if (fallback.error) throw fallback.error;
+          return fallback.data || [];
+        };
+
+        const data = await tryQueries();
         const rows = (data || []) as any[];
         const normalized: ServiceProvider[] = rows.map((r) => ({
           id: String(r.id),
           title: r.title ?? null,
           description: r.description ?? null,
           category: r.category ?? null,
-          subcategory: r.subcategory ?? null,
           city: r.city ?? null,
           sub_city: r.sub_city ?? null,
           provider_name: r.provider_name ?? null,
           provider_phone: r.provider_phone ?? null,
           image_url: r.image_url ?? null,
-          image_urls: Array.isArray(r.image_urls) ? r.image_urls : null,
           is_active: r.is_active ?? null,
           is_visible: r.is_visible ?? null,
           is_paused: r.is_paused ?? null,
           is_featured: r.is_featured ?? null,
-          is_verified: r.is_verified ?? null,
           approval_status: r.approval_status ?? null,
+          price: r.price ?? null,
           views_count: r.views_count ?? null,
         }));
 
@@ -426,9 +420,6 @@ export default function ServiceDetailSheet({
                       </div>
 
                       <div className="text-xs text-muted-foreground mt-1 flex gap-2 flex-wrap">
-                        {p.is_verified && (
-                          <Badge variant="secondary">موثّق</Badge>
-                        )}
                         {p.is_featured && <Badge>مميز</Badge>}
                       </div>
 
@@ -458,6 +449,42 @@ export default function ServiceDetailSheet({
                           </div>
                         </div>
                       )}
+
+                      {/* Actions + optional price (list view) */}
+                      <div className="mt-3 flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          className="h-9 flex-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            logContactEvent(p.id, "call");
+                            openTel(p.provider_phone);
+                          }}
+                        >
+                          <Phone className="h-4 w-4 ml-1" />
+                          اتصال
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="h-9 flex-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            logContactEvent(p.id, "whatsapp");
+                            openWhatsApp(p.provider_phone);
+                          }}
+                        >
+                          <MessageCircle className="h-4 w-4 ml-1" />
+                          واتساب
+                        </Button>
+
+                        {typeof p.price === "number" && !Number.isNaN(p.price) && (
+                          <div className="shrink-0 text-sm font-semibold tabular-nums text-foreground/80">
+                            {p.price} LYD
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
