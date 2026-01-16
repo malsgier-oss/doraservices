@@ -138,7 +138,6 @@ export default function ServiceDetailSheet({
         p.provider_name,
         p.title,
         p.description,
-        p.sub_city,
         p.city,
       ]
         .filter(Boolean)
@@ -220,6 +219,12 @@ export default function ServiceDetailSheet({
                       </div>
 
                       <div className="text-xs text-muted-foreground mt-1 flex gap-2 flex-wrap">
+                        {p.city && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {p.city}
+                          </span>
+                        )}
                         {p.is_verified && (
                           <Badge variant="secondary">موثّق</Badge>
                         )}
@@ -343,3 +348,7 @@ export default function ServiceDetailSheet({
     </Drawer>
   );
 }
+
+// Allow both default import and named import styles.
+// Some screens import with: import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
+export { ServiceDetailSheet };
