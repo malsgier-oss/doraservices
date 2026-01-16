@@ -335,24 +335,26 @@ export default function Hub() {
 
   return (
     <div className={`min-h-screen bg-background pb-20 ${isRTL ? "rtl" : ""}`}>
-      <div className="mx-auto max-w-3xl px-4 pt-4 space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className={`text-xl font-semibold leading-tight ${isRTL ? "text-right" : "text-left"}`}>{t("شن تحتاج اليوم؟", "What do you need today?")}</div>
-            <div className={`text-sm text-muted-foreground ${isRTL ? "text-right" : "text-left"}`}>{t("ابحث وتواصل مباشرة", "Search and contact directly")}</div>
+      <div className="mx-auto max-w-3xl px-4">
+        {/* Sticky top: Header + Search/City + Chips */}
+        <div className="sticky top-0 z-40 bg-background pt-4 space-y-4 pb-3 border-b border-border">
+          {/* Header */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className={`text-xl font-semibold leading-tight ${isRTL ? "text-right" : "text-left"}`}>{t("شن تحتاج اليوم؟", "What do you need today?")}</div>
+              <div className={`text-sm text-muted-foreground ${isRTL ? "text-right" : "text-left"}`}>{t("ابحث وتواصل مباشرة", "Search and contact directly")}</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <LanguageToggle />
+              <ThemeToggle />
+              <Button variant="ghost" size="icon" aria-label="Notifications">
+                <Bell className="h-6 w-6" />
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <LanguageToggle />
-            <ThemeToggle />
-            <Button variant="ghost" size="icon" aria-label="Notifications">
-              <Bell className="h-6 w-6" />
-            </Button>
-          </div>
-        </div>
 
-        {/* Search + City */}
-        <div className="space-y-2">
+          {/* Search + City */}
+          <div className="space-y-2">
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
@@ -433,42 +435,48 @@ export default function Hub() {
           )}
         </div>
 
-        {/* Chips (admin-controlled, subcategories) */}
-        {chips.length > 0 && (
-          <ScrollArea className="w-full">
-            <div className="flex gap-2 pb-2">
-              {chips.map((chip) => {
-                const label = (language === "ar" ? chip.label_ar : chip.label_en) || chip.label_ar || chip.label_en || "";
-                if (!label) return null;
-                return (
-                  <Button
-                    key={chip.id}
-                    variant="secondary"
-                    className="rounded-full"
-                    onClick={() => {
-                      if (chip.target_type === "category" && chip.target_category_id) {
-                        openCategoryBrowse(chip.target_category_id);
-                      } else if (chip.target_type === "subcategory" && chip.target_subcategory_id) {
-                        const sc = (allSubcategories || []).find((s) => s.id === chip.target_subcategory_id);
-                        if (!sc) return;
-                        const Icon = ICON_MAP[sc.icon] || Wrench;
-                        openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color });
-                      } else if (chip.target_type === "shelf" && chip.target_shelf_id) {
-                        const el = chip.target_shelf_id === "featured-services"
-                          ? document.getElementById("featured-services")
-                          : document.getElementById(`shelf-${chip.target_shelf_id}`);
-                        el?.scrollIntoView({ behavior: "smooth", block: "start" });
-                      }
-                    }}
-                  >
-                    {label}
-                  </Button>
-                );
-              })}
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-        )}
+          </div>
+
+          {/* Chips (admin-controlled, subcategories) */}
+          {chips.length > 0 && (
+            <ScrollArea className="w-full">
+              <div className="flex gap-2 pb-2">
+                {chips.map((chip) => {
+                  const label = (language === "ar" ? chip.label_ar : chip.label_en) || chip.label_ar || chip.label_en || "";
+                  if (!label) return null;
+                  return (
+                    <Button
+                      key={chip.id}
+                      variant="secondary"
+                      className="rounded-full"
+                      onClick={() => {
+                        if (chip.target_type === "category" && chip.target_category_id) {
+                          openCategoryBrowse(chip.target_category_id);
+                        } else if (chip.target_type === "subcategory" && chip.target_subcategory_id) {
+                          const sc = (allSubcategories || []).find((s) => s.id === chip.target_subcategory_id);
+                          if (!sc) return;
+                          const Icon = ICON_MAP[sc.icon] || Wrench;
+                          openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color });
+                        } else if (chip.target_type === "shelf" && chip.target_shelf_id) {
+                          const el = chip.target_shelf_id === "featured-services"
+                            ? document.getElementById("featured-services")
+                            : document.getElementById(`shelf-${chip.target_shelf_id}`);
+                          el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                        }
+                      }}
+                    >
+                      {label}
+                    </Button>
+                  );
+                })}
+              </div>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          )}
+        </div>
+
+        {/* Everything below chips scrolls normally */}
+        <div className="pt-4 space-y-4">
 
         {/* Banner carousel (admin-controlled, image-only) */}
         {banners.length > 0 && (
@@ -704,6 +712,7 @@ export default function Hub() {
             <a className="hover:text-foreground" href="/terms">{t("الشروط", "Terms")}</a>
             <a className="hover:text-foreground" href="/privacy">{t("الخصوصية", "Privacy")}</a>
           </div>
+        </div>
         </div>
       </div>
 
