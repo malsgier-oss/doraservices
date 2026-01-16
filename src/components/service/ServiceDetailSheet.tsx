@@ -220,12 +220,6 @@ export default function ServiceDetailSheet({
                       </div>
 
                       <div className="text-xs text-muted-foreground mt-1 flex gap-2 flex-wrap">
-                        {p.sub_city && (
-                          <span className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {p.sub_city}
-                          </span>
-                        )}
                         {p.is_verified && (
                           <Badge variant="secondary">موثّق</Badge>
                         )}
@@ -280,8 +274,6 @@ export default function ServiceDetailSheet({
 
                 <div className="text-sm text-muted-foreground mt-1">
                   {selectedProvider.city}
-                  {selectedProvider.sub_city &&
-                    ` • ${selectedProvider.sub_city}`}
                 </div>
 
                 {selectedProvider.description && (
