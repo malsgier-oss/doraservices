@@ -435,8 +435,6 @@ export default function Hub() {
           )}
         </div>
 
-          </div>
-
           {/* Chips (admin-controlled, subcategories) */}
           {chips.length > 0 && (
             <ScrollArea className="w-full">
