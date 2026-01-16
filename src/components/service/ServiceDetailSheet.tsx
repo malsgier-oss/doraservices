@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Drawer,
   DrawerContent,
@@ -20,7 +20,6 @@ import {
   Flag,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useServices, Service as DoraService } from "@/hooks/useServices";
 
 /**
  * ServiceDetailSheet
@@ -43,6 +42,9 @@ export type ServiceProvider = {
   provider_name?: string | null;
   provider_phone?: string | null;
   image_url?: string | null;
+  // Optional future-proof gallery support. Some environments may store multiple URLs.
+  // We treat this as best-effort and keep the UI resilient.
+  image_urls?: string[] | null;
   is_active?: boolean | null;
   is_visible?: boolean | null;
   is_paused?: boolean | null;
@@ -86,6 +88,61 @@ function normalizePhone(phone?: string | null) {
   return phone.replace(/\s+/g, "").trim();
 }
 
+function parseImageUrls(provider: Pick<ServiceProvider, "image_url" | "image_urls">) {
+  // 1) Preferred: explicit array.
+  if (Array.isArray(provider.image_urls) && provider.image_urls.length > 0) {
+    return provider.image_urls.filter(Boolean).slice(0, 10);
+  }
+
+  // 2) Back-compat: single string can contain JSON array or comma-separated URLs.
+  const raw = (provider.image_url || "").trim();
+  if (!raw) return [] as string[];
+
+  if (raw.startsWith("[") && raw.endsWith("]")) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.map((x) => String(x)).filter(Boolean).slice(0, 10);
+      }
+    } catch {
+      // fall through
+    }
+  }
+
+  if (raw.includes(",")) {
+    return raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 10);
+  }
+
+  return [raw].slice(0, 10);
+}
+
+function readLocalFavorites(): Set<string> {
+  try {
+    const raw = window.localStorage.getItem("dora_fav_providers");
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.map((x) => String(x)));
+  } catch {
+    return new Set();
+  }
+}
+
+function writeLocalFavorites(next: Set<string>) {
+  try {
+    window.localStorage.setItem(
+      "dora_fav_providers",
+      JSON.stringify(Array.from(next.values()))
+    );
+  } catch {
+    // ignore
+  }
+}
+
 function openTel(phone?: string | null) {
   const p = normalizePhone(phone);
   if (!p) {
@@ -104,6 +161,8 @@ function openWhatsApp(phone?: string | null) {
   const digits = p.replace(/[^\d+]/g, "");
   window.open(`https://wa.me/${digits.replace("+", "")}`, "_blank");
 }
+
+// (removed duplicate helpers)
 
 async function logContactEvent(
   providerId: string,
@@ -126,100 +185,148 @@ export default function ServiceDetailSheet({
   open,
   onOpenChange,
   service,
-  city,
   initialProviderServiceId = null,
   onToggleFavorite,
   isFavorite,
 }: Props) {
-  const { services, loading } = useServices();
+  const [providers, setProviders] = useState<ServiceProvider[]>([]);
+  const [loading, setLoading] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
+  const [localFavorites, setLocalFavorites] = useState<Set<string>>(() => new Set());
 
-  // "As it was": the sheet should show providers based on the already-loaded services list.
-  // This avoids RLS/joins issues and matches the rest of the app.
-  const listProviders = useMemo<ServiceProvider[]>(() => {
-    const rows: DoraService[] = Array.isArray(services) ? services : [];
-    const norm = (v: unknown) => String(v ?? "").trim().toLowerCase();
+  useEffect(() => {
+    if (!open) return;
+    // Load local favorites only when the drawer is opened (avoids SSR/localStorage warnings).
+    setLocalFavorites(readLocalFavorites());
+  }, [open]);
 
-    // "As it was": match what is stored in services.category, regardless of Arabic/English labels.
-    // The app sometimes passes English name, sometimes Arabic label for display.
-    const targets = [
-      service?.category,
-      (service as any)?.categoryName,
-      (service as any)?.categoryNameAr,
-      (service as any)?.titleKey,
-    ]
-      .filter(Boolean)
-      .map(norm)
-      .filter(Boolean);
+  const isFav = (providerId: string) => {
+    if (typeof isFavorite === "function") return !!isFavorite(providerId);
+    return localFavorites.has(providerId);
+  };
 
-    // Keep UI clean: no city shown. But if caller passes city, we can still filter silently.
-    const cityFilter = city ?? undefined;
+  const toggleFav = (providerId: string) => {
+    if (typeof onToggleFavorite === "function") {
+      onToggleFavorite(providerId);
+      return;
+    }
 
-    // Support both legacy and newer shapes:
-    // - some rows store the *subcategory* value in `services.category`
-    // - some rows may store subcategory in `services.subcategory` (if present in DB)
-    return rows
-      .filter((s: any) => {
-        if (!s) return false;
-        const cat = norm((s as any).category);
-        const sub = norm((s as any).subcategory);
+    setLocalFavorites((prev) => {
+      const next = new Set(prev);
+      if (next.has(providerId)) next.delete(providerId);
+      else next.add(providerId);
+      writeLocalFavorites(next);
+      return next;
+    });
+  };
+  const [localFavs, setLocalFavs] = useState<Set<string>>(() => new Set());
 
-        const matchCategory = targets.length
-          ? targets.some((t) =>
-              cat === t ||
-              sub === t ||
-              (cat && t && (cat.includes(t) || t.includes(cat))) ||
-              (sub && t && (sub.includes(t) || t.includes(sub)))
-            )
-          : true;
+  useEffect(() => {
+    if (!open) return;
+    // Only read localStorage on the client, when the sheet is used.
+    setLocalFavs(readLocalFavorites());
+  }, [open]);
 
-        const matchCity = cityFilter
-          ? norm((s as any).city) === norm(cityFilter)
-          : true;
-
-        // If these flags exist in the row, respect them. (Some older rows may not have them.)
-        const isVisible = (s as any).is_visible;
-        const isPaused = (s as any).is_paused;
-        const approval = (s as any).approval_status;
-
-        const okVisible = typeof isVisible === "boolean" ? isVisible : true;
-        const okPaused = typeof isPaused === "boolean" ? !isPaused : true;
-        const okApproved = typeof approval === "string" ? approval === "approved" : true;
-
-        return matchCategory && matchCity && okVisible && okPaused && okApproved;
-      })
-      .map((s: any) => ({
-        id: String(s.id),
-        title: s.title ?? null,
-        description: s.description ?? null,
-        category: s.category ?? null,
-        subcategory: (s as any).subcategory ?? null,
-        city: (s as any).city ?? null,
-        sub_city: (s as any).sub_city ?? null,
-        provider_name: s.provider_name ?? null,
-        provider_phone: s.provider_phone ?? null,
-        image_url: s.image_url ?? null,
-        is_active: s.is_active ?? null,
-        is_visible: (s as any).is_visible ?? null,
-        is_paused: (s as any).is_paused ?? null,
-        is_featured: (s as any).is_featured ?? null,
-        is_verified: (s as any).is_verified ?? null,
-        approval_status: (s as any).approval_status ?? null,
-        views_count: (s as any).views_count ?? null,
-      }));
-  }, [services, city, service?.category, (service as any)?.categoryName, (service as any)?.categoryNameAr, (service as any)?.titleKey]);
-
-  // Select the requested provider when the drawer opens.
   useEffect(() => {
     if (!open) return;
 
-    if (initialProviderServiceId) {
-      const match = listProviders.find((p) => p.id === initialProviderServiceId) || null;
-      setSelectedProvider(match);
+    let alive = true;
+    const run = async () => {
+      setLoading(true);
+      try {
+        let q = supabase
+          .from("services")
+          .select(
+            // NOTE: `image_urls` may not exist in all DBs. Selecting it is safe; it will be null if absent.
+            "id,title,description,category,subcategory,city,sub_city,provider_name,provider_phone,image_url,image_urls,is_active,is_visible,is_paused,is_featured,is_verified,approval_status,views_count"
+          )
+          // Be permissive: older seeds sometimes leave these as NULL.
+          .or("is_visible.eq.true,is_visible.is.null")
+          .or("is_active.eq.true,is_active.is.null")
+          .or("is_paused.eq.false,is_paused.is.null")
+          // Only show approved providers; allow null during early data.
+          .or("approval_status.eq.approved,approval_status.is.null")
+          .order("is_featured", { ascending: false })
+          .order("views_count", { ascending: false });
+
+        // IMPORTANT:
+        // Older seed/data sometimes stored the *subcategory name* in `services.category`.
+        // Newer data uses `services.subcategory`.
+        // To avoid empty sheets, match either column.
+        q = q.or(`subcategory.eq.${service.category},category.eq.${service.category}`);
+
+        const { data, error } = await q;
+        if (error) throw error;
+
+        const rows = (data || []) as any[];
+        const normalized: ServiceProvider[] = rows.map((r) => ({
+          id: String(r.id),
+          title: r.title ?? null,
+          description: r.description ?? null,
+          category: r.category ?? null,
+          subcategory: r.subcategory ?? null,
+          city: r.city ?? null,
+          sub_city: r.sub_city ?? null,
+          provider_name: r.provider_name ?? null,
+          provider_phone: r.provider_phone ?? null,
+          image_url: r.image_url ?? null,
+          image_urls: Array.isArray(r.image_urls) ? r.image_urls : null,
+          is_active: r.is_active ?? null,
+          is_visible: r.is_visible ?? null,
+          is_paused: r.is_paused ?? null,
+          is_featured: r.is_featured ?? null,
+          is_verified: r.is_verified ?? null,
+          approval_status: r.approval_status ?? null,
+          views_count: r.views_count ?? null,
+        }));
+
+        if (!alive) return;
+        setProviders(normalized);
+
+        // If we were opened for a specific provider service id, select it.
+        if (initialProviderServiceId) {
+          const match = normalized.find((p) => p.id === initialProviderServiceId) || null;
+          setSelectedProvider(match);
+        } else {
+          setSelectedProvider(null);
+        }
+      } catch (e) {
+        console.error("ServiceDetailSheet load error:", e);
+        if (alive) setProviders([]);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    };
+
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [open, service.category, initialProviderServiceId]);
+
+  // Keep it clean: no search in this sheet.
+  const listProviders = Array.isArray(providers) ? providers : [];
+
+  const isFav = (providerId: string) => {
+    // Prefer external favorites integration if provided.
+    if (isFavorite) return !!isFavorite(providerId);
+    return localFavs.has(providerId);
+  };
+
+  const toggleFav = (providerId: string) => {
+    if (onToggleFavorite) {
+      onToggleFavorite(providerId);
       return;
     }
-    setSelectedProvider(null);
-  }, [open, initialProviderServiceId, listProviders]);
+
+    setLocalFavs((prev) => {
+      const next = new Set(prev);
+      if (next.has(providerId)) next.delete(providerId);
+      else next.add(providerId);
+      writeLocalFavorites(next);
+      return next;
+    });
+  };
 
   const isDetailOpen = !!selectedProvider;
 
@@ -267,14 +374,46 @@ export default function ServiceDetailSheet({
                   </div>
                 ) : null}
 
-                {listProviders.map((p) => (
+                {listProviders.map((p) => {
+                  const photos = parseImageUrls(p);
+
+                  return (
                   <div
                     key={p.id}
-                    className="rounded-lg border p-3 bg-card flex gap-3"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedProvider(p)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") setSelectedProvider(p);
+                    }}
+                    className="rounded-lg border p-3 bg-card flex gap-3 cursor-pointer hover:bg-accent/30 transition-colors"
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold truncate">
-                        {p.provider_name || p.title || "مزود"}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="font-semibold truncate">
+                          {p.provider_name || p.title || "مزود"}
+                        </div>
+
+                        {/* Favorite (Heart) */}
+                        <button
+                          type="button"
+                          aria-label="Favorite"
+                          className={cn(
+                            "shrink-0 rounded-full p-2 border bg-background hover:bg-accent/40 transition-colors",
+                            isFav(p.id) && "text-red-600"
+                          )}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFav(p.id);
+                          }}
+                        >
+                          <Heart
+                            className={cn(
+                              "h-4 w-4",
+                              isFav(p.id) && "fill-current"
+                            )}
+                          />
+                        </button>
                       </div>
 
                       <div className="text-xs text-muted-foreground mt-1 flex gap-2 flex-wrap">
@@ -289,33 +428,31 @@ export default function ServiceDetailSheet({
                           {p.description}
                         </div>
                       )}
-                    </div>
 
-                    <div className="flex flex-col gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => setSelectedProvider(p)}
-                      >
-                        التفاصيل
-                      </Button>
-
-                      {onToggleFavorite && isFavorite && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => onToggleFavorite(p.id)}
-                        >
-                          <Heart
-                            className={cn(
-                              "h-4 w-4",
-                              isFavorite(p.id) && "fill-current"
-                            )}
-                          />
-                        </Button>
+                      {/* Photo strip (thumbnails only) */}
+                      {photos.length > 0 && (
+                        <div className="mt-3 -mx-1 overflow-x-auto">
+                          <div className="flex gap-2 px-1">
+                            {photos.map((url, idx) => (
+                                <div
+                                  key={`${p.id}-img-${idx}`}
+                                  className="h-[96px] w-[96px] rounded-md overflow-hidden border bg-muted shrink-0"
+                                >
+                                  <img
+                                    src={url}
+                                    alt=""
+                                    loading="lazy"
+                                    className="h-full w-full object-cover"
+                                  />
+                                </div>
+                              ))}
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>
-                ))}
+                );
+                })}
               </div>
             </ScrollArea>
           </div>
