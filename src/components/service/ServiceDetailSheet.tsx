@@ -192,33 +192,6 @@ export default function ServiceDetailSheet({
   const [providers, setProviders] = useState<ServiceProvider[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
-  const [localFavorites, setLocalFavorites] = useState<Set<string>>(() => new Set());
-
-  useEffect(() => {
-    if (!open) return;
-    // Load local favorites only when the drawer is opened (avoids SSR/localStorage warnings).
-    setLocalFavorites(readLocalFavorites());
-  }, [open]);
-
-  const isFav = (providerId: string) => {
-    if (typeof isFavorite === "function") return !!isFavorite(providerId);
-    return localFavorites.has(providerId);
-  };
-
-  const toggleFav = (providerId: string) => {
-    if (typeof onToggleFavorite === "function") {
-      onToggleFavorite(providerId);
-      return;
-    }
-
-    setLocalFavorites((prev) => {
-      const next = new Set(prev);
-      if (next.has(providerId)) next.delete(providerId);
-      else next.add(providerId);
-      writeLocalFavorites(next);
-      return next;
-    });
-  };
   const [localFavs, setLocalFavs] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
