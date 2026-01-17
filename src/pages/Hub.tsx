@@ -1,6 +1,6 @@
 // DORA_HUB_PATCH_v4 (ticker+banner-loop+no-all-cities+sticky-fullwidth)
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Bell, ChevronDown, Search, Wrench, Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper, Droplets, Wind, Fuel, ClipboardCheck } from "lucide-react";
+import { Bell, CheckCheck, ChevronDown, Search, Wrench, Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper, Droplets, Wind, Fuel, ClipboardCheck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,10 @@ import { useAllSubcategories } from "@/hooks/useSubcategories";
 import { CategoryBrowseSheet } from "@/components/hub/CategoryBrowseSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNotifications, useUnreadCount, useNotificationMutations } from "@/hooks/useNotifications";
+import { formatDistanceToNow } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 
 type ServiceRow = {
   id: string;
@@ -117,6 +121,12 @@ async function fetchShelfSubcategories(params: { categoryId: string; limit: numb
 
 export default function Hub() {
   const { language, isRTL } = useLanguage();
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const { data: notifications } = useNotifications();
+  const { data: unreadCount } = useUnreadCount();
+  const { markAsRead, markAllAsRead } = useNotificationMutations();
   const { data: categoriesData, isLoading: categoriesLoading } = useCategories();
   const { data: citiesData } = useCities();
 
@@ -493,59 +503,158 @@ export default function Hub() {
             <div className="flex items-center gap-2">
               <LanguageToggle />
               <ThemeToggle />
-              <Button variant="ghost" size="icon" aria-label="Notifications">
-                <Bell className="h-6 w-6" />
-              </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="Notifications"
+                    onClick={() => {
+                      if (!user) {
+                        toast({
+                          title: t("سجّل دخولك", "Sign in"),
+                          description: t("سجّل دخولك لرؤية الإشعارات", "Sign in to view notifications"),
+                        });
+                      }
+                    }}
+                    className="relative h-9 w-9 rounded-full hover:bg-muted transition-colors flex items-center justify-center"
+                  >
+                    <Bell className="h-5 w-5" />
+                    {user && unreadCount && unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
+                  </button>
+                </PopoverTrigger>
+
+                {user && (
+                  <PopoverContent
+                    align={isRTL ? "start" : "end"}
+                    className="w-80 p-0 bg-popover border-border"
+                  >
+                    <div className="p-3 border-b flex items-center justify-between">
+                      <h3 className="font-semibold text-sm">{t("الإشعارات", "Notifications")}</h3>
+
+                      {unreadCount && unreadCount > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => markAllAsRead.mutate()}
+                        >
+                          <CheckCheck className="h-3 w-3 mr-1" />
+                          {t("قراءة الكل", "Mark all read")}
+                        </Button>
+                      )}
+                    </div>
+
+                    <ScrollArea className="h-80">
+                      {!notifications || notifications.length === 0 ? (
+                        <div className="p-6 text-center text-muted-foreground text-sm">
+                          {t("لا توجد إشعارات", "No notifications")}
+                        </div>
+                      ) : (
+                        <div className="divide-y">
+                          {notifications.map((notification) => (
+                            <div
+                              key={notification.id}
+                              className={`p-3 hover:bg-muted cursor-pointer transition-colors ${
+                                !notification.is_read ? "bg-primary/10" : ""
+                              }`}
+                              onClick={() => {
+                                if (!notification.is_read) {
+                                  markAsRead.mutate(notification.id);
+                                }
+                              }}
+                            >
+                              <div className="flex items-start gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-sm truncate">
+                                    {notification.message?.title || "Notification"}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                                    {notification.message?.content}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {formatDistanceToNow(new Date(notification.created_at), {
+                                      addSuffix: true,
+                                    })}
+                                  </p>
+                                </div>
+
+                                {!notification.is_read && (
+                                  <div className="h-2 w-2 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </ScrollArea>
+                  </PopoverContent>
+                )}
+              </Popover>
             </div>
           </div>
 
           {/* Search + City */}
           <div className="space-y-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="pl-9"
-              placeholder={t("ابحث عن خدمة… كهرباء، سباكة، تكييف", "Search services… electricity, plumbing, AC")}
-            />
-          </div>
+            {/* Option 1: City inside search row */}
+            <div className={`flex items-center gap-2 ${isRTL ? "flex-row-reverse" : ""}`}
+            >
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="h-10 px-3 rounded-xl shrink-0 justify-between gap-2"
+                  >
+                    <span className="max-w-[7.5rem] truncate">{cityLabel}</span>
+                    <ChevronDown className="h-4 w-4 opacity-70" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-2">
+                  <div className="space-y-1 max-h-64 overflow-auto">
+                    {(citiesData || [])
+                      .filter((c) => c.is_active)
+                      .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
+                      .map((c) => (
+                        <Button
+                          key={c.id}
+                          variant={cityId === c.id ? "default" : "ghost"}
+                          className="w-full justify-start"
+                          onClick={() => setCityId(c.id)}
+                        >
+                          {c.name_ar || c.name}
+                        </Button>
+                      ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
 
-	          {activeAnnouncement && (
-	            <div className="rounded-2xl border border-border bg-muted/30 px-4 py-3">
-                      <div className="text-sm text-muted-foreground">📢 📢 {activeAnnouncement.message}</div>
-                    </div>
-	          )}
-
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="secondary" className="w-full justify-between">
-                <span className="truncate">{cityLabel}</span>
-                <ChevronDown className="h-4 w-4 opacity-70" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[--radix-popover-trigger-width] p-2">
-              <div className="space-y-1 max-h-64 overflow-auto">{(citiesData || [])
-                  .filter((c) => c.is_active)
-                  .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
-                  .map((c) => (
-                    <Button
-                      key={c.id}
-                      variant={cityId === c.id ? "default" : "ghost"}
-                      className="w-full justify-start"
-                      onClick={() => setCityId(c.id)}
-                    >
-                      {c.name_ar || c.name}
-                    </Button>
-                  ))}
+              <div className="relative flex-1">
+                <Search
+                  className={`absolute top-3 h-4 w-4 text-muted-foreground ${isRTL ? "right-3" : "left-3"}`}
+                />
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className={`${isRTL ? "pr-9" : "pl-9"} h-10 rounded-xl`}
+                  placeholder={t("ابحث عن خدمة… كهرباء، سباكة، تكييف", "Search services… electricity, plumbing, AC")}
+                />
               </div>
-            </PopoverContent>
-          </Popover>
+            </div>
 
-          {/* Search results (category matches) */}
-          {queryTrim && (
-            <Card>
-              <CardContent className="p-2 space-y-1">
+            {activeAnnouncement && (
+              <div className="rounded-2xl border border-border bg-muted/30 px-4 py-3">
+                <div className="text-sm text-muted-foreground">📢 📢 {activeAnnouncement.message}</div>
+              </div>
+            )}
+
+            {/* Search results (category matches) */}
+            {queryTrim && (
+              <Card>
+                <CardContent className="p-2 space-y-1">
                 {filteredCategories.length === 0 ? (
                   <div className="text-sm text-muted-foreground p-2">{t("لا توجد نتائج", "No results")}</div>
                 ) : (
@@ -563,10 +672,10 @@ export default function Hub() {
                     </Button>
                   ))
                 )}
-              </CardContent>
-            </Card>
-          )}
-        </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
 
           {/* Chips (admin-controlled, subcategories) */}
           {chips.length > 0 && (
@@ -603,8 +712,8 @@ export default function Hub() {
               </div>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
-          )}
-        </div>
+            )}
+          </div>
 
       </div>
 
@@ -715,8 +824,8 @@ export default function Hub() {
                 );
               })}
             </div>
-          )}
-        </div>
+            )}
+          </div>
 
         {/* Featured services (subcategories) */}
         {featuredSubcats.length > 0 && (
