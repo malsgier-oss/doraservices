@@ -84,24 +84,7 @@ function useSelectedCityId() {
     }
   });
 
-  
-// === Announcement ticker rotation (auto-rotate) ===
-const [announcementIndex, setAnnouncementIndex] = useState(0);
-
-useEffect(() => {
-  if (!announcements || announcements.length <= 1) return;
-
-  const interval = setInterval(() => {
-    setAnnouncementIndex((prev) => (prev + 1) % announcements.length);
-  }, 5000); // change every 5 seconds
-
-  return () => clearInterval(interval);
-}, [announcements]);
-
-const activeAnnouncement = announcements?.[announcementIndex];
-
-
-useEffect(() => {
+  useEffect(() => {
     try {
       if (cityId) localStorage.setItem(CITY_STORAGE_KEY, cityId);
       else localStorage.removeItem(CITY_STORAGE_KEY);
@@ -167,6 +150,31 @@ export default function Hub() {
 
   const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
 
+  // Single-line announcement ticker (rotates through announcements)
+  const [announcementIndex, setAnnouncementIndex] = useState(0);
+
+  const activeAnnouncement = useMemo(() => {
+    if (!announcements || announcements.length === 0) return null;
+    const safeIndex = Math.max(0, Math.min(announcementIndex, announcements.length - 1));
+    return announcements[safeIndex] || null;
+  }, [announcements, announcementIndex]);
+
+  // Rotate announcement every X seconds
+  useEffect(() => {
+    if (!announcements || announcements.length <= 1) return;
+
+    const interval = window.setInterval(() => {
+      setAnnouncementIndex((prev) => (prev + 1) % announcements.length);
+    }, 5000); // every 5 seconds
+
+    return () => window.clearInterval(interval);
+  }, [announcements]);
+
+  // Reset index when list changes (city switch / data refresh)
+  useEffect(() => {
+    setAnnouncementIndex(0);
+  }, [cityId, announcements.length]);
+
 
   // Hub announcements (under search). City-specific first, then global.
   useEffect(() => {
@@ -206,7 +214,8 @@ export default function Hub() {
           return (b.priority || 0) - (a.priority || 0);
         });
 
-        setAnnouncements(rows.slice(0, 2) as AnnouncementRow[]);
+        // Keep all (or many) so ticker can rotate; Hub renders as one line.
+        setAnnouncements(rows as AnnouncementRow[]);
       } catch {
         if (alive) setAnnouncements([]);
       }
@@ -448,16 +457,12 @@ export default function Hub() {
             />
           </div>
 
-          {announcements.length > 0 && (
-            <div className="space-y-2">
-              {activeAnnouncement && (((a) => (
-                <div key={a.id} className="rounded-2xl border border-border bg-muted/30 px-4 py-3">
-                  <div className="font-semibold">{a.title}</div>
-                  <div className="text-sm text-muted-foreground">{a.message}</div>
-                </div>
-              ))}
-            </div>
-          )}
+	          {activeAnnouncement && (
+	            <div className="rounded-2xl border border-border bg-muted/30 px-4 py-3">
+	              <div className="font-semibold">{activeAnnouncement.title}</div>
+	              <div className="text-sm text-muted-foreground">{activeAnnouncement.message}</div>
+	            </div>
+	          )}
 
           <Popover>
             <PopoverTrigger asChild>
