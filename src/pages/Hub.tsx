@@ -366,9 +366,11 @@ export default function Hub() {
     if (first?.id) setCityId(first.id);
   }, [cityId, citiesData, setCityId]);
 
-const cityLabel = selectedCity ? (selectedCity.name_ar || selectedCity.name) : t("اختر المدينة", "Choose a city");
-
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
+
+  const cityLabel = selectedCity
+    ? selectedCity.name_ar || selectedCity.name
+    : t("اختر المدينة", "Choose a city");
 
   // Banner carousel: auto-advance but still swipe/scroll manually.
   const bannerRowRef = useRef<HTMLDivElement | null>(null);
