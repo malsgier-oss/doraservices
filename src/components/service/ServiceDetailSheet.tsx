@@ -6,7 +6,6 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -405,6 +404,11 @@ export function ServiceDetailSheet({
 
   const isDetailOpen = !!selectedProvider && !onSelectProviderService;
 
+  const selectedRating = useMemo(() => {
+    if (!selectedProvider) return null;
+    return ratings.get(selectedProvider.id) || null;
+  }, [ratings, selectedProvider]);
+
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       {/* Full-height drawer (A): opens at ~100% height */}
@@ -454,8 +458,8 @@ export function ServiceDetailSheet({
                   const thumb = getThumbUrl(p.image_url);
                   const rating = ratings.get(p.id);
                   const ratingText = rating?.averageRating
-                    ? `★ ${rating.averageRating}`
-                    : "★ —";
+                    ? `${Number(rating.averageRating).toFixed(1)} ★ (${rating.totalReviews ?? 0})`
+                    : "—";
 
                   return (
                     <div
@@ -475,38 +479,73 @@ export function ServiceDetailSheet({
                           else setSelectedProvider(p);
                         }
                       }}
-                      className="w-full rounded-lg border bg-card p-3 shadow-sm cursor-pointer hover:bg-accent/20 transition-colors"
+                      className="rounded-xl border bg-card p-3 shadow-sm cursor-pointer hover:bg-accent/20 transition-colors"
                     >
-                      {/* OpenSooq-style row: image on RIGHT, dense text on LEFT */}
+                      {/* Google-Maps-like row: thumb + scannable text + quick favorite */}
                       <div className="flex flex-row-reverse items-start gap-3" dir="rtl">
-                        <div className="shrink-0">
-                          <div className="h-[84px] w-[84px] rounded-md overflow-hidden border bg-muted">
-                            {thumb ? (
-                              <img src={thumb} alt="" loading="lazy" className="h-full w-full object-cover" />
-                            ) : (
-                              <div className="h-full w-full" />
-                            )}
-                          </div>
-                        </div>
+                        {/* Thumbnail */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (thumb) {
+                              setSelectedProvider(p);
+                              setActiveIndex(0);
+                              setViewerOpen(true);
+                            }
+                          }}
+                          className="shrink-0 h-[76px] w-[76px] rounded-xl overflow-hidden border bg-muted focus:outline-none"
+                          aria-label="عرض الصورة"
+                        >
+                          {thumb ? (
+                            <img src={thumb} alt="" loading="lazy" className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="h-full w-full" />
+                          )}
+                        </button>
 
+                        {/* Text */}
                         <div className="flex-1 min-w-0 text-right">
-                          <div className="font-semibold truncate">
-                            {p.provider_name || "مزود"}
-                          </div>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="font-semibold leading-tight truncate">
+                                {p.provider_name || "مزود"}
+                              </div>
 
-                          <div className="mt-1 text-sm text-muted-foreground line-clamp-1">
-                            {p.title || p.description || ""}
-                          </div>
+                              <div className="mt-0.5 text-sm text-muted-foreground line-clamp-1">
+                                {p.title || service.categoryNameAr || service.categoryName || service.category || ""}
+                              </div>
 
-                          <div className="mt-2 flex items-center justify-between gap-2 text-sm text-muted-foreground">
-                            <div className="min-w-0 truncate">
-                              {[p.city, p.sub_city].filter(Boolean).join(" • ")}
+                              <div className="mt-1 text-xs text-muted-foreground">
+                                {ratingText}
+                              </div>
                             </div>
-                            <div className="shrink-0">{ratingText}</div>
+
+                            <div className="shrink-0 flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleFav(p.id);
+                                }}
+                                className="rounded-full p-2 hover:bg-accent/40"
+                                aria-label={isFav(p.id) ? "إزالة من المفضلة" : "إضافة للمفضلة"}
+                              >
+                                <Heart className={cn("h-5 w-5", isFav(p.id) ? "fill-red-500 text-red-500" : "text-muted-foreground")} />
+                              </button>
+                              <ChevronRight className="h-5 w-5 text-muted-foreground mt-1" />
+                            </div>
                           </div>
 
-                          {p.price != null && (
-                            <div className="mt-1 text-sm font-medium text-foreground">
+                          {(p.sub_city || p.city) && (
+                            <div className="mt-2 flex flex-wrap items-center justify-end gap-2 text-sm text-muted-foreground">
+                              {!!p.sub_city && <span>{p.sub_city}</span>}
+                              {!!p.city && <span className={p.sub_city ? "opacity-70" : ""}>{p.city}</span>}
+                            </div>
+                          )}
+
+                          {typeof p.price === "number" && p.price > 0 && (
+                            <div className="mt-2 text-sm font-semibold text-foreground">
                               {p.price} د.ل
                             </div>
                           )}
@@ -524,72 +563,73 @@ export function ServiceDetailSheet({
         {isDetailOpen && selectedProvider && (
           <div className="flex-1 overflow-y-auto">
             <div className="px-4 py-4 pb-10">
-              <div className="rounded-lg border bg-card p-4" dir="rtl">
-                {/* OpenSooq-style: info first, then small thumbnails row */}
-                <div className="text-right">
-                  <div className="text-lg font-bold leading-tight">
-                    {selectedProvider.provider_name || "مزود"}
-                  </div>
-
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    {selectedProvider.title || service.categoryNameAr || service.categoryName || service.category || ""}
-                  </div>
-
-                  <div className="mt-2 flex items-center justify-between gap-2 text-sm text-muted-foreground">
-                    <div className="min-w-0 truncate">
-                      {[selectedProvider.city, selectedProvider.sub_city].filter(Boolean).join(" • ")}
-                    </div>
-                    <div className="shrink-0">
-                      {(ratings?.[selectedProvider.id]?.average_rating ?? 0) > 0
-                        ? `${(ratings[selectedProvider.id].average_rating ?? 0).toFixed(1)} ★ (${ratings[selectedProvider.id].total_reviews ?? 0})`
-                        : "بدون تقييم"}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Thumbnails */}
-                <div className="mt-4 -mx-4 px-4">
+              <div className="rounded-xl border bg-card p-4" dir="rtl">
+                {/* Small thumb row (fast, non-fancy) */}
+                <div className="-mx-4 px-4">
                   <div
-                    className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4"
+                    className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory touch-pan-x"
                     style={{ WebkitOverflowScrolling: "touch" as any }}
                     onPointerDown={(e) => e.stopPropagation()}
                   >
-                    {(detailImages.length ? detailImages : [null]).map((src, idx) => (
+                    {(detailImages.length ? detailImages : [getThumbUrl(selectedProvider.image_url)]).filter(Boolean).map((src, idx) => (
                       <button
-                        key={src ? `${src}-${idx}` : `ph-${idx}`}
+                        key={`${src}-${idx}`}
                         type="button"
                         onClick={() => {
-                          if (!src) return;
                           setActiveIndex(idx);
                           setViewerOpen(true);
                         }}
                         className="shrink-0"
                         aria-label="عرض الصورة"
                       >
-                        <div className="h-[72px] w-[72px] rounded-md overflow-hidden border bg-muted">
-                          {src ? (
-                            <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" />
-                          ) : (
-                            <div className="h-full w-full" />
-                          )}
+                        <div className="h-20 w-28 rounded-lg overflow-hidden border bg-muted">
+                          <img src={String(src)} alt="" className="h-full w-full object-cover" loading="lazy" />
                         </div>
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Price */}
-                {typeof selectedProvider.price === "number" && selectedProvider.price > 0 && (
-                  <div className="mt-2 text-sm font-semibold text-foreground text-right">
-                    السعر: {selectedProvider.price} د.ل
-                  </div>
-                )}
+                {/* Header (Maps-like) */}
+                <div className="mt-3 text-right">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-lg font-semibold leading-tight truncate">
+                        {selectedProvider.provider_name || "مزود"}
+                      </div>
+                      <div className="mt-0.5 text-sm text-muted-foreground line-clamp-1">
+                        {selectedProvider.title || service.categoryNameAr || service.categoryName || service.category || ""}
+                      </div>
+                    </div>
 
-                {/* Description */}
+                    <div className="shrink-0 text-left">
+                      {selectedRating?.averageRating ? (
+                        <div className="text-sm text-foreground font-medium">
+                          {Number(selectedRating.averageRating).toFixed(1)} ★ ({selectedRating.totalReviews ?? 0})
+                        </div>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">بدون تقييم</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {(selectedProvider.sub_city || selectedProvider.city) && (
+                    <div className="mt-2 flex flex-wrap items-center justify-end gap-2 text-sm text-muted-foreground">
+                      {!!selectedProvider.sub_city && <span>{selectedProvider.sub_city}</span>}
+                      {!!selectedProvider.city && <span className={selectedProvider.sub_city ? "opacity-70" : ""}>{selectedProvider.city}</span>}
+                    </div>
+                  )}
+
+                  {typeof selectedProvider.price === "number" && selectedProvider.price > 0 && (
+                    <div className="mt-2 text-base font-semibold text-foreground">
+                      {selectedProvider.price} د.ل
+                    </div>
+                  )}
+                </div>
+
                 {selectedProvider.description && (
-                  <div className="mt-3 text-sm text-right">
-                    <div className="font-semibold mb-1">الوصف</div>
-                    <div className="text-muted-foreground whitespace-pre-wrap">{selectedProvider.description}</div>
+                  <div className="mt-3 text-sm text-right text-foreground/90">
+                    {selectedProvider.description}
                   </div>
                 )}
 
@@ -625,20 +665,9 @@ export function ServiceDetailSheet({
                 </div>
               </div>
 
-              <div className="sticky bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t border-border px-4 py-3" dir="rtl">
+              <div className="sticky bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t border-border px-4 py-3">
                 <div className="grid grid-cols-2 gap-3">
                   <Button
-                    onClick={() => {
-                      logContactEvent(selectedProvider.id, "whatsapp");
-                      openWhatsApp(selectedProvider.provider_phone);
-                    }}
-                  >
-                    <MessageCircle className="h-4 w-4 ml-1" />
-                    واتساب
-                  </Button>
-
-                  <Button
-                    variant="outline"
                     onClick={() => {
                       logContactEvent(selectedProvider.id, "call");
                       openTel(selectedProvider.provider_phone);
@@ -646,6 +675,17 @@ export function ServiceDetailSheet({
                   >
                     <Phone className="h-4 w-4 ml-1" />
                     اتصال
+                  </Button>
+
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      logContactEvent(selectedProvider.id, "whatsapp");
+                      openWhatsApp(selectedProvider.provider_phone);
+                    }}
+                  >
+                    <MessageCircle className="h-4 w-4 ml-1" />
+                    واتساب
                   </Button>
                 </div>
               </div>
