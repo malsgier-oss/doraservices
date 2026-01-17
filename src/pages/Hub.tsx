@@ -84,7 +84,24 @@ function useSelectedCityId() {
     }
   });
 
-  useEffect(() => {
+  
+// === Announcement ticker rotation (auto-rotate) ===
+const [announcementIndex, setAnnouncementIndex] = useState(0);
+
+useEffect(() => {
+  if (!announcements || announcements.length <= 1) return;
+
+  const interval = setInterval(() => {
+    setAnnouncementIndex((prev) => (prev + 1) % announcements.length);
+  }, 5000); // change every 5 seconds
+
+  return () => clearInterval(interval);
+}, [announcements]);
+
+const activeAnnouncement = announcements?.[announcementIndex];
+
+
+useEffect(() => {
     try {
       if (cityId) localStorage.setItem(CITY_STORAGE_KEY, cityId);
       else localStorage.removeItem(CITY_STORAGE_KEY);
@@ -433,7 +450,7 @@ export default function Hub() {
 
           {announcements.length > 0 && (
             <div className="space-y-2">
-              {announcements.map((a) => (
+              {activeAnnouncement && (((a) => (
                 <div key={a.id} className="rounded-2xl border border-border bg-muted/30 px-4 py-3">
                   <div className="font-semibold">{a.title}</div>
                   <div className="text-sm text-muted-foreground">{a.message}</div>
