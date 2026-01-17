@@ -8,7 +8,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -439,7 +438,7 @@ export function ServiceDetailSheet({
         {/* LIST VIEW */}
         {!isDetailOpen && (
           <div className="flex flex-col h-full">
-            <ScrollArea className="flex-1">
+            <div className="flex-1 overflow-y-auto">
               <div className="px-4 pb-6 space-y-3">
                 {loading ? (
                   <div className="text-sm text-muted-foreground py-8 text-center">
@@ -537,18 +536,23 @@ export function ServiceDetailSheet({
                   );
                 })}
               </div>
-            </ScrollArea>
+            </div>
           </div>
         )}
 
         {/* DETAIL VIEW */}
         {isDetailOpen && selectedProvider && (
-          <ScrollArea className="flex-1">
+          <div className="flex-1 overflow-y-auto">
             <div className="px-4 py-4 pb-10">
               <div className="rounded-2xl border bg-card p-4">
                 {/* Gallery (no hero image) */}
                 <div className="-mx-4 px-4">
-                  <div className="flex gap-3 overflow-x-auto pb-2" dir="rtl">
+                  <div
+                    className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory touch-pan-x"
+                    dir="rtl"
+                    style={{ WebkitOverflowScrolling: "touch" as any }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
                     {(detailImages.length ? detailImages : [null]).map((src, idx) => (
                       <button
                         key={src ? `${src}-${idx}` : `ph-${idx}`}
@@ -561,7 +565,7 @@ export function ServiceDetailSheet({
                         className="shrink-0"
                         aria-label="عرض الصورة"
                       >
-                        <div className="h-24 w-36 rounded-xl overflow-hidden border bg-muted">
+                        <div className="h-28 w-44 rounded-xl overflow-hidden border bg-muted">
                           {src ? (
                             <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" />
                           ) : (
@@ -610,30 +614,6 @@ export function ServiceDetailSheet({
 
                 <Separator className="my-4" />
 
-                {/* Actions: 1 column on phones, 2 columns on larger screens */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Button
-                    onClick={() => {
-                      logContactEvent(selectedProvider.id, "call");
-                      openTel(selectedProvider.provider_phone);
-                    }}
-                  >
-                    <Phone className="h-4 w-4 ml-1" />
-                    اتصال
-                  </Button>
-
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      logContactEvent(selectedProvider.id, "whatsapp");
-                      openWhatsApp(selectedProvider.provider_phone);
-                    }}
-                  >
-                    <MessageCircle className="h-4 w-4 ml-1" />
-                    واتساب
-                  </Button>
-                </div>
-
                 <Button
                   variant="outline"
                   className="w-full mt-3"
@@ -661,6 +641,31 @@ export function ServiceDetailSheet({
                 <div className="text-xs text-muted-foreground flex items-center gap-2">
                   <MessageSquare className="h-3 w-3" />
                   سيظهر طلب التقييم داخل التطبيق بعد التواصل
+                </div>
+              </div>
+
+              <div className="sticky bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t border-border px-4 py-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    onClick={() => {
+                      logContactEvent(selectedProvider.id, "call");
+                      openTel(selectedProvider.provider_phone);
+                    }}
+                  >
+                    <Phone className="h-4 w-4 ml-1" />
+                    اتصال
+                  </Button>
+
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      logContactEvent(selectedProvider.id, "whatsapp");
+                      openWhatsApp(selectedProvider.provider_phone);
+                    }}
+                  >
+                    <MessageCircle className="h-4 w-4 ml-1" />
+                    واتساب
+                  </Button>
                 </div>
               </div>
 
@@ -729,7 +734,7 @@ export function ServiceDetailSheet({
                 </DialogContent>
               </Dialog>
             </div>
-          </ScrollArea>
+          </div>
         )}
       </DrawerContent>
     </Drawer>
