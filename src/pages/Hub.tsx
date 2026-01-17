@@ -115,8 +115,7 @@ async function fetchShelfSubcategories(params: { categoryId: string; limit: numb
 }
 
 export default function Hub() {
-  const \{ language, isRTL \} = useLanguage\(\);
-  const t = (ar: string, en: string) => (language === "ar" ? ar : en);
+  const { language, isRTL } = useLanguage();
   const { data: categoriesData, isLoading: categoriesLoading } = useCategories();
   const { data: citiesData } = useCities();
 
@@ -365,7 +364,11 @@ export default function Hub() {
       .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))[0];
     if (first?.id) setCityId(first.id);
   }, [cityId, citiesData, setCityId]);
-  const cityLabel = selectedCity ? (selectedCity.name_ar || selectedCity.name) : t("اختر المدينة", "Choose a city");
+
+const cityLabel = selectedCity ? (selectedCity.name_ar || selectedCity.name) : t("اختر المدينة", "Choose a city");
+
+  const t = (ar: string, en: string) => (language === "ar" ? ar : en);
+
   // Banner carousel: auto-advance but still swipe/scroll manually.
   const bannerRowRef = useRef<HTMLDivElement | null>(null);
   const [bannerIndex, setBannerIndex] = useState(0);
