@@ -35,18 +35,23 @@ export type ServiceProvider = {
   id: string;
   title?: string | null;
   description?: string | null;
+  price?: number | string | null;
   category?: string | null;
+  subcategory?: string | null;
   city?: string | null;
   sub_city?: string | null;
   provider_name?: string | null;
   provider_phone?: string | null;
   image_url?: string | null;
+  // Optional future-proof gallery support. Some environments may store multiple URLs.
+  // We treat this as best-effort and keep the UI resilient.
+  image_urls?: string[] | null;
   is_active?: boolean | null;
   is_visible?: boolean | null;
   is_paused?: boolean | null;
   is_featured?: boolean | null;
+  is_verified?: boolean | null;
   approval_status?: ProviderStatus | string | null;
-  price?: number | null;
   views_count?: number | null;
 };
 
@@ -84,8 +89,13 @@ function normalizePhone(phone?: string | null) {
   return phone.replace(/\s+/g, "").trim();
 }
 
-function parseImageUrls(provider: Pick<ServiceProvider, "image_url">) {
-  // Back-compat: single string can contain JSON array or comma-separated URLs.
+function parseImageUrls(provider: Pick<ServiceProvider, "image_url" | "image_urls">) {
+  // 1) Preferred: explicit array.
+  if (Array.isArray(provider.image_urls) && provider.image_urls.length > 0) {
+    return provider.image_urls.filter(Boolean).slice(0, 10);
+  }
+
+  // 2) Back-compat: single string can contain JSON array or comma-separated URLs.
   const raw = (provider.image_url || "").trim();
   if (!raw) return [] as string[];
 
@@ -198,88 +208,86 @@ export default function ServiceDetailSheet({
     const run = async () => {
       setLoading(true);
       try {
+        const escOrValue = (v: string) => {
+          // PostgREST OR filter needs quoted values when they contain spaces/symbols.
+          const escaped = v.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+          return `"${escaped}"`;
+        };
+
         const categoryVal = (service?.category ?? "").trim();
+        const categoryOr = categoryVal
+          ? `subcategory.eq.${escOrValue(categoryVal)},category.eq.${escOrValue(categoryVal)}`
+          : "";
 
         const base = supabase
           .from("services")
           .select(
-            // Keep this list aligned with src/integrations/supabase/types.ts (public.services.Row)
-            "id,title,description,category,city,sub_city,provider_name,provider_phone,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count"
+            // NOTE: `image_urls` may not exist in all DBs. Selecting it is safe; it will be null if absent.
+            "id,title,description,price,category,subcategory,city,sub_city,provider_name,provider_phone,image_url,image_urls,is_active,is_visible,is_paused,is_featured,is_verified,approval_status,views_count"
           )
           .order("is_featured", { ascending: false })
           .order("views_count", { ascending: false });
 
-        // NOTE: Supabase query builder types are complex; keep this helper loosely typed.
-        const applyVisibilityFilters = (q: any, mode: "strict" | "permissive") => {
+        const runQuery = async (mode: "strict" | "permissive") => {
+          let q = base;
+
           if (mode === "strict") {
-            return q
+            q = q
               .eq("is_visible", true)
               .eq("is_active", true)
               .eq("is_paused", false)
               .eq("approval_status", "approved");
+          } else {
+            q = q
+              // Be permissive: older seeds sometimes leave these as NULL.
+              .or("is_visible.eq.true,is_visible.is.null")
+              .or("is_active.eq.true,is_active.is.null")
+              .or("is_paused.eq.false,is_paused.is.null")
+              // Only show approved providers; allow null during early data.
+              .or("approval_status.eq.approved,approval_status.is.null");
           }
-          return q
-            // Be permissive: older seeds sometimes leave these as NULL.
-            .or("is_visible.eq.true,is_visible.is.null")
-            .or("is_active.eq.true,is_active.is.null")
-            .or("is_paused.eq.false,is_paused.is.null")
-            // Only show approved providers; allow null during early data.
-            .or("approval_status.eq.approved,approval_status.is.null");
+
+          if (categoryOr) {
+            // IMPORTANT:
+            // Older seed/data sometimes stored the *subcategory name* in `services.category`.
+            // Newer data uses `services.subcategory`.
+            // Match either column.
+            q = q.or(categoryOr);
+          }
+
+          return await q;
         };
 
-        const tryQueries = async () => {
-          const candidates = Array.from(
-            new Set(
-              [categoryVal, (service?.titleKey ?? "").trim()].filter((x) => x && x.length > 0)
-            )
-          );
+        let { data, error } = await runQuery("strict");
+        if (error) throw error;
 
-          // 1) Exact match (strict)
-          for (const key of candidates) {
-            const res = await applyVisibilityFilters(base, "strict").eq("category", key);
-            if (res.error) throw res.error;
-            if (res.data && res.data.length > 0) return res.data;
-          }
-
-          // 2) Exact match (permissive)
-          for (const key of candidates) {
-            const res = await applyVisibilityFilters(base, "permissive").eq("category", key);
-            if (res.error) throw res.error;
-            if (res.data && res.data.length > 0) return res.data;
-          }
-
-          // 3) Partial match (strict) - handles small naming drift (spaces, suffixes)
-          for (const key of candidates) {
-            const res = await applyVisibilityFilters(base, "strict").ilike("category", `%${key}%`);
-            if (res.error) throw res.error;
-            if (res.data && res.data.length > 0) return res.data;
-          }
-
-          // 4) Last resort: still apply visibility filters but drop category filter.
-          // This prevents an empty sheet when data exists but is tagged differently.
-          const fallback = await applyVisibilityFilters(base, "strict");
-          if (fallback.error) throw fallback.error;
-          return fallback.data || [];
-        };
-
-        const data = await tryQueries();
+        // Fallback: if strict filters return nothing, try permissive filters.
+        if (!data || data.length === 0) {
+          const res = await runQuery("permissive");
+          data = res.data;
+          error = res.error;
+          if (error) throw error;
+        }
         const rows = (data || []) as any[];
         const normalized: ServiceProvider[] = rows.map((r) => ({
           id: String(r.id),
           title: r.title ?? null,
           description: r.description ?? null,
+          price: r.price ?? null,
           category: r.category ?? null,
+          subcategory: r.subcategory ?? null,
           city: r.city ?? null,
           sub_city: r.sub_city ?? null,
           provider_name: r.provider_name ?? null,
           provider_phone: r.provider_phone ?? null,
           image_url: r.image_url ?? null,
+          image_urls: Array.isArray(r.image_urls) ? r.image_urls : null,
           is_active: r.is_active ?? null,
           is_visible: r.is_visible ?? null,
           is_paused: r.is_paused ?? null,
           is_featured: r.is_featured ?? null,
+          is_verified: r.is_verified ?? null,
           approval_status: r.approval_status ?? null,
-          price: r.price ?? null,
           views_count: r.views_count ?? null,
         }));
 
@@ -335,7 +343,8 @@ export default function ServiceDetailSheet({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="h-[90dvh] max-h-[90dvh] bg-background text-foreground">
+      {/* Full-height drawer (100%). Keep rounded top + draggable behavior via Drawer component. */}
+      <DrawerContent className="h-[100dvh] max-h-[100dvh] bg-background text-foreground" dir="rtl">
         <DrawerHeader className="px-4 pt-4 pb-2">
           <div className="flex items-center gap-2">
             {isDetailOpen && (
@@ -377,10 +386,7 @@ export default function ServiceDetailSheet({
                   </div>
                 ) : null}
 
-                {listProviders.map((p) => {
-                  const photos = parseImageUrls(p);
-
-                  return (
+                {listProviders.map((p) => (
                   <div
                     key={p.id}
                     role="button"
@@ -389,20 +395,65 @@ export default function ServiceDetailSheet({
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") setSelectedProvider(p);
                     }}
-                    className="rounded-lg border p-3 bg-card flex gap-3 cursor-pointer hover:bg-accent/30 transition-colors"
+                    className="w-[94%] mx-auto rounded-2xl border bg-card p-4 shadow-sm cursor-pointer hover:bg-accent/30 transition-colors"
                   >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="font-semibold truncate">
-                          {p.provider_name || p.title || "مزود"}
-                        </div>
+                    {/* Header (RTL) */}
+                    <div className="text-right">
+                      <div className="font-semibold text-base truncate">
+                        {p.provider_name || p.title || "مزود"}
+                      </div>
+                      {/* Rating kept (placeholder until rating is wired) */}
+                      <div className="text-sm text-muted-foreground mt-1">
+                        ★ —
+                      </div>
+                    </div>
 
-                        {/* Favorite (Heart) */}
+                    {/* Description (1 line) */}
+                    {p.description && (
+                      <div className="mt-2 text-sm text-muted-foreground line-clamp-1 text-right">
+                        {p.description}
+                      </div>
+                    )}
+
+                    <Separator className="my-3" />
+
+                    {/* Actions row (RTL order): Call (right) -> WhatsApp -> Heart (after WhatsApp) -> Price (left) */}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm text-muted-foreground font-medium whitespace-nowrap">
+                        {p.price ? `${p.price} د.ل` : ""}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Button
+                          className="h-11 px-5"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            logContactEvent(p.id, "call");
+                            openTel(p.provider_phone);
+                          }}
+                        >
+                          <Phone className="h-4 w-4 ml-2" />
+                          اتصال
+                        </Button>
+
+                        <Button
+                          variant="secondary"
+                          className="h-11 px-4"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            logContactEvent(p.id, "whatsapp");
+                            openWhatsApp(p.provider_phone);
+                          }}
+                        >
+                          <MessageCircle className="h-4 w-4 ml-2" />
+                          واتساب
+                        </Button>
+
                         <button
                           type="button"
-                          aria-label="Favorite"
+                          aria-label="المفضلة"
                           className={cn(
-                            "shrink-0 rounded-full p-2 border bg-background hover:bg-accent/40 transition-colors",
+                            "h-11 w-11 grid place-items-center rounded-xl border bg-background hover:bg-accent/40 transition-colors",
                             isFav(p.id) && "text-red-600"
                           )}
                           onClick={(e) => {
@@ -411,84 +462,21 @@ export default function ServiceDetailSheet({
                           }}
                         >
                           <Heart
-                            className={cn(
-                              "h-4 w-4",
-                              isFav(p.id) && "fill-current"
-                            )}
+                            className={cn("h-5 w-5", isFav(p.id) && "fill-current")}
                           />
                         </button>
                       </div>
+                    </div>
 
-                      <div className="text-xs text-muted-foreground mt-1 flex gap-2 flex-wrap">
+                    {/* Small badges (optional) */}
+                    {(p.is_verified || p.is_featured) && (
+                      <div className="mt-3 flex gap-2 justify-end">
+                        {p.is_verified && <Badge variant="secondary">موثّق</Badge>}
                         {p.is_featured && <Badge>مميز</Badge>}
                       </div>
-
-                      {p.description && (
-                        <div className="text-sm text-muted-foreground mt-2 line-clamp-2">
-                          {p.description}
-                        </div>
-                      )}
-
-                      {/* Photo strip (thumbnails only) */}
-                      {photos.length > 0 && (
-                        <div className="mt-3 -mx-1 overflow-x-auto">
-                          <div className="flex gap-2 px-1">
-                            {photos.map((url, idx) => (
-                                <div
-                                  key={`${p.id}-img-${idx}`}
-                                  className="h-[96px] w-[96px] rounded-md overflow-hidden border bg-muted shrink-0"
-                                >
-                                  <img
-                                    src={url}
-                                    alt=""
-                                    loading="lazy"
-                                    className="h-full w-full object-cover"
-                                  />
-                                </div>
-                              ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Actions + optional price (list view) */}
-                      <div className="mt-3 flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          className="h-9 flex-1"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            logContactEvent(p.id, "call");
-                            openTel(p.provider_phone);
-                          }}
-                        >
-                          <Phone className="h-4 w-4 ml-1" />
-                          اتصال
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="h-9 flex-1"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            logContactEvent(p.id, "whatsapp");
-                            openWhatsApp(p.provider_phone);
-                          }}
-                        >
-                          <MessageCircle className="h-4 w-4 ml-1" />
-                          واتساب
-                        </Button>
-
-                        {typeof p.price === "number" && !Number.isNaN(p.price) && (
-                          <div className="shrink-0 text-sm font-semibold tabular-nums text-foreground/80">
-                            {p.price} LYD
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    )}
                   </div>
-                );
-                })}
+                ))}
               </div>
             </ScrollArea>
           </div>
