@@ -138,7 +138,7 @@ export function ServiceProviderCard(props: ServiceProviderCardProps) {
   const detailsAction = onDetails || onBook;
 
   return (
-    <div className="bg-card rounded-2xl shadow-card animate-fade-in overflow-hidden">
+    <div className="bg-card rounded-2xl shadow-card animate-fade-in overflow-hidden" dir="rtl">
       {/* Cover image (ProviderCard shows ONLY 1 image) */}
       <div className="relative">
         {coverImage ? (
@@ -148,7 +148,7 @@ export function ServiceProviderCard(props: ServiceProviderCardProps) {
             className="w-full focus:outline-none"
             aria-label={tt?.common?.viewImage ?? "View image"}
           >
-            <div className="h-44 w-full bg-muted">
+            <div className="h-60 w-full bg-muted">
               <img
                 src={coverImage}
                 alt={tt?.common?.image ?? "Image"}
@@ -159,7 +159,7 @@ export function ServiceProviderCard(props: ServiceProviderCardProps) {
           </button>
         ) : (
           // Placeholder banner (keeps layout stable)
-          <div className="h-44 w-full bg-muted flex items-center justify-center">
+          <div className="h-60 w-full bg-muted flex items-center justify-center">
             <div className="flex items-center gap-3">
               <Avatar className="h-12 w-12 ring-2 ring-muted-foreground/20">
                 <AvatarImage src={providerAvatar} alt={providerName} />
@@ -176,12 +176,21 @@ export function ServiceProviderCard(props: ServiceProviderCardProps) {
             </div>
           </div>
         )}
+
+        {/* Rating badge pinned to TOP-LEFT (as requested) */}
+        {rating > 0 && (
+          <div className="absolute left-3 top-3 rounded-full bg-black/60 px-3 py-1 text-white flex items-center gap-1.5">
+            <Star className="h-4 w-4 fill-white text-white" />
+            <span className="text-sm font-semibold">{rating.toFixed(1)}</span>
+          </div>
+        )}
       </div>
 
       {/* Content */}
-      <div className="p-4">
+      <div className="p-5">
         {/* Header row: provider name + avatar */}
-        <div className="flex items-start gap-3">
+        {/* RTL: avatar on the RIGHT, text next to it */}
+        <div className="flex flex-row-reverse items-start gap-3">
           <Avatar className="h-12 w-12 ring-2 ring-muted">
             <AvatarImage src={providerAvatar} alt={providerName} />
             <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
@@ -189,8 +198,8 @@ export function ServiceProviderCard(props: ServiceProviderCardProps) {
             </AvatarFallback>
           </Avatar>
 
-          <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-foreground truncate">{providerName}</h3>
+          <div className="flex-1 min-w-0 text-right">
+            <h3 className="text-lg font-semibold text-foreground truncate">{providerName}</h3>
 
             <p className="text-sm text-muted-foreground mt-0.5 line-clamp-3">
               {serviceTitle}
@@ -200,13 +209,7 @@ export function ServiceProviderCard(props: ServiceProviderCardProps) {
             {/* Social proof row */}
             {hasSocialProofRow && (
               <div className="flex items-center gap-3 mt-2">
-                {rating > 0 && (
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Star className="h-4 w-4 fill-star text-star" />
-                    <span className="text-sm font-medium text-foreground">{rating.toFixed(1)}</span>
-                  </div>
-                )}
-
+                {/* Rating is shown on image (top-left). Keep this row only for review ticker. */}
                 {hasReviews && (
                   <div className="flex-1 min-w-0">
                     <p

@@ -5,6 +5,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -15,9 +16,11 @@ import {
   Phone,
   MessageCircle,
   ChevronRight,
+  ChevronLeft,
   Heart,
   MessageSquare,
   Flag,
+  X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useServiceRatings } from "@/hooks/useReviews";
@@ -198,6 +201,10 @@ export function ServiceDetailSheet({
   const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
   const [localFavs, setLocalFavs] = useState<Set<string>>(() => new Set());
 
+  // Full-screen image viewer (detail view)
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
+
   const serviceIds = useMemo(() => providers.map((p) => p.id), [providers]);
   const { ratings } = useServiceRatings(serviceIds);
 
@@ -375,6 +382,27 @@ export function ServiceDetailSheet({
 
   const isDetailOpen = !!selectedProvider && !onSelectProviderService;
 
+  const detailGallery = useMemo(() => {
+    if (!selectedProvider) return [] as string[];
+    return getGalleryFromImages(selectedProvider);
+  }, [selectedProvider]);
+
+  const openViewerAt = (idx: number) => {
+    const safe = Math.max(0, Math.min(idx, detailGallery.length - 1));
+    setViewerIndex(safe);
+    setViewerOpen(true);
+  };
+
+  const nextImage = () => {
+    if (!detailGallery.length) return;
+    setViewerIndex((prev) => (prev + 1) % detailGallery.length);
+  };
+
+  const prevImage = () => {
+    if (!detailGallery.length) return;
+    setViewerIndex((prev) => (prev - 1 + detailGallery.length) % detailGallery.length);
+  };
+
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       {/* Full-height drawer (A): opens at ~100% height */}
@@ -445,34 +473,24 @@ export function ServiceDetailSheet({
                           else setSelectedProvider(p);
                         }
                       }}
-                      className="w-[94%] mx-auto rounded-2xl border bg-card p-4 shadow-sm cursor-pointer hover:bg-accent/20 transition-colors"
+                      className="relative w-[94%] mx-auto rounded-2xl border bg-card p-5 shadow-sm cursor-pointer hover:bg-accent/20 transition-colors"
                     >
-                      {/* RTL row with thumbnail on the RIGHT */}
-                      <div className="flex flex-row-reverse items-start gap-3">
-                        {/* Thumbnail */}
-                        <div className="shrink-0">
-                          <div className="h-[70px] w-[90px] rounded-lg overflow-hidden border bg-muted">
-                            {thumb ? (
-                              <img
-                                src={thumb}
-                                alt=""
-                                loading="lazy"
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <div className="h-full w-full" />
-                            )}
-                          </div>
+                      {/* Rating pinned to TOP-LEFT (as requested) */}
+                      {rating?.averageRating ? (
+                        <div className="absolute left-3 top-3 rounded-full bg-black/60 px-3 py-1 text-white text-sm font-semibold">
+                          ★ {rating.averageRating}
                         </div>
-
-                        {/* Text block */}
+                      ) : null}
+                      {/* RTL row: NAME on the RIGHT, thumbnail next to it */}
+                      <div className="flex items-start gap-4">
+                        {/* Text block (first so it sits on the RIGHT in RTL) */}
                         <div className="flex-1 min-w-0 text-right">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <div className="font-semibold truncate">
+                              <div className="text-base font-semibold truncate">
                                 {p.provider_name || p.title || "مزود"}
                               </div>
-                              <div className="text-sm text-muted-foreground mt-0.5">
+                              <div className="text-sm text-muted-foreground mt-1">
                                 {ratingText}
                               </div>
                             </div>
@@ -501,6 +519,22 @@ export function ServiceDetailSheet({
                             </div>
                           )}
                         </div>
+
+                        {/* Thumbnail */}
+                        <div className="shrink-0">
+                          <div className="h-[88px] w-[120px] rounded-xl overflow-hidden border bg-muted">
+                            {thumb ? (
+                              <img
+                                src={thumb}
+                                alt=""
+                                loading="lazy"
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="h-full w-full" />
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   );
@@ -514,32 +548,86 @@ export function ServiceDetailSheet({
         {isDetailOpen && selectedProvider && (
           <ScrollArea className="flex-1">
             <div className="px-4 py-4 pb-10">
-              <div className="rounded-lg border p-4 bg-card">
-                {/* Gallery (up to 5). ProviderCard stays 1 image; details show all. */}
-                {getGalleryFromImages(selectedProvider).length > 0 && (
-                  <div className="mb-4">
-                    <div className="flex gap-2 overflow-x-auto scroll-smooth">
-                      {getGalleryFromImages(selectedProvider).map((src, idx) => (
-                        <div
-                          key={`${src}-${idx}`}
-                          className={cn(
-                            "h-24 w-32 shrink-0 rounded-lg overflow-hidden border bg-muted",
-                            idx === 0 && "ring-2 ring-primary/40"
-                          )}
-                        >
-                          <img src={src} alt="" loading="lazy" className="h-full w-full object-cover" />
+              <div className="rounded-2xl border p-5 bg-card">
+                {/* Gallery (up to 5) — scrollable + clickable full view */}
+                {detailGallery.length > 0 ? (
+                  <div className="mb-5">
+                    {/* Main image */}
+                    <button
+                      type="button"
+                      onClick={() => openViewerAt(0)}
+                      className="w-full focus:outline-none"
+                      aria-label="عرض الصور"
+                    >
+                      <div className="h-56 w-full rounded-2xl overflow-hidden border bg-muted">
+                        <img
+                          src={detailGallery[0]}
+                          alt=""
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                    </button>
+
+                    {/* Thumbnails (horizontal scroll) */}
+                    {detailGallery.length > 1 && (
+                      <div className="mt-3 -mx-1 px-1">
+                        <div className="flex gap-2 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-1">
+                          {detailGallery.map((src, idx) => (
+                            <button
+                              key={`${src}-${idx}`}
+                              type="button"
+                              onClick={() => openViewerAt(idx)}
+                              className={cn(
+                                "h-20 w-28 shrink-0 rounded-xl overflow-hidden border bg-muted snap-start focus:outline-none",
+                                idx === 0 && "ring-2 ring-primary/40"
+                              )}
+                              aria-label={`صورة ${idx + 1}`}
+                            >
+                              <img src={src} alt="" loading="lazy" className="h-full w-full object-cover" />
+                            </button>
+                          ))}
                         </div>
-                      ))}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-lg font-semibold truncate">
+                      {selectedProvider.provider_name}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {(selectedProvider.sub_city || selectedProvider.city) && (
+                        <Badge variant="secondary" className="rounded-full">
+                          {[selectedProvider.city, selectedProvider.sub_city].filter(Boolean).join(" • ")}
+                        </Badge>
+                      )}
+                      {selectedProvider.price != null && (
+                        <Badge className="rounded-full">{selectedProvider.price} د.ل</Badge>
+                      )}
                     </div>
                   </div>
-                )}
 
-                <div className="text-lg font-semibold truncate">
-                  {selectedProvider.provider_name}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => toggleFav(selectedProvider.id)}
+                    className="rounded-full"
+                    aria-label="مفضلة"
+                  >
+                    <Heart
+                      className={cn(
+                        "h-5 w-5",
+                        isFav(selectedProvider.id) ? "fill-current" : ""
+                      )}
+                    />
+                  </Button>
                 </div>
 
                 {selectedProvider.description && (
-                  <div className="mt-4 text-sm">
+                  <div className="mt-4 text-sm leading-7 text-foreground/90">
                     {selectedProvider.description}
                   </div>
                 )}
@@ -601,6 +689,57 @@ export function ServiceDetailSheet({
             </div>
           </ScrollArea>
         )}
+
+        {/* Full-screen gallery viewer */}
+        <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
+          <DialogContent className="max-w-[95vw] w-full p-0 overflow-hidden">
+            <div className="relative bg-black">
+              <button
+                type="button"
+                className="absolute left-3 top-3 z-10 rounded-full bg-black/60 p-2 text-white"
+                onClick={() => setViewerOpen(false)}
+                aria-label="إغلاق"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              {detailGallery.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 z-10 rounded-full bg-black/60 p-2 text-white"
+                    onClick={prevImage}
+                    aria-label="السابق"
+                  >
+                    <ChevronRight className="h-6 w-6" />
+                  </button>
+                  <button
+                    type="button"
+                    className="absolute left-12 top-1/2 -translate-y-1/2 z-10 rounded-full bg-black/60 p-2 text-white"
+                    onClick={nextImage}
+                    aria-label="التالي"
+                  >
+                    <ChevronLeft className="h-6 w-6" />
+                  </button>
+                </>
+              )}
+
+              {detailGallery[viewerIndex] && (
+                <img
+                  src={detailGallery[viewerIndex]}
+                  alt=""
+                  className="h-[80vh] w-full object-contain"
+                />
+              )}
+
+              {detailGallery.length > 1 && (
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-white text-sm">
+                  {viewerIndex + 1} / {detailGallery.length}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </DrawerContent>
     </Drawer>
   );
