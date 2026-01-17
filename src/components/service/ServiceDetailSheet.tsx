@@ -580,7 +580,4 @@ export function ServiceDetailSheet({
   );
 }
 
-// Allow both default import and named import styles.
-// Some screens import with: import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
-export { ServiceDetailSheet };
 export default ServiceDetailSheet;
