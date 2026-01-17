@@ -1,5 +1,5 @@
 // DORA_HUB_PATCH_v4 (ticker+banner-loop+no-all-cities+sticky-fullwidth)
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Bell, ChevronDown, Search, Wrench, Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper, Droplets, Wind, Fuel, ClipboardCheck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -112,6 +112,28 @@ async function fetchShelfSubcategories(params: { categoryId: string; limit: numb
     console.error("fetchShelfSubcategories error:", error);
     return [];
   }
+
+  useLayoutEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      // offsetHeight is reliable for fixed elements; add 1px safety to avoid overlap.
+      setHeaderHeight(el.offsetHeight + 1);
+    };
+
+    measure();
+
+    // Observe height changes (chips wrapping, announcement appearing, etc.)
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(el);
+
+    window.addEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("resize", measure);
+      ro.disconnect();
+    };
+  }, [language, isRTL, cityId, query, announcements.length, chips.length]);
   return (data as any[]) as SubcategoryRow[];
 }
 
@@ -376,6 +398,11 @@ export default function Hub() {
   const [bannerIndex, setBannerIndex] = useState(0);
   const bannerPauseUntilRef = useRef<number>(0);
   const bannerScrollRaf = useRef<number | null>(null);
+
+  // Header must stay frozen even if parent containers use overflow/transform.
+  // Using position:fixed + measured spacer is more reliable than sticky in complex layouts.
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
   const bannerProgrammaticRef = useRef(false);
 
   // Keep bannerIndex in range when banners change.
@@ -455,7 +482,7 @@ export default function Hub() {
   return (
     <div className={`min-h-screen bg-background pb-20 overflow-x-hidden ${isRTL ? "rtl" : ""}`}>
       {/* Sticky top: Header + Search/City + Chips */}
-      <div className="sticky top-0 left-0 right-0 w-full z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75 pt-4 space-y-4 pb-3 border-b border-border shadow-sm">
+      <div ref={headerRef} className="fixed top-0 left-0 right-0 w-full z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70 pt-4 space-y-4 pb-3 border-b border-border shadow-sm">
         <div className="mx-auto max-w-3xl px-4">
           {/* Header */}
           <div className="flex items-center justify-between gap-3">
@@ -543,8 +570,8 @@ export default function Hub() {
 
           {/* Chips (admin-controlled, subcategories) */}
           {chips.length > 0 && (
-            <ScrollArea className="w-full mt-2">
-              <div className="flex w-max gap-4 pb-2 px-2">
+            <ScrollArea className="w-full">
+              <div className="flex gap-4 pb-3 px-2">
                 {chips.map((chip) => {
                   const label = (language === "ar" ? chip.label_ar : chip.label_en) || chip.label_ar || chip.label_en || "";
                   if (!label) return null;
@@ -581,7 +608,10 @@ export default function Hub() {
 
       </div>
 
-      {/* Everything below the sticky header scrolls normally */}
+      {/* Spacer for fixed header */}
+      <div style={{ height: headerHeight }} aria-hidden="true" />
+
+      {/* Everything below the fixed header scrolls normally */}
       <div className="mx-auto max-w-3xl px-4 pt-4 space-y-4">
 
         {/* Banner carousel (auto + manual swipe/scroll) */}
