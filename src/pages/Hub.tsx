@@ -112,28 +112,6 @@ async function fetchShelfSubcategories(params: { categoryId: string; limit: numb
     console.error("fetchShelfSubcategories error:", error);
     return [];
   }
-
-  useLayoutEffect(() => {
-    const el = headerRef.current;
-    if (!el) return;
-
-    const measure = () => {
-      // offsetHeight is reliable for fixed elements; add 1px safety to avoid overlap.
-      setHeaderHeight(el.offsetHeight + 1);
-    };
-
-    measure();
-
-    // Observe height changes (chips wrapping, announcement appearing, etc.)
-    const ro = new ResizeObserver(() => measure());
-    ro.observe(el);
-
-    window.addEventListener("resize", measure);
-    return () => {
-      window.removeEventListener("resize", measure);
-      ro.disconnect();
-    };
-  }, [language, isRTL, cityId, query, announcements.length, chips.length]);
   return (data as any[]) as SubcategoryRow[];
 }
 
@@ -404,6 +382,28 @@ export default function Hub() {
   const headerRef = useRef<HTMLDivElement | null>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
   const bannerProgrammaticRef = useRef(false);
+
+  // Measure the fixed header height so content below doesn't get hidden under it.
+  useLayoutEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      // +1px safety to avoid overlap on some mobile browsers.
+      setHeaderHeight(el.offsetHeight + 1);
+    };
+
+    measure();
+
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(el);
+
+    window.addEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("resize", measure);
+      ro.disconnect();
+    };
+  }, [language, isRTL, cityId, query, announcements.length, chips.length]);
 
   // Keep bannerIndex in range when banners change.
   useEffect(() => {
