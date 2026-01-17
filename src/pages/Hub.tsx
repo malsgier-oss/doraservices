@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel";
 
 import { MobileNav } from "@/components/layout/MobileNav";
 import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
@@ -368,62 +367,81 @@ export default function Hub() {
   }, [cityId, citiesData, setCityId]);
 
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
+
+  // City label (no "All cities" option; auto-picks first city)
   const cityLabel = selectedCity ? (selectedCity.name_ar || selectedCity.name) : t("اختر المدينة", "Choose a city");
 
-  // Banner carousel (Embla): loop + autoplay + manual swipe that doesn't interfere with page scroll.
-  const [bannerApi, setBannerApi] = useState<any>(null);
+  // Banner carousel: auto-advance but still swipe/scroll manually.
+  const bannerRowRef = useRef<HTMLDivElement | null>(null);
   const [bannerIndex, setBannerIndex] = useState(0);
+  const [bannerInteracting, setBannerInteracting] = useState(false);
   const bannerPauseUntilRef = useRef<number>(0);
+  const bannerScrollRaf = useRef<number | null>(null);
 
+  // Keep bannerIndex in range when banners change.
   useEffect(() => {
-    if (!bannerApi) return;
+    if (banners.length === 0) return;
+    setBannerIndex((i) => Math.min(i, banners.length - 1));
+  }, [banners.length]);
 
-    const onSelect = () => {
-      try {
-        setBannerIndex(bannerApi.selectedScrollSnap());
-      } catch {
-        // ignore
-      }
-    };
-
-    onSelect();
-    bannerApi.on("select", onSelect);
-    bannerApi.on("reInit", onSelect);
-
-    return () => {
-      bannerApi.off("select", onSelect);
-      bannerApi.off("reInit", onSelect);
-    };
-  }, [bannerApi]);
-
+  // Auto-advance.
   useEffect(() => {
-    if (!bannerApi) return;
-    // Keep it stable when banners change (new city / admin updates).
-    try {
-      bannerApi.reInit();
-      bannerApi.scrollTo(0, true);
-      setBannerIndex(0);
-    } catch {
-      // ignore
-    }
-  }, [bannerApi, banners.length, cityId]);
-
-  useEffect(() => {
-    if (!bannerApi) return;
     if (banners.length <= 1) return;
 
     const id = window.setInterval(() => {
+      // If user interacted recently, delay autoplay resume.
       if (Date.now() < bannerPauseUntilRef.current) return;
-      try {
-        bannerApi.scrollNext();
-      } catch {
-        // ignore
-      }
+      setBannerIndex((i) => (i + 1) % banners.length);
     }, 4500);
 
     return () => window.clearInterval(id);
-  }, [bannerApi, banners.length]);
+  }, [banners.length]);
 
+  // Scroll to active banner.
+  useEffect(() => {
+    const el = bannerRowRef.current;
+    if (!el) return;
+    const child = el.children.item(bannerIndex) as HTMLElement | null;
+    if (!child) return;
+    // Center the active banner (better feel on mobile)
+    child.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [bannerIndex]);
+
+  function handleBannerScroll() {
+    // Pause autoplay briefly during/after manual swipe/scroll.
+    bannerPauseUntilRef.current = Date.now() + 6000;
+    if (bannerScrollRaf.current) return;
+    bannerScrollRaf.current = window.requestAnimationFrame(() => {
+      bannerScrollRaf.current = null;
+      const el = bannerRowRef.current;
+      if (!el) return;
+
+      const containerRect = el.getBoundingClientRect();
+      // Choose the banner whose CENTER is closest to the container CENTER.
+      const targetX = (containerRect.left + containerRect.right) / 2;
+
+      let bestIdx = 0;
+      let bestDist = Number.POSITIVE_INFINITY;
+      for (let i = 0; i < el.children.length; i++) {
+        const child = el.children.item(i) as HTMLElement | null;
+        if (!child) continue;
+        const r = child.getBoundingClientRect();
+        const anchorX = (r.left + r.right) / 2;
+        const dist = Math.abs(anchorX - targetX);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestIdx = i;
+        }
+      }
+      setBannerIndex(bestIdx);
+    });
+  }
+
+  useEffect(() => {
+    return () => {
+      if (bannerScrollRaf.current) window.cancelAnimationFrame(bannerScrollRaf.current);
+    };
+  }, []);
 
   return (
     <div className={`min-h-screen bg-background pb-20 ${isRTL ? "rtl" : ""}`}>
@@ -553,61 +571,62 @@ export default function Hub() {
         </div>
 
         {/* Everything below chips scrolls normally */}
-        <div className="pt-4 space-y-4">
+        <div className="mx-auto max-w-3xl px-4 pt-4 space-y-4">
 
-        {/* Banner carousel (auto + manual swipe) */}
+        {/* Banner carousel (auto + manual swipe/scroll) */}
         {banners.length > 0 && (
           <div className="space-y-2">
-            <div className="-mx-4 px-4">
-              <Carousel
-                opts={{ loop: true, align: "start" }}
-                setApi={(api) => setBannerApi(api as any)}
-                className="w-full touch-pan-y"
-                style={{ touchAction: "pan-y" } as any}
-                onPointerDownCapture={() => {
-                  bannerPauseUntilRef.current = Date.now() + 6000;
-                }}
-                onMouseEnter={() => {
-                  bannerPauseUntilRef.current = Date.now() + 6000;
-                }}
-              >
-                <CarouselContent className="-ml-3">
-                  {banners.map((b) => {
-                    const url = publicUrlsById[b.id];
-                    const clickable = b.target_type !== "none";
-                    return (
-                      <CarouselItem key={b.id} className="pl-3 basis-[85%] md:basis-[70%]">
-                        <button
-                          type="button"
-                          className={`w-full rounded-xl overflow-hidden border bg-card ${clickable ? "cursor-pointer" : "cursor-default"}`}
-                          onClick={() => {
-                            if (b.target_type === "none") return;
-                            if (b.target_type === "category" && b.target_category_id) {
-                              openCategoryBrowse(b.target_category_id);
-                            } else if (b.target_type === "subcategory" && b.target_subcategory_id) {
-                              const sc = (allSubcategories || []).find((s) => s.id === b.target_subcategory_id);
-                              if (!sc) return;
-                              const Icon = ICON_MAP[sc.icon] || Wrench;
-                              openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color });
-                            } else if (b.target_type === "shelf" && b.target_shelf_id) {
-                              const el = b.target_shelf_id === "featured-services"
-                                ? document.getElementById("featured-services")
-                                : document.getElementById(`shelf-${b.target_shelf_id}`);
-                              el?.scrollIntoView({ behavior: "smooth", block: "start" });
-                            }
-                          }}
-                        >
-                          <div className="h-36 w-full bg-muted">
-                            {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : null}
-                          </div>
-                        </button>
-                      </CarouselItem>
-                    );
-                  })}
-                </CarouselContent>
-              </Carousel>
+            <div
+              ref={bannerRowRef}
+              dir={isRTL ? "rtl" : "ltr"}
+              className={`-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 snap-x snap-mandatory ${banners.length === 1 ? "justify-center" : ""}`}
+              style={{
+                WebkitOverflowScrolling: "touch" as any,
+                scrollPaddingInline: "16px",
+                touchAction: "pan-y",
+              }}
+              onScroll={handleBannerScroll}
+              onPointerDownCapture={(e) => e.stopPropagation()}
+              onPointerDown={() => { setBannerInteracting(true); bannerPauseUntilRef.current = Date.now() + 6000; }}
+              onPointerUp={() => setBannerInteracting(false)}
+              onPointerCancel={() => setBannerInteracting(false)}
+              onMouseEnter={() => { setBannerInteracting(true); bannerPauseUntilRef.current = Date.now() + 6000; }}
+              onMouseLeave={() => setBannerInteracting(false)}
+            >
+              {banners.map((b) => {
+                const url = publicUrlsById[b.id];
+                const clickable = b.target_type !== "none";
+                return (
+                  <button
+                    key={b.id}
+                    className={`shrink-0 w-[88%] md:w-[70%] rounded-xl overflow-hidden border bg-card snap-center ${clickable ? "cursor-pointer" : "cursor-default"}`}
+                    style={{ scrollSnapAlign: "center" }}
+                    onClick={() => {
+                      if (b.target_type === "none") return;
+                      if (b.target_type === "category" && b.target_category_id) {
+                        openCategoryBrowse(b.target_category_id);
+                      } else if (b.target_type === "subcategory" && b.target_subcategory_id) {
+                        const sc = (allSubcategories || []).find((s) => s.id === b.target_subcategory_id);
+                        if (!sc) return;
+                        const Icon = ICON_MAP[sc.icon] || Wrench;
+                        openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color });
+                      } else if (b.target_type === "shelf" && b.target_shelf_id) {
+                        const el = b.target_shelf_id === "featured-services"
+                          ? document.getElementById("featured-services")
+                          : document.getElementById(`shelf-${b.target_shelf_id}`);
+                        el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }
+                    }}
+                  >
+                    <div className="h-36 w-full bg-muted">
+                      {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : null}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
 
+            {/* Simple dots */}
             {banners.length > 1 && (
               <div className="flex items-center justify-center gap-1.5">
                 {banners.map((b, i) => (
@@ -615,10 +634,7 @@ export default function Hub() {
                     key={b.id}
                     aria-label={`Banner ${i + 1}`}
                     className={`h-2 w-2 rounded-full transition ${i === bannerIndex ? "bg-foreground" : "bg-muted-foreground/30"}`}
-                    onClick={() => {
-                      bannerPauseUntilRef.current = Date.now() + 6000;
-                      bannerApi?.scrollTo(i);
-                    }}
+                    onClick={() => setBannerIndex(i)}
                   />
                 ))}
               </div>
@@ -626,7 +642,7 @@ export default function Hub() {
           </div>
         )}
 
-{/* Services (MAIN categories) grid - exactly 8 */}
+        {/* Services (MAIN categories) grid - exactly 8 */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="text-base font-semibold">{t("الخدمات", "Categories")}</div>
