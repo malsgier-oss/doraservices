@@ -6,53 +6,83 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Heart, MessageCircle, Phone } from "lucide-react";
+import {
+  Phone,
+  MessageCircle,
+  ChevronRight,
+  Heart,
+  MessageSquare,
+  Flag,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useServiceRatings } from "@/hooks/useReviews";
+
+/**
+ * ServiceDetailSheet
+ * - Full-height (100%) bottom drawer
+ * - Service list view: each row shows the service thumbnail on the right (if any),
+ *   the provider/service title, rating, and is clickable.
+ * - Detail view: basic provider card with Call / WhatsApp (can be swapped later).
+ */
 
 type ProviderStatus = "pending" | "approved" | "rejected" | "suspended";
 
+export type ServiceProvider = {
+  id: string;
+  title?: string | null;
+  description?: string | null;
+  category?: string | null;
+  city?: string | null;
+  sub_city?: string | null;
+  provider_name?: string | null;
+  provider_phone?: string | null;
+  image_url?: string | null;
+  price?: number | null;
+  user_id?: string | null;
+  is_active?: boolean | null;
+  is_visible?: boolean | null;
+  is_paused?: boolean | null;
+  is_featured?: boolean | null;
+  approval_status?: ProviderStatus | string | null;
+  views_count?: number | null;
+};
+
+// This sheet is used by Hub + Favorites. They pass a small "service" object
+// describing which subcategory to show.
 export type SheetService = {
   titleKey: string;
   descKey?: string;
-  // Historically we store the *subcategory English name* in services.category.
+  // NOTE: historically we store the *subcategory English name* in services.category.
   category: string;
   categoryName?: string;
   categoryNameAr?: string;
   color?: string;
+  // icon is used in the Hub tiles; not required inside the sheet.
+  // Keep it optional so callers can pass it without us depending on lucide types.
   icon?: unknown;
-};
-
-export type ServiceRow = {
-  id: string;
-  title: string;
-  description: string | null;
-  category: string;
-  city: string | null;
-  sub_city: string | null;
-  provider_name: string | null;
-  provider_phone: string | null;
-  image_url: string | null;
-  price: number | null;
-  is_active: boolean;
-  is_visible: boolean;
-  is_paused: boolean;
-  is_featured: boolean;
-  approval_status: ProviderStatus | string;
-  views_count: number;
 };
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   service: SheetService;
+  // Optional city filter (Hub has it, Favorites usually doesn't)
   city?: string | null;
+  // When opening from a specific provider card, scroll/select it.
+  initialProviderServiceId?: string | null;
 
-  // Optional favorites integration
+  // Optional favorites integration (used in some screens)
   onToggleFavorite?: (providerId: string) => void;
   isFavorite?: (providerId: string) => boolean;
+
+  // Optional: let parent open a different provider card implementation.
+  // If provided, row click will call this instead of using the internal detail view.
+  onSelectProviderService?: (serviceRow: ServiceProvider) => void;
 };
 
 function normalizePhone(phone?: string | null) {
@@ -60,37 +90,30 @@ function normalizePhone(phone?: string | null) {
   return phone.replace(/\s+/g, "").trim();
 }
 
-function openTel(phone?: string | null) {
-  const p = normalizePhone(phone);
-  if (!p) {
-    toast.error("رقم الهاتف غير متوفر");
-    return;
-  }
-  window.open(`tel:${p}`, "_self");
-}
+function getThumbUrl(image_url?: string | null): string | null {
+  const raw = (image_url || "").trim();
+  if (!raw) return null;
 
-function openWhatsApp(phone?: string | null) {
-  const p = normalizePhone(phone);
-  if (!p) {
-    toast.error("رقم الواتساب غير متوفر");
-    return;
+  // Some environments store a JSON array of URLs in image_url.
+  if (raw.startsWith("[") && raw.endsWith("]")) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const first = String(parsed[0] ?? "").trim();
+        return first || null;
+      }
+    } catch {
+      // ignore
+    }
   }
-  const digits = p.replace(/[^\d+]/g, "");
-  window.open(`https://wa.me/${digits.replace("+", "")}`, "_blank");
-}
 
-async function logContactEvent(providerId: string, channel: "call" | "whatsapp") {
-  try {
-    await supabase.from("events").insert([
-      {
-        event_type: channel === "call" ? "call_click" : "whatsapp_click",
-        provider_id: providerId,
-        metadata: { source: "ServiceDetailSheet" },
-      },
-    ]);
-  } catch {
-    // best-effort
+  // Or comma-separated list.
+  if (raw.includes(",")) {
+    const first = raw.split(",")[0]?.trim();
+    return first || null;
   }
+
+  return raw;
 }
 
 function readLocalFavorites(): Set<string> {
@@ -116,20 +139,65 @@ function writeLocalFavorites(next: Set<string>) {
   }
 }
 
+function openTel(phone?: string | null) {
+  const p = normalizePhone(phone);
+  if (!p) {
+    toast.error("رقم الهاتف غير متوفر");
+    return;
+  }
+  window.open(`tel:${p}`, "_self");
+}
+
+function openWhatsApp(phone?: string | null) {
+  const p = normalizePhone(phone);
+  if (!p) {
+    toast.error("رقم الواتساب غير متوفر");
+    return;
+  }
+  const digits = p.replace(/[^\d+]/g, "");
+  window.open(`https://wa.me/${digits.replace("+", "")}`, "_blank");
+}
+
+// (removed duplicate helpers)
+
+async function logContactEvent(
+  providerId: string,
+  channel: "call" | "whatsapp"
+) {
+  try {
+    await supabase.from("events").insert([
+      {
+        event_type: channel === "call" ? "call_click" : "whatsapp_click",
+        provider_id: providerId,
+        metadata: { source: "ServiceDetailSheet" },
+      },
+    ]);
+  } catch {
+    // best-effort only
+  }
+}
+
 export function ServiceDetailSheet({
   open,
   onOpenChange,
   service,
-  city = null,
+  city,
+  initialProviderServiceId = null,
   onToggleFavorite,
   isFavorite,
+  onSelectProviderService,
 }: Props) {
-  const [rows, setRows] = useState<ServiceRow[]>([]);
+  const [providers, setProviders] = useState<ServiceProvider[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
   const [localFavs, setLocalFavs] = useState<Set<string>>(() => new Set());
+
+  const serviceIds = useMemo(() => providers.map((p) => p.id), [providers]);
+  const { ratings } = useServiceRatings(serviceIds);
 
   useEffect(() => {
     if (!open) return;
+    // Only read localStorage on the client, when the sheet is used.
     setLocalFavs(readLocalFavorites());
   }, [open]);
 
@@ -137,24 +205,57 @@ export function ServiceDetailSheet({
     if (!open) return;
 
     let alive = true;
-
     const run = async () => {
       setLoading(true);
       try {
+        const escOrValue = (v: string) => {
+          // PostgREST OR filter needs quoted values when they contain spaces/symbols.
+          const escaped = v.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+          return `"${escaped}"`;
+        };
+
         const categoryVal = (service?.category ?? "").trim();
+        // In this repository, services are tagged via `services.category`.
+        // Keep the filter aligned with the actual DB schema (no `subcategory` column).
+        const categoryOr = categoryVal ? `category.eq.${escOrValue(categoryVal)}` : "";
+
+        // City filter: Hub passes the city name (often English). In Libya, data can be
+        // stored in either Arabic or English. We best-effort map it to both.
+        let cityOr = "";
+        const cityVal = (city || "").trim();
+        if (cityVal) {
+          const cityNames = new Set<string>();
+          cityNames.add(cityVal);
+
+          try {
+            const { data: cityRow } = await supabase
+              .from("cities")
+              .select("name,name_ar")
+              .or(`name.eq.${escOrValue(cityVal)},name_ar.eq.${escOrValue(cityVal)}`)
+              .maybeSingle();
+
+            if (cityRow?.name) cityNames.add(String(cityRow.name));
+            if (cityRow?.name_ar) cityNames.add(String(cityRow.name_ar));
+          } catch {
+            // ignore mapping errors
+          }
+
+          cityOr = Array.from(cityNames)
+            .filter(Boolean)
+            .map((n) => `city.eq.${escOrValue(n)}`)
+            .join(",");
+        }
 
         const base = supabase
           .from("services")
           .select(
+            // Keep this aligned with generated Supabase types.
             "id,title,description,category,city,sub_city,provider_name,provider_phone,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count"
           )
           .order("is_featured", { ascending: false })
           .order("views_count", { ascending: false });
 
-        const runQuery = async (
-          mode: "strict" | "permissive",
-          withCity: boolean
-        ) => {
+        const runQuery = async (mode: "strict" | "permissive") => {
           let q = base;
 
           if (mode === "strict") {
@@ -165,52 +266,71 @@ export function ServiceDetailSheet({
               .eq("approval_status", "approved");
           } else {
             q = q
+              // Be permissive: older seeds sometimes leave these as NULL.
               .or("is_visible.eq.true,is_visible.is.null")
               .or("is_active.eq.true,is_active.is.null")
               .or("is_paused.eq.false,is_paused.is.null")
+              // Only show approved providers; allow null during early data.
               .or("approval_status.eq.approved,approval_status.is.null");
           }
 
-          if (categoryVal) {
-            // In this schema, category holds either category OR subcategory label (legacy).
-            q = q.eq("category", categoryVal);
+          if (categoryOr) {
+            // IMPORTANT:
+            q = q.or(categoryOr);
           }
 
-          if (withCity && city) {
-            q = q.eq("city", city);
+          if (cityOr) {
+            q = q.or(cityOr);
           }
 
           return await q;
         };
 
-        // City filtering can easily mismatch (Arabic vs English city names).
-        // We try with city first, then fall back to no-city before giving up.
-        let { data, error } = await runQuery("strict", true);
+        let { data, error } = await runQuery("strict");
         if (error) throw error;
 
+        // Fallback: if strict filters return nothing, try permissive filters.
         if (!data || data.length === 0) {
-          const resNoCityStrict = await runQuery("strict", false);
-          if (resNoCityStrict.error) throw resNoCityStrict.error;
-          data = resNoCityStrict.data;
+          const res = await runQuery("permissive");
+          data = res.data;
+          error = res.error;
+          if (error) throw error;
         }
-
-        if (!data || data.length === 0) {
-          const resPerm = await runQuery("permissive", true);
-          if (resPerm.error) throw resPerm.error;
-          data = resPerm.data;
-        }
-
-        if (!data || data.length === 0) {
-          const resPermNoCity = await runQuery("permissive", false);
-          if (resPermNoCity.error) throw resPermNoCity.error;
-          data = resPermNoCity.data;
-        }
+        const rows = (data || []) as any[];
+        const normalized: ServiceProvider[] = rows.map((r) => ({
+          id: String(r.id),
+          title: r.title ?? null,
+          description: r.description ?? null,
+          category: r.category ?? null,
+          city: r.city ?? null,
+          sub_city: r.sub_city ?? null,
+          provider_name: r.provider_name ?? null,
+          provider_phone: r.provider_phone ?? null,
+          image_url: r.image_url ?? null,
+          // This repo schema has only image_url.
+          image_urls: null,
+          is_active: r.is_active ?? null,
+          is_visible: r.is_visible ?? null,
+          is_paused: r.is_paused ?? null,
+          is_featured: r.is_featured ?? null,
+          is_verified: null,
+          approval_status: r.approval_status ?? null,
+          views_count: r.views_count ?? null,
+        }));
 
         if (!alive) return;
-        setRows((data ?? []) as ServiceRow[]);
+        setProviders(normalized);
+
+        // If we were opened for a specific provider service id, select it.
+        if (initialProviderServiceId) {
+          const match = normalized.find((p) => p.id === initialProviderServiceId) || null;
+          setSelectedProvider(match);
+        } else {
+          setSelectedProvider(null);
+        }
       } catch (e) {
         console.error("ServiceDetailSheet load error:", e);
-        if (alive) setRows([]);
+        if (alive) setProviders([]);
       } finally {
         if (alive) setLoading(false);
       }
@@ -220,11 +340,13 @@ export function ServiceDetailSheet({
     return () => {
       alive = false;
     };
-  }, [open, service?.category, city]);
+  }, [open, service.category, initialProviderServiceId]);
 
-  const list = useMemo(() => (Array.isArray(rows) ? rows : []), [rows]);
+  // Keep it clean: no search in this sheet.
+  const listProviders = Array.isArray(providers) ? providers : [];
 
   const isFav = (providerId: string) => {
+    // Prefer external favorites integration if provided.
     if (isFavorite) return !!isFavorite(providerId);
     return localFavs.has(providerId);
   };
@@ -244,123 +366,221 @@ export function ServiceDetailSheet({
     });
   };
 
-  const headerTitle =
-    service?.categoryNameAr ||
-    service?.titleKey ||
-    service?.categoryName ||
-    service?.category ||
-    "الخدمات";
+  const isDetailOpen = !!selectedProvider && !onSelectProviderService;
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent
-        className="h-[100dvh] max-h-[100dvh] bg-background text-foreground"
-        dir="rtl"
-      >
+      {/* Full-height drawer (A): opens at ~100% height */}
+      <DrawerContent className="h-[100dvh] max-h-[100dvh] bg-background text-foreground" dir="rtl">
         <DrawerHeader className="px-4 pt-4 pb-2">
-          <DrawerTitle className="text-base text-right">{headerTitle}</DrawerTitle>
+          <div className="flex items-center gap-2">
+            {isDetailOpen && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="px-2"
+                onClick={() => setSelectedProvider(null)}
+              >
+                <ChevronRight className="h-4 w-4" />
+                رجوع
+              </Button>
+            )}
+
+            <div className="flex-1">
+              <DrawerTitle className="text-base">
+                {isDetailOpen
+                  ? selectedProvider?.provider_name || "تفاصيل المزود"
+                  : service.titleKey || service.categoryNameAr || service.categoryName || service.category || "المزودين"}
+              </DrawerTitle>
+            </div>
+          </div>
         </DrawerHeader>
 
         <Separator />
 
-        <div className="h-full overflow-y-auto pb-10">
-          <div className="px-4 py-4 space-y-4">
-            {loading ? (
-              <div className="text-sm text-muted-foreground py-8 text-center">
-                جارٍ التحميل...
-              </div>
-            ) : list.length === 0 ? (
-              <div className="text-sm text-muted-foreground py-8 text-center">
-                لا توجد خدمات/مزودون لهذه الفئة
-              </div>
-            ) : null}
-
-            {list.map((p) => {
-              const title = p.provider_name || p.title || "مزود";
-              const desc = (p.description || "").trim();
-              const priceText =
-                typeof p.price === "number" && !Number.isNaN(p.price)
-                  ? `${p.price} د.ل`
-                  : "";
-
-              return (
-                <div
-                  key={p.id}
-                  className="w-[94%] mx-auto rounded-2xl border bg-card p-4 shadow-sm"
-                >
-                  {/* Header: name + rating (rating is placeholder until reviews) */}
-                  <div className="text-right">
-                    <div className="font-semibold text-base leading-6">{title}</div>
-                    <div className="text-sm text-muted-foreground mt-1">★ —</div>
+        {/* LIST VIEW */}
+        {!isDetailOpen && (
+          <div className="flex flex-col h-full">
+            <ScrollArea className="flex-1">
+              <div className="px-4 pb-6 space-y-3">
+                {loading ? (
+                  <div className="text-sm text-muted-foreground py-8 text-center">
+                    جارٍ التحميل...
                   </div>
+                ) : listProviders.length === 0 ? (
+                  <div className="text-sm text-muted-foreground py-8 text-center">
+                    لا يوجد مزودون
+                  </div>
+                ) : null}
 
-                  {/* 1-line description */}
-                  {desc && (
-                    <div className="mt-2 text-sm text-muted-foreground line-clamp-1 text-right">
-                      {desc}
-                    </div>
-                  )}
+                {listProviders.map((p) => {
+                  const thumb = getThumbUrl(p.image_url);
+                  const rating = ratings.get(p.id);
+                  const ratingText = rating?.averageRating
+                    ? `★ ${rating.averageRating}`
+                    : "★ —";
 
-                  <div className="my-3 border-t" />
+                  return (
+                    <div
+                      key={p.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => {
+                        if (onSelectProviderService) {
+                          onSelectProviderService(p);
+                          return;
+                        }
+                        setSelectedProvider(p);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          if (onSelectProviderService) onSelectProviderService(p);
+                          else setSelectedProvider(p);
+                        }
+                      }}
+                      className="w-[94%] mx-auto rounded-2xl border bg-card p-4 shadow-sm cursor-pointer hover:bg-accent/20 transition-colors"
+                    >
+                      {/* RTL row with thumbnail on the RIGHT */}
+                      <div className="flex flex-row-reverse items-start gap-3">
+                        {/* Thumbnail */}
+                        <div className="shrink-0">
+                          <div className="h-[70px] w-[90px] rounded-lg overflow-hidden border bg-muted">
+                            {thumb ? (
+                              <img
+                                src={thumb}
+                                alt=""
+                                loading="lazy"
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="h-full w-full" />
+                            )}
+                          </div>
+                        </div>
 
-                  {/* Actions: Call (primary) -> WhatsApp -> Heart (after WhatsApp). Price on the far left */}
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        className="h-11 px-6"
-                        onClick={() => {
-                          logContactEvent(p.id, "call");
-                          openTel(p.provider_phone);
-                        }}
-                      >
-                        <Phone className="h-4 w-4 ml-2" />
-                        اتصال
-                      </Button>
+                        {/* Text block */}
+                        <div className="flex-1 min-w-0 text-right">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="font-semibold truncate">
+                                {p.provider_name || p.title || "مزود"}
+                              </div>
+                              <div className="text-sm text-muted-foreground mt-0.5">
+                                {ratingText}
+                              </div>
+                            </div>
 
-                      <Button
-                        variant="secondary"
-                        className="h-11 px-4"
-                        onClick={() => {
-                          logContactEvent(p.id, "whatsapp");
-                          openWhatsApp(p.provider_phone);
-                        }}
-                      >
-                        <MessageCircle className="h-4 w-4 ml-2" />
-                        واتساب
-                      </Button>
+                            <ChevronRight className="h-5 w-5 text-muted-foreground mt-1" />
+                          </div>
 
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className={cn(
-                          "h-11 w-11",
-                          isFav(p.id) && "text-red-600"
-                        )}
-                        aria-label="إضافة للمفضلة"
-                        onClick={() => toggleFav(p.id)}
-                      >
-                        <Heart
-                          className={cn(
-                            "h-5 w-5",
-                            isFav(p.id) && "fill-current"
+                          {p.description && (
+                            <div className="text-sm text-muted-foreground mt-2 line-clamp-1">
+                              {p.description}
+                            </div>
                           )}
-                        />
-                      </Button>
-                    </div>
 
-                    <div className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-                      {priceText}
+                          <div className="mt-3 flex items-center justify-end gap-2 text-sm text-muted-foreground">
+                            {!!p.sub_city && <span>{p.sub_city}</span>}
+                            {!!p.city && (
+                              <span className={p.sub_city ? "opacity-70" : ""}>
+                                {p.city}
+                              </span>
+                            )}
+                          </div>
+
+                          {p.price != null && (
+                            <div className="mt-2 text-sm font-medium text-muted-foreground">
+                              {p.price} د.ل
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            </ScrollArea>
           </div>
-        </div>
+        )}
+
+        {/* DETAIL VIEW */}
+        {isDetailOpen && selectedProvider && (
+          <ScrollArea className="flex-1">
+            <div className="px-4 py-4 pb-10">
+              <div className="rounded-lg border p-4 bg-card">
+                <div className="text-lg font-semibold truncate">
+                  {selectedProvider.provider_name}
+                </div>
+
+                {selectedProvider.description && (
+                  <div className="mt-4 text-sm">
+                    {selectedProvider.description}
+                  </div>
+                )}
+
+                <Separator className="my-4" />
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    onClick={() => {
+                      logContactEvent(selectedProvider.id, "call");
+                      openTel(selectedProvider.provider_phone);
+                    }}
+                  >
+                    <Phone className="h-4 w-4 ml-1" />
+                    اتصال
+                  </Button>
+
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      logContactEvent(selectedProvider.id, "whatsapp");
+                      openWhatsApp(selectedProvider.provider_phone);
+                    }}
+                  >
+                    <MessageCircle className="h-4 w-4 ml-1" />
+                    واتساب
+                  </Button>
+                </div>
+
+                <Button
+                  variant="outline"
+                  className="w-full mt-3"
+                  onClick={async () => {
+                    try {
+                      await supabase.from("events").insert([
+                        {
+                          event_type: "report",
+                          provider_id: selectedProvider.id,
+                          metadata: { source: "ServiceDetailSheet" },
+                        },
+                      ]);
+                      toast.success("تم إرسال البلاغ");
+                    } catch {
+                      toast.error("تعذر إرسال البلاغ");
+                    }
+                  }}
+                >
+                  <Flag className="h-4 w-4 ml-1" />
+                  إبلاغ عن مزود
+                </Button>
+
+                <Separator className="my-4" />
+
+                <div className="text-xs text-muted-foreground flex items-center gap-2">
+                  <MessageSquare className="h-3 w-3" />
+                  سيظهر طلب التقييم داخل التطبيق بعد التواصل
+                </div>
+              </div>
+            </div>
+          </ScrollArea>
+        )}
       </DrawerContent>
     </Drawer>
   );
 }
 
-// Keep default export for backward compatibility (some files may import default).
+// Allow both default import and named import styles.
+// Some screens import with: import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
+export { ServiceDetailSheet };
 export default ServiceDetailSheet;
