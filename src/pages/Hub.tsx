@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, ChevronDown, Search, Wrench, Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper, Droplets, Wind, Fuel, ClipboardCheck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -333,6 +333,72 @@ export default function Hub() {
 
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
 
+  // Banner carousel: auto-advance but still swipe/scroll manually.
+  const bannerRowRef = useRef<HTMLDivElement | null>(null);
+  const [bannerIndex, setBannerIndex] = useState(0);
+  const [bannerInteracting, setBannerInteracting] = useState(false);
+  const bannerScrollRaf = useRef<number | null>(null);
+
+  // Keep bannerIndex in range when banners change.
+  useEffect(() => {
+    if (banners.length === 0) return;
+    setBannerIndex((i) => Math.min(i, banners.length - 1));
+  }, [banners.length]);
+
+  // Auto-advance.
+  useEffect(() => {
+    if (banners.length <= 1) return;
+    if (bannerInteracting) return;
+
+    const id = window.setInterval(() => {
+      setBannerIndex((i) => (i + 1) % banners.length);
+    }, 4500);
+
+    return () => window.clearInterval(id);
+  }, [banners.length, bannerInteracting]);
+
+  // Scroll to active banner.
+  useEffect(() => {
+    const el = bannerRowRef.current;
+    if (!el) return;
+    const child = el.children.item(bannerIndex) as HTMLElement | null;
+    if (!child) return;
+    child.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+  }, [bannerIndex]);
+
+  function handleBannerScroll() {
+    if (bannerScrollRaf.current) return;
+    bannerScrollRaf.current = window.requestAnimationFrame(() => {
+      bannerScrollRaf.current = null;
+      const el = bannerRowRef.current;
+      if (!el) return;
+
+      const containerRect = el.getBoundingClientRect();
+      const targetX = isRTL ? containerRect.right : containerRect.left;
+
+      let bestIdx = 0;
+      let bestDist = Number.POSITIVE_INFINITY;
+      for (let i = 0; i < el.children.length; i++) {
+        const child = el.children.item(i) as HTMLElement | null;
+        if (!child) continue;
+        const r = child.getBoundingClientRect();
+        const anchorX = isRTL ? r.right : r.left;
+        const dist = Math.abs(anchorX - targetX);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestIdx = i;
+        }
+      }
+      setBannerIndex(bestIdx);
+    });
+  }
+
+  useEffect(() => {
+    return () => {
+      if (bannerScrollRaf.current) window.cancelAnimationFrame(bannerScrollRaf.current);
+    };
+  }, []);
+
   return (
     <div className={`min-h-screen bg-background pb-20 ${isRTL ? "rtl" : ""}`}>
       <div className="mx-auto max-w-3xl px-4">
@@ -476,46 +542,67 @@ export default function Hub() {
         {/* Everything below chips scrolls normally */}
         <div className="pt-4 space-y-4">
 
-        {/* Banner carousel (admin-controlled, image-only) */}
+        {/* Banner carousel (auto + manual swipe/scroll) */}
         {banners.length > 0 && (
           <div className="space-y-2">
-            <ScrollArea className="w-full">
-              <div className="flex gap-3 pb-2">
-                {banners.map((b) => {
-                  const url = publicUrlsById[b.id];
-                  const clickable = b.target_type !== "none";
-                  return (
-                    <button
-                      key={b.id}
-                      className={`min-w-[85%] md:min-w-[70%] rounded-xl overflow-hidden border bg-card ${clickable ? "cursor-pointer" : "cursor-default"}`}
-                      onClick={() => {
-                        if (b.target_type === "none") return;
-                        if (b.target_type === "category" && b.target_category_id) {
-                          openCategoryBrowse(b.target_category_id);
-                        } else if (b.target_type === "subcategory" && b.target_subcategory_id) {
-                          const sc = (allSubcategories || []).find((s) => s.id === b.target_subcategory_id);
-                          if (!sc) return;
-                          const Icon = ICON_MAP[sc.icon] || Wrench;
-                          openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color });
-                        } else if (b.target_type === "shelf" && b.target_shelf_id) {
-                          const el = b.target_shelf_id === "featured-services"
-                            ? document.getElementById("featured-services")
-                            : document.getElementById(`shelf-${b.target_shelf_id}`);
-                          el?.scrollIntoView({ behavior: "smooth", block: "start" });
-                        }
-                      }}
-                    >
-                      <div className="h-36 w-full bg-muted">
-                        {url ? (
-                          <img src={url} alt="" className="h-full w-full object-cover" />
-                        ) : null}
-                      </div>
-                    </button>
-                  );
-                })}
+            <div
+              ref={bannerRowRef}
+              dir={isRTL ? "rtl" : "ltr"}
+              className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2"
+              style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any }}
+              onScroll={handleBannerScroll}
+              onPointerDown={() => setBannerInteracting(true)}
+              onPointerUp={() => setBannerInteracting(false)}
+              onPointerCancel={() => setBannerInteracting(false)}
+              onMouseEnter={() => setBannerInteracting(true)}
+              onMouseLeave={() => setBannerInteracting(false)}
+            >
+              {banners.map((b) => {
+                const url = publicUrlsById[b.id];
+                const clickable = b.target_type !== "none";
+                return (
+                  <button
+                    key={b.id}
+                    className={`shrink-0 w-[85%] md:w-[70%] rounded-xl overflow-hidden border bg-card ${clickable ? "cursor-pointer" : "cursor-default"}`}
+                    style={{ scrollSnapAlign: "start" }}
+                    onClick={() => {
+                      if (b.target_type === "none") return;
+                      if (b.target_type === "category" && b.target_category_id) {
+                        openCategoryBrowse(b.target_category_id);
+                      } else if (b.target_type === "subcategory" && b.target_subcategory_id) {
+                        const sc = (allSubcategories || []).find((s) => s.id === b.target_subcategory_id);
+                        if (!sc) return;
+                        const Icon = ICON_MAP[sc.icon] || Wrench;
+                        openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color });
+                      } else if (b.target_type === "shelf" && b.target_shelf_id) {
+                        const el = b.target_shelf_id === "featured-services"
+                          ? document.getElementById("featured-services")
+                          : document.getElementById(`shelf-${b.target_shelf_id}`);
+                        el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }
+                    }}
+                  >
+                    <div className="h-36 w-full bg-muted">
+                      {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : null}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Simple dots */}
+            {banners.length > 1 && (
+              <div className="flex items-center justify-center gap-1.5">
+                {banners.map((b, i) => (
+                  <button
+                    key={b.id}
+                    aria-label={`Banner ${i + 1}`}
+                    className={`h-2 w-2 rounded-full transition ${i === bannerIndex ? "bg-foreground" : "bg-muted-foreground/30"}`}
+                    onClick={() => setBannerIndex(i)}
+                  />
+                ))}
               </div>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
+            )}
           </div>
         )}
 
@@ -552,26 +639,28 @@ export default function Hub() {
         {featuredSubcats.length > 0 && (
           <div className="space-y-2" id="featured-services">
             <div className="text-base font-semibold">{t("الخدمات المميزة", "Featured services")}</div>
-            <ScrollArea className="w-full">
-              <div className="flex gap-3 pb-2">
-                {featuredSubcats.map((sc) => {
-                  const Icon = ICON_MAP[sc.icon] || Wrench;
-                  return (
-                    <button
-                      key={sc.id}
-                      className="min-w-[34%] md:min-w-[22%] rounded-xl border bg-card p-3 hover:bg-accent transition flex flex-col items-center gap-2"
-                      onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
-                    >
-                      <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ backgroundColor: (sc.color || "#888") + "22" }}>
-                        <Icon className="h-6 w-6" />
-                      </div>
-                      <div className="text-xs text-center leading-tight line-clamp-2">{sc.name_ar || sc.name}</div>
-                    </button>
-                  );
-                })}
-              </div>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
+            <div
+              dir={isRTL ? "rtl" : "ltr"}
+              className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2"
+              style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any }}
+            >
+              {featuredSubcats.map((sc) => {
+                const Icon = ICON_MAP[sc.icon] || Wrench;
+                return (
+                  <button
+                    key={sc.id}
+                    className="shrink-0 w-[34%] md:w-[22%] rounded-xl border bg-card p-3 hover:bg-accent transition flex flex-col items-center gap-2"
+                    style={{ scrollSnapAlign: "start" }}
+                    onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
+                  >
+                    <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ backgroundColor: (sc.color || "#888") + "22" }}>
+                      <Icon className="h-6 w-6" />
+                    </div>
+                    <div className="text-xs text-center leading-tight line-clamp-2">{sc.name_ar || sc.name}</div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -597,14 +686,18 @@ export default function Hub() {
                     </Button>
                   </div>
 
-                  <ScrollArea className="w-full">
-                    <div className="flex gap-3 pb-2">
+                  <div
+                    dir={isRTL ? "rtl" : "ltr"}
+                    className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2"
+                    style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any }}
+                  >
                       {subcats.map((sc) => {
                         const Icon = ICON_MAP[sc.icon] || Wrench;
                         return (
                         <button
                           key={sc.id}
-                          className="min-w-[44%] md:min-w-[28%] rounded-xl border bg-card p-3 hover:bg-accent transition flex flex-col items-center gap-2"
+                          className="shrink-0 w-[44%] md:w-[28%] rounded-xl border bg-card p-3 hover:bg-accent transition flex flex-col items-center gap-2"
+                          style={{ scrollSnapAlign: "start" }}
                           onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
                         >
                           <div
@@ -617,9 +710,7 @@ export default function Hub() {
                         </button>
                         );
                       })}
-                    </div>
-                    <ScrollBar orientation="horizontal" />
-                  </ScrollArea>
+                  </div>
                 </div>
               );
             }
@@ -652,14 +743,18 @@ export default function Hub() {
                   <div className="text-base font-semibold">{shelf.title_ar}</div>
                 </div>
 
-                <ScrollArea className="w-full">
-                  <div className="flex gap-3 pb-2">
+                <div
+                  dir={isRTL ? "rtl" : "ltr"}
+                  className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2"
+                  style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any }}
+                >
                     {subcats.map((s) => {
                       const Icon = ICON_MAP[s.icon] || Wrench;
                       return (
                         <button
                           key={s.id}
-                          className="min-w-[34%] md:min-w-[22%] rounded-xl border bg-card p-3 hover:bg-accent transition flex flex-col items-center gap-2"
+                          className="shrink-0 w-[34%] md:w-[22%] rounded-xl border bg-card p-3 hover:bg-accent transition flex flex-col items-center gap-2"
+                          style={{ scrollSnapAlign: "start" }}
                           onClick={() => openSubcategoryProviders({ id: s.id, name: s.name, name_ar: s.name_ar, icon: Icon, color: s.color })}
                         >
                           <div
@@ -678,7 +773,8 @@ export default function Hub() {
                       return (
                         <button
                           key={c.id}
-                          className="min-w-[34%] md:min-w-[22%] rounded-xl border bg-card p-3 hover:bg-accent transition flex flex-col items-center gap-2"
+                          className="shrink-0 w-[34%] md:w-[22%] rounded-xl border bg-card p-3 hover:bg-accent transition flex flex-col items-center gap-2"
+                          style={{ scrollSnapAlign: "start" }}
                           onClick={() => openCategoryBrowse(c.id)}
                         >
                           <div
@@ -691,9 +787,7 @@ export default function Hub() {
                         </button>
                       );
                     })}
-                  </div>
-                  <ScrollBar orientation="horizontal" />
-                </ScrollArea>
+                </div>
               </div>
             );
           })}
