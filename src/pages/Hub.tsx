@@ -455,7 +455,7 @@ export default function Hub() {
   return (
     <div className={`min-h-screen bg-background pb-20 overflow-x-hidden ${isRTL ? "rtl" : ""}`}>
       {/* Sticky top: Header + Search/City + Chips */}
-      <div className="sticky top-0 left-0 right-0 w-full z-40 bg-background pt-4 space-y-4 pb-3 border-b border-border">
+      <div className="sticky top-0 left-0 right-0 w-full z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75 pt-4 space-y-4 pb-3 border-b border-border shadow-sm">
         <div className="mx-auto max-w-3xl px-4">
           {/* Header */}
           <div className="flex items-center justify-between gap-3">
@@ -543,8 +543,8 @@ export default function Hub() {
 
           {/* Chips (admin-controlled, subcategories) */}
           {chips.length > 0 && (
-            <ScrollArea className="w-full">
-              <div className="flex gap-3 pb-2 px-1">
+            <ScrollArea className="w-full mt-2">
+              <div className="flex w-max gap-4 pb-2 px-2">
                 {chips.map((chip) => {
                   const label = (language === "ar" ? chip.label_ar : chip.label_en) || chip.label_ar || chip.label_en || "";
                   if (!label) return null;
