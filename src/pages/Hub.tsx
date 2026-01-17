@@ -94,59 +94,6 @@ function useSelectedCityId() {
   }, [cityId]);
 
 
-  // Hub announcements (under search). City-specific first, then global.
-  useEffect(() => {
-    let alive = true;
-
-    const loadAnnouncements = async () => {
-      
-      try {
-        let q = supabase
-          .from("announcements")
-          .select("id,title,message,city_id,priority,start_at,end_at,created_at")
-          .eq("is_active", true);
-
-        if (cityId) {
-          q = q.or(`city_id.eq.${cityId},city_id.is.null`);
-        } else {
-          q = q.is("city_id", null);
-        }
-
-        const { data, error } = await q
-          .order("priority", { ascending: false })
-          .order("created_at", { ascending: false });
-
-        if (!alive) return;
-
-        if (error) {
-          setAnnouncements([]);
-          return;
-        }
-
-        const rows = (data || []) as any[];
-
-        // City-specific first, then global; then priority desc
-        rows.sort((a, b) => {
-          const ac = a.city_id ? 1 : 0;
-          const bc = b.city_id ? 1 : 0;
-          if (ac !== bc) return bc - ac;
-          return (b.priority || 0) - (a.priority || 0);
-        });
-
-        setAnnouncements(rows.slice(0, 2) as AnnouncementRow[]);
-      } finally {
-        
-      }
-    };
-
-    loadAnnouncements();
-
-    return () => {
-      alive = false;
-    };
-  }, [cityId]);
-
-
   return { cityId, setCityId };
 }
 
@@ -202,6 +149,59 @@ export default function Hub() {
   const queryTrim = query.trim();
 
   const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
+
+
+  // Hub announcements (under search). City-specific first, then global.
+  useEffect(() => {
+    let alive = true;
+
+    const loadAnnouncements = async () => {
+      try {
+        let q = supabase
+          .from("announcements")
+          .select("id,title,message,city_id,priority,start_at,end_at,created_at")
+          .eq("is_active", true);
+
+        if (cityId) {
+          q = q.or(`city_id.eq.${cityId},city_id.is.null`);
+        } else {
+          q = q.is("city_id", null);
+        }
+
+        const { data, error } = await q
+          .order("priority", { ascending: false })
+          .order("created_at", { ascending: false });
+
+        if (!alive) return;
+
+        if (error) {
+          setAnnouncements([]);
+          return;
+        }
+
+        const rows = (data || []) as any[];
+
+        // City-specific first, then global; then priority desc
+        rows.sort((a, b) => {
+          const ac = a.city_id ? 1 : 0;
+          const bc = b.city_id ? 1 : 0;
+          if (ac != bc) return bc - ac;
+          return (b.priority || 0) - (a.priority || 0);
+        });
+
+        setAnnouncements(rows.slice(0, 2) as AnnouncementRow[]);
+      } catch {
+        if (alive) setAnnouncements([]);
+      }
+    };
+
+    loadAnnouncements();
+
+    return () => {
+      alive = false;
+    };
+  }, [cityId]);
+
 
 
   const filteredCategories = useMemo(() => {
