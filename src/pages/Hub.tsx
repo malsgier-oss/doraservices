@@ -1,3 +1,4 @@
+// DORA_HUB_PATCH_v4 (ticker+banner-loop+no-all-cities+sticky-fullwidth)
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, ChevronDown, Search, Wrench, Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper, Droplets, Wind, Fuel, ClipboardCheck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -442,7 +443,7 @@ const cityLabel = selectedCity ? (selectedCity.name_ar || selectedCity.name) : t
   return (
     <div className={`min-h-screen bg-background pb-20 ${isRTL ? "rtl" : ""}`}>
       {/* Sticky top: Header + Search/City + Chips */}
-      <div className="sticky top-0 left-0 right-0 w-full z-40 bg-background pt-4 space-y-4 pb-3 border-b border-border">
+      <div className="sticky top-0 left-0 right-0 w-full left-0 right-0 w-full z-40 bg-background pt-4 space-y-4 pb-3 border-b border-border">
         <div className="mx-auto max-w-3xl px-4">
           {/* Header */}
           <div className="flex items-center justify-between gap-3">
@@ -473,7 +474,7 @@ const cityLabel = selectedCity ? (selectedCity.name_ar || selectedCity.name) : t
 
 	          {activeAnnouncement && (
 	            <div className="rounded-2xl border border-border bg-muted/30 px-4 py-3">
-                      <div className="text-sm text-muted-foreground">📢 {activeAnnouncement.message}</div>
+                      <div className="text-sm text-muted-foreground">📢 📢 {activeAnnouncement.message}</div>
                     </div>
 	          )}
 
@@ -578,10 +579,10 @@ const cityLabel = selectedCity ? (selectedCity.name_ar || selectedCity.name) : t
               className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2"
               style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any }}
               onScroll={handleBannerScroll}
-              onPointerDown={() => { setBannerInteracting(true); bannerPauseUntilRef.current = Date.now() + 6000; }}
+              onPointerDown={() => { setBannerInteracting(true); bannerPauseUntilRef.current = Date.now() + 6000; bannerPauseUntilRef.current = Date.now() + 6000; }}
               onPointerUp={() => setBannerInteracting(false)}
               onPointerCancel={() => setBannerInteracting(false)}
-              onMouseEnter={() => { setBannerInteracting(true); bannerPauseUntilRef.current = Date.now() + 6000; }}
+              onMouseEnter={() => { setBannerInteracting(true); bannerPauseUntilRef.current = Date.now() + 6000; bannerPauseUntilRef.current = Date.now() + 6000; }}
               onMouseLeave={() => setBannerInteracting(false)}
             >
               {banners.map((b) => {
