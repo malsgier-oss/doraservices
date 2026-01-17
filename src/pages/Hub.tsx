@@ -374,7 +374,6 @@ export default function Hub() {
   // Banner carousel: auto-advance but still swipe/scroll manually.
   const bannerRowRef = useRef<HTMLDivElement | null>(null);
   const [bannerIndex, setBannerIndex] = useState(0);
-  const [bannerInteracting, setBannerInteracting] = useState(false);
   const bannerPauseUntilRef = useRef<number>(0);
   const bannerScrollRaf = useRef<number | null>(null);
 
@@ -444,9 +443,9 @@ export default function Hub() {
   }, []);
 
   return (
-    <div className={`min-h-screen bg-background pb-20 ${isRTL ? "rtl" : ""}`}>
+    <div className={`min-h-screen bg-background pb-20 overflow-x-hidden ${isRTL ? "rtl" : ""}`}>
       {/* Sticky top: Header + Search/City + Chips */}
-      <div className="sticky top-0 left-0 right-0 w-full left-0 right-0 w-full z-40 bg-background pt-4 space-y-4 pb-3 border-b border-border">
+      <div className="sticky top-0 left-0 right-0 w-full z-40 bg-background pt-4 space-y-4 pb-3 border-b border-border">
         <div className="mx-auto max-w-3xl px-4">
           {/* Header */}
           <div className="flex items-center justify-between gap-3">
@@ -570,16 +569,19 @@ export default function Hub() {
           )}
         </div>
 
-        {/* Everything below chips scrolls normally */}
-        <div className="mx-auto max-w-3xl px-4 pt-4 space-y-4">
+      </div>
+
+      {/* Everything below the sticky header scrolls normally */}
+      <div className="mx-auto max-w-3xl px-4 pt-4 space-y-4">
 
         {/* Banner carousel (auto + manual swipe/scroll) */}
         {banners.length > 0 && (
           <div className="space-y-2">
             <div
               ref={bannerRowRef}
-              dir={isRTL ? "rtl" : "ltr"}
-              className={`-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 snap-x snap-mandatory ${banners.length === 1 ? "justify-center" : ""}`}
+              // Carousels are kept LTR even in RTL to avoid reversed scroll quirks on mobile.
+              dir="ltr"
+              className={`flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory ${banners.length === 1 ? "justify-center" : ""}`}
               style={{
                 WebkitOverflowScrolling: "touch" as any,
                 scrollPaddingInline: "16px",
@@ -587,11 +589,12 @@ export default function Hub() {
               }}
               onScroll={handleBannerScroll}
               onPointerDownCapture={(e) => e.stopPropagation()}
-              onPointerDown={() => { setBannerInteracting(true); bannerPauseUntilRef.current = Date.now() + 6000; }}
-              onPointerUp={() => setBannerInteracting(false)}
-              onPointerCancel={() => setBannerInteracting(false)}
-              onMouseEnter={() => { setBannerInteracting(true); bannerPauseUntilRef.current = Date.now() + 6000; }}
-              onMouseLeave={() => setBannerInteracting(false)}
+              onPointerDown={() => {
+                bannerPauseUntilRef.current = Date.now() + 6000;
+              }}
+              onMouseEnter={() => {
+                bannerPauseUntilRef.current = Date.now() + 6000;
+              }}
             >
               {banners.map((b) => {
                 const url = publicUrlsById[b.id];
@@ -599,7 +602,8 @@ export default function Hub() {
                 return (
                   <button
                     key={b.id}
-                    className={`shrink-0 w-[88%] md:w-[70%] rounded-xl overflow-hidden border bg-card snap-center ${clickable ? "cursor-pointer" : "cursor-default"}`}
+                    // 92% ensures the first/last banner can still center nicely with 16px padding.
+                    className={`shrink-0 w-[92%] md:w-[70%] rounded-xl overflow-hidden border bg-card snap-center ${clickable ? "cursor-pointer" : "cursor-default"}`}
                     style={{ scrollSnapAlign: "center" }}
                     onClick={() => {
                       if (b.target_type === "none") return;
@@ -634,7 +638,10 @@ export default function Hub() {
                     key={b.id}
                     aria-label={`Banner ${i + 1}`}
                     className={`h-2 w-2 rounded-full transition ${i === bannerIndex ? "bg-foreground" : "bg-muted-foreground/30"}`}
-                    onClick={() => setBannerIndex(i)}
+                    onClick={() => {
+                      bannerPauseUntilRef.current = Date.now() + 6000;
+                      setBannerIndex(i);
+                    }}
                   />
                 ))}
               </div>
@@ -677,7 +684,7 @@ export default function Hub() {
             <div className="text-base font-semibold">{t("الخدمات المميزة", "Featured services")}</div>
             <div
               dir={isRTL ? "rtl" : "ltr"}
-              className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2"
+              className="flex gap-3 overflow-x-auto pb-2"
               style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any }}
             >
               {featuredSubcats.map((sc) => {
@@ -724,7 +731,7 @@ export default function Hub() {
 
                   <div
                     dir={isRTL ? "rtl" : "ltr"}
-                    className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2"
+                    className="flex gap-3 overflow-x-auto pb-2"
                     style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any }}
                   >
                       {subcats.map((sc) => {
@@ -781,7 +788,7 @@ export default function Hub() {
 
                 <div
                   dir={isRTL ? "rtl" : "ltr"}
-                  className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2"
+                  className="flex gap-3 overflow-x-auto pb-2"
                   style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any }}
                 >
                     {subcats.map((s) => {
@@ -840,7 +847,6 @@ export default function Hub() {
             <a className="hover:text-foreground" href="/terms">{t("الشروط", "Terms")}</a>
             <a className="hover:text-foreground" href="/privacy">{t("الخصوصية", "Privacy")}</a>
           </div>
-        </div>
         </div>
       </div>
 
