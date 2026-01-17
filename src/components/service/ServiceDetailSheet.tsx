@@ -116,7 +116,7 @@ function writeLocalFavorites(next: Set<string>) {
   }
 }
 
-export default function ServiceDetailSheet({
+export function ServiceDetailSheet({
   open,
   onOpenChange,
   service,
@@ -361,3 +361,6 @@ export default function ServiceDetailSheet({
     </Drawer>
   );
 }
+
+// Keep default export for backward compatibility (some files may import default).
+export default ServiceDetailSheet;
