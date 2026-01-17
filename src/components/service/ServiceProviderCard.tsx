@@ -83,7 +83,9 @@ export function ServiceProviderCard(props: ServiceProviderCardProps) {
   const tt = t as any;
 
   const initials = useMemo(() => toInitials(providerName), [providerName]);
-  const gallery = useMemo(() => (images || []).filter(Boolean).slice(0, 5), [images]);
+  // Confirmed product decision: ProviderCard shows ONLY 1 image (cover).
+  // The full set (up to 5) is shown in the Service Detail Sheet.
+  const coverImage = useMemo(() => (images || []).filter(Boolean)[0] || "", [images]);
 
   const locationText = useMemo(() => {
     const c = (city || "").trim();
@@ -93,7 +95,6 @@ export function ServiceProviderCard(props: ServiceProviderCardProps) {
   }, [city, subCity]);
 
   const [viewerOpen, setViewerOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
 
   const hasReviews = reviewTexts.filter(Boolean).length > 0;
   const [tickerIndex, setTickerIndex] = useState<number>(0);
@@ -122,10 +123,7 @@ export function ServiceProviderCard(props: ServiceProviderCardProps) {
   const tel = useMemo(() => normalizePhoneForTel(providerPhone), [providerPhone]);
   const wa = useMemo(() => normalizePhoneForWhatsApp(providerPhone), [providerPhone]);
 
-  const openViewer = (idx: number) => {
-    setActiveIndex(idx);
-    setViewerOpen(true);
-  };
+  const openViewer = () => setViewerOpen(true);
 
   const currentReview = useMemo(() => {
     const valid = reviewTexts.filter(Boolean);
@@ -141,30 +139,24 @@ export function ServiceProviderCard(props: ServiceProviderCardProps) {
 
   return (
     <div className="bg-card rounded-2xl shadow-card animate-fade-in overflow-hidden">
-      {/* Top Gallery */}
+      {/* Cover image (ProviderCard shows ONLY 1 image) */}
       <div className="relative">
-        {gallery.length > 0 ? (
-          <div className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth">
-            {gallery.map((src, idx) => (
-              <button
-                key={`${src}-${idx}`}
-                type="button"
-                onClick={() => openViewer(idx)}
-                className="w-full shrink-0 snap-center focus:outline-none"
-                aria-label={tt?.common?.viewImage ?? "View image"}
-              >
-                <div className="h-44 w-full bg-muted">
-                  {/* eslint-disable-next-line @typescript-eslint/no-misused-promises */}
-                  <img
-                    src={src}
-                    alt={tt?.common?.image ?? "Image"}
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                  />
-                </div>
-              </button>
-            ))}
-          </div>
+        {coverImage ? (
+          <button
+            type="button"
+            onClick={openViewer}
+            className="w-full focus:outline-none"
+            aria-label={tt?.common?.viewImage ?? "View image"}
+          >
+            <div className="h-44 w-full bg-muted">
+              <img
+                src={coverImage}
+                alt={tt?.common?.image ?? "Image"}
+                className="h-full w-full object-cover"
+                loading="lazy"
+              />
+            </div>
+          </button>
         ) : (
           // Placeholder banner (keeps layout stable)
           <div className="h-44 w-full bg-muted flex items-center justify-center">
@@ -182,19 +174,6 @@ export function ServiceProviderCard(props: ServiceProviderCardProps) {
                 </p>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Dots */}
-        {gallery.length > 1 && (
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
-            {gallery.map((_, i) => (
-              <span
-                key={i}
-                className="h-1.5 w-1.5 rounded-full bg-background/80"
-                aria-hidden="true"
-              />
-            ))}
           </div>
         )}
       </div>
@@ -316,32 +295,13 @@ export function ServiceProviderCard(props: ServiceProviderCardProps) {
               <X className="h-5 w-5" />
             </button>
 
-            {gallery.length > 0 && (
+            {coverImage && (
               <div className="w-full">
                 <img
-                  src={gallery[activeIndex]}
+                  src={coverImage}
                   alt={tt?.common?.image ?? "Image"}
                   className="h-[75vh] w-full object-contain"
                 />
-
-                {/* Simple thumb strip */}
-                {gallery.length > 1 && (
-                  <div className="flex gap-2 overflow-x-auto p-3 bg-black/70">
-                    {gallery.map((src, idx) => (
-                      <button
-                        key={`thumb-${src}-${idx}`}
-                        type="button"
-                        onClick={() => setActiveIndex(idx)}
-                        className={`h-14 w-20 shrink-0 overflow-hidden rounded-md border ${
-                          idx === activeIndex ? "border-white" : "border-transparent"
-                        }`}
-                        aria-label={(tt?.common?.viewImage ?? "View image") + ` ${idx + 1}`}
-                      >
-                        <img src={src} alt="" className="h-full w-full object-cover" />
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
             )}
           </div>
