@@ -475,58 +475,38 @@ export function ServiceDetailSheet({
                           else setSelectedProvider(p);
                         }
                       }}
-                      className="w-[94%] mx-auto rounded-2xl border bg-card p-4 shadow-sm cursor-pointer hover:bg-accent/20 transition-colors"
+                      className="w-full rounded-lg border bg-card p-3 shadow-sm cursor-pointer hover:bg-accent/20 transition-colors"
                     >
-                      {/* RTL row with thumbnail on the RIGHT */}
-                      <div className="flex flex-row-reverse items-start gap-3">
-                        {/* Thumbnail */}
+                      {/* OpenSooq-style row: image on RIGHT, dense text on LEFT */}
+                      <div className="flex flex-row-reverse items-start gap-3" dir="rtl">
                         <div className="shrink-0">
-                          <div className="h-[70px] w-[90px] rounded-lg overflow-hidden border bg-muted">
+                          <div className="h-[84px] w-[84px] rounded-md overflow-hidden border bg-muted">
                             {thumb ? (
-                              <img
-                                src={thumb}
-                                alt=""
-                                loading="lazy"
-                                className="h-full w-full object-cover"
-                              />
+                              <img src={thumb} alt="" loading="lazy" className="h-full w-full object-cover" />
                             ) : (
                               <div className="h-full w-full" />
                             )}
                           </div>
                         </div>
 
-                        {/* Text block */}
                         <div className="flex-1 min-w-0 text-right">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <div className="font-semibold truncate">
-                                {p.provider_name || p.title || "مزود"}
-                              </div>
-                              <div className="text-sm text-muted-foreground mt-0.5">
-                                {ratingText}
-                              </div>
-                            </div>
-
-                            <ChevronRight className="h-5 w-5 text-muted-foreground mt-1" />
+                          <div className="font-semibold truncate">
+                            {p.provider_name || "مزود"}
                           </div>
 
-                          {p.description && (
-                            <div className="text-sm text-muted-foreground mt-2 line-clamp-1">
-                              {p.description}
-                            </div>
-                          )}
+                          <div className="mt-1 text-sm text-muted-foreground line-clamp-1">
+                            {p.title || p.description || ""}
+                          </div>
 
-                          <div className="mt-3 flex items-center justify-end gap-2 text-sm text-muted-foreground">
-                            {!!p.sub_city && <span>{p.sub_city}</span>}
-                            {!!p.city && (
-                              <span className={p.sub_city ? "opacity-70" : ""}>
-                                {p.city}
-                              </span>
-                            )}
+                          <div className="mt-2 flex items-center justify-between gap-2 text-sm text-muted-foreground">
+                            <div className="min-w-0 truncate">
+                              {[p.city, p.sub_city].filter(Boolean).join(" • ")}
+                            </div>
+                            <div className="shrink-0">{ratingText}</div>
                           </div>
 
                           {p.price != null && (
-                            <div className="mt-2 text-sm font-medium text-muted-foreground">
+                            <div className="mt-1 text-sm font-medium text-foreground">
                               {p.price} د.ل
                             </div>
                           )}
@@ -544,12 +524,33 @@ export function ServiceDetailSheet({
         {isDetailOpen && selectedProvider && (
           <div className="flex-1 overflow-y-auto">
             <div className="px-4 py-4 pb-10">
-              <div className="rounded-2xl border bg-card p-4">
-                {/* Gallery (no hero image) */}
-                <div className="-mx-4 px-4">
+              <div className="rounded-lg border bg-card p-4" dir="rtl">
+                {/* OpenSooq-style: info first, then small thumbnails row */}
+                <div className="text-right">
+                  <div className="text-lg font-bold leading-tight">
+                    {selectedProvider.provider_name || "مزود"}
+                  </div>
+
+                  <div className="mt-1 text-sm text-muted-foreground">
+                    {selectedProvider.title || service.categoryNameAr || service.categoryName || service.category || ""}
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between gap-2 text-sm text-muted-foreground">
+                    <div className="min-w-0 truncate">
+                      {[selectedProvider.city, selectedProvider.sub_city].filter(Boolean).join(" • ")}
+                    </div>
+                    <div className="shrink-0">
+                      {(ratings?.[selectedProvider.id]?.average_rating ?? 0) > 0
+                        ? `${(ratings[selectedProvider.id].average_rating ?? 0).toFixed(1)} ★ (${ratings[selectedProvider.id].total_reviews ?? 0})`
+                        : "بدون تقييم"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Thumbnails */}
+                <div className="mt-4 -mx-4 px-4">
                   <div
-                    className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory touch-pan-x"
-                    dir="rtl"
+                    className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4"
                     style={{ WebkitOverflowScrolling: "touch" as any }}
                     onPointerDown={(e) => e.stopPropagation()}
                   >
@@ -565,7 +566,7 @@ export function ServiceDetailSheet({
                         className="shrink-0"
                         aria-label="عرض الصورة"
                       >
-                        <div className="h-28 w-44 rounded-xl overflow-hidden border bg-muted">
+                        <div className="h-[72px] w-[72px] rounded-md overflow-hidden border bg-muted">
                           {src ? (
                             <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" />
                           ) : (
@@ -577,38 +578,18 @@ export function ServiceDetailSheet({
                   </div>
                 </div>
 
-                {/* Header */}
-                <div className="mt-4 text-right" dir="rtl">
-                  <div className="text-xl font-semibold leading-tight">
-                    {selectedProvider.provider_name || selectedProvider.title || "مزود"}
+                {/* Price */}
+                {typeof selectedProvider.price === "number" && selectedProvider.price > 0 && (
+                  <div className="mt-2 text-sm font-semibold text-foreground text-right">
+                    السعر: {selectedProvider.price} د.ل
                   </div>
+                )}
 
-                  {/* Rating under name */}
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    {(ratings?.[selectedProvider.id]?.average_rating ?? 0) > 0
-                      ? `${(ratings[selectedProvider.id].average_rating ?? 0).toFixed(1)} ★ (${ratings[selectedProvider.id].total_reviews ?? 0})`
-                      : "بدون تقييم"}
-                  </div>
-
-                  {/* Location */}
-                  {(selectedProvider.sub_city || selectedProvider.city) && (
-                    <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
-                      {!!selectedProvider.sub_city && <Badge variant="secondary">{selectedProvider.sub_city}</Badge>}
-                      {!!selectedProvider.city && <Badge variant="secondary">{selectedProvider.city}</Badge>}
-                    </div>
-                  )}
-
-                  {/* Price (only if provider added it) */}
-                  {typeof selectedProvider.price === "number" && selectedProvider.price > 0 && (
-                    <div className="mt-3 text-base font-semibold">
-                      {selectedProvider.price} د.ل
-                    </div>
-                  )}
-                </div>
-
+                {/* Description */}
                 {selectedProvider.description && (
-                  <div className="mt-4 text-sm text-right" dir="rtl">
-                    {selectedProvider.description}
+                  <div className="mt-3 text-sm text-right">
+                    <div className="font-semibold mb-1">الوصف</div>
+                    <div className="text-muted-foreground whitespace-pre-wrap">{selectedProvider.description}</div>
                   </div>
                 )}
 
@@ -644,20 +625,9 @@ export function ServiceDetailSheet({
                 </div>
               </div>
 
-              <div className="sticky bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t border-border px-4 py-3">
+              <div className="sticky bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t border-border px-4 py-3" dir="rtl">
                 <div className="grid grid-cols-2 gap-3">
                   <Button
-                    onClick={() => {
-                      logContactEvent(selectedProvider.id, "call");
-                      openTel(selectedProvider.provider_phone);
-                    }}
-                  >
-                    <Phone className="h-4 w-4 ml-1" />
-                    اتصال
-                  </Button>
-
-                  <Button
-                    variant="secondary"
                     onClick={() => {
                       logContactEvent(selectedProvider.id, "whatsapp");
                       openWhatsApp(selectedProvider.provider_phone);
@@ -665,6 +635,17 @@ export function ServiceDetailSheet({
                   >
                     <MessageCircle className="h-4 w-4 ml-1" />
                     واتساب
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      logContactEvent(selectedProvider.id, "call");
+                      openTel(selectedProvider.provider_phone);
+                    }}
+                  >
+                    <Phone className="h-4 w-4 ml-1" />
+                    اتصال
                   </Button>
                 </div>
               </div>

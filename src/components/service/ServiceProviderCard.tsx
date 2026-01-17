@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import { MessageCircle, Phone, Star, X } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -64,7 +63,6 @@ function normalizePhoneForWhatsApp(phone?: string): string | null {
 export function ServiceProviderCard(props: ServiceProviderCardProps) {
   const {
     providerName,
-    providerAvatar,
     serviceTitle,
     city,
     subCity,
@@ -99,16 +97,16 @@ export function ServiceProviderCard(props: ServiceProviderCardProps) {
   const [viewerOpen, setViewerOpen] = useState(false);
 
   return (
-    <div className="bg-card rounded-2xl shadow-card animate-fade-in overflow-hidden">
-      <div className="p-4">
-        {/* Top row: photo on the RIGHT, text to its left (RTL-friendly) */}
-        <div className="flex flex-row-reverse items-start gap-4" dir="rtl">
-          {/* Photo */}
+    // OpenSooq-style: image on RIGHT, dense readable text on LEFT, no extra decoration.
+    <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
+      <div className="p-3" dir="rtl">
+        <div className="flex flex-row-reverse items-start gap-3">
+          {/* Photo (RIGHT) */}
           <div className="shrink-0">
             <button
               type="button"
               onClick={() => cover && setViewerOpen(true)}
-              className="relative h-[92px] w-[118px] sm:h-[100px] sm:w-[132px] rounded-xl overflow-hidden border bg-muted focus:outline-none"
+              className="relative h-[104px] w-[104px] rounded-lg overflow-hidden border bg-muted focus:outline-none"
               aria-label={tt?.common?.viewImage ?? "View image"}
             >
               {cover ? (
@@ -120,95 +118,78 @@ export function ServiceProviderCard(props: ServiceProviderCardProps) {
                 />
               ) : (
                 <div className="h-full w-full flex items-center justify-center">
-                  <Avatar className="h-12 w-12 ring-2 ring-muted-foreground/20">
-                    <AvatarImage src={providerAvatar} alt={providerName} />
-                    <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
-                      {initials}
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="h-12 w-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold">
+                    {initials}
+                  </div>
                 </div>
               )}
             </button>
           </div>
 
-          {/* Text */}
+          {/* Text (LEFT) */}
           <div className="flex-1 min-w-0 text-right">
-            {/* Provider name + avatar */}
-            <div className="flex flex-row-reverse items-start gap-3">
-              <Avatar className="h-10 w-10 ring-2 ring-muted">
-                <AvatarImage src={providerAvatar} alt={providerName} />
-                <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-foreground truncate">{providerName}</h3>
-
-                {/* Rating under the name */}
-                {rating > 0 && (
-                  <div className="mt-1 flex items-center justify-end gap-1.5 text-sm">
-                    <Star className="h-4 w-4 fill-star text-star" />
-                    <span className="font-medium text-foreground">{rating.toFixed(1)}</span>
-                  </div>
-                )}
-              </div>
+            <div className="font-bold text-base leading-tight truncate">{providerName}</div>
+            <div className="mt-1 text-sm text-muted-foreground line-clamp-2">
+              {serviceTitle}
             </div>
 
-            {/* Service description (2 lines) */}
-            <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
-              {serviceTitle}
-            </p>
+            <div className="mt-2 flex items-center justify-between gap-2 text-sm text-muted-foreground">
+              <div className="min-w-0 truncate">{locationText || ""}</div>
+              {rating > 0 ? (
+                <div className="shrink-0 flex items-center gap-1">
+                  <Star className="h-4 w-4" />
+                  <span className="font-medium text-foreground">{rating.toFixed(1)}</span>
+                </div>
+              ) : null}
+            </div>
 
-            {/* Location */}
-            {locationText && (
-              <div className="mt-2 text-sm text-muted-foreground truncate">{locationText}</div>
-            )}
-
-            {/* Price (only if provider added it) */}
             {showPrice && (
               <div className="mt-2 text-sm font-semibold text-foreground">
                 {price} {tt?.common?.currency ?? ""}
               </div>
             )}
+
+            <div className="mt-3 flex items-center justify-end gap-2">
+              <Button
+                asChild
+                size="sm"
+                variant="secondary"
+                className="h-9 rounded-md px-3"
+                disabled={!wa}
+                title={!wa ? (tt?.services?.noPhone ?? "No phone") : undefined}
+              >
+                <a href={wa ? `https://wa.me/${wa}` : undefined} target="_blank" rel="noreferrer">
+                  <MessageCircle className="h-4 w-4 ml-1" />
+                  {tt?.services?.whatsapp ?? "WhatsApp"}
+                </a>
+              </Button>
+
+              <Button
+                asChild
+                size="sm"
+                variant="outline"
+                className="h-9 rounded-md px-3"
+                disabled={!tel}
+                title={!tel ? (tt?.services?.noPhone ?? "No phone") : undefined}
+              >
+                <a href={tel ? `tel:${tel}` : undefined}>
+                  <Phone className="h-4 w-4 ml-1" />
+                  {tt?.services?.call ?? "Call"}
+                </a>
+              </Button>
+            </div>
+
+            {detailsAction && (
+              <button
+                type="button"
+                onClick={detailsAction}
+                className="mt-2 text-sm text-primary underline underline-offset-2"
+              >
+                {tt?.common?.details ?? "Details"}
+              </button>
+            )}
           </div>
         </div>
-
-        {/* Actions */}
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <Button
-            asChild
-            className="rounded-full"
-            disabled={!tel}
-            title={!tel ? (tt?.services?.noPhone ?? "No phone") : undefined}
-          >
-            <a href={tel ? `tel:${tel}` : undefined}>
-              <Phone className="h-4 w-4" />
-              <span className="ml-2">{tt?.services?.call ?? "Call"}</span>
-            </a>
-          </Button>
-
-          <Button
-            asChild
-            variant="outline"
-            className="rounded-full"
-            disabled={!wa}
-            title={!wa ? (tt?.services?.noPhone ?? "No phone") : undefined}
-          >
-            <a href={wa ? `https://wa.me/${wa}` : undefined} target="_blank" rel="noreferrer">
-              <MessageCircle className="h-4 w-4" />
-              <span className="ml-2">{tt?.services?.whatsapp ?? "WhatsApp"}</span>
-            </a>
-          </Button>
-        </div>
-
-        {detailsAction && (
-          <div className="mt-3">
-            <Button onClick={detailsAction} variant="ghost" className="w-full rounded-full">
-              {tt?.common?.details ?? "Details"}
-            </Button>
-          </div>
-        )}
       </div>
 
       {/* Full-screen viewer (cover only) */}
