@@ -429,7 +429,7 @@ export default function Hub() {
     <div className={`min-h-screen bg-background pb-20 ${isRTL ? "rtl" : ""}`}>
       <div className="mx-auto max-w-3xl px-4">
         {/* Sticky top: Header + Search/City + Chips */}
-        <div className="sticky top-0 z-40 bg-background pt-4 space-y-4 pb-3 border-b border-border">
+        <div className="sticky top-0 left-0 right-0 w-full z-40 bg-background pt-4 space-y-4 pb-3 border-b border-border">
           {/* Header */}
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -460,7 +460,7 @@ export default function Hub() {
 	          {activeAnnouncement && (
 	            <div className="rounded-2xl border border-border bg-muted/30 px-4 py-3">
 	              <div className="font-semibold">{activeAnnouncement.title}</div>
-	              <div className="text-sm text-muted-foreground">{activeAnnouncement.message}</div>
+	              <div className="text-sm text-muted-foreground">📢 {activeAnnouncement.message}</div>
 	            </div>
 	          )}
 
