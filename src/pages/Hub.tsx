@@ -364,6 +364,7 @@ export default function Hub() {
   const [bannerIndex, setBannerIndex] = useState(0);
   const [bannerInteracting, setBannerInteracting] = useState(false);
   const bannerScrollRaf = useRef<number | null>(null);
+  const bannerIdleTimer = useRef<number | null>(null);
 
   // Keep bannerIndex in range when banners change.
   useEffect(() => {
@@ -399,6 +400,11 @@ export default function Hub() {
       const el = bannerRowRef.current;
       if (!el) return;
 
+      // Consider any scroll as user interaction; resume autoplay shortly after scroll stops.
+      setBannerInteracting(true);
+      if (bannerIdleTimer.current) window.clearTimeout(bannerIdleTimer.current);
+      bannerIdleTimer.current = window.setTimeout(() => setBannerInteracting(false), 900);
+
       const containerRect = el.getBoundingClientRect();
       const targetX = isRTL ? containerRect.right : containerRect.left;
 
@@ -422,14 +428,15 @@ export default function Hub() {
   useEffect(() => {
     return () => {
       if (bannerScrollRaf.current) window.cancelAnimationFrame(bannerScrollRaf.current);
+      if (bannerIdleTimer.current) window.clearTimeout(bannerIdleTimer.current);
     };
   }, []);
 
   return (
     <div className={`min-h-screen bg-background pb-20 ${isRTL ? "rtl" : ""}`}>
-      <div className="mx-auto max-w-3xl px-4">
-        {/* Sticky top: Header + Search/City + Chips */}
-        <div className="sticky top-0 left-0 right-0 w-full z-40 bg-background pt-4 space-y-4 pb-3 border-b border-border">
+      {/* Sticky top: Header + Search/City + Chips */}
+      <div className="sticky top-0 left-0 right-0 w-full z-40 bg-background border-b border-border">
+        <div className="mx-auto max-w-3xl px-4 pt-4 space-y-4 pb-3">
           {/* Header */}
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -459,8 +466,10 @@ export default function Hub() {
 
 	          {activeAnnouncement && (
 	            <div className="rounded-2xl border border-border bg-muted/30 px-4 py-3">
-	              <div className="font-semibold">{activeAnnouncement.title}</div>
-	              <div className="text-sm text-muted-foreground">📢 {activeAnnouncement.message}</div>
+		              <div className="flex items-center gap-2 text-sm">
+  <span className="text-muted-foreground" aria-hidden>📢</span>
+  <span className="text-muted-foreground">{activeAnnouncement.message}</span>
+</div>
 	            </div>
 	          )}
 
@@ -560,7 +569,9 @@ export default function Hub() {
             </ScrollArea>
           )}
         </div>
+      </div>
 
+      <div className="mx-auto max-w-3xl px-4">
         {/* Everything below chips scrolls normally */}
         <div className="pt-4 space-y-4">
 
@@ -576,6 +587,9 @@ export default function Hub() {
               onPointerDown={() => setBannerInteracting(true)}
               onPointerUp={() => setBannerInteracting(false)}
               onPointerCancel={() => setBannerInteracting(false)}
+              onTouchStart={() => setBannerInteracting(true)}
+              onTouchEnd={() => setBannerInteracting(false)}
+              onTouchCancel={() => setBannerInteracting(false)}
               onMouseEnter={() => setBannerInteracting(true)}
               onMouseLeave={() => setBannerInteracting(false)}
             >
