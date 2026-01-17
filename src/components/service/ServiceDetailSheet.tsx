@@ -42,6 +42,8 @@ export type ServiceProvider = {
   provider_name?: string | null;
   provider_phone?: string | null;
   image_url?: string | null;
+  // New (P0): service_images table (up to 5). Not in generated types yet.
+  service_images?: { url: string; position: number }[] | null;
   price?: number | null;
   user_id?: string | null;
   is_active?: boolean | null;
@@ -90,30 +92,34 @@ function normalizePhone(phone?: string | null) {
   return phone.replace(/\s+/g, "").trim();
 }
 
-function getThumbUrl(image_url?: string | null): string | null {
-  const raw = (image_url || "").trim();
-  if (!raw) return null;
+function getCoverFromImages(p: ServiceProvider): string | null {
+  const imgs = (p.service_images || []).slice().sort((a, b) => (a.position ?? 999) - (b.position ?? 999));
+  const cover = imgs.find((x) => x.position === 1)?.url || imgs[0]?.url;
+  if (cover) return String(cover).trim() || null;
 
-  // Some environments store a JSON array of URLs in image_url.
+  // Backward compat: some data still uses services.image_url
+  const raw = (p.image_url || "").trim();
+  return raw || null;
+}
+
+function getGalleryFromImages(p: ServiceProvider): string[] {
+  const imgs = (p.service_images || []).slice().sort((a, b) => (a.position ?? 999) - (b.position ?? 999));
+  const urls = imgs.map((x) => String(x.url || "").trim()).filter(Boolean);
+  if (urls.length) return urls.slice(0, 5);
+
+  // Backward compat: sometimes image_url stores JSON array / CSV
+  const raw = (p.image_url || "").trim();
+  if (!raw) return [];
   if (raw.startsWith("[") && raw.endsWith("]")) {
     try {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        const first = String(parsed[0] ?? "").trim();
-        return first || null;
-      }
+      if (Array.isArray(parsed)) return parsed.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 5);
     } catch {
-      // ignore
+      return [];
     }
   }
-
-  // Or comma-separated list.
-  if (raw.includes(",")) {
-    const first = raw.split(",")[0]?.trim();
-    return first || null;
-  }
-
-  return raw;
+  if (raw.includes(",")) return raw.split(",").map((x) => x.trim()).filter(Boolean).slice(0, 5);
+  return [raw];
 }
 
 function readLocalFavorites(): Set<string> {
@@ -250,7 +256,7 @@ export function ServiceDetailSheet({
           .from("services")
           .select(
             // Keep this aligned with generated Supabase types.
-            "id,title,description,category,city,sub_city,provider_name,provider_phone,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count"
+            "id,title,description,category,city,sub_city,provider_name,provider_phone,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count,service_images(url,position)"
           )
           .order("is_featured", { ascending: false })
           .order("views_count", { ascending: false });
@@ -307,13 +313,14 @@ export function ServiceDetailSheet({
           provider_name: r.provider_name ?? null,
           provider_phone: r.provider_phone ?? null,
           image_url: r.image_url ?? null,
-          // This repo schema has only image_url.
-          image_urls: null,
+          service_images: Array.isArray(r.service_images)
+            ? r.service_images.map((x: any) => ({ url: x.url, position: x.position }))
+            : null,
+          price: r.price ?? null,
           is_active: r.is_active ?? null,
           is_visible: r.is_visible ?? null,
           is_paused: r.is_paused ?? null,
           is_featured: r.is_featured ?? null,
-          is_verified: null,
           approval_status: r.approval_status ?? null,
           views_count: r.views_count ?? null,
         }));
@@ -414,7 +421,7 @@ export function ServiceDetailSheet({
                 ) : null}
 
                 {listProviders.map((p) => {
-                  const thumb = getThumbUrl(p.image_url);
+                  const thumb = getCoverFromImages(p);
                   const rating = ratings.get(p.id);
                   const ratingText = rating?.averageRating
                     ? `★ ${rating.averageRating}`
@@ -508,6 +515,25 @@ export function ServiceDetailSheet({
           <ScrollArea className="flex-1">
             <div className="px-4 py-4 pb-10">
               <div className="rounded-lg border p-4 bg-card">
+                {/* Gallery (up to 5). ProviderCard stays 1 image; details show all. */}
+                {getGalleryFromImages(selectedProvider).length > 0 && (
+                  <div className="mb-4">
+                    <div className="flex gap-2 overflow-x-auto scroll-smooth">
+                      {getGalleryFromImages(selectedProvider).map((src, idx) => (
+                        <div
+                          key={`${src}-${idx}`}
+                          className={cn(
+                            "h-24 w-32 shrink-0 rounded-lg overflow-hidden border bg-muted",
+                            idx === 0 && "ring-2 ring-primary/40"
+                          )}
+                        >
+                          <img src={src} alt="" loading="lazy" className="h-full w-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="text-lg font-semibold truncate">
                   {selectedProvider.provider_name}
                 </div>
