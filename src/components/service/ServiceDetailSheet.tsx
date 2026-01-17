@@ -5,7 +5,6 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -24,6 +23,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useServiceRatings } from "@/hooks/useReviews";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 /**
  * ServiceDetailSheet
@@ -45,8 +45,6 @@ export type ServiceProvider = {
   provider_name?: string | null;
   provider_phone?: string | null;
   image_url?: string | null;
-  // New (P0): service_images table (up to 5). Not in generated types yet.
-  service_images?: { url: string; position: number }[] | null;
   price?: number | null;
   user_id?: string | null;
   is_active?: boolean | null;
@@ -95,34 +93,30 @@ function normalizePhone(phone?: string | null) {
   return phone.replace(/\s+/g, "").trim();
 }
 
-function getCoverFromImages(p: ServiceProvider): string | null {
-  const imgs = (p.service_images || []).slice().sort((a, b) => (a.position ?? 999) - (b.position ?? 999));
-  const cover = imgs.find((x) => x.position === 1)?.url || imgs[0]?.url;
-  if (cover) return String(cover).trim() || null;
+function getThumbUrl(image_url?: string | null): string | null {
+  const raw = (image_url || "").trim();
+  if (!raw) return null;
 
-  // Backward compat: some data still uses services.image_url
-  const raw = (p.image_url || "").trim();
-  return raw || null;
-}
-
-function getGalleryFromImages(p: ServiceProvider): string[] {
-  const imgs = (p.service_images || []).slice().sort((a, b) => (a.position ?? 999) - (b.position ?? 999));
-  const urls = imgs.map((x) => String(x.url || "").trim()).filter(Boolean);
-  if (urls.length) return urls.slice(0, 5);
-
-  // Backward compat: sometimes image_url stores JSON array / CSV
-  const raw = (p.image_url || "").trim();
-  if (!raw) return [];
+  // Some environments store a JSON array of URLs in image_url.
   if (raw.startsWith("[") && raw.endsWith("]")) {
     try {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 5);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const first = String(parsed[0] ?? "").trim();
+        return first || null;
+      }
     } catch {
-      return [];
+      // ignore
     }
   }
-  if (raw.includes(",")) return raw.split(",").map((x) => x.trim()).filter(Boolean).slice(0, 5);
-  return [raw];
+
+  // Or comma-separated list.
+  if (raw.includes(",")) {
+    const first = raw.split(",")[0]?.trim();
+    return first || null;
+  }
+
+  return raw;
 }
 
 function readLocalFavorites(): Set<string> {
@@ -201,9 +195,9 @@ export function ServiceDetailSheet({
   const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
   const [localFavs, setLocalFavs] = useState<Set<string>>(() => new Set());
 
-  // Full-screen image viewer (detail view)
+  const [detailImages, setDetailImages] = useState<string[]>([]);
   const [viewerOpen, setViewerOpen] = useState(false);
-  const [viewerIndex, setViewerIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(0);
 
   const serviceIds = useMemo(() => providers.map((p) => p.id), [providers]);
   const { ratings } = useServiceRatings(serviceIds);
@@ -213,6 +207,37 @@ export function ServiceDetailSheet({
     // Only read localStorage on the client, when the sheet is used.
     setLocalFavs(readLocalFavorites());
   }, [open]);
+
+  // Fetch up to 5 images for the selected provider/service (Service Detail view)
+  useEffect(() => {
+    const run = async () => {
+      if (!open || !selectedProvider?.id) {
+        setDetailImages([]);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("service_images")
+          .select("url, position")
+          .eq("service_id", selectedProvider.id)
+          .order("position", { ascending: true })
+          .limit(5);
+
+        if (error) throw error;
+        const urls = (data || [])
+          .map((r: any) => String(r?.url || "").trim())
+          .filter(Boolean);
+        setDetailImages(urls);
+      } catch {
+        // Fall back to legacy single image_url
+        const thumb = getThumbUrl(selectedProvider.image_url);
+        setDetailImages(thumb ? [thumb] : []);
+      }
+    };
+
+    void run();
+  }, [open, selectedProvider?.id, selectedProvider?.image_url]);
 
   useEffect(() => {
     if (!open) return;
@@ -263,7 +288,7 @@ export function ServiceDetailSheet({
           .from("services")
           .select(
             // Keep this aligned with generated Supabase types.
-            "id,title,description,category,city,sub_city,provider_name,provider_phone,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count,service_images(url,position)"
+            "id,title,description,category,city,sub_city,provider_name,provider_phone,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count"
           )
           .order("is_featured", { ascending: false })
           .order("views_count", { ascending: false });
@@ -320,14 +345,13 @@ export function ServiceDetailSheet({
           provider_name: r.provider_name ?? null,
           provider_phone: r.provider_phone ?? null,
           image_url: r.image_url ?? null,
-          service_images: Array.isArray(r.service_images)
-            ? r.service_images.map((x: any) => ({ url: x.url, position: x.position }))
-            : null,
-          price: r.price ?? null,
+          // This repo schema has only image_url.
+          image_urls: null,
           is_active: r.is_active ?? null,
           is_visible: r.is_visible ?? null,
           is_paused: r.is_paused ?? null,
           is_featured: r.is_featured ?? null,
+          is_verified: null,
           approval_status: r.approval_status ?? null,
           views_count: r.views_count ?? null,
         }));
@@ -382,27 +406,6 @@ export function ServiceDetailSheet({
 
   const isDetailOpen = !!selectedProvider && !onSelectProviderService;
 
-  const detailGallery = useMemo(() => {
-    if (!selectedProvider) return [] as string[];
-    return getGalleryFromImages(selectedProvider);
-  }, [selectedProvider]);
-
-  const openViewerAt = (idx: number) => {
-    const safe = Math.max(0, Math.min(idx, detailGallery.length - 1));
-    setViewerIndex(safe);
-    setViewerOpen(true);
-  };
-
-  const nextImage = () => {
-    if (!detailGallery.length) return;
-    setViewerIndex((prev) => (prev + 1) % detailGallery.length);
-  };
-
-  const prevImage = () => {
-    if (!detailGallery.length) return;
-    setViewerIndex((prev) => (prev - 1 + detailGallery.length) % detailGallery.length);
-  };
-
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       {/* Full-height drawer (A): opens at ~100% height */}
@@ -449,7 +452,7 @@ export function ServiceDetailSheet({
                 ) : null}
 
                 {listProviders.map((p) => {
-                  const thumb = getCoverFromImages(p);
+                  const thumb = getThumbUrl(p.image_url);
                   const rating = ratings.get(p.id);
                   const ratingText = rating?.averageRating
                     ? `★ ${rating.averageRating}`
@@ -473,24 +476,34 @@ export function ServiceDetailSheet({
                           else setSelectedProvider(p);
                         }
                       }}
-                      className="relative w-[94%] mx-auto rounded-2xl border bg-card p-5 shadow-sm cursor-pointer hover:bg-accent/20 transition-colors"
+                      className="w-[94%] mx-auto rounded-2xl border bg-card p-4 shadow-sm cursor-pointer hover:bg-accent/20 transition-colors"
                     >
-                      {/* Rating pinned to TOP-LEFT (as requested) */}
-                      {rating?.averageRating ? (
-                        <div className="absolute left-3 top-3 rounded-full bg-black/60 px-3 py-1 text-white text-sm font-semibold">
-                          ★ {rating.averageRating}
+                      {/* RTL row with thumbnail on the RIGHT */}
+                      <div className="flex flex-row-reverse items-start gap-3">
+                        {/* Thumbnail */}
+                        <div className="shrink-0">
+                          <div className="h-[70px] w-[90px] rounded-lg overflow-hidden border bg-muted">
+                            {thumb ? (
+                              <img
+                                src={thumb}
+                                alt=""
+                                loading="lazy"
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="h-full w-full" />
+                            )}
+                          </div>
                         </div>
-                      ) : null}
-                      {/* RTL row: NAME on the RIGHT, thumbnail next to it */}
-                      <div className="flex items-start gap-4">
-                        {/* Text block (first so it sits on the RIGHT in RTL) */}
+
+                        {/* Text block */}
                         <div className="flex-1 min-w-0 text-right">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <div className="text-base font-semibold truncate">
+                              <div className="font-semibold truncate">
                                 {p.provider_name || p.title || "مزود"}
                               </div>
-                              <div className="text-sm text-muted-foreground mt-1">
+                              <div className="text-sm text-muted-foreground mt-0.5">
                                 {ratingText}
                               </div>
                             </div>
@@ -519,22 +532,6 @@ export function ServiceDetailSheet({
                             </div>
                           )}
                         </div>
-
-                        {/* Thumbnail */}
-                        <div className="shrink-0">
-                          <div className="h-[88px] w-[120px] rounded-xl overflow-hidden border bg-muted">
-                            {thumb ? (
-                              <img
-                                src={thumb}
-                                alt=""
-                                loading="lazy"
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <div className="h-full w-full" />
-                            )}
-                          </div>
-                        </div>
                       </div>
                     </div>
                   );
@@ -548,93 +545,73 @@ export function ServiceDetailSheet({
         {isDetailOpen && selectedProvider && (
           <ScrollArea className="flex-1">
             <div className="px-4 py-4 pb-10">
-              <div className="rounded-2xl border p-5 bg-card">
-                {/* Gallery (up to 5) — scrollable + clickable full view */}
-                {detailGallery.length > 0 ? (
-                  <div className="mb-5">
-                    {/* Main image */}
-                    <button
-                      type="button"
-                      onClick={() => openViewerAt(0)}
-                      className="w-full focus:outline-none"
-                      aria-label="عرض الصور"
-                    >
-                      <div className="h-56 w-full rounded-2xl overflow-hidden border bg-muted">
-                        <img
-                          src={detailGallery[0]}
-                          alt=""
-                          loading="lazy"
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                    </button>
-
-                    {/* Thumbnails (horizontal scroll) */}
-                    {detailGallery.length > 1 && (
-                      <div className="mt-3 -mx-1 px-1">
-                        <div className="flex gap-2 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-1">
-                          {detailGallery.map((src, idx) => (
-                            <button
-                              key={`${src}-${idx}`}
-                              type="button"
-                              onClick={() => openViewerAt(idx)}
-                              className={cn(
-                                "h-20 w-28 shrink-0 rounded-xl overflow-hidden border bg-muted snap-start focus:outline-none",
-                                idx === 0 && "ring-2 ring-primary/40"
-                              )}
-                              aria-label={`صورة ${idx + 1}`}
-                            >
-                              <img src={src} alt="" loading="lazy" className="h-full w-full object-cover" />
-                            </button>
-                          ))}
+              <div className="rounded-2xl border bg-card p-4">
+                {/* Gallery (no hero image) */}
+                <div className="-mx-4 px-4">
+                  <div className="flex gap-3 overflow-x-auto pb-2" dir="rtl">
+                    {(detailImages.length ? detailImages : [null]).map((src, idx) => (
+                      <button
+                        key={src ? `${src}-${idx}` : `ph-${idx}`}
+                        type="button"
+                        onClick={() => {
+                          if (!src) return;
+                          setActiveIndex(idx);
+                          setViewerOpen(true);
+                        }}
+                        className="shrink-0"
+                        aria-label="عرض الصورة"
+                      >
+                        <div className="h-24 w-36 rounded-xl overflow-hidden border bg-muted">
+                          {src ? (
+                            <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" />
+                          ) : (
+                            <div className="h-full w-full" />
+                          )}
                         </div>
-                      </div>
-                    )}
+                      </button>
+                    ))}
                   </div>
-                ) : null}
+                </div>
 
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-lg font-semibold truncate">
-                      {selectedProvider.provider_name}
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {(selectedProvider.sub_city || selectedProvider.city) && (
-                        <Badge variant="secondary" className="rounded-full">
-                          {[selectedProvider.city, selectedProvider.sub_city].filter(Boolean).join(" • ")}
-                        </Badge>
-                      )}
-                      {selectedProvider.price != null && (
-                        <Badge className="rounded-full">{selectedProvider.price} د.ل</Badge>
-                      )}
-                    </div>
+                {/* Header */}
+                <div className="mt-4 text-right" dir="rtl">
+                  <div className="text-xl font-semibold leading-tight">
+                    {selectedProvider.provider_name || selectedProvider.title || "مزود"}
                   </div>
 
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => toggleFav(selectedProvider.id)}
-                    className="rounded-full"
-                    aria-label="مفضلة"
-                  >
-                    <Heart
-                      className={cn(
-                        "h-5 w-5",
-                        isFav(selectedProvider.id) ? "fill-current" : ""
-                      )}
-                    />
-                  </Button>
+                  {/* Rating under name */}
+                  <div className="mt-1 text-sm text-muted-foreground">
+                    {(ratings?.[selectedProvider.id]?.average_rating ?? 0) > 0
+                      ? `${(ratings[selectedProvider.id].average_rating ?? 0).toFixed(1)} ★ (${ratings[selectedProvider.id].total_reviews ?? 0})`
+                      : "بدون تقييم"}
+                  </div>
+
+                  {/* Location */}
+                  {(selectedProvider.sub_city || selectedProvider.city) && (
+                    <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+                      {!!selectedProvider.sub_city && <Badge variant="secondary">{selectedProvider.sub_city}</Badge>}
+                      {!!selectedProvider.city && <Badge variant="secondary">{selectedProvider.city}</Badge>}
+                    </div>
+                  )}
+
+                  {/* Price (only if provider added it) */}
+                  {typeof selectedProvider.price === "number" && selectedProvider.price > 0 && (
+                    <div className="mt-3 text-base font-semibold">
+                      {selectedProvider.price} د.ل
+                    </div>
+                  )}
                 </div>
 
                 {selectedProvider.description && (
-                  <div className="mt-4 text-sm leading-7 text-foreground/90">
+                  <div className="mt-4 text-sm text-right" dir="rtl">
                     {selectedProvider.description}
                   </div>
                 )}
 
                 <Separator className="my-4" />
 
-                <div className="grid grid-cols-2 gap-3">
+                {/* Actions: 1 column on phones, 2 columns on larger screens */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Button
                     onClick={() => {
                       logContactEvent(selectedProvider.id, "call");
@@ -686,60 +663,74 @@ export function ServiceDetailSheet({
                   سيظهر طلب التقييم داخل التطبيق بعد التواصل
                 </div>
               </div>
+
+              {/* Full-screen image viewer */}
+              <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
+                <DialogContent className="max-w-[95vw] w-full p-0 overflow-hidden">
+                  <div className="relative bg-black">
+                    <button
+                      type="button"
+                      className="absolute right-3 top-3 z-10 rounded-full bg-black/60 p-2 text-white"
+                      onClick={() => setViewerOpen(false)}
+                      aria-label="إغلاق"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+
+                    {detailImages.length > 0 && (
+                      <div className="w-full">
+                        <img
+                          src={detailImages[activeIndex]}
+                          alt=""
+                          className="h-[75vh] w-full object-contain"
+                        />
+
+                        {detailImages.length > 1 && (
+                          <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between px-3">
+                            <button
+                              type="button"
+                              className="rounded-full bg-black/50 p-2 text-white"
+                              onClick={() => setActiveIndex((p) => (p - 1 + detailImages.length) % detailImages.length)}
+                              aria-label="السابق"
+                            >
+                              <ChevronRight className="h-5 w-5" />
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-full bg-black/50 p-2 text-white"
+                              onClick={() => setActiveIndex((p) => (p + 1) % detailImages.length)}
+                              aria-label="التالي"
+                            >
+                              <ChevronLeft className="h-5 w-5" />
+                            </button>
+                          </div>
+                        )}
+
+                        {detailImages.length > 1 && (
+                          <div className="flex gap-2 overflow-x-auto p-3 bg-black/70">
+                            {detailImages.map((src, idx) => (
+                              <button
+                                key={`thumb-${src}-${idx}`}
+                                type="button"
+                                onClick={() => setActiveIndex(idx)}
+                                className={`h-14 w-20 shrink-0 overflow-hidden rounded-md border ${
+                                  idx === activeIndex ? "border-white" : "border-transparent"
+                                }`}
+                                aria-label={`صورة ${idx + 1}`}
+                              >
+                                <img src={src} alt="" className="h-full w-full object-cover" />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </ScrollArea>
         )}
-
-        {/* Full-screen gallery viewer */}
-        <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
-          <DialogContent className="max-w-[95vw] w-full p-0 overflow-hidden">
-            <div className="relative bg-black">
-              <button
-                type="button"
-                className="absolute left-3 top-3 z-10 rounded-full bg-black/60 p-2 text-white"
-                onClick={() => setViewerOpen(false)}
-                aria-label="إغلاق"
-              >
-                <X className="h-5 w-5" />
-              </button>
-
-              {detailGallery.length > 1 && (
-                <>
-                  <button
-                    type="button"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 z-10 rounded-full bg-black/60 p-2 text-white"
-                    onClick={prevImage}
-                    aria-label="السابق"
-                  >
-                    <ChevronRight className="h-6 w-6" />
-                  </button>
-                  <button
-                    type="button"
-                    className="absolute left-12 top-1/2 -translate-y-1/2 z-10 rounded-full bg-black/60 p-2 text-white"
-                    onClick={nextImage}
-                    aria-label="التالي"
-                  >
-                    <ChevronLeft className="h-6 w-6" />
-                  </button>
-                </>
-              )}
-
-              {detailGallery[viewerIndex] && (
-                <img
-                  src={detailGallery[viewerIndex]}
-                  alt=""
-                  className="h-[80vh] w-full object-contain"
-                />
-              )}
-
-              {detailGallery.length > 1 && (
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-white text-sm">
-                  {viewerIndex + 1} / {detailGallery.length}
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
       </DrawerContent>
     </Drawer>
   );

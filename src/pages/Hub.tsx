@@ -355,7 +355,17 @@ export default function Hub() {
     return categories.slice(0, 8);
   }, [topCategoryIds, categoriesById, categories]);
 
-  const cityLabel = selectedCity ? (selectedCity.name_ar || selectedCity.name) : "كل المدن";
+  
+  // Auto-pick first active city when none selected (removes "All cities" option).
+  useEffect(() => {
+    if (cityId) return;
+    const first = (citiesData || [])
+      .filter((c: any) => c.is_active)
+      .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))[0];
+    if (first?.id) setCityId(first.id);
+  }, [cityId, citiesData, setCityId]);
+
+const cityLabel = selectedCity ? (selectedCity.name_ar || selectedCity.name) : t("اختر المدينة", "Choose a city");
 
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
 
@@ -363,8 +373,8 @@ export default function Hub() {
   const bannerRowRef = useRef<HTMLDivElement | null>(null);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [bannerInteracting, setBannerInteracting] = useState(false);
+  const bannerPauseUntilRef = useRef<number>(0);
   const bannerScrollRaf = useRef<number | null>(null);
-  const bannerIdleTimer = useRef<number | null>(null);
 
   // Keep bannerIndex in range when banners change.
   useEffect(() => {
@@ -375,14 +385,15 @@ export default function Hub() {
   // Auto-advance.
   useEffect(() => {
     if (banners.length <= 1) return;
-    if (bannerInteracting) return;
 
     const id = window.setInterval(() => {
+      // If user interacted recently, delay autoplay resume.
+      if (Date.now() < bannerPauseUntilRef.current) return;
       setBannerIndex((i) => (i + 1) % banners.length);
     }, 4500);
 
     return () => window.clearInterval(id);
-  }, [banners.length, bannerInteracting]);
+  }, [banners.length]);
 
   // Scroll to active banner.
   useEffect(() => {
@@ -394,16 +405,13 @@ export default function Hub() {
   }, [bannerIndex]);
 
   function handleBannerScroll() {
+    // Pause autoplay briefly during/after manual swipe/scroll.
+    bannerPauseUntilRef.current = Date.now() + 6000;
     if (bannerScrollRaf.current) return;
     bannerScrollRaf.current = window.requestAnimationFrame(() => {
       bannerScrollRaf.current = null;
       const el = bannerRowRef.current;
       if (!el) return;
-
-      // Consider any scroll as user interaction; resume autoplay shortly after scroll stops.
-      setBannerInteracting(true);
-      if (bannerIdleTimer.current) window.clearTimeout(bannerIdleTimer.current);
-      bannerIdleTimer.current = window.setTimeout(() => setBannerInteracting(false), 900);
 
       const containerRect = el.getBoundingClientRect();
       const targetX = isRTL ? containerRect.right : containerRect.left;
@@ -428,15 +436,14 @@ export default function Hub() {
   useEffect(() => {
     return () => {
       if (bannerScrollRaf.current) window.cancelAnimationFrame(bannerScrollRaf.current);
-      if (bannerIdleTimer.current) window.clearTimeout(bannerIdleTimer.current);
     };
   }, []);
 
   return (
     <div className={`min-h-screen bg-background pb-20 ${isRTL ? "rtl" : ""}`}>
       {/* Sticky top: Header + Search/City + Chips */}
-      <div className="sticky top-0 left-0 right-0 w-full z-40 bg-background border-b border-border">
-        <div className="mx-auto max-w-3xl px-4 pt-4 space-y-4 pb-3">
+      <div className="sticky top-0 left-0 right-0 w-full z-40 bg-background pt-4 space-y-4 pb-3 border-b border-border">
+        <div className="mx-auto max-w-3xl px-4">
           {/* Header */}
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -466,11 +473,8 @@ export default function Hub() {
 
 	          {activeAnnouncement && (
 	            <div className="rounded-2xl border border-border bg-muted/30 px-4 py-3">
-		              <div className="flex items-center gap-2 text-sm">
-  <span className="text-muted-foreground" aria-hidden>📢</span>
-  <span className="text-muted-foreground">{activeAnnouncement.message}</span>
-</div>
-	            </div>
+                      <div className="text-sm text-muted-foreground">📢 {activeAnnouncement.message}</div>
+                    </div>
 	          )}
 
           <Popover>
@@ -481,15 +485,7 @@ export default function Hub() {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[--radix-popover-trigger-width] p-2">
-              <div className="space-y-1 max-h-64 overflow-auto">
-                <Button
-                  variant={!cityId ? "default" : "ghost"}
-                  className="w-full justify-start"
-                  onClick={() => setCityId(null)}
-                >
-                  {t("كل المدن", "All cities")}
-                </Button>
-                {(citiesData || [])
+              <div className="space-y-1 max-h-64 overflow-auto">{(citiesData || [])
                   .filter((c) => c.is_active)
                   .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
                   .map((c) => (
@@ -569,9 +565,7 @@ export default function Hub() {
             </ScrollArea>
           )}
         </div>
-      </div>
 
-      <div className="mx-auto max-w-3xl px-4">
         {/* Everything below chips scrolls normally */}
         <div className="pt-4 space-y-4">
 
@@ -584,13 +578,10 @@ export default function Hub() {
               className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2"
               style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any }}
               onScroll={handleBannerScroll}
-              onPointerDown={() => setBannerInteracting(true)}
+              onPointerDown={() => { setBannerInteracting(true); bannerPauseUntilRef.current = Date.now() + 6000; }}
               onPointerUp={() => setBannerInteracting(false)}
               onPointerCancel={() => setBannerInteracting(false)}
-              onTouchStart={() => setBannerInteracting(true)}
-              onTouchEnd={() => setBannerInteracting(false)}
-              onTouchCancel={() => setBannerInteracting(false)}
-              onMouseEnter={() => setBannerInteracting(true)}
+              onMouseEnter={() => { setBannerInteracting(true); bannerPauseUntilRef.current = Date.now() + 6000; }}
               onMouseLeave={() => setBannerInteracting(false)}
             >
               {banners.map((b) => {

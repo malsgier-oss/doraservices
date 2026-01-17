@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { MessageCircle, Phone, Star, X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -18,13 +18,13 @@ interface ServiceProviderCardProps {
   city?: string;
   subCity?: string;
 
-  /** Up to 5 images (free tier). We’ll render the first 5. */
+  /** Up to 5 images; ProviderCard shows ONLY the cover (first image). */
   images?: string[];
 
   /** Optional rating; only shown when > 0 */
   rating?: number;
 
-  /** Review snippets (written reviews). One line ticker swaps randomly. */
+  /** Review snippets (written reviews). Optional; not emphasized in card. */
   reviewTexts?: string[];
 
   /** Optional price (some providers don’t have a fixed price) */
@@ -52,13 +52,11 @@ function normalizePhoneForTel(phone?: string): string | null {
   if (!phone) return null;
   const trimmed = phone.trim();
   if (!trimmed) return null;
-  // For tel:, we can keep '+' if present and strip spaces.
   return trimmed.replace(/\s+/g, "");
 }
 
 function normalizePhoneForWhatsApp(phone?: string): string | null {
   if (!phone) return null;
-  // wa.me requires digits only (with country code).
   const digits = phone.replace(/\D/g, "");
   return digits.length ? digits : null;
 }
@@ -72,7 +70,6 @@ export function ServiceProviderCard(props: ServiceProviderCardProps) {
     subCity,
     images = [],
     rating = 0,
-    reviewTexts = [],
     price,
     providerPhone,
     onDetails,
@@ -83,9 +80,7 @@ export function ServiceProviderCard(props: ServiceProviderCardProps) {
   const tt = t as any;
 
   const initials = useMemo(() => toInitials(providerName), [providerName]);
-  // Confirmed product decision: ProviderCard shows ONLY 1 image (cover).
-  // The full set (up to 5) is shown in the Service Detail Sheet.
-  const coverImage = useMemo(() => (images || []).filter(Boolean)[0] || "", [images]);
+  const cover = useMemo(() => (images || []).filter(Boolean)[0] || null, [images]);
 
   const locationText = useMemo(() => {
     const c = (city || "").trim();
@@ -94,142 +89,96 @@ export function ServiceProviderCard(props: ServiceProviderCardProps) {
     return c || s || "";
   }, [city, subCity]);
 
-  const [viewerOpen, setViewerOpen] = useState(false);
-
-  const hasReviews = reviewTexts.filter(Boolean).length > 0;
-  const [tickerIndex, setTickerIndex] = useState<number>(0);
-
-  // Randomized auto-swapping review ticker
-  useEffect(() => {
-    const valid = reviewTexts.filter(Boolean);
-    if (!valid.length) return;
-
-    // Start from a random review
-    setTickerIndex(Math.floor(Math.random() * valid.length));
-
-    const intervalMs = 5000;
-    const id = window.setInterval(() => {
-      setTickerIndex((prev) => {
-        if (valid.length <= 1) return prev;
-        let next = Math.floor(Math.random() * valid.length);
-        if (next === prev) next = (prev + 1) % valid.length;
-        return next;
-      });
-    }, intervalMs);
-
-    return () => window.clearInterval(id);
-  }, [reviewTexts]);
-
   const tel = useMemo(() => normalizePhoneForTel(providerPhone), [providerPhone]);
   const wa = useMemo(() => normalizePhoneForWhatsApp(providerPhone), [providerPhone]);
 
-  const openViewer = () => setViewerOpen(true);
-
-  const currentReview = useMemo(() => {
-    const valid = reviewTexts.filter(Boolean);
-    if (!valid.length) return "";
-    const safeIdx = Math.max(0, Math.min(tickerIndex, valid.length - 1));
-    return valid[safeIdx] || "";
-  }, [reviewTexts, tickerIndex]);
-
-  const hasSocialProofRow = rating > 0 || hasReviews;
-  const showPrice = typeof price === "number" && Number.isFinite(price);
-
+  const showPrice = typeof price === "number" && Number.isFinite(price) && price > 0;
   const detailsAction = onDetails || onBook;
 
+  // Full-screen viewer for cover image (single).
+  const [viewerOpen, setViewerOpen] = useState(false);
+
   return (
-    <div className="bg-card rounded-2xl shadow-card animate-fade-in overflow-hidden" dir="rtl">
-      {/* Cover image (ProviderCard shows ONLY 1 image) */}
-      <div className="relative">
-        {coverImage ? (
-          <button
-            type="button"
-            onClick={openViewer}
-            className="w-full focus:outline-none"
-            aria-label={tt?.common?.viewImage ?? "View image"}
-          >
-            <div className="h-60 w-full bg-muted">
-              <img
-                src={coverImage}
-                alt={tt?.common?.image ?? "Image"}
-                className="h-full w-full object-cover"
-                loading="lazy"
-              />
-            </div>
-          </button>
-        ) : (
-          // Placeholder banner (keeps layout stable)
-          <div className="h-60 w-full bg-muted flex items-center justify-center">
-            <div className="flex items-center gap-3">
-              <Avatar className="h-12 w-12 ring-2 ring-muted-foreground/20">
+    <div className="bg-card rounded-2xl shadow-card animate-fade-in overflow-hidden">
+      <div className="p-4">
+        {/* Top row: photo on the RIGHT, text to its left (RTL-friendly) */}
+        <div className="flex flex-row-reverse items-start gap-4" dir="rtl">
+          {/* Photo */}
+          <div className="shrink-0">
+            <button
+              type="button"
+              onClick={() => cover && setViewerOpen(true)}
+              className="relative h-[92px] w-[118px] sm:h-[100px] sm:w-[132px] rounded-xl overflow-hidden border bg-muted focus:outline-none"
+              aria-label={tt?.common?.viewImage ?? "View image"}
+            >
+              {cover ? (
+                <img
+                  src={cover}
+                  alt={tt?.common?.image ?? "Image"}
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center">
+                  <Avatar className="h-12 w-12 ring-2 ring-muted-foreground/20">
+                    <AvatarImage src={providerAvatar} alt={providerName} />
+                    <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+                      {initials}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+              )}
+            </button>
+          </div>
+
+          {/* Text */}
+          <div className="flex-1 min-w-0 text-right">
+            {/* Provider name + avatar */}
+            <div className="flex flex-row-reverse items-start gap-3">
+              <Avatar className="h-10 w-10 ring-2 ring-muted">
                 <AvatarImage src={providerAvatar} alt={providerName} />
                 <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
                   {initials}
                 </AvatarFallback>
               </Avatar>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-foreground truncate">{providerName}</p>
-                <p className="text-xs text-muted-foreground">
-                  {tt?.services?.noPhotosYet ?? "No photos yet"}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* Rating badge pinned to TOP-LEFT (as requested) */}
-        {rating > 0 && (
-          <div className="absolute left-3 top-3 rounded-full bg-black/60 px-3 py-1 text-white flex items-center gap-1.5">
-            <Star className="h-4 w-4 fill-white text-white" />
-            <span className="text-sm font-semibold">{rating.toFixed(1)}</span>
-          </div>
-        )}
-      </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-foreground truncate">{providerName}</h3>
 
-      {/* Content */}
-      <div className="p-5">
-        {/* Header row: provider name + avatar */}
-        {/* RTL: avatar on the RIGHT, text next to it */}
-        <div className="flex flex-row-reverse items-start gap-3">
-          <Avatar className="h-12 w-12 ring-2 ring-muted">
-            <AvatarImage src={providerAvatar} alt={providerName} />
-            <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-
-          <div className="flex-1 min-w-0 text-right">
-            <h3 className="text-lg font-semibold text-foreground truncate">{providerName}</h3>
-
-            <p className="text-sm text-muted-foreground mt-0.5 line-clamp-3">
-              {serviceTitle}
-              {locationText ? ` • ${locationText}` : ""}
-            </p>
-
-            {/* Social proof row */}
-            {hasSocialProofRow && (
-              <div className="flex items-center gap-3 mt-2">
-                {/* Rating is shown on image (top-left). Keep this row only for review ticker. */}
-                {hasReviews && (
-                  <div className="flex-1 min-w-0">
-                    <p
-                      className="text-sm text-muted-foreground truncate transition-opacity"
-                      title={currentReview}
-                    >
-                      {currentReview}
-                    </p>
+                {/* Rating under the name */}
+                {rating > 0 && (
+                  <div className="mt-1 flex items-center justify-end gap-1.5 text-sm">
+                    <Star className="h-4 w-4 fill-star text-star" />
+                    <span className="font-medium text-foreground">{rating.toFixed(1)}</span>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Service description (2 lines) */}
+            <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
+              {serviceTitle}
+            </p>
+
+            {/* Location */}
+            {locationText && (
+              <div className="mt-2 text-sm text-muted-foreground truncate">{locationText}</div>
+            )}
+
+            {/* Price (only if provider added it) */}
+            {showPrice && (
+              <div className="mt-2 text-sm font-semibold text-foreground">
+                {price} {tt?.common?.currency ?? ""}
               </div>
             )}
           </div>
         </div>
 
         {/* Actions */}
-        <div className="mt-4 flex items-center gap-2">
+        <div className="mt-4 grid grid-cols-2 gap-2">
           <Button
             asChild
-            className="flex-1 rounded-full"
+            className="rounded-full"
             disabled={!tel}
             title={!tel ? (tt?.services?.noPhone ?? "No phone") : undefined}
           >
@@ -242,50 +191,27 @@ export function ServiceProviderCard(props: ServiceProviderCardProps) {
           <Button
             asChild
             variant="outline"
-            className="flex-1 rounded-full"
+            className="rounded-full"
             disabled={!wa}
             title={!wa ? (tt?.services?.noPhone ?? "No phone") : undefined}
           >
-            <a
-              href={wa ? `https://wa.me/${wa}` : undefined}
-              target="_blank"
-              rel="noreferrer"
-            >
+            <a href={wa ? `https://wa.me/${wa}` : undefined} target="_blank" rel="noreferrer">
               <MessageCircle className="h-4 w-4" />
               <span className="ml-2">{tt?.services?.whatsapp ?? "WhatsApp"}</span>
             </a>
           </Button>
         </div>
 
-        {/* Footer row: price + details */}
-        {(showPrice || detailsAction) && (
-          <div className="mt-3 flex items-center justify-between gap-3">
-            {showPrice ? (
-              <div className="min-w-0">
-                <span className="text-xs text-muted-foreground">{tt?.services?.price ?? "Price"}</span>
-                <p className="font-bold text-foreground truncate">
-                  {price} {tt?.common?.currency ?? ""}
-                </p>
-              </div>
-            ) : (
-              <div />
-            )}
-
-            {detailsAction && (
-              <Button
-                onClick={detailsAction}
-                size="sm"
-                variant="ghost"
-                className="rounded-full px-4"
-              >
-                {tt?.common?.details ?? "Details"}
-              </Button>
-            )}
+        {detailsAction && (
+          <div className="mt-3">
+            <Button onClick={detailsAction} variant="ghost" className="w-full rounded-full">
+              {tt?.common?.details ?? "Details"}
+            </Button>
           </div>
         )}
       </div>
 
-      {/* Full-screen viewer */}
+      {/* Full-screen viewer (cover only) */}
       <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
         <DialogContent className="max-w-[95vw] w-full p-0 overflow-hidden">
           <div className="relative bg-black">
@@ -298,14 +224,12 @@ export function ServiceProviderCard(props: ServiceProviderCardProps) {
               <X className="h-5 w-5" />
             </button>
 
-            {coverImage && (
-              <div className="w-full">
-                <img
-                  src={coverImage}
-                  alt={tt?.common?.image ?? "Image"}
-                  className="h-[75vh] w-full object-contain"
-                />
-              </div>
+            {cover && (
+              <img
+                src={cover}
+                alt={tt?.common?.image ?? "Image"}
+                className="h-[75vh] w-full object-contain"
+              />
             )}
           </div>
         </DialogContent>
@@ -313,3 +237,5 @@ export function ServiceProviderCard(props: ServiceProviderCardProps) {
     </div>
   );
 }
+
+export default ServiceProviderCard;
