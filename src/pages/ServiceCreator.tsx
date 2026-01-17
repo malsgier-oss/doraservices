@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
+import { ImagePlus, Trash2 } from "lucide-react";
 import {
   Home,
   Car,
@@ -109,6 +110,8 @@ export default function ServiceCreator() {
   const { data: cities } = useCities();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     serviceName: "",
     category: "",
@@ -117,6 +120,15 @@ export default function ServiceCreator() {
     cityId: "",
     subCity: "",
   });
+
+  // Preview URLs (cleanup on change/unmount)
+  useEffect(() => {
+    const next = imageFiles.map((f) => URL.createObjectURL(f));
+    setImagePreviews(next);
+    return () => {
+      next.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [imageFiles]);
 
   // Get subcategories for selected category
   const selectedCategory = categories?.find((c) => c.id === formData.category);
@@ -218,7 +230,9 @@ export default function ServiceCreator() {
       const providerName = (profile.full_name || "").trim() || (isRTL ? "مقدم الخدمة" : "Provider");
 
       // ✅ Insert directly to ensure provider_phone/provider_name/city/sub_city are stored for anonymous browsing
-      const { error } = await supabase.from("services").insert({
+      const { data: created, error } = await supabase
+        .from("services")
+        .insert({
         user_id: user.id,
         title: formData.serviceName.trim(),
         description: formData.bio?.trim() || null,
@@ -231,9 +245,61 @@ export default function ServiceCreator() {
         is_active: true,
         is_visible: true,
         is_paused: false,
-      });
+      })
+        .select("id")
+        .single();
 
       if (error) throw error;
+
+      // Upload up to 5 images (free tier)
+      const maxImages = 5;
+      const files = imageFiles.slice(0, maxImages);
+      let coverUrl: string | null = null;
+
+      if (created?.id && files.length > 0) {
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+          const imageId = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${i}`;
+          const path = `${user.id}/${created.id}/${imageId}.${ext}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from("service-images")
+            .upload(path, file, {
+              cacheControl: "3600",
+              upsert: false,
+              contentType: file.type || undefined,
+            });
+          if (uploadError) throw uploadError;
+
+          const { data: publicData } = supabase.storage
+            .from("service-images")
+            .getPublicUrl(path);
+
+          const publicUrl = publicData?.publicUrl || null;
+          if (!publicUrl) {
+            throw new Error("Missing public URL for uploaded image");
+          }
+
+          // Insert row into service_images (types are not generated yet in this repo)
+          const { error: imgRowError } = await supabase
+            .from("service_images" as any)
+            .insert({
+              service_id: created.id,
+              url: publicUrl,
+              storage_path: path,
+              position: i + 1,
+            });
+          if (imgRowError) throw imgRowError;
+
+          if (i === 0) coverUrl = publicUrl;
+        }
+
+        // Backward-compat: keep services.image_url as cover image
+        if (coverUrl) {
+          await supabase.from("services").update({ image_url: coverUrl }).eq("id", created.id);
+        }
+      }
 
       toast.success(t.creator.serviceCreated, {
         description: t.creator.serviceCreatedDesc,
@@ -248,6 +314,40 @@ export default function ServiceCreator() {
     }
   };
 
+  const remainingSlots = Math.max(0, 5 - imageFiles.length);
+  const onPickImages = (files: FileList | null) => {
+    if (!files) return;
+    const picked = Array.from(files).filter(Boolean);
+
+    if (picked.length === 0) return;
+
+    const next = [...imageFiles];
+    for (const f of picked) {
+      if (next.length >= 5) break;
+      next.push(f);
+    }
+
+    if (imageFiles.length + picked.length > 5) {
+      toast.error(isRTL ? "الخطة المجانية: حتى 5 صور" : "Free plan: up to 5 photos");
+    }
+
+    setImageFiles(next);
+  };
+
+  const removeImage = (idx: number) => {
+    setImageFiles((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const makeCover = (idx: number) => {
+    setImageFiles((prev) => {
+      if (idx <= 0 || idx >= prev.length) return prev;
+      const next = [...prev];
+      const [picked] = next.splice(idx, 1);
+      next.unshift(picked);
+      return next;
+    });
+  };
+
   return (
     <Layout>
       <div className="container py-6 max-w-lg mx-auto">
@@ -257,6 +357,79 @@ export default function ServiceCreator() {
           </div>
           <h1 className="text-2xl font-bold text-foreground">{t.creator.title}</h1>
           <p className="text-muted-foreground mt-1">{t.creator.subtitle}</p>
+        </div>
+
+        {/* Photos (free tier: up to 5) */}
+        <div className="mb-6">
+          <Label className="block mb-2">{isRTL ? "صور الخدمة" : "Service Photos"}</Label>
+
+          <div className={cn("rounded-xl border bg-card p-3", imageFiles.length ? "" : "border-dashed")}> 
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-sm text-muted-foreground">
+                {isRTL ? "الخطة المجانية: حتى 5 صور" : "Free plan: up to 5 photos"}
+              </div>
+
+              <div>
+                <Button type="button" variant="outline" size="sm" disabled={remainingSlots <= 0 || isSubmitting} asChild>
+                  <label className={cn("cursor-pointer", remainingSlots <= 0 && "cursor-not-allowed")}> 
+                    <span className="inline-flex items-center gap-2">
+                      <ImagePlus className="h-4 w-4" />
+                      {isRTL ? "إضافة صور" : "Add photos"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => onPickImages(e.target.files)}
+                      disabled={remainingSlots <= 0 || isSubmitting}
+                    />
+                  </label>
+                </Button>
+              </div>
+            </div>
+
+            {imagePreviews.length > 0 && (
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {imagePreviews.map((src, idx) => (
+                  <div key={src} className="relative rounded-lg overflow-hidden border bg-muted">
+                    {/* Cover badge */}
+                    {idx === 0 && (
+                      <div className="absolute top-1 left-1 z-10 text-[10px] px-2 py-0.5 rounded-full bg-black/70 text-white">
+                        {isRTL ? "الغلاف" : "Cover"}
+                      </div>
+                    )}
+
+                    <img src={src} alt="" className="h-24 w-full object-cover" />
+
+                    <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between gap-1">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="h-7 px-2 text-[11px]"
+                        onClick={() => makeCover(idx)}
+                        disabled={idx === 0 || isSubmitting}
+                      >
+                        {isRTL ? "تعيين كغلاف" : "Make cover"}
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => removeImage(idx)}
+                        disabled={isSubmitting}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
