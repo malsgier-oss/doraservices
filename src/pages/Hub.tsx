@@ -376,6 +376,7 @@ export default function Hub() {
   const [bannerIndex, setBannerIndex] = useState(0);
   const bannerPauseUntilRef = useRef<number>(0);
   const bannerScrollRaf = useRef<number | null>(null);
+  const bannerProgrammaticRef = useRef(false);
 
   // Keep bannerIndex in range when banners change.
   useEffect(() => {
@@ -402,11 +403,20 @@ export default function Hub() {
     if (!el) return;
     const child = el.children.item(bannerIndex) as HTMLElement | null;
     if (!child) return;
+    // Prevent feedback loops: scrollIntoView triggers onScroll which would update bannerIndex again.
+    bannerProgrammaticRef.current = true;
+    const timeout = window.setTimeout(() => {
+      bannerProgrammaticRef.current = false;
+    }, 650);
+
     // Center the active banner (better feel on mobile)
     child.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+
+    return () => window.clearTimeout(timeout);
   }, [bannerIndex]);
 
   function handleBannerScroll() {
+    if (bannerProgrammaticRef.current) return;
     // Pause autoplay briefly during/after manual swipe/scroll.
     bannerPauseUntilRef.current = Date.now() + 6000;
     if (bannerScrollRaf.current) return;
@@ -534,7 +544,7 @@ export default function Hub() {
           {/* Chips (admin-controlled, subcategories) */}
           {chips.length > 0 && (
             <ScrollArea className="w-full">
-              <div className="flex gap-2 pb-2">
+              <div className="flex gap-3 pb-2 px-1">
                 {chips.map((chip) => {
                   const label = (language === "ar" ? chip.label_ar : chip.label_en) || chip.label_ar || chip.label_en || "";
                   if (!label) return null;
@@ -542,7 +552,7 @@ export default function Hub() {
                     <Button
                       key={chip.id}
                       variant="secondary"
-                      className="rounded-full"
+                      className="rounded-full shrink-0 px-4"
                       onClick={() => {
                         if (chip.target_type === "category" && chip.target_category_id) {
                           openCategoryBrowse(chip.target_category_id);
