@@ -116,7 +116,7 @@ export default function ServiceEditor() {
 
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, id]);
+  }, [user?.id, id, categories, cities]);
 
   const onSave = async () => {
     if (!user || !service) return;
@@ -131,10 +131,21 @@ export default function ServiceEditor() {
       return;
     }
 
+    const nextDesc = description.trim();
+    if (!nextDesc) {
+      toast.error(isRTL ? "أدخل وصف للخدمة" : "Enter a description");
+      return;
+    }
+
     // Determine selected category/subcategory display name
     const cat = categories?.find((c) => c.id === categoryId) || null;
     const sub = subcategories?.find((s) => s.id === subcategoryId) || null;
     const categoryName = sub?.name || cat?.name || service.category;
+
+    if (cat && subcategories && subcategories.length > 0 && !sub) {
+      toast.error(isRTL ? "اختر نوع الخدمة" : "Please select a service type");
+      return;
+    }
 
     const selectedCity = cities?.find((c) => c.id === cityId) || null;
     const cityValue = selectedCity
@@ -147,7 +158,7 @@ export default function ServiceEditor() {
     try {
       const updates: any = {
         title: nextTitle,
-        description: description.trim() || null,
+        description: nextDesc,
         price: price.trim() ? Number(price) : null,
         category: categoryName,
         city: cityValue || null,

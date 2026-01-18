@@ -4,27 +4,43 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
+function isProviderLike(role: string | null | undefined) {
+  const r = (role || "").toLowerCase();
+  return r === "provider" || r === "business";
+}
+
+function isAdmin(role: string | null | undefined) {
+  return (role || "").toLowerCase() === "admin";
+}
+
 export function MobileNav() {
   const { t, isRTL } = useLanguage();
-  const { user, profile, loading, profileLoading } = useAuth();
+  const { profile } = useAuth();
   const location = useLocation();
 
-  // Use AuthContext profile as the single source of truth.
-  // This avoids extra DB queries and prevents nav flicker/mismatch.
-  const role = (profile?.role || "user").toString().toLowerCase();
-  const isAdmin = role === "admin";
-  const isBusiness = role === "provider" || role === "business";
-
-  // While profile is loading, keep a stable minimal nav.
-  const roleReady = !!user && !loading && !profileLoading;
+  const role = (profile?.role || "user").toString();
+  const providerLike = isProviderLike(role);
+  const admin = isAdmin(role);
 
   const navItems = [
     { to: "/", icon: Home, label: t.nav.home },
-    ...((roleReady && isBusiness)
-      ? [{ to: "/provider-dashboard", icon: LayoutDashboard, label: isRTL ? "لوحة مقدم الخدمة" : "Dashboard" }]
-      : [{ to: "/favorites", icon: Heart, label: t.favorites?.title || (isRTL ? "المفضلة" : "Favorites") }]),
+    ...(providerLike
+      ? [
+          {
+            to: "/provider-dashboard",
+            icon: LayoutDashboard,
+            label: isRTL ? "لوحة مقدم الخدمة" : "Dashboard",
+          },
+        ]
+      : [
+          {
+            to: "/favorites",
+            icon: Heart,
+            label: t.favorites?.title || (isRTL ? "المفضلة" : "Favorites"),
+          },
+        ]),
     { to: "/profile", icon: User, label: t.nav.profile },
-    ...((roleReady && isAdmin) ? [{ to: "/admin", icon: Shield, label: isRTL ? "لوحة التحكم" : "Admin" }] : []),
+    ...(admin ? [{ to: "/admin", icon: Shield, label: isRTL ? "لوحة التحكم" : "Admin" }] : []),
   ];
 
   return (

@@ -117,9 +117,9 @@ export default function ServiceCreator() {
     category: "",
     subcategory: "",
     bio: "",
-    price: "",
     cityId: "",
     subCity: "",
+    price: "",
   });
 
   // Preview URLs (cleanup on change/unmount)
@@ -134,7 +134,6 @@ export default function ServiceCreator() {
   // Get subcategories for selected category
   const selectedCategory = categories?.find((c) => c.id === formData.category);
   const { data: subcategories } = useSubcategories(formData.category || undefined);
-  const hasSubcategories = (subcategories?.length || 0) > 0;
   const { data: subCities } = useSubCities(formData.cityId || profile?.city_id || null);
 
   // Guard (Dora P0): providers (or admins) can add services immediately.
@@ -190,21 +189,18 @@ export default function ServiceCreator() {
       toast.error(isRTL ? "يرجى إدخال اسم الخدمة" : "Please enter service name");
       return;
     }
-
-    // Dora P0: description is required to avoid empty listings.
-    if (!formData.bio?.trim()) {
-      toast.error(isRTL ? "يرجى كتابة وصف الخدمة" : "Please enter a description");
-      return;
-    }
-
     if (!formData.category) {
       toast.error(isRTL ? "يرجى اختيار الفئة" : "Please select a category");
       return;
     }
 
-    const categoryHasSub = (subcategories || []).length > 0;
-    if (categoryHasSub && !formData.subcategory) {
-      toast.error(isRTL ? "يرجى اختيار نوع الخدمة" : "Please select service type");
+    if (selectedCategory && subcategories && subcategories.length > 0 && !formData.subcategory) {
+      toast.error(isRTL ? "يرجى اختيار نوع الخدمة" : "Please select a service type");
+      return;
+    }
+
+    if (!formData.bio.trim()) {
+      toast.error(isRTL ? "يرجى كتابة وصف للخدمة" : "Please add a description");
       return;
     }
 
@@ -254,15 +250,6 @@ export default function ServiceCreator() {
       const providerStatus = (profile.provider_status || "").toLowerCase();
       const isApprovedProvider = providerStatus === "approved";
 
-      // Price is optional (null). Avoid forcing 0.
-      const parsedPrice = (() => {
-        const raw = (formData.price || "").trim();
-        if (!raw) return null;
-        const n = Number(raw);
-        if (!Number.isFinite(n) || n < 0) return null;
-        return Math.round(n);
-      })();
-
       // ✅ Insert directly to ensure provider_phone/provider_name/city/sub_city are stored for anonymous browsing
       const { data: created, error } = await supabase
         .from("services")
@@ -271,7 +258,7 @@ export default function ServiceCreator() {
         title: formData.serviceName.trim(),
         description: formData.bio?.trim() || null,
         category: categoryToUse || "",
-        price: parsedPrice,
+        price: formData.price.trim() ? Number(formData.price) : null,
         city: cityValue,
         sub_city: formData.subCity || profile.sub_city || null,
         provider_name: providerName,
@@ -593,6 +580,18 @@ export default function ServiceCreator() {
           </div>
 
           <div className="space-y-2">
+            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{isRTL ? "السعر (اختياري)" : "Price (optional)"}</Label>
+            <Input
+              inputMode="decimal"
+              value={formData.price}
+              onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+              placeholder={isRTL ? "مثال: 50" : "e.g. 50"}
+              className={cn("rounded-xl h-12", isRTL ? "text-right" : "text-left")}
+              dir={isRTL ? "rtl" : "ltr"}
+            />
+          </div>
+
+          <div className="space-y-2">
             <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{t.creator.bio}</Label>
             <Textarea
               value={formData.bio}
@@ -601,25 +600,6 @@ export default function ServiceCreator() {
               className={cn("min-h-[120px] rounded-xl resize-none", isRTL ? "text-right" : "text-left")}
               dir={isRTL ? "rtl" : "ltr"}
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{isRTL ? "السعر (اختياري)" : "Price (optional)"}</Label>
-            <Input
-              value={formData.price}
-              onChange={(e) => {
-                // Allow digits and dot only.
-                const next = (e.target.value || "").replace(/[^0-9.]/g, "");
-                setFormData({ ...formData, price: next });
-              }}
-              inputMode="decimal"
-              placeholder={isRTL ? "مثال: 50" : "e.g. 50"}
-              className={cn("rounded-xl h-12", isRTL ? "text-right" : "text-left")}
-              dir={isRTL ? "rtl" : "ltr"}
-            />
-            <p className="text-xs text-muted-foreground">
-              {isRTL ? "إذا تركته فارغاً لن يظهر سعر." : "Leave empty to hide price."}
-            </p>
           </div>
 
           <Button type="submit" disabled={isSubmitting} className="w-full rounded-full h-12 text-base">
