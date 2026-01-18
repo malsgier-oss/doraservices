@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { MobileNav } from "@/components/layout/MobileNav";
 import { useCities } from "@/hooks/useCities";
 import { useSubCities } from "@/hooks/useSubCities";
 
@@ -608,36 +609,20 @@ export default function Profile() {
             </div>
           </div>
 
-          {!isAdmin && isProvider && (
-            <CardContent className="pt-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <Button asChild disabled={accountLocked} className="h-12 rounded-xl justify-start gap-2">
-                  <Link to="/provider-dashboard">
-                    <LayoutDashboard className="h-4 w-4" />
-                    {isRTL ? "لوحة المزود" : "Provider Dashboard"}
-                  </Link>
-                </Button>
-
-                <Button asChild variant="outline" disabled={accountLocked} className="h-12 rounded-xl justify-start gap-2">
-                  <Link to="/create-service">
-                    <PlusCircle className="h-4 w-4" />
-                    {isRTL ? "إضافة خدمة" : "Create service"}
-                  </Link>
-                </Button>
-              </div>
-            </CardContent>
-          )}
+          {/* Provider actions live in the Dashboard. Keep Profile focused on account + security. */}
         </Card>
 
         {/* Tabs */}
         <Tabs defaultValue={defaultTab} className="w-full">
-          <TabsList className="grid grid-cols-3 w-full rounded-2xl h-12">
+          <TabsList className={cn("grid w-full rounded-2xl h-12", isProvider ? "grid-cols-2" : "grid-cols-3")}>
             <TabsTrigger value="account" className="rounded-xl">
               {isRTL ? "الحساب" : "Account"}
             </TabsTrigger>
-            <TabsTrigger value="provider" className="rounded-xl">
-              {isRTL ? "المزود" : "Provider"}
-            </TabsTrigger>
+            {!isProvider && (
+              <TabsTrigger value="provider" className="rounded-xl">
+                {isRTL ? "المزود" : "Provider"}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="security" className="rounded-xl">
               {isRTL ? "الأمان" : "Security"}
             </TabsTrigger>
@@ -756,28 +741,24 @@ export default function Profile() {
             </Card>
           </TabsContent>
 
-          {/* Provider */}
-          <TabsContent value="provider" className="mt-4 space-y-4">
-            {!isAdmin && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Building2 className="h-4 w-4" />
-                    {isRTL ? "المزود" : "Provider"}
-                  </CardTitle>
-                  <CardDescription>
-                    {isProvider
-                      ? isRTL
-                        ? "إدارة خدماتك والوصول السريع للأدوات."
-                        : "Manage your services and quick actions."
-                      : isRTL
-                        ? "حوّل حسابك إلى مزود خدمة بضغطة واحدة."
-                        : "Upgrade your account to a provider with one tap."}
-                  </CardDescription>
-                </CardHeader>
+          {/* Provider (only for non-providers). Providers manage services from the Dashboard. */}
+          {!isProvider && (
+            <TabsContent value="provider" className="mt-4 space-y-4">
+              {!isAdmin && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Building2 className="h-4 w-4" />
+                      {isRTL ? "المزود" : "Provider"}
+                    </CardTitle>
+                    <CardDescription>
+                      {isRTL
+                        ? "حوّل حسابك إلى مزود خدمة. بعد الإرسال سيتم مراجعة طلبك من الإدارة."
+                        : "Upgrade your account to a provider. After submitting, an admin will review your request."}
+                    </CardDescription>
+                  </CardHeader>
 
-                <CardContent className="space-y-4">
-                  {!isProvider ? (
+                  <CardContent className="space-y-4">
                     <Button
                       onClick={handleBecomeProvider}
                       disabled={becomingProvider}
@@ -790,36 +771,11 @@ export default function Profile() {
                       )}
                       {isRTL ? "أريد أن أكون مزود" : "I want to be a provider"}
                     </Button>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">{isRTL ? "الحالة" : "Status"}</span>
-                        <Badge variant={statusBadgeVariant(providerStatus)}>{providerStatus || "approved"}</Badge>
-                      </div>
-
-                      <Separator />
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <Button asChild disabled={accountLocked} className="h-12 rounded-xl justify-start gap-2">
-                          <Link to="/provider-dashboard">
-                            <LayoutDashboard className="h-4 w-4" />
-                            {isRTL ? "لوحة المزود" : "Provider Dashboard"}
-                          </Link>
-                        </Button>
-
-                        <Button asChild variant="outline" disabled={accountLocked} className="h-12 rounded-xl justify-start gap-2">
-                          <Link to="/create-service">
-                            <PlusCircle className="h-4 w-4" />
-                            {isRTL ? "إضافة خدمة" : "Create service"}
-                          </Link>
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+          )}
 
           {/* Security */}
           <TabsContent value="security" className="mt-4 space-y-4">
@@ -920,6 +876,7 @@ export default function Profile() {
           </TabsContent>
         </Tabs>
       </div>
+      <MobileNav />
     </div>
   );
 }
