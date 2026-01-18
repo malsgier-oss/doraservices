@@ -48,7 +48,8 @@ function serviceVisibilityText(service: any, isRTL: boolean) {
 
   if (!active) return isRTL ? "متوقفة" : "Inactive";
   if (paused) return isRTL ? "موقوفة مؤقتاً" : "Paused";
-  if (approval !== "approved" || !visible) return isRTL ? "بانتظار المراجعة" : "Under review";
+  if (approval !== "approved" || !visible)
+    return isRTL ? "بانتظار المراجعة" : "Under review";
   return isRTL ? "ظاهرة" : "Visible";
 }
 
@@ -93,13 +94,7 @@ function calculateProfileCompleteness(
   return { percentage: Math.min(100, percentage), missing };
 }
 
-function statusBadgeVariant(status: string) {
-  const s = (status || "").toLowerCase();
-  if (s === "approved") return "default";
-  if (s === "pending") return "secondary";
-  if (s === "rejected") return "destructive";
-  return "outline";
-}
+// ✅ FIX: removed the duplicate statusBadgeVariant() that was here.
 
 export default function ProviderDashboard() {
   const navigate = useNavigate();
@@ -107,7 +102,8 @@ export default function ProviderDashboard() {
   const { isRTL } = useLanguage();
 
   const { data: stats, isLoading: statsLoading } = useProviderStats();
-  const { data: serviceStats, isLoading: serviceStatsLoading } = useServiceStats();
+  const { data: serviceStats, isLoading: serviceStatsLoading } =
+    useServiceStats();
   const { myServices, updateService, deleteService } = useServices();
 
   useEffect(() => {
@@ -143,11 +139,15 @@ export default function ProviderDashboard() {
   if (!user || !profile) return null;
 
   const accountStatus = (profile.status || "").toLowerCase();
-  const accountLocked = accountStatus === "suspended" || accountStatus === "deleted" || accountStatus === "inactive";
+  const accountLocked =
+    accountStatus === "suspended" ||
+    accountStatus === "deleted" ||
+    accountStatus === "inactive";
   const suspendedReason = profile.suspended_reason || null;
 
   const hasServices = (serviceStats?.length || 0) > 0;
-  const { percentage: completeness, missing } = calculateProfileCompleteness(profile, hasServices);
+  const { percentage: completeness, missing } =
+    calculateProfileCompleteness(profile, hasServices);
 
   const statCards = [
     {
@@ -183,25 +183,40 @@ export default function ProviderDashboard() {
     <div className="min-h-screen bg-background pb-20" dir={isRTL ? "rtl" : "ltr"}>
       <header className="sticky top-0 z-40 bg-background border-b px-4 py-3">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate(-1)}
+            className="rounded-full"
+          >
             <ArrowLeft className={cn("h-5 w-5", isRTL && "rotate-180")} />
           </Button>
-          <h1 className="text-lg font-semibold">{isRTL ? "لوحة الإحصائيات" : "Provider Dashboard"}</h1>
+          <h1 className="text-lg font-semibold">
+            {isRTL ? "لوحة الإحصائيات" : "Provider Dashboard"}
+          </h1>
         </div>
       </header>
 
       <main className="px-4 py-6 space-y-6">
-        <Card className={cn(accountLocked && "border-destructive/40")}> 
+        <Card className={cn(accountLocked && "border-destructive/40")}>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                {accountLocked ? <ShieldAlert className="h-4 w-4 text-destructive" /> : <Briefcase className="h-4 w-4" />}
+                {accountLocked ? (
+                  <ShieldAlert className="h-4 w-4 text-destructive" />
+                ) : (
+                  <Briefcase className="h-4 w-4" />
+                )}
                 <span>{isRTL ? "حالة الحساب" : "Account status"}</span>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant={statusBadgeVariant(providerStatus)}>{providerStatus || "pending"}</Badge>
+                <Badge variant={statusBadgeVariant(providerStatus)}>
+                  {providerStatus || "pending"}
+                </Badge>
                 {accountStatus && (
-                  <Badge variant={accountLocked ? "destructive" : "outline"}>{accountStatus}</Badge>
+                  <Badge variant={accountLocked ? "destructive" : "outline"}>
+                    {accountStatus}
+                  </Badge>
                 )}
               </div>
             </CardTitle>
@@ -242,7 +257,12 @@ export default function ProviderDashboard() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center justify-between">
               <span>{isRTL ? "اكتمال الملف الشخصي" : "Profile Completeness"}</span>
-              <span className={cn("text-sm font-bold", completeness === 100 ? "text-green-600" : "text-orange-500")}>
+              <span
+                className={cn(
+                  "text-sm font-bold",
+                  completeness === 100 ? "text-green-600" : "text-orange-500",
+                )}
+              >
                 {completeness}%
               </span>
             </CardTitle>
@@ -285,7 +305,9 @@ export default function ProviderDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-base">{isRTL ? "إدارة خدماتي" : "Manage my services"}</CardTitle>
+            <CardTitle className="text-base">
+              {isRTL ? "إدارة خدماتي" : "Manage my services"}
+            </CardTitle>
             <Button
               variant="outline"
               size="sm"
@@ -294,17 +316,23 @@ export default function ProviderDashboard() {
               disabled={accountLocked}
             >
               <PlusCircle className="h-4 w-4" />
-              <span className={cn(isRTL ? "me-2" : "ms-2")}>{isRTL ? "إضافة" : "Add"}</span>
+              <span className={cn(isRTL ? "me-2" : "ms-2")}>
+                {isRTL ? "إضافة" : "Add"}
+              </span>
             </Button>
           </CardHeader>
           <CardContent>
-            {(!myServices || myServices.length === 0) ? (
+            {!myServices || myServices.length === 0 ? (
               <div className="text-center py-6">
                 <Briefcase className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground">
                   {isRTL ? "لم تضف أي خدمات بعد" : "No services added yet"}
                 </p>
-                <Button className="mt-3" onClick={() => navigate("/create-service")} disabled={accountLocked}>
+                <Button
+                  className="mt-3"
+                  onClick={() => navigate("/create-service")}
+                  disabled={accountLocked}
+                >
                   {isRTL ? "أضف خدمة" : "Add Service"}
                 </Button>
               </div>
@@ -323,11 +351,15 @@ export default function ProviderDashboard() {
                         <div className="min-w-0">
                           <div className="font-semibold truncate">{s.title}</div>
                           {secondaryLine ? (
-                            <div className="text-xs text-muted-foreground mt-1 truncate">{secondaryLine}</div>
+                            <div className="text-xs text-muted-foreground mt-1 truncate">
+                              {secondaryLine}
+                            </div>
                           ) : null}
 
                           <div className="flex flex-wrap gap-2 mt-2">
-                            <Badge variant={statusBadgeVariant(approval)}>{approval}</Badge>
+                            <Badge variant={statusBadgeVariant(approval)}>
+                              {approval}
+                            </Badge>
                             <Badge variant={paused ? "secondary" : "outline"}>
                               {paused ? (isRTL ? "موقفة" : "Paused") : (isRTL ? "مفعلة" : "Active")}
                             </Badge>
@@ -359,7 +391,11 @@ export default function ProviderDashboard() {
                             }}
                             disabled={accountLocked}
                           >
-                            {paused ? <PlayCircle className="h-4 w-4" /> : <PauseCircle className="h-4 w-4" />}
+                            {paused ? (
+                              <PlayCircle className="h-4 w-4" />
+                            ) : (
+                              <PauseCircle className="h-4 w-4" />
+                            )}
                             {paused ? (isRTL ? "تشغيل" : "Resume") : (isRTL ? "إيقاف" : "Pause")}
                           </Button>
 
@@ -369,7 +405,9 @@ export default function ProviderDashboard() {
                             className="h-9 rounded-xl gap-2"
                             onClick={async () => {
                               const ok = window.confirm(
-                                isRTL ? "حذف هذه الخدمة؟ سيتم إخفاؤها ولن تظهر للناس." : "Delete this service? It will be hidden from the public."
+                                isRTL
+                                  ? "حذف هذه الخدمة؟ سيتم إخفاؤها ولن تظهر للناس."
+                                  : "Delete this service? It will be hidden from the public.",
                               );
                               if (!ok) return;
                               const { error } = await deleteService(s.id);
@@ -402,7 +440,12 @@ export default function ProviderDashboard() {
           {statCards.map((stat) => (
             <Card key={stat.label} className="text-center">
               <CardContent className="py-4 px-2">
-                <div className={cn("w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2", stat.color)}>
+                <div
+                  className={cn(
+                    "w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2",
+                    stat.color,
+                  )}
+                >
                   <stat.icon className="h-5 w-5" />
                 </div>
                 <p className="text-2xl font-bold">{stat.value}</p>
@@ -412,11 +455,15 @@ export default function ProviderDashboard() {
           ))}
         </div>
 
-        {serviceStats && serviceStats.length > 0 && <StatsChart serviceStats={serviceStats} />}
+        {serviceStats && serviceStats.length > 0 && (
+          <StatsChart serviceStats={serviceStats} />
+        )}
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-base">{isRTL ? "تفاصيل الخدمات" : "Service Details"}</CardTitle>
+            <CardTitle className="text-base">
+              {isRTL ? "تفاصيل الخدمات" : "Service Details"}
+            </CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
