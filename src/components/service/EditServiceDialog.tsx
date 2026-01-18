@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,7 @@ interface Service {
   title: string;
   description: string | null;
   category: string;
+  allow_whatsapp?: boolean | null;
   is_paused?: boolean;
   is_active?: boolean;
 }
@@ -41,6 +42,7 @@ interface EditServiceDialogProps {
     title: string; 
     description: string | null; 
     category: string;
+    allow_whatsapp: boolean;
     is_paused: boolean;
   }) => Promise<{ error: Error | null }>;
   isSaving?: boolean;
@@ -60,20 +62,21 @@ export function EditServiceDialog({
     title: service?.title || "",
     description: service?.description || "",
     category: service?.category || "",
+    allow_whatsapp: service?.allow_whatsapp ?? true,
     is_paused: service?.is_paused || false,
   });
 
   // Reset form when service changes
-  useState(() => {
-    if (service) {
-      setFormData({
-        title: service.title,
-        description: service.description || "",
-        category: service.category,
-        is_paused: service.is_paused || false,
-      });
-    }
-  });
+  useEffect(() => {
+    if (!service) return;
+    setFormData({
+      title: service.title,
+      description: service.description || "",
+      category: service.category,
+      allow_whatsapp: service.allow_whatsapp ?? true,
+      is_paused: service.is_paused || false,
+    });
+  }, [service?.id]);
 
   // Get subcategories for selected category
   const selectedCategory = categories?.find(c => {
@@ -91,6 +94,7 @@ export function EditServiceDialog({
       title: formData.title,
       description: formData.description || null,
       category: formData.category,
+      allow_whatsapp: !!formData.allow_whatsapp,
       is_paused: formData.is_paused,
     });
   };
@@ -135,6 +139,27 @@ export function EditServiceDialog({
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder={isRTL ? "وصف مختصر للخدمة..." : "Brief description of your service..."}
               rows={3}
+            />
+          </div>
+
+          {/* WhatsApp Toggle */}
+          <div className="flex items-center justify-between p-4 bg-muted rounded-xl">
+            <div className="space-y-0.5">
+              <Label htmlFor="allow_whatsapp" className="text-sm font-medium">
+                {isRTL ? "السماح بالتواصل عبر واتساب" : "Allow WhatsApp"}
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                {isRTL
+                  ? "إظهار زر واتساب للعملاء" 
+                  : "Show the WhatsApp button to customers"}
+              </p>
+            </div>
+            <Switch
+              id="allow_whatsapp"
+              checked={!!formData.allow_whatsapp}
+              onCheckedChange={(checked) =>
+                setFormData({ ...formData, allow_whatsapp: checked })
+              }
             />
           </div>
 

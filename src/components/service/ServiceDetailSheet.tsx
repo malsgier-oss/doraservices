@@ -43,6 +43,8 @@ type Props = {
   isFavorite?: (providerId: string) => boolean;
 };
 
+type SuggestedProvider = ProviderData;
+
 function pickRandomReviews<T>(arr: T[], n: number): T[] {
   if (!arr || arr.length === 0) return [];
   const copy = arr.slice();
@@ -387,6 +389,16 @@ export function ServiceDetailSheet({
 
   const activeProvider = selectedProvider ? getProviderWithRating(selectedProvider) : null;
 
+  const suggestedProviders: SuggestedProvider[] = useMemo(() => {
+    if (!activeProvider) return [];
+    // Suggest other providers from the same list (same category/city filter), excluding the active one.
+    // Keep it small to avoid overwhelming the user.
+    return providers
+      .filter((p) => p?.id && p.id !== activeProvider.id)
+      .slice(0, 12)
+      .map((p) => getProviderWithRating(p));
+  }, [activeProvider?.id, providers, ratings]);
+
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="h-[95dvh] flex flex-col bg-background/95 backdrop-blur-sm" dir="rtl">
@@ -417,7 +429,7 @@ export function ServiceDetailSheet({
           </div>
         </DrawerHeader>
 
-        {/* Body Content */}
+        {/* Body Content (scrollable) */}
         <div className="flex-1 overflow-y-auto bg-muted/10 p-4">
           {activeProvider ? (
             <ProviderDetailView
@@ -426,6 +438,8 @@ export function ServiceDetailSheet({
               isFavorite={isFavoriteLocal}
               userId={userId}
               onReport={(serviceId, reason) => reportService(serviceId, userId, reason)}
+              suggestions={suggestedProviders}
+              onOpenSuggestion={(p) => setSelectedProvider(p)}
             />
           ) : (
             <div className="space-y-3 pb-8">
@@ -459,8 +473,149 @@ export function ServiceDetailSheet({
             </div>
           )}
         </div>
+
+        {/* Fixed-in-drawer action bar (does NOT scroll) */}
+        {activeProvider && (
+          <ProviderActionBar
+            provider={activeProvider}
+            userId={userId}
+            onRequireAuth={() => toast.info("سجل دخولك للإبلاغ")}
+            onReport={(reason) => {
+              if (!activeProvider?.id) return;
+              return reportService(activeProvider.id, userId, reason);
+            }}
+          />
+        )}
       </DrawerContent>
     </Drawer>
+  );
+}
+
+function ProviderActionBar({
+  provider,
+  userId,
+  onRequireAuth,
+  onReport,
+}: {
+  provider: ProviderData;
+  userId: string | null;
+  onRequireAuth: () => void;
+  onReport: (reason: string) => Promise<void> | void;
+}) {
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleCall = () => {
+    if (!provider.provider_phone) return toast.error("لا يوجد رقم هاتف");
+    window.open(`tel:${provider.provider_phone.replace(/\s+/g, "")}`, "_self");
+  };
+
+  const handleWhatsapp = () => {
+    if (provider.allow_whatsapp === false) return;
+    if (!provider.provider_phone) return toast.error("لا يوجد رقم هاتف");
+    const digits = provider.provider_phone.replace(/[^\d]/g, "");
+    if (digits) window.open(`https://wa.me/${digits}`, "_blank");
+  };
+
+  const submitReport = async () => {
+    if (!userId) return onRequireAuth();
+    const reason = reportReason.trim();
+    if (!reason) return toast.error("اكتب سبب البلاغ");
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await Promise.resolve(onReport(reason));
+      toast.success("تم إرسال البلاغ");
+      setReportReason("");
+      setReportOpen(false);
+    } catch {
+      toast.error("تعذر إرسال البلاغ");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const allowWhatsapp = provider.allow_whatsapp !== false;
+
+  return (
+    <div
+      className="shrink-0 border-t bg-background/90 backdrop-blur px-4 py-3"
+      dir="rtl"
+      style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+    >
+      <div className="flex gap-3 items-center">
+        <Button
+          className={cn(
+            "h-12 text-base rounded-xl shadow-lg shadow-primary/20",
+            allowWhatsapp ? "flex-1" : "flex-[1]"
+          )}
+          onClick={handleCall}
+        >
+          <Phone className="ml-2 h-4 w-4" /> اتصال
+        </Button>
+
+        {allowWhatsapp && (
+          <Button
+            variant="secondary"
+            className="h-12 text-base rounded-xl flex-1 bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400"
+            onClick={handleWhatsapp}
+          >
+            <MessageCircle className="ml-2 h-4 w-4" /> واتساب
+          </Button>
+        )}
+
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-12 w-12 rounded-xl"
+          onClick={() => {
+            if (!userId) return onRequireAuth();
+            setReportReason("");
+            setReportOpen(true);
+          }}
+          title="إبلاغ"
+          aria-label="report"
+        >
+          <Flag className="h-5 w-5" />
+        </Button>
+      </div>
+
+      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+        <DialogContent className="max-w-[92vw] sm:max-w-md rounded-2xl">
+          <div className="space-y-4" dir="rtl">
+            <div>
+              <div className="text-lg font-bold text-foreground">إبلاغ عن مشكلة</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                نستخدم البلاغات لتحسين جودة المزودين.
+              </div>
+            </div>
+
+            <Textarea
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              placeholder="اكتب سبب البلاغ"
+              className="min-h-[90px]"
+              maxLength={200}
+            />
+
+            <div className="flex gap-2" dir="rtl">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setReportOpen(false)}
+                disabled={submitting}
+              >
+                إلغاء
+              </Button>
+              <Button className="flex-1" onClick={submitReport} disabled={submitting}>
+                {submitting ? "جاري الإرسال..." : "إرسال"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 
@@ -471,12 +626,16 @@ function ProviderDetailView({
   isFavorite,
   userId,
   onReport,
+  suggestions,
+  onOpenSuggestion,
 }: {
   provider: ProviderData;
   onToggleFavorite?: (id: string) => void;
   isFavorite?: (id: string) => boolean;
   userId?: string | null;
   onReport?: (serviceId: string, reason?: string | null) => Promise<void> | void;
+  suggestions?: SuggestedProvider[];
+  onOpenSuggestion?: (provider: SuggestedProvider) => void;
 }) {
   const [images, setImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
@@ -504,8 +663,6 @@ function ProviderDetailView({
   const [rateText, setRateText] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [reviewSeed, setReviewSeed] = useState(1);
-  const [reportOpen, setReportOpen] = useState(false);
-  const [reportReason, setReportReason] = useState("");
 
   // Fetch specific images for detail view
   useEffect(() => {
@@ -657,18 +814,6 @@ function ProviderDetailView({
     }
   };
 
-  const submitReport = async () => {
-    if (!userId) return toast.info("سجل دخولك للإبلاغ");
-    const reason = reportReason.trim();
-    if (!reason) return toast.error("اكتب سبب البلاغ");
-    try {
-      await Promise.resolve(onReport?.(provider.id, reason));
-      setReportReason("");
-      setReportOpen(false);
-    } catch {
-      toast.error("تعذر إرسال البلاغ");
-    }
-  };
 
   return (
     <div className="pb-24 animate-in slide-in-from-right-4 duration-300">
@@ -848,36 +993,59 @@ function ProviderDetailView({
         </div>
       ) : null}
 
-      {/* Report Dialog */}
-      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
-        <DialogContent className="max-w-[92vw] sm:max-w-md rounded-2xl">
-          <div className="space-y-4" dir="rtl">
-            <div>
-              <div className="text-lg font-bold text-foreground">إبلاغ عن مشكلة</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                نستخدم البلاغات لتحسين جودة المزودين.
-              </div>
-            </div>
-
-            <Textarea
-              value={reportReason}
-              onChange={(e) => setReportReason(e.target.value)}
-              placeholder="اكتب سبب البلاغ"
-              className="min-h-[90px]"
-              maxLength={200}
-            />
-
-            <div className="flex gap-2" dir="rtl">
-              <Button variant="outline" className="flex-1" onClick={() => setReportOpen(false)}>
-                إلغاء
-              </Button>
-              <Button className="flex-1" onClick={submitReport}>
-                إرسال
-              </Button>
-            </div>
+      {/* 4. Suggestions: other providers in the same list (horizontal scroll) */}
+      {suggestions && suggestions.length > 0 && (
+        <div className="mt-5">
+          <div className="flex items-center justify-between mb-2" dir="rtl">
+            <div className="text-sm font-semibold text-foreground">اقتراحات</div>
+            <div className="text-xs text-muted-foreground">{suggestions.length} مزود</div>
           </div>
-        </DialogContent>
-      </Dialog>
+
+          <div className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory">
+            {suggestions.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => onOpenSuggestion?.(s)}
+                className="shrink-0 w-[68vw] max-w-[320px] snap-center text-right"
+              >
+                <div className="rounded-2xl border bg-card overflow-hidden shadow-sm">
+                  <div className="h-[110px] bg-muted">
+                    {s.image_url ? (
+                      <img
+                        src={s.image_url}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center text-muted-foreground text-sm">
+                        بدون صورة
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-3">
+                    <div className="font-semibold text-sm text-foreground line-clamp-1">
+                      {s.provider_name}
+                    </div>
+                    <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                      {s.title}
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
+                      <span className="line-clamp-1">{s.city || ""}</span>
+                      {typeof s.rating === "number" && s.rating > 0 ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Star className="h-3.5 w-3.5" /> {s.rating.toFixed(1)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Rate Dialog */}
       <Dialog open={rateOpen} onOpenChange={setRateOpen}>
@@ -929,50 +1097,6 @@ function ProviderDetailView({
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* 4. Bottom Action Bar (fixed CTA) */}
-      <div
-        className="mt-6 sticky bottom-0 bg-background/80 backdrop-blur p-4 -mx-4 border-t z-10"
-        dir="rtl"
-        style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
-      >
-        <div className="flex gap-3 items-center">
-          <Button
-            className={cn(
-              "h-12 text-base rounded-xl shadow-lg shadow-primary/20",
-              provider.allow_whatsapp === false ? "flex-[1]" : "flex-1"
-            )}
-            onClick={handleCall}
-          >
-            <Phone className="ml-2 h-4 w-4" /> اتصال
-          </Button>
-
-          {provider.allow_whatsapp !== false && (
-            <Button
-              variant="secondary"
-              className="h-12 text-base rounded-xl flex-1 bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400"
-              onClick={handleWhatsapp}
-            >
-              <MessageCircle className="ml-2 h-4 w-4" /> واتساب
-            </Button>
-          )}
-
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-12 w-12 rounded-xl"
-            onClick={() => {
-              if (!userId) return toast.info("سجل دخولك للإبلاغ");
-              setReportReason("");
-              setReportOpen(true);
-            }}
-            title="إبلاغ"
-            aria-label="report"
-          >
-            <Flag className="h-5 w-5" />
-          </Button>
-        </div>
-      </div>
 
       {/* Full Screen Viewer */}
       <Dialog
