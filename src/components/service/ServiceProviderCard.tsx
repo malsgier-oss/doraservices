@@ -18,11 +18,13 @@ import { useLanguage } from "@/contexts/LanguageContext";
 // --- Types (Shared) ---
 export interface ProviderData {
   id: string;
-  /** The provider owner's auth user id (services.user_id). Needed for reviews/provider_id. */
+  /** Owner user id (provider) if available from services table */
   user_id?: string | null;
   provider_name?: string | null;
   provider_avatar?: string | null;
   title?: string | null;
+  description?: string | null;
+  category?: string | null;
   city?: string | null;
   sub_city?: string | null;
   image_urls?: string[] | null;
@@ -34,6 +36,12 @@ export interface ProviderData {
   // New: Array of review texts for the snippet feature
   reviews?: string[]; 
   is_verified?: boolean;
+  // Service lifecycle flags (used for trust/visibility logic in sheets)
+  is_active?: boolean | null;
+  is_visible?: boolean | null;
+  is_paused?: boolean | null;
+  is_featured?: boolean | null;
+  approval_status?: string | null;
 }
 
 interface ServiceProviderCardProps {
