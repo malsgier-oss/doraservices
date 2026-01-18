@@ -22,6 +22,8 @@ export interface Service {
   provider_name?: string | null;
   provider_avatar?: string | null;
   provider_phone?: string | null;
+  /** If false, hide WhatsApp CTA everywhere */
+  allow_whatsapp?: boolean | null;
   city?: string | null;
   sub_city?: string | null;
 }
@@ -188,6 +190,7 @@ export function useServices() {
         is_visible: isApprovedProvider,
         is_active: true,
         is_paused: false,
+        allow_whatsapp: true,
       })
       .select()
       .single();

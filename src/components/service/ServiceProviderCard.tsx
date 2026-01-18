@@ -31,6 +31,8 @@ export interface ProviderData {
   image_url?: string | null;
   price?: number | null;
   provider_phone?: string | null;
+  /** If false, hide WhatsApp CTA everywhere */
+  allow_whatsapp?: boolean | null;
   rating?: number;
   rating_count?: number;
   // New: Array of review texts for the snippet feature
@@ -119,6 +121,8 @@ export function ServiceProviderCard({
   const tel = provider.provider_phone?.replace(/\s+/g, "");
   const whatsapp = provider.provider_phone?.replace(/[^\d]/g, "");
 
+  const allowWhatsapp = provider.allow_whatsapp !== false;
+
   const handleCall = (e: React.MouseEvent) => {
     e.stopPropagation();
     if(tel) window.open(`tel:${tel}`, "_self");
@@ -204,6 +208,7 @@ export function ServiceProviderCard({
              <Phone className="h-3.5 w-3.5" /> اتصال
            </Button>
 
+           {allowWhatsapp && (
            <Button 
              size="sm" 
              variant="outline" 
@@ -212,6 +217,7 @@ export function ServiceProviderCard({
            >
              <MessageCircle className="h-3.5 w-3.5" /> واتساب
            </Button>
+           )}
 
            <Button
              size="sm"
@@ -329,6 +335,7 @@ export function ServiceProviderCard({
         >
           <Phone className="h-4 w-4 ml-2" /> اتصال
         </Button>
+        {allowWhatsapp && (
         <Button 
            size="sm" 
            variant="secondary" 
@@ -337,6 +344,7 @@ export function ServiceProviderCard({
         >
           <MessageCircle className="h-4 w-4 ml-2" /> واتساب
         </Button>
+        )}
       </div>
     </div>
   );

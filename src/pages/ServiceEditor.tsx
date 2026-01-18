@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, ArrowLeft, MapPin, Tag } from "lucide-react";
@@ -28,6 +29,7 @@ type ServiceRow = {
   price: number | null;
   city: string | null;
   sub_city: string | null;
+  allow_whatsapp?: boolean | null;
   is_paused: boolean;
   approval_status: string;
   deleted_at?: string | null;
@@ -53,6 +55,7 @@ export default function ServiceEditor() {
   const [subcategoryId, setSubcategoryId] = useState<string>("");
   const [cityId, setCityId] = useState<string>("");
   const [subCity, setSubCity] = useState<string>("");
+  const [allowWhatsapp, setAllowWhatsapp] = useState<boolean>(true);
 
   const { data: subcategories } = useSubcategories(categoryId || undefined);
   const { data: subCities } = useSubCities(cityId || (profile as any)?.city_id || null);
@@ -68,7 +71,7 @@ export default function ServiceEditor() {
       setLoading(true);
       const { data, error } = await supabase
         .from("services")
-        .select("id,user_id,title,description,category,price,city,sub_city,is_paused,approval_status,deleted_at")
+        .select("id,user_id,title,description,category,price,city,sub_city,allow_whatsapp,is_paused,approval_status,deleted_at")
         .eq("id", id)
         .maybeSingle();
 
@@ -97,6 +100,7 @@ export default function ServiceEditor() {
       setDescription(row.description || "");
       setPrice(row.price != null ? String(row.price) : "");
       setSubCity(row.sub_city || "");
+      setAllowWhatsapp(row.allow_whatsapp ?? true);
 
       // Best-effort: map stored category string back to a category/subcategory selection.
       // Stored value is a name (category or subcategory name), so we match by name.
@@ -148,6 +152,8 @@ export default function ServiceEditor() {
     }
 
     const selectedCity = cities?.find((c) => c.id === cityId) || null;
+    const nextAllowWhatsapp = !!allowWhatsapp;
+
     const cityValue = selectedCity
       ? language === "ar"
         ? selectedCity.name_ar || selectedCity.name
@@ -163,6 +169,7 @@ export default function ServiceEditor() {
         category: categoryName,
         city: cityValue || null,
         sub_city: subCity.trim() || null,
+        allow_whatsapp: nextAllowWhatsapp,
       };
 
       const { error } = await supabase.from("services").update(updates).eq("id", service.id);
@@ -329,6 +336,18 @@ export default function ServiceEditor() {
                 </Select>
               </div>
             )}
+
+            <div className="flex items-center justify-between p-4 bg-muted rounded-xl">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-medium">
+                  {isRTL ? "السماح بالتواصل عبر واتساب" : "Allow WhatsApp"}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {isRTL ? "إذا أغلقتها، زر واتساب سيختفي للزبائن" : "When off, the WhatsApp button will be hidden for customers"}
+                </p>
+              </div>
+              <Switch checked={allowWhatsapp} onCheckedChange={setAllowWhatsapp} />
+            </div>
 
             <div className="flex gap-2 pt-2">
               <Button onClick={onSave} disabled={saving || accountLocked} className="h-12 rounded-xl flex-1">

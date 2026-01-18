@@ -112,7 +112,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
         const base = supabase
           .from("services")
           .select(
-            "id,user_id,title,description,category,city,sub_city,provider_name,provider_phone,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count"
+            "id,user_id,title,description,category,city,sub_city,provider_name,provider_phone,allow_whatsapp,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count"
           )
           .order("is_featured", { ascending: false })
           .order("views_count", { ascending: false });
@@ -166,6 +166,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           sub_city: r.sub_city ?? null,
           provider_name: r.provider_name ?? null,
           provider_phone: r.provider_phone ?? null,
+          allow_whatsapp: r.allow_whatsapp ?? true,
           image_url: r.image_url ?? null,
           image_urls: null, // You can populate this from image_url parsing if needed
           price: r.price,
@@ -479,6 +480,20 @@ function ProviderDetailView({
 }) {
   const [images, setImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [descExpanded, setDescExpanded] = useState(false);
+
+  const sanitizedDescription = useMemo(() => {
+    const raw = (provider.description || "").trim();
+    if (!raw) return "";
+    // Remove phone-like patterns and emojis to keep layout clean
+    const noPhones = raw
+      .replace(/\b\+?\d[\d\s\-()]{7,}\d\b/g, "")
+      .replace(/\b0\d{8,}\b/g, "");
+    const noEmoji = noPhones.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "");
+    const normalized = noEmoji.replace(/\n{3,}/g, "\n\n").trim();
+    return normalized;
+  }, [provider.description]);
+
 
   // Reviews + rating submission
   const [reviews, setReviews] = useState<
@@ -582,6 +597,7 @@ function ProviderDetailView({
   };
 
   const handleWhatsapp = () => {
+    if (provider.allow_whatsapp === false) return;
     if (!provider.provider_phone) return toast.error("لا يوجد رقم هاتف");
     const digits = provider.provider_phone.replace(/[^\d]/g, "");
     if (digits) window.open(`https://wa.me/${digits}`, "_blank");
@@ -655,7 +671,7 @@ function ProviderDetailView({
   };
 
   return (
-    <div className="pb-4 animate-in slide-in-from-right-4 duration-300">
+    <div className="pb-24 animate-in slide-in-from-right-4 duration-300">
       {/* 1. Image Gallery */}
       <div className="-mx-4 -mt-4 mb-4">
         <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory pb-4 px-2 pt-3 hide-scrollbar">
@@ -663,7 +679,7 @@ function ProviderDetailView({
             <div
               key={idx}
               onClick={() => src && setViewerIndex(idx)}
-              className="shrink-0 w-[92vw] aspect-video rounded-2xl overflow-hidden bg-muted snap-center shadow-sm border first:ml-0 cursor-pointer"
+              className="shrink-0 w-[82vw] h-[170px] rounded-2xl overflow-hidden bg-muted snap-center shadow-sm border first:ml-0 cursor-pointer"
             >
               {src ? (
                 <img src={src} className="h-full w-full object-cover" alt="" />
@@ -798,30 +814,39 @@ function ProviderDetailView({
       </div>
 
       {/* 3. Description */}
-      {provider.description && (
+            {/* 3. Description (tap to expand) */}
+      {sanitizedDescription ? (
         <div className="mt-4 bg-card rounded-2xl border p-5 shadow-sm">
           <h3 className="font-semibold mb-2 text-sm text-foreground">التفاصيل</h3>
-          <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
-            {provider.description}
-          </p>
 
-          {/* Calm report action (bottom) */}
-          <div className="mt-4">
-            <button
-              type="button"
-              className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-destructive transition-colors"
-              onClick={() => {
-                if (!userId) return toast.info("سجل دخولك للإبلاغ");
-                setReportReason("");
-                setReportOpen(true);
-              }}
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setDescExpanded((v) => !v)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") setDescExpanded((v) => !v);
+            }}
+            className="relative cursor-pointer select-none"
+            aria-expanded={descExpanded}
+          >
+            <p
+              className={cn(
+                "text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap transition-all duration-150",
+                descExpanded ? "line-clamp-6" : "line-clamp-2"
+              )}
             >
-              <Flag className="h-4 w-4" />
-              إبلاغ عن مشكلة
-            </button>
+              {sanitizedDescription}
+            </p>
+            {!descExpanded && (
+              <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-card to-transparent" />
+            )}
+          </div>
+
+          <div className="mt-2 text-[11px] text-muted-foreground">
+            {descExpanded ? "اضغط لإغلاق" : "اضغط لقراءة المزيد"}
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Report Dialog */}
       <Dialog open={reportOpen} onOpenChange={setReportOpen}>
@@ -905,21 +930,46 @@ function ProviderDetailView({
         </DialogContent>
       </Dialog>
 
-      {/* 4. Contact Footer */}
-      <div className="mt-6 sticky bottom-0 bg-background/80 backdrop-blur p-4 -mx-4 border-t z-10" dir="rtl">
-        <div className="flex gap-3">
+      {/* 4. Bottom Action Bar (fixed CTA) */}
+      <div
+        className="mt-6 sticky bottom-0 bg-background/80 backdrop-blur p-4 -mx-4 border-t z-10"
+        dir="rtl"
+        style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+      >
+        <div className="flex gap-3 items-center">
           <Button
-            className="h-12 text-base rounded-xl shadow-lg shadow-primary/20 flex-1"
+            className={cn(
+              "h-12 text-base rounded-xl shadow-lg shadow-primary/20",
+              provider.allow_whatsapp === false ? "flex-[1]" : "flex-1"
+            )}
             onClick={handleCall}
           >
             <Phone className="ml-2 h-4 w-4" /> اتصال
           </Button>
+
+          {provider.allow_whatsapp !== false && (
+            <Button
+              variant="secondary"
+              className="h-12 text-base rounded-xl flex-1 bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400"
+              onClick={handleWhatsapp}
+            >
+              <MessageCircle className="ml-2 h-4 w-4" /> واتساب
+            </Button>
+          )}
+
           <Button
-            variant="secondary"
-            className="h-12 text-base rounded-xl flex-1 bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400"
-            onClick={handleWhatsapp}
+            variant="outline"
+            size="icon"
+            className="h-12 w-12 rounded-xl"
+            onClick={() => {
+              if (!userId) return toast.info("سجل دخولك للإبلاغ");
+              setReportReason("");
+              setReportOpen(true);
+            }}
+            title="إبلاغ"
+            aria-label="report"
           >
-            <MessageCircle className="ml-2 h-4 w-4" /> واتساب
+            <Flag className="h-5 w-5" />
           </Button>
         </div>
       </div>
