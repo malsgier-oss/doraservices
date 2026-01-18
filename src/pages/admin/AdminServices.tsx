@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Search, Eye, EyeOff, Edit, Trash2, StickyNote, Star } from "lucide-react";
+import { Search, Eye, EyeOff, Edit, Trash2, StickyNote, Star, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 import { useCategories } from "@/hooks/useCategories";
 
@@ -31,6 +31,8 @@ interface Service {
 
   is_visible: boolean;
   is_active: boolean;
+  is_paused?: boolean;
+  approval_status?: string | null;
   admin_note: string | null;
   views_count: number;
   user_id: string | null;
@@ -65,6 +67,7 @@ export default function AdminServices() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [visibilityFilter, setVisibilityFilter] = useState<string>("all");
   const [featuredFilter, setFeaturedFilter] = useState<string>("all");
+  const [approvalFilter, setApprovalFilter] = useState<string>("all");
 
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -116,13 +119,19 @@ export default function AdminServices() {
     isError,
     error,
   } = useQuery({
-    queryKey: ["admin-services", categoryFilter, visibilityFilter, featuredFilter, search],
+    queryKey: ["admin-services", categoryFilter, visibilityFilter, featuredFilter, approvalFilter, search],
     queryFn: async () => {
       // ✅ IMPORTANT: no join here. Joins fail if FK is not defined in Supabase.
       let query = supabase.from("services").select("*");
 
       if (categoryFilter !== "all") query = query.eq("category", categoryFilter);
       if (visibilityFilter !== "all") query = query.eq("is_visible", visibilityFilter === "visible");
+
+      if (approvalFilter !== "all") {
+        if (approvalFilter === "approved") query = query.eq("approval_status", "approved");
+        else if (approvalFilter === "pending") query = query.or("approval_status.is.null,approval_status.eq.pending");
+        else if (approvalFilter === "rejected") query = query.eq("approval_status", "rejected");
+      }
 
       if (featuredFilter === "featured") query = query.eq("is_featured", true);
       else if (featuredFilter === "not_featured") query = query.or("is_featured.is.null,is_featured.eq.false");
@@ -182,11 +191,17 @@ export default function AdminServices() {
 
   const toggleVisibility = useMutation({
     mutationFn: async ({ id, isVisible }: { id: string; isVisible: boolean }) => {
-      const { error } = await supabase.from("services").update({ is_visible: isVisible }).eq("id", id);
+      // If the service is being made visible, we also approve it so it can appear publicly
+      // under the public RLS policy (approved + visible).
+      const updates = isVisible
+        ? { is_visible: true, approval_status: "approved" }
+        : { is_visible: false };
+
+      const { error } = await supabase.from("services").update(updates).eq("id", id);
       if (error) throw error;
 
       await supabase.rpc("log_admin_action", {
-        p_action: isVisible ? "service_shown" : "service_hidden",
+        p_action: isVisible ? "service_approved_and_shown" : "service_hidden",
         p_target_type: "service",
         p_target_id: id,
       });
@@ -196,6 +211,33 @@ export default function AdminServices() {
       toast.success("Service visibility updated");
     },
     onError: () => toast.error("Failed to update visibility"),
+  });
+
+  const approveService = useMutation({
+    mutationFn: async (id: string) => {
+      // When approving, ensure the service becomes publicly eligible.
+      const { error } = await supabase
+        .from("services")
+        .update({
+          approval_status: "approved",
+          is_visible: true,
+          is_active: true,
+          is_paused: false,
+        })
+        .eq("id", id);
+      if (error) throw error;
+
+      await supabase.rpc("log_admin_action", {
+        p_action: "service_approved",
+        p_target_type: "service",
+        p_target_id: id,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-services"] });
+      toast.success("Service approved");
+    },
+    onError: () => toast.error("Failed to approve service"),
   });
 
   const updateService = useMutation({
@@ -401,6 +443,18 @@ export default function AdminServices() {
                 </SelectContent>
               </Select>
 
+              <Select value={approvalFilter} onValueChange={setApprovalFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Approval" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+
               <Select value={featuredFilter} onValueChange={setFeaturedFilter}>
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Featured" />
@@ -441,6 +495,7 @@ export default function AdminServices() {
                   <TableHead>Featured</TableHead>
                   <TableHead>Order</TableHead>
                   <TableHead>Views</TableHead>
+                  <TableHead>Approval</TableHead>
                   <TableHead>Visibility</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Actions</TableHead>
@@ -505,6 +560,14 @@ export default function AdminServices() {
                       <TableCell>{service.views_count}</TableCell>
 
                       <TableCell>
+                        {((service.approval_status || "pending") as string).toLowerCase() === "approved" ? (
+                          <Badge className="bg-green-500">Approved</Badge>
+                        ) : (
+                          <Badge variant="secondary">Pending</Badge>
+                        )}
+                      </TableCell>
+
+                      <TableCell>
                         <div className="flex gap-1">
                           {service.is_visible ? (
                             <Badge className="bg-green-500">Visible</Badge>
@@ -519,6 +582,18 @@ export default function AdminServices() {
 
                       <TableCell>
                         <div className="flex gap-1">
+                          {((service.approval_status || "pending") as string).toLowerCase() !== "approved" && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Approve service (makes it publicly visible)"
+                              onClick={() => approveService.mutate(service.id)}
+                              disabled={approveService.isPending}
+                            >
+                              <CheckCircle className="h-4 w-4 text-green-600" />
+                            </Button>
+                          )}
+
                           <Button
                             variant="ghost"
                             size="icon"
