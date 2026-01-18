@@ -105,7 +105,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
         const base = supabase
           .from("services")
           .select(
-            "id,title,description,category,city,sub_city,provider_name,provider_phone,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count"
+            "id,user_id,title,description,category,city,sub_city,provider_name,provider_phone,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count"
           )
           .order("is_featured", { ascending: false })
           .order("views_count", { ascending: false });
@@ -151,6 +151,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
         const rows = (data || []) as any[];
         const normalizedBase: ProviderData[] = rows.map((r) => ({
           id: String(r.id),
+          user_id: r.user_id ? String(r.user_id) : null,
           title: r.title ?? null,
           description: r.description ?? null,
           category: r.category ?? null,
@@ -173,7 +174,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           if (ids.length > 0) {
             const { data: revs } = await supabase
               .from("service_reviews")
-              .select("service_id,review_text,created_at")
+              .select("service_id,content,created_at")
               .in("service_id", ids)
               .order("created_at", { ascending: false })
               .limit(50);
@@ -181,7 +182,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
             const map = new Map<string, string[]>();
             (revs || []).forEach((r: any) => {
               const sid = String(r.service_id);
-              const txt = (r.review_text ?? "").trim();
+              const txt = (r.content ?? "").trim();
               if (!sid || !txt) return;
               if (!map.has(sid)) map.set(sid, []);
               const arr = map.get(sid)!;
@@ -235,6 +236,12 @@ export function ServiceDetailSheet({
   // If the parent doesn't provide favorite handlers, we make favorites work here using Supabase.
   const [userId, setUserId] = useState<string | null>(null);
   const [favIds, setFavIds] = useState<Set<string>>(new Set());
+
+  // ---- Report (fallback wiring)
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportTargetId, setReportTargetId] = useState<string | null>(null);
+  const [reportReason, setReportReason] = useState("");
+  const [reportSending, setReportSending] = useState(false);
   
   // Ratings Hook
   const serviceIds = useMemo(() => providers.map((p) => p.id), [providers]);
@@ -276,13 +283,13 @@ export function ServiceDetailSheet({
           return;
         }
         const { data, error } = await supabase
-          .from("favorites")
-          .select("service_id")
+          .from("saved_businesses")
+          .select("business_id")
           .eq("user_id", userId)
-          .in("service_id", ids);
+          .in("business_id", ids as any);
 
         if (error) throw error;
-        const next = new Set<string>((data || []).map((x: any) => String(x.service_id)));
+        const next = new Set<string>((data || []).map((x: any) => String(x.business_id)));
         if (alive) setFavIds(next);
       } catch {
         if (alive) setFavIds(new Set());
@@ -315,18 +322,18 @@ export function ServiceDetailSheet({
     try {
       if (already) {
         const { error } = await supabase
-          .from("favorites")
+          .from("saved_businesses")
           .delete()
           .eq("user_id", userId)
-          .eq("service_id", providerId);
+          .eq("business_id", providerId);
         if (error) throw error;
       } else {
         const { error } = await supabase
-          .from("favorites")
-          .insert({ user_id: userId, service_id: providerId });
+          .from("saved_businesses")
+          .insert({ user_id: userId, business_id: providerId });
         if (error) throw error;
       }
-    } catch {
+    } catch (e: any) {
       // revert optimistic update
       setFavIds((prev) => {
         const next = new Set(prev);
@@ -334,20 +341,46 @@ export function ServiceDetailSheet({
         else next.delete(providerId);
         return next;
       });
-      toast.error("تعذر تحديث المفضلة");
+      const msg = typeof e?.message === "string" ? e.message : "تعذر تحديث المفضلة";
+      // If this is an RLS/policy error, be explicit.
+      if (/row-level security|policy/i.test(msg)) {
+        toast.error("لا يمكن تحديث المفضلة (صلاحيات الحساب)");
+      } else {
+        toast.error(msg);
+      }
     }
   };
 
-  const reportService = async (serviceId: string, reporterId?: string | null) => {
+  const openReport = (serviceId: string) => {
+    setReportTargetId(serviceId);
+    setReportReason("");
+    setReportOpen(true);
+  };
+
+  const submitReport = async () => {
+    if (!reportTargetId) return;
+    const reason = reportReason.trim();
+    if (reason.length < 3) return toast.error("اكتب سبب البلاغ");
+    if (reportSending) return;
+
+    setReportSending(true);
     try {
-      const { error } = await supabase.from("reports").insert({
-        service_id: serviceId,
-        reporter_id: reporterId ?? null,
-      });
+      const { error } = await supabase.from("user_reports").insert({
+        reporter_id: userId ?? null,
+        report_type: "service",
+        reason,
+        reported_service_id: reportTargetId,
+        reported_user_id: null,
+        call_log_id: null,
+      } as any);
       if (error) throw error;
       toast.success("تم إرسال البلاغ");
-    } catch {
-      toast.error("تعذر إرسال البلاغ");
+      setReportOpen(false);
+    } catch (e: any) {
+      const msg = e?.message ? String(e.message) : "تعذر إرسال البلاغ";
+      toast.error(msg);
+    } finally {
+      setReportSending(false);
     }
   };
 
@@ -362,14 +395,10 @@ export function ServiceDetailSheet({
   // Helper to merge ratings into provider object
   const getProviderWithRating = (p: ProviderData) => {
     const r = ratings.get(p.id);
-    // Defensive: some RPC/view results return numeric fields as strings.
-    // Coerce to number to avoid runtime crashes (e.g. calling toFixed on a string).
-    const avg = Number((r as any)?.averageRating ?? 0);
-    const cnt = Number((r as any)?.totalReviews ?? 0);
     return {
       ...p,
-      rating: Number.isFinite(avg) ? avg : 0,
-      rating_count: Number.isFinite(cnt) ? cnt : 0,
+      rating: r?.averageRating || 0,
+      rating_count: r?.totalReviews || 0,
     };
   };
 
@@ -413,7 +442,7 @@ export function ServiceDetailSheet({
               onToggleFavorite={toggleFavoriteLocal}
               isFavorite={isFavoriteLocal}
               userId={userId}
-              onReport={(serviceId) => reportService(serviceId, userId)}
+              onReport={(serviceId) => openReport(serviceId)}
             />
           ) : (
             <div className="space-y-3 pb-8">
@@ -439,7 +468,7 @@ export function ServiceDetailSheet({
                   onReport={() => {
                     // report from list (small action)
                     if (!p?.id) return;
-                    reportService(p.id, userId);
+                    openReport(p.id);
                   }}
                   onDetails={() => setSelectedProvider(p)}
                 />
@@ -447,6 +476,33 @@ export function ServiceDetailSheet({
             </div>
           )}
         </div>
+
+        {/* Report Dialog (shared) */}
+        <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+          <DialogContent className="max-w-[92vw] sm:max-w-md rounded-2xl">
+            <div className="space-y-4" dir="rtl">
+              <div>
+                <div className="text-lg font-bold text-foreground">إبلاغ عن مزود</div>
+                <div className="text-xs text-muted-foreground mt-1">اكتب سبب البلاغ (سيظهر للإدارة فقط)</div>
+              </div>
+              <Textarea
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value)}
+                placeholder="مثال: رقم غير صحيح، احتيال، إساءة..."
+                className="min-h-[110px]"
+                maxLength={300}
+              />
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setReportOpen(false)} disabled={reportSending}>
+                  إلغاء
+                </Button>
+                <Button className="flex-1" onClick={submitReport} disabled={reportSending}>
+                  {reportSending ? "جاري الإرسال..." : "إرسال"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </DrawerContent>
     </Drawer>
   );
@@ -471,7 +527,7 @@ function ProviderDetailView({
 
   // Reviews + rating submission
   const [reviews, setReviews] = useState<
-    { id: string; rating: number; review_text: string | null; created_at: string }[]
+    { id: string; rating: number; content: string | null; created_at: string }[]
   >([]);
   const [rateOpen, setRateOpen] = useState(false);
   const [rateStars, setRateStars] = useState<number>(5);
@@ -518,7 +574,7 @@ function ProviderDetailView({
       try {
         const { data, error } = await supabase
           .from("service_reviews")
-          .select("id,rating,review_text,created_at")
+          .select("id,rating,content,created_at")
           .eq("service_id", provider.id)
           .order("created_at", { ascending: false })
           .limit(20);
@@ -528,8 +584,8 @@ function ProviderDetailView({
             (data || []).map((r: any) => ({
               id: String(r.id),
               rating: Number(r.rating || 0),
-              review_text: r.review_text ?? null,
-              created_at: r.created_at ? String(r.created_at) : "",
+              content: r.content ?? null,
+              created_at: String(r.created_at),
             }))
           );
         }
@@ -559,16 +615,26 @@ function ProviderDetailView({
     if (rateStars < 1 || rateStars > 5) return toast.error("اختر التقييم بالنجوم");
     if (submitting) return;
 
+    // service_reviews requires provider_id
+    const providerId = provider.user_id ? String(provider.user_id) : null;
+    if (!providerId) {
+      return toast.error("لا يمكن التقييم حالياً (مزود غير مرتبط بحساب)");
+    }
+
     setSubmitting(true);
     try {
       const payload = {
         service_id: provider.id,
         user_id: userId,
+        provider_id: providerId,
         rating: rateStars,
-        review_text: rateText.trim() ? rateText.trim().slice(0, 200) : null,
+        content: rateText.trim() ? rateText.trim().slice(0, 200) : null,
       };
 
-      const { error } = await supabase.from("service_reviews").insert(payload);
+      // Upsert so a user can re-rate without getting blocked by UNIQUE(service_id,user_id)
+      const { error } = await supabase
+        .from("service_reviews")
+        .upsert(payload as any, { onConflict: "service_id,user_id" });
       if (error) throw error;
 
       toast.success("تم إرسال تقييمك");
@@ -578,7 +644,7 @@ function ProviderDetailView({
       try {
         const { data } = await supabase
           .from("service_reviews")
-          .select("id,rating,review_text,created_at")
+          .select("id,rating,content,created_at")
           .eq("service_id", provider.id)
           .order("created_at", { ascending: false })
           .limit(20);
@@ -587,15 +653,20 @@ function ProviderDetailView({
           (data || []).map((r: any) => ({
             id: String(r.id),
             rating: Number(r.rating || 0),
-            review_text: r.review_text ?? null,
-            created_at: r.created_at ? String(r.created_at) : "",
+            content: r.content ?? null,
+            created_at: String(r.created_at),
           }))
         );
       } catch {
         // ignore
       }
-    } catch {
-      toast.error("تعذر إرسال التقييم");
+    } catch (e: any) {
+      const msg = typeof e?.message === "string" ? e.message : "تعذر إرسال التقييم";
+      if (/row-level security|policy/i.test(msg)) {
+        toast.error("لا يمكن إرسال التقييم (قد يتطلب توثيق الحساب)");
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -683,9 +754,9 @@ function ProviderDetailView({
         </div>
 
         <div className="flex items-center gap-3 text-sm flex-wrap">
-          {!!provider.rating_count && provider.rating_count > 0 && Number.isFinite(Number(provider.rating)) ? (
+          {provider.rating ? (
             <div className="flex items-center gap-1 font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-100">
-              <span>{Number(provider.rating).toFixed(1)}</span>
+              <span>{provider.rating.toFixed(1)}</span>
               <Star className="h-4 w-4 fill-current" />
               <span className="text-muted-foreground font-normal ml-1">
                 ({provider.rating_count})
@@ -743,12 +814,12 @@ function ProviderDetailView({
                       ))}
                     </div>
                     <div className="text-[11px] text-muted-foreground">
-                      {(() => { const d = new Date(r.created_at); return isNaN(d.getTime()) ? "" : d.toLocaleDateString("ar-LY"); })()}
+                      {new Date(r.created_at).toLocaleDateString("ar-LY")}
                     </div>
                   </div>
-                  {r.review_text ? (
+                  {r.content ? (
                     <div className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                      {r.review_text}
+                      {r.content}
                     </div>
                   ) : null}
                 </div>
