@@ -14,6 +14,7 @@ export interface Service {
   is_paused?: boolean;
   is_visible?: boolean;
   approval_status?: string;
+  deleted_at?: string | null;
   created_at: string;
   updated_at: string;
 
@@ -53,6 +54,7 @@ export function useServices() {
     const { data: servicesData, error: servicesError } = await supabase
       .from("services")
       .select("*")
+      .is("deleted_at", null)
       .eq("is_active", true)
       .eq("is_visible", true)
       .eq("is_paused", false)
@@ -111,6 +113,7 @@ export function useServices() {
       .from("services")
       .select("*")
       .eq("user_id", user.id)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -151,7 +154,7 @@ export function useServices() {
     try {
       const { data: p, error: pErr } = await supabase
         .from("profiles")
-        .select("full_name, phone, city, sub_city, avatar_url")
+        .select("full_name, phone, city, sub_city, avatar_url, provider_status, status")
         .eq("user_id", user.id)
         .single();
       if (!pErr) provider = p as any;
@@ -160,6 +163,12 @@ export function useServices() {
     }
 
     const storedPhone = normalizeLibyaPhoneForStorage(provider?.phone);
+
+    // Dora P0: services should not be visible until provider/service is approved.
+    // - Approved providers: default approved + visible
+    // - Pending/rejected providers: default pending + hidden
+    const providerStatus = ((provider as any)?.provider_status || "").toLowerCase();
+    const isApprovedProvider = providerStatus === "approved";
 
     const { data, error } = await supabase
       .from("services")
@@ -175,6 +184,10 @@ export function useServices() {
         provider_phone: storedPhone || null,
         city: provider?.city || null,
         sub_city: provider?.sub_city || null,
+        approval_status: isApprovedProvider ? "approved" : "pending",
+        is_visible: isApprovedProvider,
+        is_active: true,
+        is_paused: false,
       })
       .select()
       .single();
@@ -199,7 +212,16 @@ export function useServices() {
   };
 
   const deleteService = async (id: string) => {
-    const { error } = await supabase.from("services").delete().eq("id", id);
+    // Dora P0: soft-delete (do not hard-delete rows).
+    const { error } = await supabase
+      .from("services")
+      .update({
+        deleted_at: new Date().toISOString(),
+        is_active: false,
+        is_visible: false,
+        is_paused: true,
+      })
+      .eq("id", id);
 
     if (!error) {
       setMyServices((prev) => prev.filter((s) => s.id !== id));

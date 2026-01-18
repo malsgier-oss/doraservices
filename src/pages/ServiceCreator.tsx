@@ -177,6 +177,13 @@ export default function ServiceCreator() {
       return;
     }
 
+    const accountStatus = (profile.status || "").toLowerCase();
+    if (accountStatus === "suspended" || accountStatus === "deleted" || accountStatus === "inactive") {
+      toast.error(isRTL ? "لا يمكنك إضافة خدمات حالياً" : "You can't create services right now");
+      navigate("/profile");
+      return;
+    }
+
     if (!formData.serviceName.trim()) {
       toast.error(isRTL ? "يرجى إدخال اسم الخدمة" : "Please enter service name");
       return;
@@ -229,6 +236,9 @@ export default function ServiceCreator() {
 
       const providerName = (profile.full_name || "").trim() || (isRTL ? "مقدم الخدمة" : "Provider");
 
+      const providerStatus = (profile.provider_status || "").toLowerCase();
+      const isApprovedProvider = providerStatus === "approved";
+
       // ✅ Insert directly to ensure provider_phone/provider_name/city/sub_city are stored for anonymous browsing
       const { data: created, error } = await supabase
         .from("services")
@@ -243,8 +253,9 @@ export default function ServiceCreator() {
         provider_name: providerName,
         provider_phone: storedPhone,
         is_active: true,
-        is_visible: true,
+        is_visible: isApprovedProvider,
         is_paused: false,
+        approval_status: isApprovedProvider ? "approved" : "pending",
       })
         .select("id")
         .single();

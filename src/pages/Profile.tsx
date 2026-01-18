@@ -154,6 +154,11 @@ export default function Profile() {
       providerStatusLower === "active" ||
       providerStatusLower === "verified");
 
+  const accountLocked = useMemo(() => {
+    const st = (profile?.status || "").toLowerCase();
+    return st === "suspended" || st === "deleted" || st === "inactive";
+  }, [profile?.status]);
+
   const showWelcome = useMemo(() => {
     const q = new URLSearchParams(location.search);
     return q.get("welcome") === "1";
@@ -379,8 +384,10 @@ export default function Profile() {
       const { error } = await supabase
         .from("profiles")
         .update({
+          // Dora P0: admin-controlled trust.
+          // User can request to become a provider, but approval is required.
           role: "provider",
-          provider_status: "approved",
+          provider_status: "pending",
         })
         .eq("user_id", user.id);
 
@@ -396,8 +403,10 @@ export default function Profile() {
       await refreshProfile?.();
 
       toast({
-        title: isRTL ? "تم تفعيل حساب المزود" : "Provider enabled",
-        description: isRTL ? "يمكنك الآن إضافة خدمات" : "You can now create services",
+        title: isRTL ? "تم إرسال طلب المزود" : "Provider request sent",
+        description: isRTL
+          ? "حسابك تحت المراجعة. يمكنك إضافة خدمات لكنها لن تظهر للناس حتى الموافقة."
+          : "You're under review. You can add services, but they won't be visible until approved.",
       });
     } finally {
       setBecomingProvider(false);
@@ -602,19 +611,14 @@ export default function Profile() {
           {!isAdmin && isProvider && (
             <CardContent className="pt-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <Button asChild disabled={!isProviderApproved} className="h-12 rounded-xl justify-start gap-2">
+                <Button asChild disabled={accountLocked} className="h-12 rounded-xl justify-start gap-2">
                   <Link to="/provider-dashboard">
                     <LayoutDashboard className="h-4 w-4" />
                     {isRTL ? "لوحة المزود" : "Provider Dashboard"}
                   </Link>
                 </Button>
 
-                <Button
-                  asChild
-                  variant="outline"
-                  disabled={!isProviderApproved}
-                  className="h-12 rounded-xl justify-start gap-2"
-                >
+                <Button asChild variant="outline" disabled={accountLocked} className="h-12 rounded-xl justify-start gap-2">
                   <Link to="/create-service">
                     <PlusCircle className="h-4 w-4" />
                     {isRTL ? "إضافة خدمة" : "Create service"}
@@ -796,19 +800,14 @@ export default function Profile() {
                       <Separator />
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <Button asChild disabled={!isProviderApproved} className="h-12 rounded-xl justify-start gap-2">
+                        <Button asChild disabled={accountLocked} className="h-12 rounded-xl justify-start gap-2">
                           <Link to="/provider-dashboard">
                             <LayoutDashboard className="h-4 w-4" />
                             {isRTL ? "لوحة المزود" : "Provider Dashboard"}
                           </Link>
                         </Button>
 
-                        <Button
-                          asChild
-                          variant="outline"
-                          disabled={!isProviderApproved}
-                          className="h-12 rounded-xl justify-start gap-2"
-                        >
+                        <Button asChild variant="outline" disabled={accountLocked} className="h-12 rounded-xl justify-start gap-2">
                           <Link to="/create-service">
                             <PlusCircle className="h-4 w-4" />
                             {isRTL ? "إضافة خدمة" : "Create service"}

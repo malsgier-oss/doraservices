@@ -18,6 +18,7 @@ import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import ProviderDashboard from "./pages/ProviderDashboard";
+import ServiceEditor from "./pages/ServiceEditor";
 import PendingVerification from "./pages/PendingVerification";
 import ChangePassword from "./pages/ChangePassword";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -180,6 +181,15 @@ const AppRoutes = () => {
           <ProtectedRoute>
             <ServiceCreator />
           </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/edit-service/:id"
+        element={
+          <ProviderRoute>
+            <ServiceEditor />
+          </ProviderRoute>
         }
       />
 
