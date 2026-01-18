@@ -33,17 +33,16 @@ import {
   Building2,
   Camera,
   KeyRound,
-  LayoutDashboard,
   Loader2,
   LogOut,
   MapPin,
   Phone,
-  PlusCircle,
   ShieldCheck,
   Trash2,
   User2,
   X,
 } from "lucide-react";
+import { MobileNav } from "@/components/layout/MobileNav";
 
 function statusBadgeVariant(status?: string | null) {
   const s = (status || "").toLowerCase();
@@ -141,18 +140,14 @@ export default function Profile() {
   }, [cities, cityId, language]);
 
   const providerStatus = profile?.provider_status || null;
-  const providerStatusLower = (providerStatus || "").toLowerCase();
 
   const currentRole = (profile?.role || "user").toString().toLowerCase();
   const isProvider = isProviderLike(currentRole);
   const isAdmin = currentRole === "admin";
 
-  const isProviderApproved =
-    isProvider &&
-    (providerStatusLower === "approved" ||
-      providerStatusLower === "" ||
-      providerStatusLower === "active" ||
-      providerStatusLower === "verified");
+  // Dora principle: Profile pages stay focused on account/security/personal data.
+  // "Become provider" is available only for non-remixed users.
+  const showProviderTab = !isAdmin && !isProvider;
 
   const accountLocked = useMemo(() => {
     const st = (profile?.status || "").toLowerCase();
@@ -165,9 +160,9 @@ export default function Profile() {
   }, [location.search]);
 
   const defaultTab = useMemo(() => {
-    if (showWelcome) return isProvider ? "provider" : "account";
+    if (showWelcome) return showProviderTab ? "provider" : "account";
     return "account";
-  }, [showWelcome, isProvider]);
+  }, [showWelcome, showProviderTab]);
 
   const canEditPhone = useMemo(() => {
     // Editing phone freely can break login (phone->internal email mapping).
@@ -608,36 +603,24 @@ export default function Profile() {
             </div>
           </div>
 
-          {!isAdmin && isProvider && (
-            <CardContent className="pt-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <Button asChild disabled={accountLocked} className="h-12 rounded-xl justify-start gap-2">
-                  <Link to="/provider-dashboard">
-                    <LayoutDashboard className="h-4 w-4" />
-                    {isRTL ? "لوحة المزود" : "Provider Dashboard"}
-                  </Link>
-                </Button>
-
-                <Button asChild variant="outline" disabled={accountLocked} className="h-12 rounded-xl justify-start gap-2">
-                  <Link to="/create-service">
-                    <PlusCircle className="h-4 w-4" />
-                    {isRTL ? "إضافة خدمة" : "Create service"}
-                  </Link>
-                </Button>
-              </div>
-            </CardContent>
-          )}
         </Card>
 
         {/* Tabs */}
         <Tabs defaultValue={defaultTab} className="w-full">
-          <TabsList className="grid grid-cols-3 w-full rounded-2xl h-12">
+          <TabsList
+            className={cn(
+              "grid w-full rounded-2xl h-12",
+              showProviderTab ? "grid-cols-3" : "grid-cols-2",
+            )}
+          >
             <TabsTrigger value="account" className="rounded-xl">
               {isRTL ? "الحساب" : "Account"}
             </TabsTrigger>
-            <TabsTrigger value="provider" className="rounded-xl">
-              {isRTL ? "المزود" : "Provider"}
-            </TabsTrigger>
+            {showProviderTab && (
+              <TabsTrigger value="provider" className="rounded-xl">
+                {isRTL ? "المزود" : "Provider"}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="security" className="rounded-xl">
               {isRTL ? "الأمان" : "Security"}
             </TabsTrigger>
@@ -756,70 +739,44 @@ export default function Profile() {
             </Card>
           </TabsContent>
 
-          {/* Provider */}
-          <TabsContent value="provider" className="mt-4 space-y-4">
-            {!isAdmin && (
+          {/* Provider (upgrade only) */}
+          {showProviderTab && (
+            <TabsContent value="provider" className="mt-4 space-y-4">
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base flex items-center gap-2">
                     <Building2 className="h-4 w-4" />
-                    {isRTL ? "المزود" : "Provider"}
+                    {isRTL ? "أصبح مزود خدمة" : "Become a provider"}
                   </CardTitle>
                   <CardDescription>
-                    {isProvider
-                      ? isRTL
-                        ? "إدارة خدماتك والوصول السريع للأدوات."
-                        : "Manage your services and quick actions."
-                      : isRTL
-                        ? "حوّل حسابك إلى مزود خدمة بضغطة واحدة."
-                        : "Upgrade your account to a provider with one tap."}
+                    {isRTL
+                      ? "ستتم مراجعة طلبك من الإدارة قبل ظهور خدماتك للناس."
+                      : "Your request will be reviewed by admin before your services become visible."}
                   </CardDescription>
                 </CardHeader>
 
-                <CardContent className="space-y-4">
-                  {!isProvider ? (
-                    <Button
-                      onClick={handleBecomeProvider}
-                      disabled={becomingProvider}
-                      className="h-12 rounded-xl w-full gap-2"
-                    >
-                      {becomingProvider ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Building2 className="h-4 w-4" />
-                      )}
-                      {isRTL ? "أريد أن أكون مزود" : "I want to be a provider"}
-                    </Button>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">{isRTL ? "الحالة" : "Status"}</span>
-                        <Badge variant={statusBadgeVariant(providerStatus)}>{providerStatus || "approved"}</Badge>
-                      </div>
-
-                      <Separator />
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <Button asChild disabled={accountLocked} className="h-12 rounded-xl justify-start gap-2">
-                          <Link to="/provider-dashboard">
-                            <LayoutDashboard className="h-4 w-4" />
-                            {isRTL ? "لوحة المزود" : "Provider Dashboard"}
-                          </Link>
-                        </Button>
-
-                        <Button asChild variant="outline" disabled={accountLocked} className="h-12 rounded-xl justify-start gap-2">
-                          <Link to="/create-service">
-                            <PlusCircle className="h-4 w-4" />
-                            {isRTL ? "إضافة خدمة" : "Create service"}
-                          </Link>
-                        </Button>
-                      </div>
-                    </div>
-                  )}
+                <CardContent className="space-y-3">
+                  <Button
+                    onClick={handleBecomeProvider}
+                    disabled={becomingProvider}
+                    className="h-12 rounded-xl w-full gap-2"
+                  >
+                    {becomingProvider ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Building2 className="h-4 w-4" />
+                    )}
+                    {isRTL ? "أريد أن أكون مزود" : "I want to be a provider"}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    {isRTL
+                      ? "بعد الموافقة، ستجد لوحة المزود في الشريط السفلي."
+                      : "After approval, you'll find Dashboard in the bottom navigation."}
+                  </p>
                 </CardContent>
               </Card>
-            )}
-          </TabsContent>
+            </TabsContent>
+          )}
 
           {/* Security */}
           <TabsContent value="security" className="mt-4 space-y-4">
@@ -920,6 +877,9 @@ export default function Profile() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Keep bottom navigation visible on Profile (mobile-first). */}
+      <MobileNav />
     </div>
   );
 }

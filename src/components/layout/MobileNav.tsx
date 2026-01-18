@@ -1,21 +1,30 @@
 import { Home, Heart, User, Shield, LayoutDashboard } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useUserRole } from "@/hooks/useUserRole";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
 export function MobileNav() {
   const { t, isRTL } = useLanguage();
-  const { isAdmin, isBusiness } = useUserRole();
+  const { user, profile, loading, profileLoading } = useAuth();
   const location = useLocation();
+
+  // Use AuthContext profile as the single source of truth.
+  // This avoids extra DB queries and prevents nav flicker/mismatch.
+  const role = (profile?.role || "user").toString().toLowerCase();
+  const isAdmin = role === "admin";
+  const isBusiness = role === "provider" || role === "business";
+
+  // While profile is loading, keep a stable minimal nav.
+  const roleReady = !!user && !loading && !profileLoading;
 
   const navItems = [
     { to: "/", icon: Home, label: t.nav.home },
-    ...(isBusiness
+    ...((roleReady && isBusiness)
       ? [{ to: "/provider-dashboard", icon: LayoutDashboard, label: isRTL ? "لوحة مقدم الخدمة" : "Dashboard" }]
       : [{ to: "/favorites", icon: Heart, label: t.favorites?.title || (isRTL ? "المفضلة" : "Favorites") }]),
     { to: "/profile", icon: User, label: t.nav.profile },
-    ...(isAdmin ? [{ to: "/admin", icon: Shield, label: isRTL ? "لوحة التحكم" : "Admin" }] : []),
+    ...((roleReady && isAdmin) ? [{ to: "/admin", icon: Shield, label: isRTL ? "لوحة التحكم" : "Admin" }] : []),
   ];
 
   return (
