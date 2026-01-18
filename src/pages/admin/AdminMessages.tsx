@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Send, Users, Store, Globe, Trash2 } from "lucide-react";
+import { Send, Users, Store, Globe } from "lucide-react";
 import { usePlatformMessages, useMessageMutations } from "@/hooks/useAdmin";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
@@ -26,7 +26,7 @@ export default function AdminMessages() {
   const [targetAudience, setTargetAudience] = useState("all");
 
   const { data: messages, isLoading } = usePlatformMessages();
-  const { sendMessage, deleteMessage } = useMessageMutations();
+  const { sendMessage } = useMessageMutations();
   const { toast } = useToast();
 
   const handleSend = () => {
@@ -58,12 +58,6 @@ export default function AdminMessages() {
       default:
         return <Globe className="h-4 w-4" />;
     }
-  };
-
-  const handleDelete = (messageId: string) => {
-    // Lightweight confirm to avoid accidental deletion.
-    if (!confirm("Delete this message? This will remove it for all users.")) return;
-    deleteMessage.mutate({ messageId });
   };
 
   return (
@@ -135,7 +129,6 @@ export default function AdminMessages() {
                   <TableHead>Content</TableHead>
                   <TableHead>Audience</TableHead>
                   <TableHead>Sent</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -150,7 +143,7 @@ export default function AdminMessages() {
                   ))
                 ) : messages?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                       No messages sent yet
                     </TableCell>
                   </TableRow>
@@ -169,17 +162,6 @@ export default function AdminMessages() {
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {format(new Date(message.created_at), "MMM d, yyyy HH:mm")}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => handleDelete(message.id)}
-                          disabled={deleteMessage.isPending}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
                       </TableCell>
                     </TableRow>
                   ))

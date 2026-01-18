@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Users, Store, Eye, Phone, MessageCircle, AlertTriangle, ShieldAlert, Clock } from "lucide-react";
+import { Users, Store, Tag, AlertTriangle, TrendingUp, ShieldAlert, Clock } from "lucide-react";
 import { useAdminStats, usePlatformSettings, useSettingsMutations } from "@/hooks/useAdmin";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -10,20 +10,19 @@ export default function AdminDashboard() {
   const { data: settings, isLoading: settingsLoading } = usePlatformSettings();
   const { updateSetting } = useSettingsMutations();
 
-  const handleToggle = (key: string, currentValue: boolean) => {
-    updateSetting.mutate({ key, value: !currentValue });
+  const handleToggle = (key: string, currentValue: string) => {
+    const newValue = currentValue === "true" ? "false" : "true";
+    updateSetting.mutate({ key, value: newValue });
   };
 
   const statCards = [
     { label: "Total Users", value: stats?.totalUsers || 0, icon: Users, color: "text-primary" },
-    { label: "Pending Providers", value: stats?.pendingProviders || 0, icon: Clock, color: "text-yellow-500" },
-    { label: "Total Services", value: stats?.totalServices || 0, icon: Store, color: "text-accent" },
-    { label: "Pending Services", value: stats?.pendingServices || 0, icon: Clock, color: "text-yellow-500" },
-    { label: "Total Views", value: stats?.totalViews || 0, icon: Eye, color: "text-primary" },
-    { label: "Calls", value: stats?.totalCalls || 0, icon: Phone, color: "text-primary" },
-    { label: "WhatsApp", value: stats?.totalWhatsapps || 0, icon: MessageCircle, color: "text-primary" },
-    { label: "Pending Reports", value: stats?.pendingReports || 0, icon: AlertTriangle, color: "text-yellow-500" },
+    { label: "Business Users", value: stats?.businessUsers || 0, icon: Store, color: "text-accent" },
+    { label: "Pending Businesses", value: stats?.pendingBusinesses || 0, icon: Clock, color: "text-yellow-500" },
+    { label: "Approved Businesses", value: stats?.approvedBusinesses || 0, icon: TrendingUp, color: "text-success" },
+    { label: "Active Deals", value: stats?.activeDeals || 0, icon: Tag, color: "text-primary" },
     { label: "Suspended Users", value: stats?.suspendedProfiles || 0, icon: ShieldAlert, color: "text-destructive" },
+    { label: "Pending Reports", value: stats?.pendingReports || 0, icon: AlertTriangle, color: "text-yellow-500" },
   ];
 
   return (
@@ -71,15 +70,45 @@ export default function AdminDashboard() {
             <>
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="provider-registration">Provider Registration</Label>
+                  <Label htmlFor="deal-publishing">Deal Publishing</Label>
                   <p className="text-sm text-muted-foreground">
-                    Allow new providers to apply
+                    Allow businesses to publish new deals
                   </p>
                 </div>
                 <Switch
-                  id="provider-registration"
-                  checked={Boolean(settings?.business_registration_enabled ?? true)}
-                  onCheckedChange={() => handleToggle("business_registration_enabled", Boolean(settings?.business_registration_enabled ?? true))}
+                  id="deal-publishing"
+                  checked={settings?.deal_publishing_enabled === "true"}
+                  onCheckedChange={() => handleToggle("deal_publishing_enabled", settings?.deal_publishing_enabled || "true")}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="deals-visible" className="text-destructive font-semibold">
+                    Emergency Kill Switch
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Hide all deals from the platform (emergency use only)
+                  </p>
+                </div>
+                <Switch
+                  id="deals-visible"
+                  checked={settings?.deals_visible === "true"}
+                  onCheckedChange={() => handleToggle("deals_visible", settings?.deals_visible || "true")}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="business-registration">Business Registration</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Allow new business registrations
+                  </p>
+                </div>
+                <Switch
+                  id="business-registration"
+                  checked={settings?.business_registration_enabled === "true"}
+                  onCheckedChange={() => handleToggle("business_registration_enabled", settings?.business_registration_enabled || "true")}
                 />
               </div>
 
@@ -92,8 +121,8 @@ export default function AdminDashboard() {
                 </div>
                 <Switch
                   id="user-registration"
-                  checked={Boolean(settings?.user_registration_enabled ?? true)}
-                  onCheckedChange={() => handleToggle("user_registration_enabled", Boolean(settings?.user_registration_enabled ?? true))}
+                  checked={settings?.user_registration_enabled === "true"}
+                  onCheckedChange={() => handleToggle("user_registration_enabled", settings?.user_registration_enabled || "true")}
                 />
               </div>
             </>

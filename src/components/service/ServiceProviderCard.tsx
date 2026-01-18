@@ -14,7 +14,6 @@ import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { logServiceEvent } from "@/hooks/useServiceEvents";
 
 // --- Types (Shared) ---
 export interface ProviderData {
@@ -103,15 +102,6 @@ export function ServiceProviderCard({
   const { t } = useLanguage();
   const [imageOpen, setImageOpen] = useState(false);
 
-  const handleDetails = () => {
-    void logServiceEvent({
-      event_type: "view",
-      service_id: provider.id,
-      provider_id: provider.user_id ?? null,
-    });
-    onDetails?.();
-  };
-
   // -- Data Prep --
   const coverImage = useMemo(() => {
     if (provider.image_urls?.length) return provider.image_urls[0];
@@ -131,22 +121,11 @@ export function ServiceProviderCard({
 
   const handleCall = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Telemetry (best-effort)
-    void logServiceEvent({
-      event_type: "call",
-      service_id: provider.id,
-      provider_id: provider.user_id ?? null,
-    });
     if(tel) window.open(`tel:${tel}`, "_self");
   };
 
   const handleWhatsapp = (e: React.MouseEvent) => {
     e.stopPropagation();
-    void logServiceEvent({
-      event_type: "whatsapp",
-      service_id: provider.id,
-      provider_id: provider.user_id ?? null,
-    });
     if(whatsapp) window.open(`https://wa.me/${whatsapp}`, "_blank");
   };
 
@@ -164,14 +143,7 @@ export function ServiceProviderCard({
   if (variant === "row") {
     return (
       <div 
-        onClick={() => {
-          void logServiceEvent({
-            event_type: "view",
-            service_id: provider.id,
-            provider_id: provider.user_id ?? null,
-          });
-          onDetails?.();
-        }}
+        onClick={onDetails}
         className={cn(
           "group relative flex flex-col gap-3 rounded-2xl border bg-card p-3 shadow-sm transition-all hover:border-primary/20 active:scale-[0.99] cursor-pointer",
           className
@@ -287,7 +259,7 @@ export function ServiceProviderCard({
             src={coverImage} 
             alt={provider.provider_name || ""} 
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110 cursor-pointer"
-            onClick={handleDetails}
+            onClick={() => onDetails?.()}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
@@ -320,7 +292,7 @@ export function ServiceProviderCard({
         <div className="flex justify-between items-start mb-1">
           <h3 
             className="font-bold text-lg leading-tight truncate cursor-pointer hover:underline decoration-primary/50"
-            onClick={handleDetails}
+            onClick={onDetails}
           >
             {provider.provider_name}
           </h3>
