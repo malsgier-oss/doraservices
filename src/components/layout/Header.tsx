@@ -8,7 +8,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { Bell, CheckCheck } from "lucide-react";
+import { Bell, CheckCheck, Trash2 } from "lucide-react";
 import {
   useNotifications,
   useUnreadCount,
@@ -23,7 +23,7 @@ export function Header() {
 
   const { data: notifications } = useNotifications();
   const { data: unreadCount } = useUnreadCount();
-  const { markAsRead, markAllAsRead } = useNotificationMutations();
+  const { markAsRead, markAllAsRead, deleteNotification, clearAll } = useNotificationMutations();
 
   return (
     <header className="sticky top-0 z-40 bg-background border-b border-border">
@@ -56,17 +56,35 @@ export function Header() {
                     {isRTL ? "الإشعارات" : "Notifications"}
                   </h3>
 
-                  {unreadCount && unreadCount > 0 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={() => markAllAsRead.mutate()}
-                    >
-                      <CheckCheck className="h-3 w-3 mr-1" />
-                      {isRTL ? "قراءة الكل" : "Mark all read"}
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {!!notifications?.length && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          if (confirm(isRTL ? "حذف جميع الإشعارات؟" : "Clear all notifications?") ) {
+                            clearAll.mutate();
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        {isRTL ? "حذف الكل" : "Clear"}
+                      </Button>
+                    )}
+
+                    {unreadCount && unreadCount > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => markAllAsRead.mutate()}
+                      >
+                        <CheckCheck className="h-3 w-3 mr-1" />
+                        {isRTL ? "قراءة الكل" : "Mark all read"}
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 <ScrollArea className="h-80">
@@ -107,6 +125,19 @@ export function Header() {
                             {!notification.is_read && (
                               <div className="h-2 w-2 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
                             )}
+
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteNotification.mutate(notification.id);
+                              }}
+                              aria-label={isRTL ? "حذف" : "Delete"}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
                       ))}

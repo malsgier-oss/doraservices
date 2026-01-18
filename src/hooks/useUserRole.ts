@@ -88,7 +88,8 @@ export function useUserRole() {
 
   /**
    * Dora P0: become provider.
-   * We set role="provider" and provider_status="approved" (auto-approve).
+   * Dora principle: admin-controlled trust.
+   * We set role="provider" and provider_status="pending" (requires admin approval).
    */
   const upgradeToBusiness = async () => {
     if (!user) return { error: new Error("Not authenticated") };
@@ -97,7 +98,7 @@ export function useUserRole() {
       .from("profiles")
       .update({
         role: "provider",
-        provider_status: "approved",
+        provider_status: "pending",
       })
       .eq("user_id", user.id);
 

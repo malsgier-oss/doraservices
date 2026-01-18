@@ -64,7 +64,7 @@ interface Report {
 interface PlatformSetting {
   id: string;
   key: string;
-  value: string;
+  value: unknown;
   updated_at: string;
 }
 
@@ -92,32 +92,46 @@ export function useAdminStats() {
   return useQuery({
     queryKey: ["admin", "stats"],
     queryFn: async () => {
+      // Dora: Stats should reflect the current services marketplace model.
+      // NOTE: provider_status lives on profiles, not on legacy businesses tables.
       const [
         { count: totalUsers },
-        { count: businessUsers },
-        { count: pendingBusinesses },
-        { count: approvedBusinesses },
-        { count: activeDeals },
+        { count: totalProviders },
+        { count: pendingProviders },
+        { count: approvedProviders },
+        { count: totalServices },
+        { count: pendingServices },
         { count: suspendedProfiles },
         { count: pendingReports },
+        { count: totalViews },
+        { count: totalCalls },
+        { count: totalWhatsapps },
       ] = await Promise.all([
         supabase.from("profiles").select("*", { count: "exact", head: true }),
-        supabase.from("user_roles").select("*", { count: "exact", head: true }).eq("role", "business"),
-        supabase.from("businesses").select("*", { count: "exact", head: true }).eq("authorization_status", "pending"),
-        supabase.from("businesses").select("*", { count: "exact", head: true }).eq("authorization_status", "approved"),
-        supabase.from("deals").select("*", { count: "exact", head: true }).eq("status", "active"),
+        supabase.from("profiles").select("*", { count: "exact", head: true }).not("provider_status", "is", null),
+        supabase.from("profiles").select("*", { count: "exact", head: true }).eq("provider_status", "pending"),
+        supabase.from("profiles").select("*", { count: "exact", head: true }).eq("provider_status", "approved"),
+        supabase.from("services").select("*", { count: "exact", head: true }),
+        supabase.from("services").select("*", { count: "exact", head: true }).eq("approval_status", "pending"),
         supabase.from("profiles").select("*", { count: "exact", head: true }).eq("status", "suspended"),
         supabase.from("user_reports").select("*", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("service_events").select("*", { count: "exact", head: true }).eq("event_type", "view"),
+        supabase.from("service_events").select("*", { count: "exact", head: true }).eq("event_type", "call"),
+        supabase.from("service_events").select("*", { count: "exact", head: true }).eq("event_type", "whatsapp"),
       ]);
 
       return {
         totalUsers: totalUsers || 0,
-        businessUsers: businessUsers || 0,
-        pendingBusinesses: pendingBusinesses || 0,
-        approvedBusinesses: approvedBusinesses || 0,
-        activeDeals: activeDeals || 0,
+        totalProviders: totalProviders || 0,
+        pendingProviders: pendingProviders || 0,
+        approvedProviders: approvedProviders || 0,
+        totalServices: totalServices || 0,
+        pendingServices: pendingServices || 0,
         suspendedProfiles: suspendedProfiles || 0,
         pendingReports: pendingReports || 0,
+        totalViews: totalViews || 0,
+        totalCalls: totalCalls || 0,
+        totalWhatsapps: totalWhatsapps || 0,
       };
     },
   });
@@ -834,10 +848,20 @@ export function usePlatformSettings() {
       const { data, error } = await supabase.from("platform_settings").select("*");
       if (error) throw error;
 
-      const settings: Record<string, string> = {};
-      data?.forEach((s) => {
-        settings[s.key] = typeof s.value === "string" ? s.value : JSON.stringify(s.value);
+      // platform_settings.value is JSONB. Normalize to a friendly JS shape.
+      // - If value is { enabled: boolean } -> return boolean
+      // - If value is primitive json (true/false/number/string) -> return as-is
+      // - Otherwise return the object
+      const settings: Record<string, unknown> = {};
+      data?.forEach((s: any) => {
+        const v = s.value;
+        if (v && typeof v === "object" && "enabled" in v) {
+          settings[s.key] = Boolean((v as any).enabled);
+        } else {
+          settings[s.key] = v;
+        }
       });
+
       return settings;
     },
   });
@@ -848,16 +872,20 @@ export function useSettingsMutations() {
   const { toast } = useToast();
 
   const updateSetting = useMutation({
-    mutationFn: async ({ key, value }: { key: string; value: string }) => {
+    mutationFn: async ({ key, value }: { key: string; value: unknown }) => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
+      // Always store as JSONB. For simple toggles, we store a boolean. For other
+      // values, store the raw JSON value.
+      const normalizedValue = value;
       // Use upsert so new settings keys can be introduced from the UI without
       // requiring a manual DB row insert.
       const { error } = await supabase
         .from("platform_settings")
         .upsert(
-          { key, value, updated_at: new Date().toISOString(), updated_by: user?.id },
+          { key, value: normalizedValue as any, updated_at: new Date().toISOString(), updated_by: user?.id },
           { onConflict: "key" },
         );
       if (error) throw error;
@@ -951,7 +979,27 @@ export function useMessageMutations() {
     },
   });
 
-  return { sendMessage };
+  const deleteMessage = useMutation({
+    mutationFn: async ({ messageId }: { messageId: string }) => {
+      const { error } = await supabase.from("platform_messages").delete().eq("id", messageId);
+      if (error) throw error;
+
+      await supabase.rpc("log_admin_action", {
+        p_action: "delete_message",
+        p_target_type: "message",
+        p_target_id: messageId,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "messages"] });
+      toast({ title: "Message deleted" });
+    },
+    onError: (error) => {
+      toast({ title: "Error deleting message", description: error.message, variant: "destructive" });
+    },
+  });
+
+  return { sendMessage, deleteMessage };
 }
 
 // Admin Notes

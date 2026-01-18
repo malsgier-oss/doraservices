@@ -1,4 +1,4 @@
-import { Home, Heart, User, Shield } from "lucide-react";
+import { Home, Heart, User, Shield, LayoutDashboard } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -6,12 +6,14 @@ import { cn } from "@/lib/utils";
 
 export function MobileNav() {
   const { t, isRTL } = useLanguage();
-  const { isAdmin } = useUserRole();
+  const { isAdmin, isBusiness } = useUserRole();
   const location = useLocation();
 
   const navItems = [
     { to: "/", icon: Home, label: t.nav.home },
-    { to: "/favorites", icon: Heart, label: t.favorites?.title || (isRTL ? "المفضلة" : "Favorites") },
+    ...(isBusiness
+      ? [{ to: "/provider-dashboard", icon: LayoutDashboard, label: isRTL ? "لوحة مقدم الخدمة" : "Dashboard" }]
+      : [{ to: "/favorites", icon: Heart, label: t.favorites?.title || (isRTL ? "المفضلة" : "Favorites") }]),
     { to: "/profile", icon: User, label: t.nav.profile },
     ...(isAdmin ? [{ to: "/admin", icon: Shield, label: isRTL ? "لوحة التحكم" : "Admin" }] : []),
   ];

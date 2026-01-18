@@ -21,11 +21,22 @@ type LogArgs = {
  */
 export async function logServiceEvent(args: LogArgs) {
   try {
+    // Best-effort: attach logged-in user id if not provided.
+    let resolvedUserId: string | null | undefined = args.user_id;
+    if (resolvedUserId === undefined) {
+      try {
+        const { data } = await supabase.auth.getUser();
+        resolvedUserId = data.user?.id ?? null;
+      } catch {
+        resolvedUserId = null;
+      }
+    }
+
     const payload = {
       event_type: args.event_type,
       service_id: args.service_id,
       provider_id: args.provider_id ?? null,
-      user_id: args.user_id ?? null,
+      user_id: resolvedUserId ?? null,
     };
 
     const { error } = await supabase.from("service_events").insert(payload);

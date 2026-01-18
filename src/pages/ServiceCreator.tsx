@@ -117,6 +117,7 @@ export default function ServiceCreator() {
     category: "",
     subcategory: "",
     bio: "",
+    price: "",
     cityId: "",
     subCity: "",
   });
@@ -177,19 +178,23 @@ export default function ServiceCreator() {
       return;
     }
 
-    const accountStatus = (profile.status || "").toLowerCase();
-    if (accountStatus === "suspended" || accountStatus === "deleted" || accountStatus === "inactive") {
-      toast.error(isRTL ? "لا يمكنك إضافة خدمات حالياً" : "You can't create services right now");
-      navigate("/profile");
-      return;
-    }
-
     if (!formData.serviceName.trim()) {
       toast.error(isRTL ? "يرجى إدخال اسم الخدمة" : "Please enter service name");
       return;
     }
     if (!formData.category) {
       toast.error(isRTL ? "يرجى اختيار الفئة" : "Please select a category");
+      return;
+    }
+
+    // If category has subcategories, force selection (prevents vague listings)
+    if (selectedCategory && subcategories && subcategories.length > 0 && !formData.subcategory) {
+      toast.error(isRTL ? "يرجى اختيار نوع الخدمة" : "Please select a service type");
+      return;
+    }
+
+    if (!formData.bio?.trim()) {
+      toast.error(isRTL ? "يرجى إضافة وصف للخدمة" : "Please add a service description");
       return;
     }
 
@@ -236,26 +241,30 @@ export default function ServiceCreator() {
 
       const providerName = (profile.full_name || "").trim() || (isRTL ? "مقدم الخدمة" : "Provider");
 
-      const providerStatus = (profile.provider_status || "").toLowerCase();
-      const isApprovedProvider = providerStatus === "approved";
-
       // ✅ Insert directly to ensure provider_phone/provider_name/city/sub_city are stored for anonymous browsing
+      const parsedPrice = (() => {
+        const raw = (formData.price || "").toString().trim();
+        if (!raw) return null;
+        // allow simple numbers, including decimal
+        const n = Number(raw.replace(/,/g, "."));
+        return Number.isFinite(n) && n >= 0 ? n : null;
+      })();
+
       const { data: created, error } = await supabase
         .from("services")
         .insert({
         user_id: user.id,
         title: formData.serviceName.trim(),
-        description: formData.bio?.trim() || null,
+        description: formData.bio.trim(),
         category: categoryToUse || "",
-        price: 0,
+        price: parsedPrice,
         city: cityValue,
         sub_city: formData.subCity || profile.sub_city || null,
         provider_name: providerName,
         provider_phone: storedPhone,
         is_active: true,
-        is_visible: isApprovedProvider,
+        is_visible: true,
         is_paused: false,
-        approval_status: isApprovedProvider ? "approved" : "pending",
       })
         .select("id")
         .single();
@@ -529,7 +538,7 @@ export default function ServiceCreator() {
           {selectedCategory && subcategories && subcategories.length > 0 && (
             <div className="space-y-2">
               <Label className={cn(isRTL ? "text-right block" : "text-left block")}>
-                {isRTL ? "نوع الخدمة" : "Service Type"}
+                {isRTL ? "نوع الخدمة" : "Service Type"} <span className="text-destructive">*</span>
               </Label>
               <div className="grid grid-cols-2 gap-2">
                 {subcategories.map((sub) => {
@@ -569,7 +578,28 @@ export default function ServiceCreator() {
           </div>
 
           <div className="space-y-2">
-            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{t.creator.bio}</Label>
+            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>
+              {isRTL ? "السعر (اختياري)" : "Price (optional)"}
+            </Label>
+            <Input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              value={formData.price}
+              onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+              placeholder={isRTL ? "مثال: 50" : "e.g. 50"}
+              className={cn("rounded-xl h-12", isRTL ? "text-right" : "text-left")}
+              dir={isRTL ? "rtl" : "ltr"}
+            />
+            <p className="text-xs text-muted-foreground">
+              {isRTL ? "اتركه فارغاً إذا كان السعر يعتمد على المعاينة" : "Leave empty if price depends on inspection"}
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>
+              {t.creator.bio} <span className="text-destructive">*</span>
+            </Label>
             <Textarea
               value={formData.bio}
               onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
@@ -577,6 +607,21 @@ export default function ServiceCreator() {
               className={cn("min-h-[120px] rounded-xl resize-none", isRTL ? "text-right" : "text-left")}
               dir={isRTL ? "rtl" : "ltr"}
             />
+          </div>
+
+          {/* P0 UX: quick checklist so providers understand why submit may fail */}
+          <div className={cn("rounded-xl border bg-card p-3 text-sm", isRTL ? "text-right" : "text-left")}>
+            <div className="font-medium mb-2">{isRTL ? "متطلبات النشر" : "Publish requirements"}</div>
+            <ul className="space-y-1 text-muted-foreground">
+              <li>{formData.category ? "✅" : "☐"} {isRTL ? "الفئة" : "Category"}</li>
+              {selectedCategory && subcategories && subcategories.length > 0 && (
+                <li>{formData.subcategory ? "✅" : "☐"} {isRTL ? "نوع الخدمة" : "Service type"}</li>
+              )}
+              <li>{formData.serviceName.trim() ? "✅" : "☐"} {isRTL ? "اسم الخدمة" : "Service name"}</li>
+              <li>{formData.bio.trim() ? "✅" : "☐"} {isRTL ? "وصف الخدمة" : "Description"}</li>
+              <li>{(formData.cityId || profile?.city_id || profile?.city) ? "✅" : "☐"} {isRTL ? "المدينة" : "City"}</li>
+              <li>{normalizeLibyaPhoneForStorage(profile?.phone) ? "✅" : "☐"} {isRTL ? "رقم الهاتف في الملف الشخصي" : "Phone in Profile"}</li>
+            </ul>
           </div>
 
           <Button type="submit" disabled={isSubmitting} className="w-full rounded-full h-12 text-base">
