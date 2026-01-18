@@ -20,7 +20,7 @@ import {
   Flag
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useReviews, useServiceRatings } from "@/hooks/useReviews";
+import { useServiceRatings } from "@/hooks/useReviews";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 // Ensure you import the Card and Type from the file we created previously
 import { ServiceProviderCard, ProviderData } from "./ServiceProviderCard";
@@ -105,7 +105,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
         const base = supabase
           .from("services")
           .select(
-            "id,user_id,title,description,category,city,sub_city,provider_name,provider_phone,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count"
+            "id,title,description,category,city,sub_city,provider_name,provider_phone,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count"
           )
           .order("is_featured", { ascending: false })
           .order("views_count", { ascending: false });
@@ -151,7 +151,6 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
         const rows = (data || []) as any[];
         const normalizedBase: ProviderData[] = rows.map((r) => ({
           id: String(r.id),
-          user_id: r.user_id ?? null,
           title: r.title ?? null,
           description: r.description ?? null,
           category: r.category ?? null,
@@ -174,7 +173,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           if (ids.length > 0) {
             const { data: revs } = await supabase
               .from("service_reviews")
-              .select("service_id,content,created_at")
+              .select("service_id,review_text,created_at")
               .in("service_id", ids)
               .order("created_at", { ascending: false })
               .limit(50);
@@ -182,7 +181,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
             const map = new Map<string, string[]>();
             (revs || []).forEach((r: any) => {
               const sid = String(r.service_id);
-              const txt = (r.content ?? "").trim();
+              const txt = (r.review_text ?? "").trim();
               if (!sid || !txt) return;
               if (!map.has(sid)) map.set(sid, []);
               const arr = map.get(sid)!;
@@ -277,13 +276,13 @@ export function ServiceDetailSheet({
           return;
         }
         const { data, error } = await supabase
-          .from("saved_businesses")
-          .select("business_id")
+          .from("favorites")
+          .select("service_id")
           .eq("user_id", userId)
-          .in("business_id", ids as any);
+          .in("service_id", ids);
 
         if (error) throw error;
-        const next = new Set<string>((data || []).map((x: any) => String(x.business_id)));
+        const next = new Set<string>((data || []).map((x: any) => String(x.service_id)));
         if (alive) setFavIds(next);
       } catch {
         if (alive) setFavIds(new Set());
@@ -316,15 +315,15 @@ export function ServiceDetailSheet({
     try {
       if (already) {
         const { error } = await supabase
-          .from("saved_businesses")
+          .from("favorites")
           .delete()
           .eq("user_id", userId)
-          .eq("business_id", providerId);
+          .eq("service_id", providerId);
         if (error) throw error;
       } else {
         const { error } = await supabase
-          .from("saved_businesses")
-          .insert({ user_id: userId, business_id: providerId });
+          .from("favorites")
+          .insert({ user_id: userId, service_id: providerId });
         if (error) throw error;
       }
     } catch {
@@ -339,41 +338,16 @@ export function ServiceDetailSheet({
     }
   };
 
-  // ---- Reports (functional)
-  const [reportOpen, setReportOpen] = useState(false);
-  const [reportTargetId, setReportTargetId] = useState<string | null>(null);
-  const [reportReason, setReportReason] = useState<string>("");
-  const [reportSending, setReportSending] = useState(false);
-
-  const openReportDialog = (serviceId: string) => {
-    setReportTargetId(serviceId);
-    setReportReason("");
-    setReportOpen(true);
-  };
-
-  const submitReport = async () => {
-    if (!reportTargetId) return;
-    if (reportSending) return;
-
-    setReportSending(true);
+  const reportService = async (serviceId: string, reporterId?: string | null) => {
     try {
-      const payload = {
-        reporter_id: userId ?? null,
-        reported_service_id: reportTargetId,
-        report_type: "service",
-        reason: (reportReason || "").trim() || "بلاغ",
-        status: "pending",
-      } as any;
-
-      const { error } = await supabase.from("user_reports").insert(payload);
+      const { error } = await supabase.from("reports").insert({
+        service_id: serviceId,
+        reporter_id: reporterId ?? null,
+      });
       if (error) throw error;
-
       toast.success("تم إرسال البلاغ");
-      setReportOpen(false);
     } catch {
       toast.error("تعذر إرسال البلاغ");
-    } finally {
-      setReportSending(false);
     }
   };
 
@@ -388,10 +362,14 @@ export function ServiceDetailSheet({
   // Helper to merge ratings into provider object
   const getProviderWithRating = (p: ProviderData) => {
     const r = ratings.get(p.id);
+    // Defensive: some RPC/view results return numeric fields as strings.
+    // Coerce to number to avoid runtime crashes (e.g. calling toFixed on a string).
+    const avg = Number((r as any)?.averageRating ?? 0);
+    const cnt = Number((r as any)?.totalReviews ?? 0);
     return {
       ...p,
-      rating: r?.averageRating || 0,
-      rating_count: r?.totalReviews || 0,
+      rating: Number.isFinite(avg) ? avg : 0,
+      rating_count: Number.isFinite(cnt) ? cnt : 0,
     };
   };
 
@@ -435,7 +413,7 @@ export function ServiceDetailSheet({
               onToggleFavorite={toggleFavoriteLocal}
               isFavorite={isFavoriteLocal}
               userId={userId}
-              onReport={(serviceId) => openReportDialog(serviceId)}
+              onReport={(serviceId) => reportService(serviceId, userId)}
             />
           ) : (
             <div className="space-y-3 pb-8">
@@ -461,7 +439,7 @@ export function ServiceDetailSheet({
                   onReport={() => {
                     // report from list (small action)
                     if (!p?.id) return;
-                    openReportDialog(p.id);
+                    reportService(p.id, userId);
                   }}
                   onDetails={() => setSelectedProvider(p)}
                 />
@@ -469,42 +447,6 @@ export function ServiceDetailSheet({
             </div>
           )}
         </div>
-
-        {/* Report Dialog (functional) */}
-        <Dialog open={reportOpen} onOpenChange={setReportOpen}>
-          <DialogContent className="max-w-[92vw] sm:max-w-md rounded-2xl" dir="rtl">
-            <div className="space-y-4">
-              <div>
-                <div className="text-lg font-bold text-foreground">إبلاغ</div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  اكتب سبب البلاغ (اختياري). سيتم إرساله للمراجعة.
-                </div>
-              </div>
-
-              <Textarea
-                value={reportReason}
-                onChange={(e) => setReportReason(e.target.value)}
-                placeholder="سبب البلاغ..."
-                className="min-h-[90px]"
-                maxLength={300}
-              />
-
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => setReportOpen(false)}
-                  disabled={reportSending}
-                >
-                  إلغاء
-                </Button>
-                <Button className="flex-1" onClick={submitReport} disabled={reportSending}>
-                  {reportSending ? "جاري الإرسال..." : "إرسال"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
       </DrawerContent>
     </Drawer>
   );
@@ -527,46 +469,14 @@ function ProviderDetailView({
   const [images, setImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
-  // Reviews (DB-backed) + rating submission
-  const {
-    reviews: fullReviews,
-    submitReview: submitReviewHook,
-    loading: reviewsLoading,
-  } = useReviews(provider.id);
-
-  // We need the provider account id for reviews. It usually exists on services.user_id.
-  const [providerAccountId, setProviderAccountId] = useState<string | null>(
-    (provider as any).user_id ? String((provider as any).user_id) : null
-  );
-
+  // Reviews + rating submission
+  const [reviews, setReviews] = useState<
+    { id: string; rating: number; review_text: string | null; created_at: string }[]
+  >([]);
   const [rateOpen, setRateOpen] = useState(false);
   const [rateStars, setRateStars] = useState<number>(5);
   const [rateText, setRateText] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
-
-  // If providerAccountId is missing (legacy rows), fetch it once.
-  useEffect(() => {
-    if (providerAccountId) return;
-    let alive = true;
-    const run = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("services")
-          .select("user_id")
-          .eq("id", provider.id)
-          .maybeSingle();
-        if (error) throw error;
-        const id = data?.user_id ? String(data.user_id) : null;
-        if (alive) setProviderAccountId(id);
-      } catch {
-        if (alive) setProviderAccountId(null);
-      }
-    };
-    run();
-    return () => {
-      alive = false;
-    };
-  }, [provider.id, providerAccountId]);
 
   // Fetch specific images for detail view
   useEffect(() => {
@@ -601,14 +511,37 @@ function ProviderDetailView({
     fetchImages();
   }, [provider.id, provider.image_url]);
 
-  const reviewsForUi = useMemo(() => {
-    return (fullReviews || []).map((r: any) => ({
-      id: String(r.id),
-      rating: Number(r.rating || 0),
-      review_text: (r.content ?? null) as string | null,
-      created_at: String(r.created_at),
-    }));
-  }, [fullReviews]);
+  // Fetch latest reviews (best-effort) for the random reviews section and count.
+  useEffect(() => {
+    let alive = true;
+    const run = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("service_reviews")
+          .select("id,rating,review_text,created_at")
+          .eq("service_id", provider.id)
+          .order("created_at", { ascending: false })
+          .limit(20);
+        if (error) throw error;
+        if (alive) {
+          setReviews(
+            (data || []).map((r: any) => ({
+              id: String(r.id),
+              rating: Number(r.rating || 0),
+              review_text: r.review_text ?? null,
+              created_at: r.created_at ? String(r.created_at) : "",
+            }))
+          );
+        }
+      } catch {
+        if (alive) setReviews([]);
+      }
+    };
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [provider.id]);
 
   const handleCall = () => {
     if (!provider.provider_phone) return toast.error("لا يوجد رقم هاتف");
@@ -622,21 +555,45 @@ function ProviderDetailView({
   };
 
   const submitReview = async () => {
+    if (!userId) return toast.info("سجل دخولك لتقييم الخدمة");
     if (rateStars < 1 || rateStars > 5) return toast.error("اختر التقييم بالنجوم");
     if (submitting) return;
-    if (!providerAccountId) return toast.error("تعذر تحديد المزود للتقييم");
 
     setSubmitting(true);
     try {
-      const { error } = await submitReviewHook({
+      const payload = {
+        service_id: provider.id,
+        user_id: userId,
         rating: rateStars,
-        content: rateText,
-        providerId: providerAccountId,
-      } as any);
+        review_text: rateText.trim() ? rateText.trim().slice(0, 200) : null,
+      };
 
+      const { error } = await supabase.from("service_reviews").insert(payload);
       if (error) throw error;
+
       toast.success("تم إرسال تقييمك");
       setRateOpen(false);
+
+      // Refresh reviews list (best-effort)
+      try {
+        const { data } = await supabase
+          .from("service_reviews")
+          .select("id,rating,review_text,created_at")
+          .eq("service_id", provider.id)
+          .order("created_at", { ascending: false })
+          .limit(20);
+
+        setReviews(
+          (data || []).map((r: any) => ({
+            id: String(r.id),
+            rating: Number(r.rating || 0),
+            review_text: r.review_text ?? null,
+            created_at: r.created_at ? String(r.created_at) : "",
+          }))
+        );
+      } catch {
+        // ignore
+      }
     } catch {
       toast.error("تعذر إرسال التقييم");
     } finally {
@@ -726,9 +683,9 @@ function ProviderDetailView({
         </div>
 
         <div className="flex items-center gap-3 text-sm flex-wrap">
-          {provider.rating ? (
+          {!!provider.rating_count && provider.rating_count > 0 && Number.isFinite(Number(provider.rating)) ? (
             <div className="flex items-center gap-1 font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-100">
-              <span>{provider.rating.toFixed(1)}</span>
+              <span>{Number(provider.rating).toFixed(1)}</span>
               <Star className="h-4 w-4 fill-current" />
               <span className="text-muted-foreground font-normal ml-1">
                 ({provider.rating_count})
@@ -753,6 +710,7 @@ function ProviderDetailView({
             variant="outline"
             className="h-9 rounded-xl text-sm"
             onClick={() => {
+              if (!userId) return toast.info("سجل دخولك لتقييم الخدمة");
               setRateStars(5);
               setRateText("");
               setRateOpen(true);
@@ -762,11 +720,7 @@ function ProviderDetailView({
           </Button>
 
           <div className="text-xs text-muted-foreground">
-            {reviewsLoading
-              ? "..."
-              : reviews.length > 0
-              ? `${reviews.length} تقييم`
-              : "لا يوجد تقييمات بعد"}
+            {reviews.length > 0 ? `${reviews.length} تقييم` : "لا يوجد تقييمات بعد"}
           </div>
         </div>
 
@@ -789,7 +743,7 @@ function ProviderDetailView({
                       ))}
                     </div>
                     <div className="text-[11px] text-muted-foreground">
-                      {new Date(r.created_at).toLocaleDateString("ar-LY")}
+                      {(() => { const d = new Date(r.created_at); return isNaN(d.getTime()) ? "" : d.toLocaleDateString("ar-LY"); })()}
                     </div>
                   </div>
                   {r.review_text ? (
