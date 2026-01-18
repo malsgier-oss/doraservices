@@ -18,12 +18,9 @@ import { useLanguage } from "@/contexts/LanguageContext";
 // --- Types (Shared) ---
 export interface ProviderData {
   id: string;
-  /** services.user_id (provider account). Optional because some legacy rows may not have it. */
-  user_id?: string | null;
   provider_name?: string | null;
   provider_avatar?: string | null;
   title?: string | null;
-  description?: string | null;
   city?: string | null;
   sub_city?: string | null;
   image_urls?: string[] | null;
@@ -73,10 +70,12 @@ function ReviewSnippet({ reviews }: { reviews?: string[] }) {
 // 2. Rating Badge
 function RatingBadge({ rating, count }: { rating?: number; count?: number }) {
   if (!count || count <= 0) return null;
-  if (rating === undefined || rating === null) return null;
+  // Defensive: sometimes rating arrives as a string from backend views.
+  const r = Number(rating);
+  if (!Number.isFinite(r)) return null;
   return (
     <div className="flex items-center gap-1 rounded bg-amber-100/50 px-1.5 py-0.5 text-xs font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-500">
-      <span>{rating.toFixed(1)}</span>
+      <span>{r.toFixed(1)}</span>
       <Star className="h-3 w-3 fill-current" />
       <span className="text-[10px] font-normal opacity-70">({count || 0})</span>
     </div>
@@ -270,10 +269,10 @@ export function ServiceProviderCard({
         </div>
         
         {/* Rating Floating on Image (Modern Look) */}
-        {!!provider.rating_count && provider.rating_count > 0 && provider.rating !== undefined && provider.rating !== null && (
+        {!!provider.rating_count && provider.rating_count > 0 && Number.isFinite(Number(provider.rating)) && (
            <div className="absolute bottom-2 right-2">
               <div className="flex items-center gap-1 rounded-lg bg-white/90 backdrop-blur px-2 py-1 text-xs font-bold text-foreground shadow-sm dark:bg-black/80">
-                <span>{provider.rating.toFixed(1)}</span>
+                <span>{Number(provider.rating).toFixed(1)}</span>
                 <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
               </div>
            </div>
