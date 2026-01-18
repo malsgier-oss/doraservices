@@ -18,9 +18,12 @@ import { useLanguage } from "@/contexts/LanguageContext";
 // --- Types (Shared) ---
 export interface ProviderData {
   id: string;
+  /** services.user_id (provider account). Optional because some legacy rows may not have it. */
+  user_id?: string | null;
   provider_name?: string | null;
   provider_avatar?: string | null;
   title?: string | null;
+  description?: string | null;
   city?: string | null;
   sub_city?: string | null;
   image_urls?: string[] | null;
