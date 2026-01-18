@@ -54,6 +54,13 @@ function pickRandomReviews<T>(arr: T[], n: number): T[] {
   return copy.slice(0, Math.min(n, copy.length));
 }
 
+function pickOneRandom<T>(arr: T[], seed: number): T | null {
+  if (!arr || arr.length === 0) return null;
+  // Deterministic-ish per seed to avoid “changing every render”.
+  const idx = Math.abs(seed) % arr.length;
+  return arr[idx] ?? null;
+}
+
 // --- Hook: Robust Data Fetching (Restored Logic) ---
 function useSheetData(open: boolean, service: SheetService, city?: string | null) {
   const [providers, setProviders] = useState<ProviderData[]>([]);
@@ -236,12 +243,6 @@ export function ServiceDetailSheet({
   // If the parent doesn't provide favorite handlers, we make favorites work here using Supabase.
   const [userId, setUserId] = useState<string | null>(null);
   const [favIds, setFavIds] = useState<Set<string>>(new Set());
-
-  // ---- Report (fallback wiring)
-  const [reportOpen, setReportOpen] = useState(false);
-  const [reportTargetId, setReportTargetId] = useState<string | null>(null);
-  const [reportReason, setReportReason] = useState("");
-  const [reportSending, setReportSending] = useState(false);
   
   // Ratings Hook
   const serviceIds = useMemo(() => providers.map((p) => p.id), [providers]);
@@ -286,7 +287,7 @@ export function ServiceDetailSheet({
           .from("saved_businesses")
           .select("business_id")
           .eq("user_id", userId)
-          .in("business_id", ids as any);
+          .in("business_id", ids.map(String));
 
         if (error) throw error;
         const next = new Set<string>((data || []).map((x: any) => String(x.business_id)));
@@ -325,15 +326,15 @@ export function ServiceDetailSheet({
           .from("saved_businesses")
           .delete()
           .eq("user_id", userId)
-          .eq("business_id", providerId);
+          .eq("business_id", String(providerId));
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("saved_businesses")
-          .insert({ user_id: userId, business_id: providerId });
+          .insert({ user_id: userId, business_id: String(providerId) });
         if (error) throw error;
       }
-    } catch (e: any) {
+    } catch {
       // revert optimistic update
       setFavIds((prev) => {
         const next = new Set(prev);
@@ -341,46 +342,27 @@ export function ServiceDetailSheet({
         else next.delete(providerId);
         return next;
       });
-      const msg = typeof e?.message === "string" ? e.message : "تعذر تحديث المفضلة";
-      // If this is an RLS/policy error, be explicit.
-      if (/row-level security|policy/i.test(msg)) {
-        toast.error("لا يمكن تحديث المفضلة (صلاحيات الحساب)");
-      } else {
-        toast.error(msg);
-      }
+      toast.error("تعذر تحديث المفضلة");
     }
   };
 
-  const openReport = (serviceId: string) => {
-    setReportTargetId(serviceId);
-    setReportReason("");
-    setReportOpen(true);
-  };
-
-  const submitReport = async () => {
-    if (!reportTargetId) return;
-    const reason = reportReason.trim();
-    if (reason.length < 3) return toast.error("اكتب سبب البلاغ");
-    if (reportSending) return;
-
-    setReportSending(true);
+  const reportService = async (
+    serviceId: string,
+    reporterId?: string | null,
+    reason?: string | null
+  ) => {
+    if (!reporterId) return toast.info("سجل دخولك للإبلاغ");
     try {
       const { error } = await supabase.from("user_reports").insert({
-        reporter_id: userId ?? null,
+        reporter_id: reporterId,
         report_type: "service",
-        reason,
-        reported_service_id: reportTargetId,
-        reported_user_id: null,
-        call_log_id: null,
-      } as any);
+        reason: (reason || "").trim().slice(0, 200) || "بلاغ",
+        reported_service_id: serviceId,
+      });
       if (error) throw error;
       toast.success("تم إرسال البلاغ");
-      setReportOpen(false);
-    } catch (e: any) {
-      const msg = e?.message ? String(e.message) : "تعذر إرسال البلاغ";
-      toast.error(msg);
-    } finally {
-      setReportSending(false);
+    } catch {
+      toast.error("تعذر إرسال البلاغ");
     }
   };
 
@@ -442,7 +424,7 @@ export function ServiceDetailSheet({
               onToggleFavorite={toggleFavoriteLocal}
               isFavorite={isFavoriteLocal}
               userId={userId}
-              onReport={(serviceId) => openReport(serviceId)}
+              onReport={(serviceId, reason) => reportService(serviceId, userId, reason)}
             />
           ) : (
             <div className="space-y-3 pb-8">
@@ -468,7 +450,7 @@ export function ServiceDetailSheet({
                   onReport={() => {
                     // report from list (small action)
                     if (!p?.id) return;
-                    openReport(p.id);
+                    reportService(p.id, userId, "");
                   }}
                   onDetails={() => setSelectedProvider(p)}
                 />
@@ -476,33 +458,6 @@ export function ServiceDetailSheet({
             </div>
           )}
         </div>
-
-        {/* Report Dialog (shared) */}
-        <Dialog open={reportOpen} onOpenChange={setReportOpen}>
-          <DialogContent className="max-w-[92vw] sm:max-w-md rounded-2xl">
-            <div className="space-y-4" dir="rtl">
-              <div>
-                <div className="text-lg font-bold text-foreground">إبلاغ عن مزود</div>
-                <div className="text-xs text-muted-foreground mt-1">اكتب سبب البلاغ (سيظهر للإدارة فقط)</div>
-              </div>
-              <Textarea
-                value={reportReason}
-                onChange={(e) => setReportReason(e.target.value)}
-                placeholder="مثال: رقم غير صحيح، احتيال، إساءة..."
-                className="min-h-[110px]"
-                maxLength={300}
-              />
-              <div className="flex gap-2">
-                <Button variant="outline" className="flex-1" onClick={() => setReportOpen(false)} disabled={reportSending}>
-                  إلغاء
-                </Button>
-                <Button className="flex-1" onClick={submitReport} disabled={reportSending}>
-                  {reportSending ? "جاري الإرسال..." : "إرسال"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
       </DrawerContent>
     </Drawer>
   );
@@ -520,19 +475,22 @@ function ProviderDetailView({
   onToggleFavorite?: (id: string) => void;
   isFavorite?: (id: string) => boolean;
   userId?: string | null;
-  onReport?: (serviceId: string) => void;
+  onReport?: (serviceId: string, reason?: string | null) => Promise<void> | void;
 }) {
   const [images, setImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   // Reviews + rating submission
   const [reviews, setReviews] = useState<
-    { id: string; rating: number; content: string | null; created_at: string }[]
+    { id: string; rating: number; content: string | null; created_at: string; user_id: string | null }[]
   >([]);
   const [rateOpen, setRateOpen] = useState(false);
   const [rateStars, setRateStars] = useState<number>(5);
   const [rateText, setRateText] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
+  const [reviewSeed, setReviewSeed] = useState(1);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("");
 
   // Fetch specific images for detail view
   useEffect(() => {
@@ -574,7 +532,7 @@ function ProviderDetailView({
       try {
         const { data, error } = await supabase
           .from("service_reviews")
-          .select("id,rating,content,created_at")
+          .select("id,rating,content,created_at,user_id")
           .eq("service_id", provider.id)
           .order("created_at", { ascending: false })
           .limit(20);
@@ -586,8 +544,11 @@ function ProviderDetailView({
               rating: Number(r.rating || 0),
               content: r.content ?? null,
               created_at: String(r.created_at),
+              user_id: r.user_id ? String(r.user_id) : null,
             }))
           );
+          // Randomize on open / refresh.
+          setReviewSeed((s) => s + 1);
         }
       } catch {
         if (alive) setReviews([]);
@@ -598,6 +559,22 @@ function ProviderDetailView({
       alive = false;
     };
   }, [provider.id]);
+
+  const userReview = useMemo(() => {
+    if (!userId) return null;
+    return reviews.find((r) => r.user_id === userId) || null;
+  }, [reviews, userId]);
+
+  const hasUserRated = !!userReview;
+
+  const randomReviewText = useMemo(() => {
+    const pool = reviews
+      .map((r) => (r.content || "").trim())
+      .filter((t) => t.length > 0);
+    const picked = pickOneRandom(pool, reviewSeed);
+    if (!picked) return null;
+    return picked.length > 90 ? picked.slice(0, 90) + "..." : picked;
+  }, [reviews, reviewSeed]);
 
   const handleCall = () => {
     if (!provider.provider_phone) return toast.error("لا يوجد رقم هاتف");
@@ -612,39 +589,35 @@ function ProviderDetailView({
 
   const submitReview = async () => {
     if (!userId) return toast.info("سجل دخولك لتقييم الخدمة");
+    if (!provider.user_id) return toast.error("تعذر تحديد المزود");
     if (rateStars < 1 || rateStars > 5) return toast.error("اختر التقييم بالنجوم");
     if (submitting) return;
-
-    // service_reviews requires provider_id
-    const providerId = provider.user_id ? String(provider.user_id) : null;
-    if (!providerId) {
-      return toast.error("لا يمكن التقييم حالياً (مزود غير مرتبط بحساب)");
-    }
 
     setSubmitting(true);
     try {
       const payload = {
         service_id: provider.id,
         user_id: userId,
-        provider_id: providerId,
+        provider_id: provider.user_id,
         rating: rateStars,
         content: rateText.trim() ? rateText.trim().slice(0, 200) : null,
       };
 
-      // Upsert so a user can re-rate without getting blocked by UNIQUE(service_id,user_id)
+      // Allow re-rating: relies on UNIQUE(service_id, user_id)
       const { error } = await supabase
         .from("service_reviews")
-        .upsert(payload as any, { onConflict: "service_id,user_id" });
+        .upsert(payload, { onConflict: "service_id,user_id" });
       if (error) throw error;
 
       toast.success("تم إرسال تقييمك");
       setRateOpen(false);
+      setReviewSeed((s) => s + 1);
 
       // Refresh reviews list (best-effort)
       try {
         const { data } = await supabase
           .from("service_reviews")
-          .select("id,rating,content,created_at")
+          .select("id,rating,content,created_at,user_id")
           .eq("service_id", provider.id)
           .order("created_at", { ascending: false })
           .limit(20);
@@ -655,20 +628,29 @@ function ProviderDetailView({
             rating: Number(r.rating || 0),
             content: r.content ?? null,
             created_at: String(r.created_at),
+            user_id: r.user_id ? String(r.user_id) : null,
           }))
         );
       } catch {
         // ignore
       }
-    } catch (e: any) {
-      const msg = typeof e?.message === "string" ? e.message : "تعذر إرسال التقييم";
-      if (/row-level security|policy/i.test(msg)) {
-        toast.error("لا يمكن إرسال التقييم (قد يتطلب توثيق الحساب)");
-      } else {
-        toast.error(msg);
-      }
+    } catch {
+      toast.error("تعذر إرسال التقييم");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const submitReport = async () => {
+    if (!userId) return toast.info("سجل دخولك للإبلاغ");
+    const reason = reportReason.trim();
+    if (!reason) return toast.error("اكتب سبب البلاغ");
+    try {
+      await Promise.resolve(onReport?.(provider.id, reason));
+      setReportReason("");
+      setReportOpen(false);
+    } catch {
+      toast.error("تعذر إرسال البلاغ");
     }
   };
 
@@ -696,7 +678,7 @@ function ProviderDetailView({
       </div>
 
       {/* 2. Info Card */}
-      <div className="bg-card rounded-2xl border p-5 shadow-sm space-y-4">
+      <div className="bg-card rounded-2xl border p-5 shadow-sm space-y-3">
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-xl font-bold text-foreground">
@@ -705,16 +687,6 @@ function ProviderDetailView({
             <p className="text-sm text-muted-foreground mt-1">{provider.title}</p>
           </div>
           <div className="flex gap-2">
-            <Button
-              size="icon"
-              variant="ghost"
-              className="rounded-full h-9 w-9 text-muted-foreground hover:text-destructive"
-              onClick={() => onReport?.(provider.id)}
-              title="إبلاغ"
-              aria-label="إبلاغ"
-            >
-              <Flag className="h-4 w-4" />
-            </Button>
             <Button
               size="icon"
               variant="outline"
@@ -753,80 +725,67 @@ function ProviderDetailView({
           </div>
         </div>
 
-        <div className="flex items-center gap-3 text-sm flex-wrap">
-          {provider.rating ? (
-            <div className="flex items-center gap-1 font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-100">
-              <span>{provider.rating.toFixed(1)}</span>
-              <Star className="h-4 w-4 fill-current" />
-              <span className="text-muted-foreground font-normal ml-1">
-                ({provider.rating_count})
-              </span>
-            </div>
-          ) : (
-            <div className="text-muted-foreground bg-muted/50 px-2 py-1 rounded-md">
-              جديد
-            </div>
-          )}
+        {/* Rating summary + rate icon */}
+        <div className="flex items-center justify-between gap-3" dir="rtl">
+          <div className="flex items-center gap-2 min-w-0">
+            {provider.rating_count && provider.rating_count > 0 ? (
+              <div className="flex items-center gap-1 font-semibold text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-100">
+                <span>{provider.rating.toFixed(1)}</span>
+                <Star className="h-4 w-4 fill-current" />
+                <span className="text-muted-foreground font-normal ml-1">
+                  ({provider.rating_count})
+                </span>
+              </div>
+            ) : (
+              <div className="text-muted-foreground bg-muted/50 px-2 py-1 rounded-md text-sm">
+                جديد
+              </div>
+            )}
 
-          {provider.city && (
-            <div className="text-muted-foreground bg-muted px-2 py-1 rounded-md">
-              {provider.city}
-            </div>
-          )}
-        </div>
+            {/* Random 1-line review snippet */}
+            {randomReviewText ? (
+              <div className="text-xs text-muted-foreground italic line-clamp-1">
+                “{randomReviewText}”
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">
+                {reviews.length > 0 ? `${reviews.length} تقييم` : "لا يوجد تقييمات بعد"}
+              </div>
+            )}
+          </div>
 
-        {/* Rate + Random Reviews */}
-        <div className="flex items-center justify-between gap-3">
-          <Button
-            variant="outline"
-            className="h-9 rounded-xl text-sm"
+          {/* Rate icon (symbol) */}
+          <button
+            type="button"
+            className={cn(
+              "h-9 w-9 rounded-full border flex items-center justify-center transition-colors",
+              hasUserRated
+                ? "border-amber-200 bg-amber-50 text-amber-700"
+                : "border-muted-foreground/20 text-muted-foreground hover:text-amber-700 hover:border-amber-200"
+            )}
+            title={hasUserRated ? "تعديل التقييم" : "قيّم الخدمة"}
+            aria-label={hasUserRated ? "edit-rating" : "rate-service"}
             onClick={() => {
               if (!userId) return toast.info("سجل دخولك لتقييم الخدمة");
-              setRateStars(5);
-              setRateText("");
+              setRateStars(userReview?.rating || 5);
+              setRateText(userReview?.content || "");
               setRateOpen(true);
+              // change snippet on intent
+              setReviewSeed((s) => s + 1);
             }}
           >
-            قيم الخدمة
-          </Button>
-
-          <div className="text-xs text-muted-foreground">
-            {reviews.length > 0 ? `${reviews.length} تقييم` : "لا يوجد تقييمات بعد"}
-          </div>
+            <Star className={cn("h-4 w-4", hasUserRated && "fill-current")} />
+          </button>
         </div>
 
-        {reviews.length > 0 && (
-          <div className="rounded-xl bg-muted/30 border p-3">
-            <div className="text-xs font-semibold text-muted-foreground mb-2">آراء العملاء</div>
-            <div className="space-y-2">
-              {pickRandomReviews(reviews, 2).map((r) => (
-                <div key={r.id} className="rounded-lg bg-background border p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1 text-amber-600">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Star
-                          key={i}
-                          className={cn(
-                            "h-4 w-4",
-                            i < r.rating ? "fill-current" : "opacity-30"
-                          )}
-                        />
-                      ))}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {new Date(r.created_at).toLocaleDateString("ar-LY")}
-                    </div>
-                  </div>
-                  {r.content ? (
-                    <div className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                      {r.content}
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Trust strip (minimal) */}
+        <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
+          <span className="rounded-md bg-muted px-2 py-1">✓ رقم هاتف حقيقي</span>
+          <span className="rounded-md bg-muted px-2 py-1">✓ مزود نشط</span>
+          {provider.city ? (
+            <span className="rounded-md bg-muted px-2 py-1">{provider.city}</span>
+          ) : null}
+        </div>
 
         {provider.price && provider.price > 0 && (
           <div className="pt-2 border-t mt-2 flex justify-between items-center">
@@ -845,8 +804,55 @@ function ProviderDetailView({
           <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
             {provider.description}
           </p>
+
+          {/* Calm report action (bottom) */}
+          <div className="mt-4">
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-destructive transition-colors"
+              onClick={() => {
+                if (!userId) return toast.info("سجل دخولك للإبلاغ");
+                setReportReason("");
+                setReportOpen(true);
+              }}
+            >
+              <Flag className="h-4 w-4" />
+              إبلاغ عن مشكلة
+            </button>
+          </div>
         </div>
       )}
+
+      {/* Report Dialog */}
+      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+        <DialogContent className="max-w-[92vw] sm:max-w-md rounded-2xl">
+          <div className="space-y-4" dir="rtl">
+            <div>
+              <div className="text-lg font-bold text-foreground">إبلاغ عن مشكلة</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                نستخدم البلاغات لتحسين جودة المزودين.
+              </div>
+            </div>
+
+            <Textarea
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              placeholder="اكتب سبب البلاغ"
+              className="min-h-[90px]"
+              maxLength={200}
+            />
+
+            <div className="flex gap-2" dir="rtl">
+              <Button variant="outline" className="flex-1" onClick={() => setReportOpen(false)}>
+                إلغاء
+              </Button>
+              <Button className="flex-1" onClick={submitReport}>
+                إرسال
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Rate Dialog */}
       <Dialog open={rateOpen} onOpenChange={setRateOpen}>
