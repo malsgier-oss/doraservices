@@ -241,6 +241,8 @@ export function ServiceDetailSheet({
   const { providers, loading } = useSheetData(open, service, city);
   
   const [selectedProvider, setSelectedProvider] = useState<ProviderData | null>(null);
+  // Prevent double-counting "view" during a single sheet open.
+  const viewedServiceIdsRef = useRef<Set<string>>(new Set());
 
   // The scrollable container inside the drawer (NOT window). We must scroll this to top
   // when switching providers via Suggestions so the user instantly sees the new provider.
@@ -381,6 +383,16 @@ export function ServiceDetailSheet({
       if (match) setSelectedProvider(match);
     }
   }, [initialProviderServiceId, providers]);
+
+  // Track a provider view when a provider becomes active (best-effort, no UI dependency).
+  useEffect(() => {
+    if (!open) return;
+    const id = selectedProvider?.id;
+    if (!id) return;
+    if (viewedServiceIdsRef.current.has(id)) return;
+    viewedServiceIdsRef.current.add(id);
+    supabase.rpc("record_service_event", { p_service_id: id, p_event_type: "view" } as any).catch(() => {});
+  }, [open, selectedProvider?.id]);
 
   // Helper to merge ratings into provider object
   const getProviderWithRating = (p: ProviderData) => {
@@ -527,6 +539,10 @@ function ProviderActionBar({
 
   const handleCall = () => {
     if (!provider.provider_phone) return toast.error("لا يوجد رقم هاتف");
+    // Best-effort tracking (doesn't block the call)
+    if (provider?.id) {
+      supabase.rpc("record_service_event", { p_service_id: provider.id, p_event_type: "call" } as any).catch(() => {});
+    }
     window.open(`tel:${provider.provider_phone.replace(/\s+/g, "")}`, "_self");
   };
 
@@ -534,6 +550,10 @@ function ProviderActionBar({
     if (provider.allow_whatsapp === false) return;
     if (!provider.provider_phone) return toast.error("لا يوجد رقم هاتف");
     const digits = provider.provider_phone.replace(/[^\d]/g, "");
+    // Best-effort tracking (doesn't block WhatsApp)
+    if (provider?.id) {
+      supabase.rpc("record_service_event", { p_service_id: provider.id, p_event_type: "whatsapp" } as any).catch(() => {});
+    }
     if (digits) window.open(`https://wa.me/${digits}`, "_blank");
   };
 

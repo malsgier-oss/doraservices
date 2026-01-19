@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { supabase } from "@/integrations/supabase/client";
 
 // --- Types (Shared) ---
 export interface ProviderData {
@@ -125,11 +126,19 @@ export function ServiceProviderCard({
 
   const handleCall = (e: React.MouseEvent) => {
     e.stopPropagation();
+    // Best-effort tracking (doesn't block the call)
+    if (provider?.id) {
+      supabase.rpc("record_service_event", { p_service_id: provider.id, p_event_type: "call" } as any).catch(() => {});
+    }
     if(tel) window.open(`tel:${tel}`, "_self");
   };
 
   const handleWhatsapp = (e: React.MouseEvent) => {
     e.stopPropagation();
+    // Best-effort tracking (doesn't block WhatsApp)
+    if (provider?.id) {
+      supabase.rpc("record_service_event", { p_service_id: provider.id, p_event_type: "whatsapp" } as any).catch(() => {});
+    }
     if(whatsapp) window.open(`https://wa.me/${whatsapp}`, "_blank");
   };
 

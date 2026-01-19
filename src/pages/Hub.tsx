@@ -23,6 +23,7 @@ import { useHubChips } from "@/hooks/useHubChips";
 import { useHubTopCategories } from "@/hooks/useHubTopCategories";
 import { useFeaturedSubcategories } from "@/hooks/useFeaturedSubcategories";
 import { useAllSubcategories } from "@/hooks/useSubcategories";
+import { useMostDemandedServices } from "@/hooks/useMostDemandedServices";
 import { CategoryBrowseSheet } from "@/components/hub/CategoryBrowseSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -467,6 +468,19 @@ export default function Hub() {
   const { shelves, itemsByShelf } = useHubShelves(cityId);
   const { data: allSubcategories } = useAllSubcategories();
   const { rows: featuredSubcats } = useFeaturedSubcategories(cityId);
+
+  // City name variants (AR/EN) for system-demand filtering.
+  const demandCityNames = useMemo(() => {
+    const names = new Set<string>();
+    if (selectedCity?.name) names.add(String(selectedCity.name));
+    if ((selectedCity as any)?.name_ar) names.add(String((selectedCity as any).name_ar));
+    return Array.from(names);
+  }, [selectedCity]);
+
+  const { rows: mostDemandedRows, loading: mostDemandedLoading } = useMostDemandedServices({
+    cityNames: demandCityNames,
+    limit: 6,
+  });
 
   const categories = useMemo(() => {
     return (categoriesData || []).filter((c) => c.is_active !== false).sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
@@ -1219,26 +1233,77 @@ export default function Hub() {
           </HorizontalSection>
         )}
 
-        {/* Most demanded services - Phase 1 UI scaffolding (system logic comes in Phase 2) */}
-        <HorizontalSection
-          id="most-demanded-services"
-          title={t("الأكثر طلباً", "Most demanded")}
-          count={null}
-          isRTL={isRTL}
-        >
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div
-              key={`demanded-placeholder-${i}`}
-              className="shrink-0 w-[70vw] max-w-[340px] snap-center rounded-2xl border bg-card overflow-hidden"
-            >
-              <div className="p-4" dir="rtl">
-                <div className="h-4 w-40 rounded bg-muted" />
-                <div className="mt-3 h-3 w-56 rounded bg-muted" />
-                <div className="mt-2 h-3 w-44 rounded bg-muted" />
-              </div>
-            </div>
-          ))}
-        </HorizontalSection>
+        {/* Most demanded services (SYSTEM) - cards */}
+        {(mostDemandedLoading || mostDemandedRows.length > 0) && (
+          <HorizontalSection
+            id="most-demanded-services"
+            title={t("الأكثر طلباً", "Most demanded")}
+            count={mostDemandedLoading ? null : mostDemandedRows.length}
+            isRTL={isRTL}
+          >
+            {mostDemandedLoading && mostDemandedRows.length === 0
+              ? Array.from({ length: 6 }).map((_, i) => (
+                  <div
+                    key={`demanded-placeholder-${i}`}
+                    className="shrink-0 w-[70vw] max-w-[340px] snap-center rounded-2xl border bg-card overflow-hidden"
+                  >
+                    <div className="p-4" dir="rtl">
+                      <div className="h-4 w-40 rounded bg-muted" />
+                      <div className="mt-3 h-3 w-56 rounded bg-muted" />
+                      <div className="mt-2 h-3 w-44 rounded bg-muted" />
+                    </div>
+                  </div>
+                ))
+              : mostDemandedRows.slice(0, 6).map((p) => (
+                  <div
+                    key={p.id}
+                    role="button"
+                    tabIndex={0}
+                    className="shrink-0 w-[70vw] max-w-[340px] snap-center cursor-pointer focus:outline-none"
+                    onClick={() => {
+                      const subcat = subcatByName.get(String(p.category || "").trim());
+                      if (!subcat) {
+                        toast({
+                          title: t("تعذر فتح الخدمة", "Could not open"),
+                          description: t("هذه الخدمة غير مرتبطة بتصنيف معروف", "This service category is not linked to a known subcategory"),
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                      openSubcategoryProviders(subcat, p.id);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter" && e.key !== " ") return;
+                      const subcat = subcatByName.get(String(p.category || "").trim());
+                      if (!subcat) return;
+                      openSubcategoryProviders(subcat, p.id);
+                    }}
+                  >
+                    <div className="rounded-2xl border bg-card overflow-hidden shadow-sm active:scale-[0.99] transition-transform">
+                      <div className="h-[110px] bg-muted">
+                        {p.image_url ? (
+                          <img src={p.image_url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center text-muted-foreground text-sm">
+                            {t("بدون صورة", "No photo")}
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-3" dir="rtl">
+                        <div className="font-semibold text-sm text-foreground line-clamp-1">
+                          {p.provider_name || t("مزود", "Provider")}
+                        </div>
+                        <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{p.title}</div>
+                        <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
+                          <span className="line-clamp-1">{p.city || ""}</span>
+                          <span className="line-clamp-1">{p.sub_city || ""}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+          </HorizontalSection>
+        )}
 
         {/* Guides (global) - cards + drawer */}
         <HorizontalSection
