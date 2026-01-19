@@ -235,6 +235,11 @@ export default function Profile() {
       title: isRTL ? "تم الحفظ" : "Saved",
       description: isRTL ? "تم تحديث ملفك الشخصي" : "Your profile was updated",
     });
+
+    // Post-signup welcome flow: after profile completion, send the user to Hub.
+    if (showWelcome) {
+      navigate("/", { replace: true });
+    }
   };
 
   const handleLogout = async () => {
