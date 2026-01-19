@@ -155,6 +155,15 @@ export default function ServiceCreator() {
     }
   }, [profile, profileLoading, navigate, isRTL]);
 
+  // If city is already selected in the provider profile, initialize the form with it.
+  // This prevents validation from complaining "select a city" while the UI appears to have one.
+  useEffect(() => {
+    if (!profile) return;
+    if (formData.cityId) return;
+    if (!profile.city_id) return;
+    setFormData((prev) => ({ ...prev, cityId: profile.city_id }));
+  }, [profile, formData.cityId]);
+
   if (profileLoading) {
     return (
       <Layout>
@@ -207,7 +216,9 @@ export default function ServiceCreator() {
     }
 
     // Core fields: city, area (if applicable), and price are required.
-    if (!formData.cityId) {
+    // City can come from the profile default (Tripoli-only) if the form hasn't overridden it.
+    const effectiveCityId = formData.cityId || profile.city_id || "";
+    if (!effectiveCityId) {
       toast.error(isRTL ? "يرجى اختيار المدينة" : "Please select your city");
       return;
     }
@@ -228,7 +239,7 @@ export default function ServiceCreator() {
       return;
     }
 
-    const selectedCity = cities?.find((c) => c.id === formData.cityId) || null;
+    const selectedCity = cities?.find((c) => c.id === effectiveCityId) || null;
     const cityValue =
       (selectedCity
         ? language === "ar"
@@ -625,6 +636,7 @@ export default function ServiceCreator() {
             <Switch
               checked={!!formData.allowWhatsapp}
               onCheckedChange={(checked) => setFormData({ ...formData, allowWhatsapp: checked })}
+              disabled={isSubmitting}
             />
           </div>
 
@@ -636,24 +648,6 @@ export default function ServiceCreator() {
               placeholder={t.creator.bioPlaceholder}
               className={cn("min-h-[120px] rounded-xl resize-none", isRTL ? "text-right" : "text-left")}
               dir={isRTL ? "rtl" : "ltr"}
-            />
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-muted rounded-xl">
-            <div className="space-y-0.5">
-              <Label className="text-sm font-medium">
-                {isRTL ? "السماح بالتواصل عبر واتساب" : "Allow WhatsApp"}
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                {isRTL
-                  ? "إذا أغلقتها، زر واتساب سيختفي للزبائن"
-                  : "When off, the WhatsApp button will be hidden for customers"}
-              </p>
-            </div>
-            <Switch
-              checked={!!formData.allowWhatsapp}
-              onCheckedChange={(checked) => setFormData({ ...formData, allowWhatsapp: checked })}
-              disabled={isSubmitting}
             />
           </div>
 
