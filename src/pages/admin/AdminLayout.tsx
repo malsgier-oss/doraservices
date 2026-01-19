@@ -11,7 +11,6 @@ const navItems = [
   { to: "/admin/announcements", label: "Announcements", icon: Megaphone },
   { to: "/admin/pages", label: "Pages", icon: Store },
   { to: "/admin/guides", label: "Guides", icon: BookOpen },
-  { to: "/admin/guides", label: "Guides", icon: BookOpen },
 
   { to: "/admin/users", label: "Users", icon: Users },
   { to: "/admin/providers", label: "Providers", icon: Users },

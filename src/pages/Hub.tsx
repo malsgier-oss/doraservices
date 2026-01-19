@@ -1,5 +1,6 @@
 // DORA_HUB_PATCH_v4 (ticker+banner-loop+no-all-cities+sticky-fullwidth)
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Component, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { Bell, CheckCheck, ChevronDown, Search, Wrench, Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper, Droplets, Wind, Fuel, ClipboardCheck, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -32,6 +33,31 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications, useUnreadCount, useNotificationMutations } from "@/hooks/useNotifications";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+
+/**
+ * Safety net: prevent a whole-app white screen if ServiceDetailSheet crashes.
+ * Root cause can vary (schema mismatches, missing tables, etc.).
+ * We fail closed: show a toast + close the sheet instead of crashing the app.
+ */
+class SafeBoundary extends Component<
+  { children: ReactNode; onError?: (err: unknown) => void },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    this.props.onError?.(error);
+  }
+
+  render() {
+    if (this.state.hasError) return null;
+    return this.props.children;
+  }
+}
 
 type ServiceRow = {
   id: string;
@@ -1608,18 +1634,34 @@ export default function Hub() {
       )}
 
       {activeSheet === "providers" && selectedSheetService && (
-        <ServiceDetailSheet
-          open={true}
-          onOpenChange={(open) => {
-            if (!open) {
-              setActiveSheet("none");
-              setInitialProviderServiceId(null);
-            }
+        <SafeBoundary
+          onError={(err) => {
+            console.error("ServiceDetailSheet crashed:", err);
+            toast({
+              title: t("تعذر فتح التفاصيل", "Could not open details"),
+              description: t(
+                "حدث خطأ أثناء فتح تفاصيل الخدمة. تم إغلاق النافذة لتجنب تعليق التطبيق.",
+                "An error occurred while opening details. The sheet was closed to keep the app stable."
+              ),
+              variant: "destructive",
+            });
+            setActiveSheet("none");
+            setInitialProviderServiceId(null);
           }}
-          city={selectedCityName}
-          service={selectedSheetService}
-          initialProviderServiceId={initialProviderServiceId}
-        />
+        >
+          <ServiceDetailSheet
+            open={true}
+            onOpenChange={(open) => {
+              if (!open) {
+                setActiveSheet("none");
+                setInitialProviderServiceId(null);
+              }
+            }}
+            city={selectedCityName}
+            service={selectedSheetService}
+            initialProviderServiceId={initialProviderServiceId}
+          />
+        </SafeBoundary>
       )}
 
       {activeSheet === "guide" && activeGuide && (
