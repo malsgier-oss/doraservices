@@ -1234,7 +1234,7 @@ export default function Hub() {
         )}
 
         {/* Most demanded services (SYSTEM) - cards */}
-        {(mostDemandedLoading || mostDemandedRows.length > 0) && (
+        {
           <HorizontalSection
             id="most-demanded-services"
             title={t("الأكثر طلباً", "Most demanded")}
@@ -1254,7 +1254,18 @@ export default function Hub() {
                     </div>
                   </div>
                 ))
-              : mostDemandedRows.slice(0, 6).map((p) => (
+              : mostDemandedRows.length === 0
+                ? (
+                    <div className="shrink-0 w-[70vw] max-w-[340px] snap-center rounded-2xl border bg-card overflow-hidden">
+                      <div className="p-4" dir="rtl">
+                        <div className="font-semibold text-sm">{t("لا توجد بيانات بعد", "No data yet")}</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {t("سيظهر هذا القسم تلقائياً بعد تفاعل المستخدمين (مشاهدات/اتصالات)", "This will appear automatically once users interact (views/calls).")}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                : mostDemandedRows.slice(0, 6).map((p) => (
                   <div
                     key={p.id}
                     role="button"
@@ -1303,7 +1314,7 @@ export default function Hub() {
                   </div>
                 ))}
           </HorizontalSection>
-        )}
+        }
 
         {/* Guides (global) - cards + drawer */}
         <HorizontalSection

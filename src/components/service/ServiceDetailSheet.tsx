@@ -111,7 +111,9 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
             .join(",");
         }
 
-        const base = supabase
+        // Some deployments use city_id/sub_city_id instead of city/sub_city text.
+        // We try the "classic" selection first, then fall back gracefully if the column doesn't exist.
+        const baseWithCity = supabase
           .from("services")
           .select(
             "id,user_id,title,description,category,city,sub_city,provider_name,provider_phone,allow_whatsapp,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count"
@@ -119,9 +121,17 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           .order("is_featured", { ascending: false })
           .order("views_count", { ascending: false });
 
+        const baseNoCity = supabase
+          .from("services")
+          .select(
+            "id,user_id,title,description,category,provider_name,provider_phone,allow_whatsapp,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count"
+          )
+          .order("is_featured", { ascending: false })
+          .order("views_count", { ascending: false });
+
         // Helper to run query in Strict or Permissive mode
-        const runQuery = async (mode: "strict" | "permissive") => {
-          let q = base;
+        const runQuery = async (mode: "strict" | "permissive", allowCityFilter: boolean) => {
+          let q: any = allowCityFilter ? baseWithCity : baseNoCity;
 
           if (mode === "strict") {
             q = q
@@ -139,18 +149,28 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           }
 
           if (categoryOr) q = q.or(categoryOr);
-          if (cityOr) q = q.or(cityOr);
+          if (allowCityFilter && cityOr) q = q.or(cityOr);
 
           return await q;
         };
 
-        // 1. Try Strict
-        let { data, error } = await runQuery("strict");
+        // 1) Try Strict (with city filter). If schema doesn't have city/sub_city, fall back.
+        let allowCityFilter = true;
+        let { data, error } = await runQuery("strict", allowCityFilter);
+        if (error) {
+          const msg = String((error as any)?.message || error);
+          const low = msg.toLowerCase();
+          const missingCity = low.includes('column') && (low.includes('city') || low.includes('sub_city')) && low.includes('does not exist');
+          if (missingCity) {
+            allowCityFilter = false;
+            ({ data, error } = await runQuery("strict", allowCityFilter));
+          }
+        }
         if (error) throw error;
 
         // 2. Fallback to Permissive if no data found
         if (!data || data.length === 0) {
-          const res = await runQuery("permissive");
+          const res = await runQuery("permissive", allowCityFilter);
           data = res.data;
           error = res.error;
           if (error) throw error;
