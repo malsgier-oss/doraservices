@@ -49,6 +49,7 @@ import SitePage from "./pages/SitePage";
 import AdminHubSuggestions from "./pages/admin/AdminHubSuggestions";
 import AdminHub from "./pages/admin/AdminHub";
 import AdminPages from "./pages/admin/AdminPages";
+import AdminGuides from "./pages/admin/AdminGuides";
 
 import { PendingRatingPrompt } from "@/components/service/PendingRatingPrompt";
 
@@ -227,6 +228,7 @@ const AppRoutes = () => {
         <Route path="services" element={<AdminServices />} />
         <Route path="hub" element={<AdminHub />} />
         <Route path="hub-suggestions" element={<AdminHubSuggestions />} />
+        <Route path="guides" element={<AdminGuides />} />
         <Route path="pages" element={<AdminPages />} />
         <Route path="categories" element={<AdminCategories />} />
         <Route path="cities" element={<AdminCities />} />

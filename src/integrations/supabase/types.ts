@@ -1384,6 +1384,51 @@ hub_suggestions: {
         }
         Relationships: []
       }
+      guides: {
+        Row: {
+          id: string
+          icon_key: string
+          title_ar: string
+          title_en: string | null
+          summary_lines_ar: string[]
+          summary_lines_en: string[] | null
+          bullets_ar: string[]
+          bullets_en: string[] | null
+          sort_order: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          icon_key?: string
+          title_ar: string
+          title_en?: string | null
+          summary_lines_ar?: string[]
+          summary_lines_en?: string[] | null
+          bullets_ar?: string[]
+          bullets_en?: string[] | null
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          icon_key?: string
+          title_ar?: string
+          title_en?: string | null
+          summary_lines_ar?: string[]
+          summary_lines_en?: string[] | null
+          bullets_ar?: string[]
+          bullets_en?: string[] | null
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       site_pages: {
         Row: {
           slug: string

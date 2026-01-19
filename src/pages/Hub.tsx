@@ -24,6 +24,7 @@ import { useHubTopCategories } from "@/hooks/useHubTopCategories";
 import { useFeaturedSubcategories } from "@/hooks/useFeaturedSubcategories";
 import { useAllSubcategories } from "@/hooks/useSubcategories";
 import { useMostDemandedServices } from "@/hooks/useMostDemandedServices";
+import { useGuides } from "@/hooks/useGuides";
 import { CategoryBrowseSheet } from "@/components/hub/CategoryBrowseSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -156,6 +157,73 @@ const DEFAULT_GUIDES_AR: GuideCard[] = [
       "اسأل عن مدة التنفيذ قبل ما يجي",
       "اتفق على السعر أو الحد الأعلى",
       "خلي كلامك بسيط ومحدد",
+    ],
+  },
+];
+
+const DEFAULT_GUIDES_EN: GuideCard[] = [
+  {
+    id: "guide-electricity",
+    icon: Zap,
+    title: "Before you call an electrician",
+    summaryLines: [
+      "Is it the meter or inside the home?",
+      "Ask if there is an inspection fee",
+    ],
+    bullets: [
+      "Is it the meter or inside the home?",
+      "Ask if there is an inspection fee",
+      "Describe the problem location clearly",
+      "Confirm if the price is estimate or final",
+      "Agree on timing before the visit",
+    ],
+  },
+  {
+    id: "guide-plumbing",
+    icon: Droplets,
+    title: "Need a plumber?",
+    summaryLines: [
+      "Take a photo before you call",
+      "Ask if the part is included",
+    ],
+    bullets: [
+      "Take a photo before you call",
+      "Ask if the part is included",
+      "Be clear: leak or blockage?",
+      "Agree on an estimate before the visit",
+      "Ask about duration and warranty",
+    ],
+  },
+  {
+    id: "guide-ac",
+    icon: Wind,
+    title: "AC service",
+    summaryLines: [
+      "Cleaning vs freon changes the price",
+      "Ask about warranty",
+    ],
+    bullets: [
+      "Cleaning vs freon changes the price",
+      "Ask about warranty",
+      "Ask if the visit/inspection is included",
+      "Confirm the brand and unit size",
+      "Agree on timing",
+    ],
+  },
+  {
+    id: "guide-general",
+    icon: ClipboardCheck,
+    title: "Choose a technician wisely",
+    summaryLines: [
+      "Be clear from the first call",
+      "Don’t pay the full amount upfront",
+    ],
+    bullets: [
+      "Be clear from the first call",
+      "Don’t pay the full amount upfront",
+      "Confirm what is included in the price",
+      "Ask about expected time",
+      "Keep messages/photos as reference",
     ],
   },
 ];
@@ -482,6 +550,34 @@ export default function Hub() {
     limit: 6,
   });
 
+  // Phase 3: Guides are DB-driven (admin-controlled) with a safe fallback to local defaults.
+  const { data: guidesRows, isLoading: guidesLoading } = useGuides();
+  const guidesCards: GuideCard[] = useMemo(() => {
+    const fallback = language === "ar" ? DEFAULT_GUIDES_AR : DEFAULT_GUIDES_EN;
+    const rows = (guidesRows || []).filter((r) => r.is_active !== false);
+    if (rows.length === 0) return fallback;
+
+    const mapped: GuideCard[] = rows.map((r: any) => {
+      const Icon = ICON_MAP[String(r.icon_key || "")] || ClipboardCheck;
+      const title = language === "ar" ? String(r.title_ar || "") : String(r.title_en || r.title_ar || "");
+      const summary = language === "ar" ? (r.summary_lines_ar as string[]) : ((r.summary_lines_en as string[] | null) || (r.summary_lines_ar as string[]));
+      const bullets = language === "ar" ? (r.bullets_ar as string[]) : ((r.bullets_en as string[] | null) || (r.bullets_ar as string[]));
+
+      const s1 = summary?.[0] ? String(summary[0]) : "";
+      const s2 = summary?.[1] ? String(summary[1]) : "";
+      return {
+        id: String(r.id),
+        icon: Icon,
+        title,
+        summaryLines: [s1, s2],
+        bullets: (bullets || []).map(String).filter(Boolean),
+      };
+    });
+
+    // Final ordering (respect sort_order when present)
+    return mapped;
+  }, [guidesRows, language]);
+
   const categories = useMemo(() => {
     return (categoriesData || []).filter((c) => c.is_active !== false).sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
   }, [categoriesData]);
@@ -689,8 +785,8 @@ export default function Hub() {
   const [activeGuideId, setActiveGuideId] = useState<string | null>(null);
   const activeGuide = useMemo(() => {
     if (!activeGuideId) return null;
-    return (DEFAULT_GUIDES_AR || []).find((g) => g.id === activeGuideId) || null;
-  }, [activeGuideId]);
+    return (guidesCards || []).find((g) => g.id === activeGuideId) || null;
+  }, [activeGuideId, guidesCards]);
 
   function openGuide(guideId: string) {
     setActiveGuideId(guideId);
@@ -1323,16 +1419,29 @@ export default function Hub() {
           count={null}
           isRTL={isRTL}
         >
-          {DEFAULT_GUIDES_AR.slice(0, 4).map((g) => (
-            <MiniInfoCard
-              key={g.id}
-              title={g.title}
-              line1={g.summaryLines[0]}
-              line2={g.summaryLines[1]}
-              Icon={g.icon}
-              onClick={() => openGuide(g.id)}
-            />
-          ))}
+          {guidesLoading && guidesCards.length === 0
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <div
+                  key={`guide-placeholder-${i}`}
+                  className="shrink-0 w-[70vw] max-w-[340px] snap-center rounded-2xl border bg-card overflow-hidden"
+                >
+                  <div className="p-4" dir="rtl">
+                    <div className="h-4 w-44 rounded bg-muted" />
+                    <div className="mt-3 h-3 w-56 rounded bg-muted" />
+                    <div className="mt-2 h-3 w-48 rounded bg-muted" />
+                  </div>
+                </div>
+              ))
+            : guidesCards.slice(0, 4).map((g) => (
+                <MiniInfoCard
+                  key={g.id}
+                  title={g.title}
+                  line1={g.summaryLines[0]}
+                  line2={g.summaryLines[1]}
+                  Icon={g.icon}
+                  onClick={() => openGuide(g.id)}
+                />
+              ))}
         </HorizontalSection>
 
         {/* Shelves (admin-controlled) */}

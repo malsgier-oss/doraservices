@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Users, Store, Tag, Flag, Settings, MessageSquare, History, ArrowLeft, Menu, MapPin, KeyRound, Megaphone } from "lucide-react";
+import { LayoutDashboard, Users, Store, Tag, Flag, Settings, MessageSquare, History, ArrowLeft, Menu, MapPin, KeyRound, Megaphone, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import doraLogo from "@/assets/dora-logo.png";
@@ -10,6 +10,8 @@ const navItems = [
   { to: "/admin/hub-suggestions", label: "Hub Suggestions", icon: LayoutDashboard },
   { to: "/admin/announcements", label: "Announcements", icon: Megaphone },
   { to: "/admin/pages", label: "Pages", icon: Store },
+  { to: "/admin/guides", label: "Guides", icon: BookOpen },
+  { to: "/admin/guides", label: "Guides", icon: BookOpen },
 
   { to: "/admin/users", label: "Users", icon: Users },
   { to: "/admin/providers", label: "Providers", icon: Users },
