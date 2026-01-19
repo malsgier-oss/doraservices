@@ -106,8 +106,7 @@ begin
   select count(*) into v_cnt
   from public.service_events
   where created_at >= v_since
-    and (p_city_names is null or city = any(p_city_names));
-
+    and (p_city_names is null or public.service_events.city = any(p_city_names));
   if coalesce(v_cnt, 0) < 20 then
     v_since := now() - interval '30 days';
   end if;

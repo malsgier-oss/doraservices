@@ -53,7 +53,12 @@ export function useMostDemandedServices(params: Params) {
           try {
             const base = supabase
               .from("services")
-              .select("id,title,category,provider_name,provider_phone,allow_whatsapp,city,sub_city,image_url,views_count,call_clicks,whatsapp_clicks")
+              // Keep this fallback compatible with older schemas that may not have
+              // click counters (call_clicks / whatsapp_clicks). We can still rank by
+              // views_count, which exists in the baseline schema.
+              .select(
+                "id,title,category,provider_name,provider_phone,allow_whatsapp,city,sub_city,image_url,views_count"
+              )
               .eq("is_active", true)
               .eq("is_visible", true)
               .eq("is_paused", false)
@@ -73,8 +78,6 @@ export function useMostDemandedServices(params: Params) {
               const scored = list
                 .map((r) => {
                   const views = Number(r?.views_count ?? 0) || 0;
-                  const call = Number(r?.call_clicks ?? 0) || 0;
-                  const wa = Number(r?.whatsapp_clicks ?? 0) || 0;
                   return {
                     id: String(r.id),
                     title: String(r.title ?? ""),
@@ -85,7 +88,8 @@ export function useMostDemandedServices(params: Params) {
                     city: r.city ?? null,
                     sub_city: r.sub_city ?? null,
                     image_url: r.image_url ?? null,
-                    demand_score: call * 3 + wa * 3 + views,
+                    // With no click counters, fall back to views as a proxy.
+                    demand_score: views,
                   } satisfies MostDemandedServiceRow;
                 })
                 .sort((a, b) => (Number(b.demand_score ?? 0) - Number(a.demand_score ?? 0)) || a.id.localeCompare(b.id))
