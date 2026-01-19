@@ -41,7 +41,8 @@ export function useSubcategories(categoryId?: string) {
       let query = supabase
         .from("subcategories")
         .select("*")
-        .eq("is_active", true)
+        // Treat NULL as active (legacy/default rows)
+        .or("is_active.is.null,is_active.eq.true")
         .order("display_order", { ascending: true });
 
       if (categoryId) {

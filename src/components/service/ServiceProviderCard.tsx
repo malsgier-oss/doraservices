@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 // --- Types (Shared) ---
 export interface ProviderData {
@@ -121,11 +122,17 @@ export function ServiceProviderCard({
   // Clean phone numbers
   const tel = provider.provider_phone?.replace(/\s+/g, "");
   const whatsapp = provider.provider_phone?.replace(/[^\d]/g, "");
-
   const allowWhatsapp = provider.allow_whatsapp !== false;
+
+  const canCall = Boolean(tel);
+  const canWhatsApp = Boolean(whatsapp) && allowWhatsapp;
 
   const handleCall = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!tel) {
+      toast.error(t("رقم الهاتف غير متوفر", "Phone number not available"));
+      return;
+    }
     // Best-effort tracking (doesn't block the call)
     if (provider?.id) {
       // supabase.rpc() may not return a Promise in some builds; wrap in async IIFE to avoid runtime .catch errors.
@@ -137,11 +144,15 @@ export function ServiceProviderCard({
         }
       })();
     }
-    if(tel) window.open(`tel:${tel}`, "_self");
+    window.open(`tel:${tel}`, "_self");
   };
 
   const handleWhatsapp = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!whatsapp || !allowWhatsapp) {
+      toast.error(t("واتساب غير متوفر", "WhatsApp not available"));
+      return;
+    }
     // Best-effort tracking (doesn't block WhatsApp)
     if (provider?.id) {
       // supabase.rpc() may not return a Promise in some builds; wrap in async IIFE to avoid runtime .catch errors.
@@ -153,7 +164,7 @@ export function ServiceProviderCard({
         }
       })();
     }
-    if(whatsapp) window.open(`https://wa.me/${whatsapp}`, "_blank");
+    window.open(`https://wa.me/${whatsapp}`, "_blank");
   };
 
   const handleFav = (e: React.MouseEvent) => {
@@ -225,8 +236,9 @@ export function ServiceProviderCard({
            <Button 
              size="sm" 
              variant="outline" 
-             className="h-8 flex-1 gap-2 text-xs rounded-lg"
+             className={cn("h-8 flex-1 gap-2 text-xs rounded-lg", !canCall && "opacity-50")}
              onClick={handleCall}
+             disabled={!canCall}
            >
              <Phone className="h-3.5 w-3.5" /> اتصال
            </Button>
@@ -235,8 +247,12 @@ export function ServiceProviderCard({
            <Button 
              size="sm" 
              variant="outline" 
-             className="h-8 flex-1 gap-2 text-xs rounded-lg border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800"
+             className={cn(
+               "h-8 flex-1 gap-2 text-xs rounded-lg border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800",
+               !canWhatsApp && "opacity-50"
+             )}
              onClick={handleWhatsapp}
+             disabled={!canWhatsApp}
            >
              <MessageCircle className="h-3.5 w-3.5" /> واتساب
            </Button>
@@ -353,8 +369,9 @@ export function ServiceProviderCard({
         <Button 
            size="sm" 
            variant="default" 
-           className="rounded-xl w-full flex-1"
+           className={cn("rounded-xl w-full flex-1", !canCall && "opacity-50")}
            onClick={handleCall}
+           disabled={!canCall}
         >
           <Phone className="h-4 w-4 ml-2" /> اتصال
         </Button>
@@ -362,8 +379,12 @@ export function ServiceProviderCard({
         <Button 
            size="sm" 
            variant="secondary" 
-           className="rounded-xl w-full flex-1 bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400"
+           className={cn(
+             "rounded-xl w-full flex-1 bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400",
+             !canWhatsApp && "opacity-50"
+           )}
            onClick={handleWhatsapp}
+           disabled={!canWhatsApp}
         >
           <MessageCircle className="h-4 w-4 ml-2" /> واتساب
         </Button>

@@ -545,7 +545,7 @@ export default function Hub() {
   const { data: notifications } = useNotifications();
   const { data: unreadCount } = useUnreadCount();
   const { markAsRead, markAllAsRead } = useNotificationMutations();
-  const { data: categoriesData, isLoading: categoriesLoading } = useCategories();
+  const { data: categoriesData, isLoading: categoriesLoading, error: categoriesError } = useCategories();
   const { data: citiesData } = useCities();
 
   const { cityId, setCityId } = useSelectedCityId();
@@ -848,6 +848,8 @@ export default function Hub() {
     if (!selectedSubcategory) return null;
     return {
       id: selectedSubcategory.id,
+      // Stable ID-based filtering (preferred) for ServiceDetailSheet.
+      subcategoryId: selectedSubcategory.id,
       titleKey: selectedSubcategory.name_ar || selectedSubcategory.name,
       descKey: "",
       // IMPORTANT: ServiceDetailSheet filters services.category by this value.
@@ -1231,6 +1233,14 @@ export default function Hub() {
 
           {categoriesLoading ? (
             <div className="text-sm text-muted-foreground">Loading...</div>
+          ) : categoriesError ? (
+            <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
+              {t("تعذر تحميل الأقسام. حاول مرة أخرى.", "Couldn't load categories. Please try again.")}
+            </div>
+          ) : gridCategories.length === 0 ? (
+            <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
+              {t("لا توجد أقسام متاحة حالياً.", "No categories available right now.")}
+            </div>
           ) : (
             <div className="grid grid-cols-4 gap-3">
               {gridCategories.map((c) => {

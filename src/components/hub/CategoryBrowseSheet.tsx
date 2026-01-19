@@ -45,7 +45,7 @@ export function CategoryBrowseSheet({
   onSelectSubcategory: CategoryBrowseSheetSelect;
 }) {
   const categoryId = category?.id;
-  const { data: subcats, isLoading } = useSubcategories(categoryId || undefined);
+  const { data: subcats, isLoading, error } = useSubcategories(categoryId || undefined);
 
   const list = useMemo(() => {
     return (subcats || [])
@@ -73,6 +73,11 @@ export function CategoryBrowseSheet({
           <div className="px-4 py-4">
             {isLoading ? (
               <div className="text-sm text-muted-foreground">Loading...</div>
+            ) : error ? (
+              <div className="text-center py-10">
+                <div className="text-4xl mb-3">⚠️</div>
+                <div className="text-muted-foreground">تعذر تحميل الخدمات. حاول مرة أخرى</div>
+              </div>
             ) : list.length === 0 ? (
               <div className="text-center py-10">
                 <div className="text-4xl mb-3">🧩</div>
