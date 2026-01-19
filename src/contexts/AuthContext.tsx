@@ -4,6 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import type { TablesInsert } from "@/integrations/supabase/types";
 import { cleanPhoneForStorage, phoneToInternalEmail, isValidLibyanPhone } from "@/lib/phoneUtils";
 
+const isProviderLike = (role: string) => {
+  const r = (role || "").toLowerCase();
+  return r === "provider" || r === "business";
+};
+
 interface Profile {
   id: string;
   user_id: string | null;
@@ -95,6 +100,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       phone: overrides?.phone ?? (existing ? undefined : metaPhone),
       city_id: overrides?.cityId ?? (existing ? undefined : metaCityId),
       city: overrides?.cityName ?? (existing ? undefined : metaCityName),
+      // Dora P0: regular users should NOT have any provider state.
+      ...(existing ? {} : ({ role: "user", provider_status: null } as any)),
     };
 
     if (existing) {
@@ -105,6 +112,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           phone: overrides?.phone ?? undefined,
           city_id: overrides?.cityId ?? undefined,
           city: overrides?.cityName ?? undefined,
+          // If this user is not a provider, ensure provider_status stays null.
+          ...(overrides && !isProviderLike(String(existing.role || "user"))
+            ? ({ provider_status: null } as any)
+            : {}),
         })
         .eq("user_id", authUser.id);
 
@@ -258,6 +269,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cityId,
       cityName,
     });
+
+    // Safety: some deployments may default provider_status="pending" on new profiles.
+    // Regular users should not carry any provider state.
+    try {
+      await supabase
+        .from("profiles")
+        .update({ provider_status: null } as any)
+        .eq("user_id", data.user.id)
+        .eq("role", "user");
+    } catch {
+      // ignore
+    }
 
     return { error: null };
   };

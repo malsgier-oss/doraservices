@@ -67,6 +67,28 @@ export default function Auth() {
     cityId: ""
   });
 
+  // Dora P0 (Libya): we operate in Tripoli only for now.
+  // Auto-select Tripoli on signup when cities are available.
+  useEffect(() => {
+    if (!cities || cities.length === 0) return;
+    if (signupData.cityId) return;
+
+    const tripoli =
+      cities.find(c => (c.name || "").toLowerCase() === "tripoli") ||
+      cities.find(c => (c.name_ar || "").trim() === "طرابلس") ||
+      cities.find(c => (c.name || "").toLowerCase().includes("tripoli")) ||
+      cities.find(c => (c.name_ar || "").includes("طرابلس")) ||
+      null;
+
+    if (tripoli?.id) {
+      setSignupData(prev => ({
+        ...prev,
+        cityId: tripoli.id
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cities]);
+
   // If already logged in, route them appropriately
   useEffect(() => {
     if (!user) return;
@@ -386,6 +408,10 @@ export default function Auth() {
                         </SelectItem>)}
                     </SelectContent>
                   </Select>
+
+                  <p className="text-xs text-muted-foreground">
+                    {isRTL ? "عذراً، نحن نعمل في طرابلس فقط حالياً." : "Sorry, we are operating in Tripoli only at the moment."}
+                  </p>
                 </div>
 
                 <Button type="submit" className="w-full rounded-full" disabled={isLoading || !registrationEnabled}>

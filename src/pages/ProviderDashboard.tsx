@@ -328,13 +328,6 @@ export default function ProviderDashboard() {
                 <p className="text-sm text-muted-foreground">
                   {isRTL ? "لم تضف أي خدمات بعد" : "No services added yet"}
                 </p>
-                <Button
-                  className="mt-3"
-                  onClick={() => navigate("/create-service")}
-                  disabled={accountLocked}
-                >
-                  {isRTL ? "أضف خدمة" : "Add Service"}
-                </Button>
               </div>
             ) : (
               <div className="space-y-3">
@@ -473,9 +466,6 @@ export default function ProviderDashboard() {
                 <p className="text-sm text-muted-foreground">
                   {isRTL ? "لم تضف أي خدمات بعد" : "No services added yet"}
                 </p>
-                <Button className="mt-3" onClick={() => navigate("/create-service")}>
-                  {isRTL ? "أضف خدمة" : "Add Service"}
-                </Button>
               </div>
             ) : (
               <div className="space-y-3">

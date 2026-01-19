@@ -502,16 +502,7 @@ export default function Profile() {
   return (
     <div className="min-h-screen p-4 pb-24" dir={isRTL ? "rtl" : "ltr"}>
       <div className="max-w-2xl mx-auto space-y-4">
-        {showWelcome && (
-          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-            <div className="font-semibold">{isRTL ? "مرحباً!" : "Welcome!"}</div>
-            <div className="text-sm text-muted-foreground mt-1">
-              {isRTL
-                ? "أكمل بياناتك بسرعة. إذا كنت مزود خدمة، انتقل إلى تبويب (المزود)."
-                : "Complete your info quickly. If you're a provider, switch to the Provider tab."}
-            </div>
-          </div>
-        )}
+        {/* welcome banner removed (Tripoli-only onboarding is communicated in signup) */}
 
         {/* Modern Header Card */}
         <Card className="overflow-hidden">

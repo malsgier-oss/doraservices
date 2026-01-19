@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ArrowLeft, MapPin, Tag } from "lucide-react";
+import { Loader2, ArrowLeft, MapPin, Tag, ImagePlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -35,6 +35,13 @@ type ServiceRow = {
   deleted_at?: string | null;
 };
 
+type ServiceImageRow = {
+  id: string;
+  url: string;
+  storage_path: string | null;
+  position: number | null;
+};
+
 export default function ServiceEditor() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -56,6 +63,10 @@ export default function ServiceEditor() {
   const [cityId, setCityId] = useState<string>("");
   const [subCity, setSubCity] = useState<string>("");
   const [allowWhatsapp, setAllowWhatsapp] = useState<boolean>(true);
+
+  // Photos (service_images)
+  const [images, setImages] = useState<ServiceImageRow[]>([]);
+  const [photosBusy, setPhotosBusy] = useState(false);
 
   const { data: subcategories } = useSubcategories(categoryId || undefined);
   const { data: subCities } = useSubCities(cityId || (profile as any)?.city_id || null);
@@ -102,11 +113,43 @@ export default function ServiceEditor() {
       setSubCity(row.sub_city || "");
       setAllowWhatsapp(row.allow_whatsapp ?? true);
 
+      // Load existing photos (up to 5)
+      try {
+        const { data: imgs, error: imgsErr } = await supabase
+          .from("service_images" as any)
+          .select("id,url,storage_path,position")
+          .eq("service_id", row.id)
+          .order("position", { ascending: true });
+        if (!imgsErr && Array.isArray(imgs)) {
+          setImages(imgs as ServiceImageRow[]);
+        }
+      } catch {
+        // ignore
+      }
+
       // Best-effort: map stored category string back to a category/subcategory selection.
-      // Stored value is a name (category or subcategory name), so we match by name.
-      const matchedCategory = categories?.find((c) => c.name === row.category || c.name_ar === row.category) || null;
-      if (matchedCategory) {
-        setCategoryId(matchedCategory.id);
+      // Stored value is a name (category OR subcategory name), so we match both.
+      let matched = false;
+      try {
+        const { data: subMatch } = await supabase
+          .from("subcategories" as any)
+          .select("id,category_id,name,name_ar")
+          .or(`name.eq.${row.category},name_ar.eq.${row.category}`)
+          .maybeSingle();
+        if (subMatch?.id && subMatch?.category_id) {
+          setCategoryId(String(subMatch.category_id));
+          setSubcategoryId(String(subMatch.id));
+          matched = true;
+        }
+      } catch {
+        // ignore
+      }
+
+      if (!matched) {
+        const matchedCategory = categories?.find((c) => c.name === row.category || c.name_ar === row.category) || null;
+        if (matchedCategory) {
+          setCategoryId(matchedCategory.id);
+        }
       }
 
       // City selection: map by name.
@@ -121,6 +164,94 @@ export default function ServiceEditor() {
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, id, categories, cities]);
+
+  const maxPhotos = 5;
+
+  const onAddPhotos = async (fileList: FileList | null) => {
+    if (!fileList) return;
+    if (!user || !service) return;
+    const files = Array.from(fileList).filter(Boolean);
+    if (files.length === 0) return;
+
+    if (images.length >= maxPhotos) {
+      toast.error(isRTL ? "الحد الأقصى 5 صور" : "Max 5 photos");
+      return;
+    }
+
+    setPhotosBusy(true);
+    try {
+      const remaining = Math.max(0, maxPhotos - images.length);
+      const picked = files.slice(0, remaining);
+      const startPos = (images[images.length - 1]?.position || images.length || 0) + 1;
+
+      const createdRows: ServiceImageRow[] = [];
+      for (let i = 0; i < picked.length; i++) {
+        const file = picked[i];
+        const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+        const imageId = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${i}`;
+        const path = `${user.id}/${service.id}/${imageId}.${ext}`;
+
+        const { error: uploadError } = await supabase.storage.from("service-images").upload(path, file, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: file.type || undefined,
+        });
+        if (uploadError) throw uploadError;
+
+        const { data: publicData } = supabase.storage.from("service-images").getPublicUrl(path);
+        const publicUrl = publicData?.publicUrl || null;
+        if (!publicUrl) throw new Error("Missing public URL");
+
+        const position = startPos + i;
+        const { data: imgRow, error: imgRowError } = await supabase
+          .from("service_images" as any)
+          .insert({ service_id: service.id, url: publicUrl, storage_path: path, position })
+          .select("id,url,storage_path,position")
+          .single();
+        if (imgRowError) throw imgRowError;
+
+        createdRows.push(imgRow as ServiceImageRow);
+      }
+
+      const next = [...images, ...createdRows].sort((a, b) => (a.position || 0) - (b.position || 0));
+      setImages(next);
+
+      // Keep services.image_url aligned with first image for backward-compat.
+      if (next[0]?.url) {
+        await supabase.from("services").update({ image_url: next[0].url }).eq("id", service.id);
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error(isRTL ? "فشل رفع الصور" : "Failed to upload photos");
+    } finally {
+      setPhotosBusy(false);
+    }
+  };
+
+  const onDeletePhoto = async (img: ServiceImageRow) => {
+    if (!service) return;
+    const ok = window.confirm(isRTL ? "حذف هذه الصورة؟" : "Delete this photo?");
+    if (!ok) return;
+
+    setPhotosBusy(true);
+    try {
+      if (img.storage_path) {
+        await supabase.storage.from("service-images").remove([img.storage_path]);
+      }
+      await supabase.from("service_images" as any).delete().eq("id", img.id);
+
+      const next = images.filter((x) => x.id !== img.id);
+      setImages(next);
+
+      // Update cover image if needed
+      await supabase.from("services").update({ image_url: next[0]?.url || null }).eq("id", service.id);
+    } catch (e) {
+      console.error(e);
+      toast.error(isRTL ? "فشل حذف الصورة" : "Failed to delete photo");
+    } finally {
+      setPhotosBusy(false);
+    }
+  };
 
   const onSave = async () => {
     if (!user || !service) return;
@@ -225,6 +356,66 @@ export default function ServiceEditor() {
             <CardTitle className="text-base">{isRTL ? "بيانات الخدمة" : "Service info"}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Photos */}
+            <div className="space-y-2">
+              <Label>{isRTL ? "صور الخدمة" : "Service Photos"}</Label>
+
+              <div className="rounded-xl border bg-card p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    {isRTL ? "حتى 5 صور" : "Up to 5 photos"}
+                  </p>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={photosBusy || images.length >= maxPhotos || accountLocked}
+                    asChild
+                  >
+                    <label className="cursor-pointer">
+                      <span className="inline-flex items-center gap-2">
+                        <ImagePlus className="h-4 w-4" />
+                        {isRTL ? "إضافة صور" : "Add photos"}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => onAddPhotos(e.target.files)}
+                        disabled={photosBusy || images.length >= maxPhotos || accountLocked}
+                      />
+                    </label>
+                  </Button>
+                </div>
+
+                {images.length > 0 ? (
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {images.map((img) => (
+                      <div key={img.id} className="relative rounded-lg overflow-hidden border bg-muted">
+                        <img src={img.url} alt="" className="h-24 w-full object-cover" />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-1 right-1 h-8 w-8 rounded-full"
+                          onClick={() => onDeletePhoto(img)}
+                          disabled={photosBusy || accountLocked}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground mt-3">
+                    {isRTL ? "لا توجد صور" : "No photos"}
+                  </p>
+                )}
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>{isRTL ? "اسم الخدمة" : "Service name"}</Label>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} className="h-12 rounded-xl" />
