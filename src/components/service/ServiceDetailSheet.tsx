@@ -17,12 +17,11 @@ import {
   Share2,
   X,
   Star,
-  Flag
+  Flag,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useServiceRatings } from "@/hooks/useReviews";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-// Ensure you import the Card and Type from the file we created previously
 import { ServiceProviderCard, ProviderData } from "./ServiceProviderCard";
 
 // --- Types ---
@@ -48,7 +47,6 @@ type SuggestedProvider = ProviderData;
 function pickRandomReviews<T>(arr: T[], n: number): T[] {
   if (!arr || arr.length === 0) return [];
   const copy = arr.slice();
-  // Fisher-Yates shuffle (small n, small arrays)
   for (let i = copy.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [copy[i], copy[j]] = [copy[j], copy[i]];
@@ -58,7 +56,6 @@ function pickRandomReviews<T>(arr: T[], n: number): T[] {
 
 function pickOneRandom<T>(arr: T[], seed: number): T | null {
   if (!arr || arr.length === 0) return null;
-  // Deterministic-ish per seed to avoid “changing every render”.
   const idx = Math.abs(seed) % arr.length;
   return arr[idx] ?? null;
 }
@@ -81,10 +78,8 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
         };
 
         const categoryVal = (service?.category ?? "").trim();
-        // Construct Category Filter
         const categoryOr = categoryVal ? `category.eq.${escOrValue(categoryVal)}` : "";
 
-        // Construct City Filter (Handle AR/EN variants)
         let cityOr = "";
         const cityVal = (city || "").trim();
         if (cityVal) {
@@ -92,7 +87,6 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           cityNames.add(cityVal);
 
           try {
-            // Check DB for Arabic/English synonyms
             const { data: cityRow } = await supabase
               .from("cities")
               .select("name,name_ar")
@@ -111,8 +105,6 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
             .join(",");
         }
 
-        // Some deployments use city_id/sub_city_id instead of city/sub_city text.
-        // We try the "classic" selection first, then fall back gracefully if the column doesn't exist.
         const baseWithCity = supabase
           .from("services")
           .select(
@@ -129,7 +121,6 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           .order("is_featured", { ascending: false })
           .order("views_count", { ascending: false });
 
-        // Helper to run query in Strict or Permissive mode
         const runQuery = async (mode: "strict" | "permissive", allowCityFilter: boolean) => {
           let q: any = allowCityFilter ? baseWithCity : baseNoCity;
 
@@ -140,7 +131,6 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
               .eq("is_paused", false)
               .eq("approval_status", "approved");
           } else {
-            // Permissive: allow NULLs or non-approved for dev/legacy data
             q = q
               .or("is_visible.eq.true,is_visible.is.null")
               .or("is_active.eq.true,is_active.is.null")
@@ -154,13 +144,15 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           return await q;
         };
 
-        // 1) Try Strict (with city filter). If schema doesn't have city/sub_city, fall back.
         let allowCityFilter = true;
         let { data, error } = await runQuery("strict", allowCityFilter);
         if (error) {
           const msg = String((error as any)?.message || error);
           const low = msg.toLowerCase();
-          const missingCity = low.includes('column') && (low.includes('city') || low.includes('sub_city')) && low.includes('does not exist');
+          const missingCity =
+            low.includes("column") &&
+            (low.includes("city") || low.includes("sub_city")) &&
+            low.includes("does not exist");
           if (missingCity) {
             allowCityFilter = false;
             ({ data, error } = await runQuery("strict", allowCityFilter));
@@ -168,7 +160,6 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
         }
         if (error) throw error;
 
-        // 2. Fallback to Permissive if no data found
         if (!data || data.length === 0) {
           const res = await runQuery("permissive", allowCityFilter);
           data = res.data;
@@ -176,7 +167,6 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           if (error) throw error;
         }
 
-        // 3. Normalize Data
         const rows = (data || []) as any[];
         const normalizedBase: ProviderData[] = rows.map((r) => ({
           id: String(r.id),
@@ -190,14 +180,13 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           provider_phone: r.provider_phone ?? null,
           allow_whatsapp: r.allow_whatsapp ?? true,
           image_url: r.image_url ?? null,
-          image_urls: null, // You can populate this from image_url parsing if needed
+          image_urls: null,
           price: r.price,
           is_active: r.is_active ?? null,
           approval_status: r.approval_status ?? null,
           reviews: undefined,
         }));
 
-        // Attach lightweight review snippets (for cards) from DB (best-effort).
         let normalized = normalizedBase;
         try {
           const ids = normalizedBase.map((x) => x.id).filter(Boolean);
@@ -229,7 +218,6 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
         }
 
         if (alive) setProviders(normalized);
-
       } catch (e) {
         console.error("ServiceDetailSheet load error:", e);
         if (alive) setProviders([]);
@@ -257,28 +245,20 @@ export function ServiceDetailSheet({
   onToggleFavorite,
   isFavorite,
 }: Props) {
-  // Use the robust hook
   const { providers, loading } = useSheetData(open, service, city);
-  
+
   const [selectedProvider, setSelectedProvider] = useState<ProviderData | null>(null);
-  // Prevent double-counting "view" during a single sheet open.
   const viewedServiceIdsRef = useRef<Set<string>>(new Set());
 
-  // The scrollable container inside the drawer (NOT window). We must scroll this to top
-  // when switching providers via Suggestions so the user instantly sees the new provider.
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const lastSuggestionTapAtRef = useRef<number>(0);
 
-  // ---- Favorites (fallback wiring)
-  // If the parent doesn't provide favorite handlers, we make favorites work here using Supabase.
   const [userId, setUserId] = useState<string | null>(null);
   const [favIds, setFavIds] = useState<Set<string>>(new Set());
-  
-  // Ratings Hook
+
   const serviceIds = useMemo(() => providers.map((p) => p.id), [providers]);
   const { ratings } = useServiceRatings(serviceIds);
 
-  // Load auth user (best-effort)
   useEffect(() => {
     let alive = true;
     const run = async () => {
@@ -296,10 +276,9 @@ export function ServiceDetailSheet({
     };
   }, [open]);
 
-  // Fetch favorites for the visible providers (only when we manage favorites internally)
   useEffect(() => {
     if (!open) return;
-    if (onToggleFavorite || isFavorite) return; // parent manages it
+    if (onToggleFavorite || isFavorite) return;
     if (!userId) {
       setFavIds(new Set());
       return;
@@ -365,7 +344,6 @@ export function ServiceDetailSheet({
         if (error) throw error;
       }
     } catch {
-      // revert optimistic update
       setFavIds((prev) => {
         const next = new Set(prev);
         if (already) next.add(providerId);
@@ -396,7 +374,6 @@ export function ServiceDetailSheet({
     }
   };
 
-  // Sync Initial Selection
   useEffect(() => {
     if (initialProviderServiceId && providers.length > 0) {
       const match = providers.find((p) => p.id === initialProviderServiceId);
@@ -404,17 +381,17 @@ export function ServiceDetailSheet({
     }
   }, [initialProviderServiceId, providers]);
 
-  // Track a provider view when a provider becomes active (best-effort, no UI dependency).
   useEffect(() => {
     if (!open) return;
     const id = selectedProvider?.id;
     if (!id) return;
     if (viewedServiceIdsRef.current.has(id)) return;
     viewedServiceIdsRef.current.add(id);
-    supabase.rpc("record_service_event", { p_service_id: id, p_event_type: "view" } as any).catch(() => {});
+    supabase
+      .rpc("record_service_event", { p_service_id: id, p_event_type: "view" } as any)
+      .catch(() => {});
   }, [open, selectedProvider?.id]);
 
-  // Helper to merge ratings into provider object
   const getProviderWithRating = (p: ProviderData) => {
     const r = ratings.get(p.id);
     return {
@@ -428,8 +405,6 @@ export function ServiceDetailSheet({
 
   const suggestedProviders: SuggestedProvider[] = useMemo(() => {
     if (!activeProvider) return [];
-    // Suggest other providers from the same list (same category/city filter), excluding the active one.
-    // Keep it small to avoid overwhelming the user.
     return providers
       .filter((p) => p?.id && p.id !== activeProvider.id)
       .slice(0, 12)
@@ -439,7 +414,6 @@ export function ServiceDetailSheet({
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="h-[95dvh] flex flex-col bg-background/95 backdrop-blur-sm" dir="rtl">
-        {/* Header */}
         <DrawerHeader className="px-4 py-3 shrink-0 border-b bg-background">
           <div className="flex items-center gap-2">
             {selectedProvider && (
@@ -466,7 +440,6 @@ export function ServiceDetailSheet({
           </div>
         </DrawerHeader>
 
-        {/* Body Content (scrollable) */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto bg-muted/10 p-4">
           {activeProvider ? (
             <ProviderDetailView
@@ -477,15 +450,12 @@ export function ServiceDetailSheet({
               onReport={(serviceId, reason) => reportService(serviceId, userId, reason)}
               suggestions={suggestedProviders}
               onOpenSuggestion={(p) => {
-                // Prevent rapid taps from fighting scroll / state.
                 const now = Date.now();
                 if (now - lastSuggestionTapAtRef.current < 200) return;
                 lastSuggestionTapAtRef.current = now;
 
                 setSelectedProvider(p);
 
-                // Scroll the drawer content to top so the change is obvious to the user.
-                // Important: this is NOT window scroll.
                 const el = scrollRef.current;
                 if (!el) return;
                 if (el.scrollTop < 40) return;
@@ -506,26 +476,44 @@ export function ServiceDetailSheet({
                 </div>
               )}
 
-              {providers.map((p) => (
-                <ServiceProviderCard
-                  key={p.id}
-                  provider={getProviderWithRating(p)}
-                  variant="row"
-                  isFavorite={isFavoriteLocal(p.id)}
-                  onToggleFavorite={() => toggleFavoriteLocal(p.id)}
-                  onReport={() => {
-                    // report from list (small action)
-                    if (!p?.id) return;
-                    reportService(p.id, userId, "");
-                  }}
-                  onDetails={() => setSelectedProvider(p)}
-                />
-              ))}
+              {providers.map((p) => {
+                const openDetails = () => setSelectedProvider(p);
+
+                return (
+                  <div
+                    key={p.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={openDetails}
+                    // IMPORTANT: iOS / Drawer + scroll containers sometimes miss click.
+                    // PointerUp is more reliable for taps.
+                    onPointerUp={openDetails}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") openDetails();
+                    }}
+                    className="cursor-pointer"
+                    style={{ touchAction: "manipulation" }}
+                    aria-label="open-provider-details"
+                  >
+                    <ServiceProviderCard
+                      provider={getProviderWithRating(p)}
+                      variant="row"
+                      isFavorite={isFavoriteLocal(p.id)}
+                      onToggleFavorite={() => toggleFavoriteLocal(p.id)}
+                      onReport={() => {
+                        if (!p?.id) return;
+                        reportService(p.id, userId, "");
+                      }}
+                      // keep passing this too (in case the card already uses it)
+                      onDetails={openDetails}
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* Fixed-in-drawer action bar (does NOT scroll) */}
         {activeProvider && (
           <ProviderActionBar
             provider={activeProvider}
@@ -559,9 +547,10 @@ function ProviderActionBar({
 
   const handleCall = () => {
     if (!provider.provider_phone) return toast.error("لا يوجد رقم هاتف");
-    // Best-effort tracking (doesn't block the call)
     if (provider?.id) {
-      supabase.rpc("record_service_event", { p_service_id: provider.id, p_event_type: "call" } as any).catch(() => {});
+      supabase
+        .rpc("record_service_event", { p_service_id: provider.id, p_event_type: "call" } as any)
+        .catch(() => {});
     }
     window.open(`tel:${provider.provider_phone.replace(/\s+/g, "")}`, "_self");
   };
@@ -570,9 +559,10 @@ function ProviderActionBar({
     if (provider.allow_whatsapp === false) return;
     if (!provider.provider_phone) return toast.error("لا يوجد رقم هاتف");
     const digits = provider.provider_phone.replace(/[^\d]/g, "");
-    // Best-effort tracking (doesn't block WhatsApp)
     if (provider?.id) {
-      supabase.rpc("record_service_event", { p_service_id: provider.id, p_event_type: "whatsapp" } as any).catch(() => {});
+      supabase
+        .rpc("record_service_event", { p_service_id: provider.id, p_event_type: "whatsapp" } as any)
+        .catch(() => {});
     }
     if (digits) window.open(`https://wa.me/${digits}`, "_blank");
   };
@@ -703,17 +693,17 @@ function ProviderDetailView({
   const sanitizedDescription = useMemo(() => {
     const raw = (provider.description || "").trim();
     if (!raw) return "";
-    // Remove phone-like patterns and emojis to keep layout clean
     const noPhones = raw
       .replace(/\b\+?\d[\d\s\-()]{7,}\d\b/g, "")
       .replace(/\b0\d{8,}\b/g, "");
-    const noEmoji = noPhones.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "");
+    const noEmoji = noPhones.replace(
+      /[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu,
+      ""
+    );
     const normalized = noEmoji.replace(/\n{3,}/g, "\n\n").trim();
     return normalized;
   }, [provider.description]);
 
-
-  // Reviews + rating submission
   const [reviews, setReviews] = useState<
     { id: string; rating: number; content: string | null; created_at: string; user_id: string | null }[]
   >([]);
@@ -723,10 +713,8 @@ function ProviderDetailView({
   const [submitting, setSubmitting] = useState(false);
   const [reviewSeed, setReviewSeed] = useState(1);
 
-  // Fetch specific images for detail view
   useEffect(() => {
     const fetchImages = async () => {
-      // 1. Try fetching from service_images table
       const { data } = await supabase
         .from("service_images")
         .select("url")
@@ -736,7 +724,6 @@ function ProviderDetailView({
 
       const dbImages = data?.map((x: any) => x.url) || [];
 
-      // 2. Fallback to parsing image_url
       if (dbImages.length === 0 && provider.image_url) {
         let fallback = [provider.image_url];
         if (provider.image_url.startsWith("[")) {
@@ -744,9 +731,8 @@ function ProviderDetailView({
             fallback = JSON.parse(provider.image_url);
           } catch {}
         }
-        // Handle comma separated
         if (fallback.length === 1 && fallback[0].includes(",")) {
-            fallback = fallback[0].split(",").map(s => s.trim());
+          fallback = fallback[0].split(",").map((s) => s.trim());
         }
         setImages(fallback.filter(Boolean));
       } else {
@@ -756,7 +742,6 @@ function ProviderDetailView({
     fetchImages();
   }, [provider.id, provider.image_url]);
 
-  // Fetch latest reviews (best-effort) for the random reviews section and count.
   useEffect(() => {
     let alive = true;
     const run = async () => {
@@ -778,7 +763,6 @@ function ProviderDetailView({
               user_id: r.user_id ? String(r.user_id) : null,
             }))
           );
-          // Randomize on open / refresh.
           setReviewSeed((s) => s + 1);
         }
       } catch {
@@ -807,18 +791,6 @@ function ProviderDetailView({
     return picked.length > 90 ? picked.slice(0, 90) + "..." : picked;
   }, [reviews, reviewSeed]);
 
-  const handleCall = () => {
-    if (!provider.provider_phone) return toast.error("لا يوجد رقم هاتف");
-    window.open(`tel:${provider.provider_phone.replace(/\s+/g, "")}`, "_self");
-  };
-
-  const handleWhatsapp = () => {
-    if (provider.allow_whatsapp === false) return;
-    if (!provider.provider_phone) return toast.error("لا يوجد رقم هاتف");
-    const digits = provider.provider_phone.replace(/[^\d]/g, "");
-    if (digits) window.open(`https://wa.me/${digits}`, "_blank");
-  };
-
   const submitReview = async () => {
     if (!userId) return toast.info("سجل دخولك لتقييم الخدمة");
     if (!provider.user_id) return toast.error("تعذر تحديد المزود");
@@ -835,7 +807,6 @@ function ProviderDetailView({
         content: rateText.trim() ? rateText.trim().slice(0, 200) : null,
       };
 
-      // Allow re-rating: relies on UNIQUE(service_id, user_id)
       const { error } = await supabase
         .from("service_reviews")
         .upsert(payload, { onConflict: "service_id,user_id" });
@@ -845,7 +816,6 @@ function ProviderDetailView({
       setRateOpen(false);
       setReviewSeed((s) => s + 1);
 
-      // Refresh reviews list (best-effort)
       try {
         const { data } = await supabase
           .from("service_reviews")
@@ -872,7 +842,6 @@ function ProviderDetailView({
       setSubmitting(false);
     }
   };
-
 
   return (
     <div className="pb-24 animate-in slide-in-from-right-4 duration-300">
@@ -901,9 +870,7 @@ function ProviderDetailView({
       <div className="bg-card rounded-2xl border p-5 shadow-sm space-y-3">
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-xl font-bold text-foreground">
-              {provider.provider_name}
-            </h1>
+            <h1 className="text-xl font-bold text-foreground">{provider.provider_name}</h1>
             <p className="text-sm text-muted-foreground mt-1">{provider.title}</p>
           </div>
           <div className="flex gap-2">
@@ -912,14 +879,15 @@ function ProviderDetailView({
               variant="outline"
               className="rounded-full h-9 w-9"
               onClick={() => {
-                // Share Logic placeholder
                 if (navigator.share) {
-                    navigator.share({ 
-                        title: provider.provider_name || "", 
-                        text: provider.title || "" 
-                    }).catch(() => {});
+                  navigator
+                    .share({
+                      title: provider.provider_name || "",
+                      text: provider.title || "",
+                    })
+                    .catch(() => {});
                 } else {
-                    toast.success("تم نسخ الرابط");
+                  toast.success("تم نسخ الرابط");
                 }
               }}
             >
@@ -936,10 +904,7 @@ function ProviderDetailView({
               onClick={() => onToggleFavorite?.(provider.id)}
             >
               <Heart
-                className={cn(
-                  "h-4 w-4",
-                  isFavorite?.(provider.id) && "fill-current"
-                )}
+                className={cn("h-4 w-4", isFavorite?.(provider.id) && "fill-current")}
               />
             </Button>
           </div>
@@ -962,7 +927,6 @@ function ProviderDetailView({
               </div>
             )}
 
-            {/* Random 1-line review snippet */}
             {randomReviewText ? (
               <div className="text-xs text-muted-foreground italic line-clamp-1">
                 “{randomReviewText}”
@@ -974,7 +938,7 @@ function ProviderDetailView({
             )}
           </div>
 
-          {/* Rate icon (symbol) */}
+          {/* Rate icon */}
           <button
             type="button"
             className={cn(
@@ -990,7 +954,6 @@ function ProviderDetailView({
               setRateStars(userReview?.rating || 5);
               setRateText(userReview?.content || "");
               setRateOpen(true);
-              // change snippet on intent
               setReviewSeed((s) => s + 1);
             }}
           >
@@ -998,7 +961,7 @@ function ProviderDetailView({
           </button>
         </div>
 
-        {/* Trust strip (minimal) */}
+        {/* Trust strip */}
         <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
           <span className="rounded-md bg-muted px-2 py-1">✓ رقم هاتف حقيقي</span>
           <span className="rounded-md bg-muted px-2 py-1">✓ مزود نشط</span>
@@ -1009,16 +972,13 @@ function ProviderDetailView({
 
         {provider.price && provider.price > 0 && (
           <div className="pt-2 border-t mt-2 flex justify-between items-center">
-             <span className="text-xs text-muted-foreground">السعر المبدئي</span>
-             <span className="text-lg font-bold text-primary">
-               {provider.price} د.ل
-             </span>
+            <span className="text-xs text-muted-foreground">السعر المبدئي</span>
+            <span className="text-lg font-bold text-primary">{provider.price} د.ل</span>
           </div>
         )}
       </div>
 
-      {/* 3. Description */}
-            {/* 3. Description (tap to expand) */}
+      {/* 3. Description (tap to expand) */}
       {sanitizedDescription ? (
         <div className="mt-4 bg-card rounded-2xl border p-5 shadow-sm">
           <h3 className="font-semibold mb-2 text-sm text-foreground">التفاصيل</h3>
@@ -1036,7 +996,8 @@ function ProviderDetailView({
             <p
               className={cn(
                 "text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap transition-all duration-150",
-                descExpanded ? "line-clamp-6" : "line-clamp-2"
+                // FIX: expanded should show full text (no clamp)
+                descExpanded ? "" : "line-clamp-2"
               )}
             >
               {sanitizedDescription}
@@ -1052,7 +1013,7 @@ function ProviderDetailView({
         </div>
       ) : null}
 
-      {/* 4. Suggestions: other providers in the same list (horizontal scroll) */}
+      {/* 4. Suggestions */}
       {suggestions && suggestions.length > 0 && (
         <div className="mt-5">
           <div className="flex items-center justify-between mb-2" dir="rtl">
@@ -1067,8 +1028,6 @@ function ProviderDetailView({
                 role="button"
                 tabIndex={0}
                 onClick={() => onOpenSuggestion?.(s)}
-                // Mobile Safari sometimes misses click events inside horizontal scrollers.
-                // PointerUp is more reliable.
                 onPointerUp={() => onOpenSuggestion?.(s)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") onOpenSuggestion?.(s);
@@ -1100,9 +1059,9 @@ function ProviderDetailView({
                     </div>
                     <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
                       <span className="line-clamp-1">{s.city || ""}</span>
-                      {typeof s.rating === "number" && s.rating > 0 ? (
+                      {typeof (s as any).rating === "number" && (s as any).rating > 0 ? (
                         <span className="inline-flex items-center gap-1">
-                          <Star className="h-3.5 w-3.5" /> {s.rating.toFixed(1)}
+                          <Star className="h-3.5 w-3.5" /> {(s as any).rating.toFixed(1)}
                         </span>
                       ) : null}
                     </div>
@@ -1120,7 +1079,9 @@ function ProviderDetailView({
           <div className="space-y-4">
             <div>
               <div className="text-lg font-bold text-foreground">تقييم الخدمة</div>
-              <div className="text-xs text-muted-foreground mt-1">اختر عدد النجوم واكتب تعليق (اختياري)</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                اختر عدد النجوم واكتب تعليق (اختياري)
+              </div>
             </div>
 
             <div className="flex items-center gap-1 text-amber-600" dir="rtl">
@@ -1166,10 +1127,7 @@ function ProviderDetailView({
       </Dialog>
 
       {/* Full Screen Viewer */}
-      <Dialog
-        open={viewerIndex !== null}
-        onOpenChange={(o) => !o && setViewerIndex(null)}
-      >
+      <Dialog open={viewerIndex !== null} onOpenChange={(o) => !o && setViewerIndex(null)}>
         <DialogContent className="max-w-[100vw] h-[100dvh] p-0 border-none bg-black flex flex-col justify-center">
           <div className="relative w-full h-full flex items-center justify-center">
             <button
