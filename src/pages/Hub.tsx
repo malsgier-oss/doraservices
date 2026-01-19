@@ -1,5 +1,5 @@
 // DORA_HUB_PATCH_v4 (ticker+banner-loop+no-all-cities+sticky-fullwidth)
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Bell, CheckCheck, ChevronDown, Search, Wrench, Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper, Droplets, Wind, Fuel, ClipboardCheck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -120,6 +120,197 @@ async function fetchShelfSubcategories(params: { categoryId: string; limit: numb
   return (data as any[]) as SubcategoryRow[];
 }
 
+
+
+type BannerItem = {
+  id: string;
+  target_type?: "none" | "category" | "subcategory" | "shelf";
+  target_category_id?: string | null;
+  target_subcategory_id?: string | null;
+  target_shelf_id?: string | null;
+};
+
+type BannerCarouselProps = {
+  banners: BannerItem[];
+  publicUrlsById: Record<string, string | undefined>;
+  allSubcategories: any[];
+  iconMap: Record<string, any>;
+  onOpenCategory: (categoryId: string) => void;
+  onOpenSubcategory: (sc: { id: string; name: string; name_ar: string | null; icon: any; color: string | null }) => void;
+  onScrollToShelf: (shelfId: string) => void;
+};
+
+const BannerCarousel = memo(function BannerCarousel(props: BannerCarouselProps) {
+  const { banners, publicUrlsById, allSubcategories, iconMap, onOpenCategory, onOpenSubcategory, onScrollToShelf } = props;
+
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const [index, setIndex] = useState(0);
+  const pauseUntilRef = useRef<number>(0);
+  const scrollRafRef = useRef<number | null>(null);
+  const programmaticRef = useRef(false);
+
+  // A+B: do NOT autoplay until the user interacts with the carousel.
+  const interactedRef = useRef(false);
+  const [autoplayEnabled, setAutoplayEnabled] = useState(false);
+
+  const markInteracted = () => {
+    if (!interactedRef.current) {
+      interactedRef.current = true;
+      setAutoplayEnabled(true);
+    }
+    pauseUntilRef.current = Date.now() + 6000;
+  };
+
+  // Keep index in range.
+  useEffect(() => {
+    if (banners.length === 0) return;
+    setIndex((i) => Math.min(i, banners.length - 1));
+  }, [banners.length]);
+
+  // Autoplay ONLY after interaction.
+  useEffect(() => {
+    if (!autoplayEnabled) return;
+    if (banners.length <= 1) return;
+
+    const id = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() < pauseUntilRef.current) return;
+      setIndex((i) => (i + 1) % banners.length);
+    }, 4500);
+
+    return () => window.clearInterval(id);
+  }, [autoplayEnabled, banners.length]);
+
+  // Scroll to active banner.
+  useEffect(() => {
+    const el = rowRef.current;
+    if (!el) return;
+    const child = el.children.item(index) as HTMLElement | null;
+    if (!child) return;
+
+    programmaticRef.current = true;
+    const timeout = window.setTimeout(() => {
+      programmaticRef.current = false;
+    }, 650);
+
+    child.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+
+    return () => window.clearTimeout(timeout);
+  }, [index]);
+
+  const handleScroll = () => {
+    markInteracted();
+    if (programmaticRef.current) return;
+    if (scrollRafRef.current) return;
+
+    scrollRafRef.current = window.requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      const el = rowRef.current;
+      if (!el) return;
+
+      const containerRect = el.getBoundingClientRect();
+      const targetX = (containerRect.left + containerRect.right) / 2;
+
+      let bestIdx = 0;
+      let bestDist = Number.POSITIVE_INFINITY;
+      for (let i = 0; i < el.children.length; i++) {
+        const child = el.children.item(i) as HTMLElement | null;
+        if (!child) continue;
+        const r = child.getBoundingClientRect();
+        const anchorX = (r.left + r.right) / 2;
+        const dist = Math.abs(anchorX - targetX);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestIdx = i;
+        }
+      }
+      setIndex(bestIdx);
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      if (scrollRafRef.current) window.cancelAnimationFrame(scrollRafRef.current);
+    };
+  }, []);
+
+  if (!banners || banners.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <div
+        ref={rowRef}
+        dir="ltr"
+        className={`flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory ${banners.length === 1 ? "justify-center" : ""}`}
+        style={{
+          WebkitOverflowScrolling: "touch" as any,
+          scrollPaddingInline: "16px",
+          // Allow horizontal pan; don't block vertical page scroll.
+          touchAction: "pan-x pan-y",
+        }}
+        onScroll={handleScroll}
+        onPointerDown={markInteracted}
+        onTouchStart={markInteracted}
+        onWheel={markInteracted}
+      >
+        {banners.map((b) => {
+          const url = publicUrlsById[b.id];
+          const clickable = (b as any).target_type !== "none";
+          return (
+            <button
+              key={b.id}
+              className={`shrink-0 w-[92%] md:w-[70%] rounded-xl overflow-hidden border bg-card snap-center ${clickable ? "cursor-pointer" : "cursor-default"}`}
+              style={{ scrollSnapAlign: "center" }}
+              onClick={() => {
+                markInteracted();
+                const bt = (b as any).target_type;
+                if (!bt || bt === "none") return;
+
+                if (bt === "category" && (b as any).target_category_id) {
+                  onOpenCategory((b as any).target_category_id);
+                  return;
+                }
+
+                if (bt === "subcategory" && (b as any).target_subcategory_id) {
+                  const sc = (allSubcategories || []).find((s) => s.id === (b as any).target_subcategory_id);
+                  if (!sc) return;
+                  const Icon = (iconMap as any)[sc.icon] || Wrench;
+                  onOpenSubcategory({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color });
+                  return;
+                }
+
+                if (bt === "shelf" && (b as any).target_shelf_id) {
+                  onScrollToShelf((b as any).target_shelf_id);
+                }
+              }}
+            >
+              {/* Height locked to prevent layout shift */}
+              <div className="h-36 w-full bg-muted">
+                {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : null}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {banners.length > 1 && (
+        <div className="flex items-center justify-center gap-1.5">
+          {banners.map((b, i) => (
+            <button
+              key={b.id}
+              aria-label={`Banner ${i + 1}`}
+              className={`h-2 w-2 rounded-full transition ${i === index ? "bg-foreground" : "bg-muted-foreground/30"}`}
+              onClick={() => {
+                markInteracted();
+                setIndex(i);
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
 export default function Hub() {
   const { language, isRTL } = useLanguage();
   const { user } = useAuth();
@@ -474,17 +665,10 @@ export default function Hub() {
   // City label (no "All cities" option; auto-picks first city)
   const cityLabel = selectedCity ? (selectedCity.name_ar || selectedCity.name) : t("اختر المدينة", "Choose a city");
 
-  // Banner carousel: auto-advance but still swipe/scroll manually.
-  const bannerRowRef = useRef<HTMLDivElement | null>(null);
-  const [bannerIndex, setBannerIndex] = useState(0);
-  const bannerPauseUntilRef = useRef<number>(0);
-  const bannerScrollRaf = useRef<number | null>(null);
-
   // Header must stay frozen even if parent containers use overflow/transform.
   // Using position:fixed + measured spacer is more reliable than sticky in complex layouts.
   const headerRef = useRef<HTMLDivElement | null>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
-  const bannerProgrammaticRef = useRef(false);
 
   // Measure the fixed header height so content below doesn't get hidden under it.
   useLayoutEffect(() => {
@@ -508,79 +692,6 @@ export default function Hub() {
     };
   }, [language, isRTL, cityId, query, announcements.length, chips.length]);
 
-  // Keep bannerIndex in range when banners change.
-  useEffect(() => {
-    if (banners.length === 0) return;
-    setBannerIndex((i) => Math.min(i, banners.length - 1));
-  }, [banners.length]);
-
-  // Auto-advance.
-  useEffect(() => {
-    if (banners.length <= 1) return;
-
-    const id = window.setInterval(() => {
-      // If user interacted recently, delay autoplay resume.
-      if (Date.now() < bannerPauseUntilRef.current) return;
-      setBannerIndex((i) => (i + 1) % banners.length);
-    }, 4500);
-
-    return () => window.clearInterval(id);
-  }, [banners.length]);
-
-  // Scroll to active banner.
-  useEffect(() => {
-    const el = bannerRowRef.current;
-    if (!el) return;
-    const child = el.children.item(bannerIndex) as HTMLElement | null;
-    if (!child) return;
-    // Prevent feedback loops: scrollIntoView triggers onScroll which would update bannerIndex again.
-    bannerProgrammaticRef.current = true;
-    const timeout = window.setTimeout(() => {
-      bannerProgrammaticRef.current = false;
-    }, 650);
-
-    // Center the active banner (better feel on mobile)
-    child.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-
-    return () => window.clearTimeout(timeout);
-  }, [bannerIndex]);
-
-  function handleBannerScroll() {
-    if (bannerProgrammaticRef.current) return;
-    // Pause autoplay briefly during/after manual swipe/scroll.
-    bannerPauseUntilRef.current = Date.now() + 6000;
-    if (bannerScrollRaf.current) return;
-    bannerScrollRaf.current = window.requestAnimationFrame(() => {
-      bannerScrollRaf.current = null;
-      const el = bannerRowRef.current;
-      if (!el) return;
-
-      const containerRect = el.getBoundingClientRect();
-      // Choose the banner whose CENTER is closest to the container CENTER.
-      const targetX = (containerRect.left + containerRect.right) / 2;
-
-      let bestIdx = 0;
-      let bestDist = Number.POSITIVE_INFINITY;
-      for (let i = 0; i < el.children.length; i++) {
-        const child = el.children.item(i) as HTMLElement | null;
-        if (!child) continue;
-        const r = child.getBoundingClientRect();
-        const anchorX = (r.left + r.right) / 2;
-        const dist = Math.abs(anchorX - targetX);
-        if (dist < bestDist) {
-          bestDist = dist;
-          bestIdx = i;
-        }
-      }
-      setBannerIndex(bestIdx);
-    });
-  }
-
-  useEffect(() => {
-    return () => {
-      if (bannerScrollRaf.current) window.cancelAnimationFrame(bannerScrollRaf.current);
-    };
-  }, []);
 
   return (
     <div className={`min-h-screen bg-background pb-20 overflow-x-hidden ${isRTL ? "rtl" : ""}`}>
@@ -816,80 +927,21 @@ export default function Hub() {
       {/* Everything below the fixed header scrolls normally */}
       <div className="mx-auto max-w-3xl px-4 pt-4 space-y-4">
 
-        {/* Banner carousel (auto + manual swipe/scroll) */}
-        {banners.length > 0 && (
-          <div className="space-y-2">
-            <div
-              ref={bannerRowRef}
-              // Carousels are kept LTR even in RTL to avoid reversed scroll quirks on mobile.
-              dir="ltr"
-              className={`flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory ${banners.length === 1 ? "justify-center" : ""}`}
-              style={{
-                WebkitOverflowScrolling: "touch" as any,
-                scrollPaddingInline: "16px",
-                touchAction: "pan-y",
-              }}
-              onScroll={handleBannerScroll}
-              onPointerDownCapture={(e) => e.stopPropagation()}
-              onPointerDown={() => {
-                bannerPauseUntilRef.current = Date.now() + 6000;
-              }}
-              onMouseEnter={() => {
-                bannerPauseUntilRef.current = Date.now() + 6000;
-              }}
-            >
-              {banners.map((b) => {
-                const url = publicUrlsById[b.id];
-                const clickable = b.target_type !== "none";
-                return (
-                  <button
-                    key={b.id}
-                    // 92% ensures the first/last banner can still center nicely with 16px padding.
-                    className={`shrink-0 w-[92%] md:w-[70%] rounded-xl overflow-hidden border bg-card snap-center ${clickable ? "cursor-pointer" : "cursor-default"}`}
-                    style={{ scrollSnapAlign: "center" }}
-                    onClick={() => {
-                      if (b.target_type === "none") return;
-                      if (b.target_type === "category" && b.target_category_id) {
-                        openCategoryBrowse(b.target_category_id);
-                      } else if (b.target_type === "subcategory" && b.target_subcategory_id) {
-                        const sc = (allSubcategories || []).find((s) => s.id === b.target_subcategory_id);
-                        if (!sc) return;
-                        const Icon = ICON_MAP[sc.icon] || Wrench;
-                        openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color });
-                      } else if (b.target_type === "shelf" && b.target_shelf_id) {
-                        const el = b.target_shelf_id === "featured-services"
-                          ? document.getElementById("featured-services")
-                          : document.getElementById(`shelf-${b.target_shelf_id}`);
-                        el?.scrollIntoView({ behavior: "smooth", block: "start" });
-                      }
-                    }}
-                  >
-                    <div className="h-36 w-full bg-muted">
-                      {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : null}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Simple dots */}
-            {banners.length > 1 && (
-              <div className="flex items-center justify-center gap-1.5">
-                {banners.map((b, i) => (
-                  <button
-                    key={b.id}
-                    aria-label={`Banner ${i + 1}`}
-                    className={`h-2 w-2 rounded-full transition ${i === bannerIndex ? "bg-foreground" : "bg-muted-foreground/30"}`}
-                    onClick={() => {
-                      bannerPauseUntilRef.current = Date.now() + 6000;
-                      setBannerIndex(i);
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        {/* Banner carousel (manual first; autoplay after interaction; isolated) */}
+        <BannerCarousel
+          banners={banners as any}
+          publicUrlsById={publicUrlsById as any}
+          allSubcategories={(allSubcategories || []) as any}
+          iconMap={ICON_MAP as any}
+          onOpenCategory={openCategoryBrowse}
+          onOpenSubcategory={openSubcategoryProviders as any}
+          onScrollToShelf={(shelfId) => {
+            const el = shelfId === "featured-services"
+              ? document.getElementById("featured-services")
+              : document.getElementById(`shelf-${shelfId}`);
+            el?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+        />
 
         {/* Services (MAIN categories) grid - exactly 8 */}
         <div className="space-y-3">
