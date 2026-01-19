@@ -36,6 +36,7 @@ type ServiceRow = {
   category: string;
   provider_name: string | null;
   provider_phone: string | null;
+  allow_whatsapp?: boolean | null;
   city: string | null;
   sub_city: string | null;
   image_url: string | null;
@@ -160,6 +161,98 @@ export default function Hub() {
   const queryTrim = query.trim();
 
   const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
+
+  // Featured services/providers shelf (horizontal cards)
+  const [featuredServices, setFeaturedServices] = useState<ServiceRow[]>([]);
+
+  const subcatByName = useMemo(() => {
+    const map = new Map<string, {
+      id: string;
+      name: string;
+      name_ar?: string | null;
+      icon: LucideIcon;
+      color: string | null;
+    }>();
+
+    for (const sc of (allSubcategories || []) as any[]) {
+      const name = String(sc?.name || "").trim();
+      if (!name) continue;
+      const iconKey = String(sc?.icon || "");
+      const icon = ICON_MAP[iconKey] || Wrench;
+      map.set(name, {
+        id: String(sc.id),
+        name,
+        name_ar: sc?.name_ar ?? null,
+        icon,
+        color: (sc?.color ?? null) as string | null,
+      });
+    }
+    return map;
+  }, [allSubcategories]);
+
+  useEffect(() => {
+    let alive = true;
+
+    const escOrValue = (v: string) => {
+      const escaped = v.replace(/\\/g, "\\\\").replace(/\"/g, '\\"');
+      return `"${escaped}"`;
+    };
+
+    const loadFeatured = async () => {
+      try {
+        // Base featured query
+        let q = supabase
+          .from("services")
+          .select("id,title,category,provider_name,provider_phone,allow_whatsapp,city,sub_city,image_url")
+          .eq("is_featured", true)
+          .eq("is_active", true)
+          .eq("is_visible", true)
+          .eq("is_paused", false)
+          .eq("approval_status", "approved")
+          .is("deleted_at", null)
+          .order("views_count", { ascending: false })
+          .order("created_at", { ascending: false })
+          .limit(12);
+
+        // City filter (match AR/EN name variants when available)
+        const cityNames = new Set<string>();
+        if (selectedCity?.name) cityNames.add(String(selectedCity.name));
+        if ((selectedCity as any)?.name_ar) cityNames.add(String((selectedCity as any).name_ar));
+
+        // If cityId exists, try to fetch name_ar/name to build a stronger OR filter.
+        if (cityId) {
+          const { data: cityRow } = await supabase
+            .from("cities")
+            .select("name,name_ar")
+            .eq("id", cityId)
+            .maybeSingle();
+          if (cityRow?.name) cityNames.add(String(cityRow.name));
+          if ((cityRow as any)?.name_ar) cityNames.add(String((cityRow as any).name_ar));
+        }
+
+        const names = Array.from(cityNames).filter(Boolean);
+        if (names.length > 0) {
+          const cityOr = names.map((n) => `city.eq.${escOrValue(n)}`).join(",");
+          q = q.or(cityOr);
+        }
+
+        const { data, error } = await q;
+        if (!alive) return;
+        if (error) {
+          setFeaturedServices([]);
+          return;
+        }
+        setFeaturedServices(((data || []) as any[]) as ServiceRow[]);
+      } catch {
+        if (alive) setFeaturedServices([]);
+      }
+    };
+
+    loadFeatured();
+    return () => {
+      alive = false;
+    };
+  }, [cityId, selectedCity?.name]);
 
   // Single-line announcement ticker (rotates through announcements)
   const [announcementIndex, setAnnouncementIndex] = useState(0);
@@ -826,6 +919,74 @@ export default function Hub() {
             </div>
             )}
           </div>
+
+        {/* Featured providers/services (horizontal) */}
+        {featuredServices.length > 0 && (
+          <div className="space-y-2" id="featured-providers">
+            <div className="flex items-center justify-between">
+              <div className="text-base font-semibold">{t("مزودين مميزين", "Featured providers")}</div>
+              <div className="text-xs text-muted-foreground">{featuredServices.length}</div>
+            </div>
+
+            <div
+              dir={isRTL ? "rtl" : "ltr"}
+              className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory"
+              style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x" }}
+            >
+              {featuredServices.map((p) => (
+                <div
+                  key={p.id}
+                  role="button"
+                  tabIndex={0}
+                  className="shrink-0 w-[68vw] max-w-[320px] snap-center cursor-pointer focus:outline-none"
+                  onClick={() => {
+                    const subcat = subcatByName.get(String(p.category || "").trim());
+                    if (!subcat) {
+                      toast({ title: t("تعذر فتح الخدمة", "Could not open"), description: t("هذه الخدمة غير مرتبطة بتصنيف معروف", "This service category is not linked to a known subcategory"), variant: "destructive" });
+                      return;
+                    }
+                    openSubcategoryProviders(subcat, p.id);
+                  }}
+                  onPointerUp={() => {
+                    const subcat = subcatByName.get(String(p.category || "").trim());
+                    if (!subcat) return;
+                    openSubcategoryProviders(subcat, p.id);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter" && e.key !== " ") return;
+                    const subcat = subcatByName.get(String(p.category || "").trim());
+                    if (!subcat) return;
+                    openSubcategoryProviders(subcat, p.id);
+                  }}
+                >
+                  <div className="rounded-2xl border bg-card overflow-hidden shadow-sm active:scale-[0.99] transition-transform">
+                    <div className="h-[110px] bg-muted">
+                      {p.image_url ? (
+                        <img src={p.image_url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center text-muted-foreground text-sm">
+                          {t("بدون صورة", "No photo")}
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3" dir="rtl">
+                      <div className="font-semibold text-sm text-foreground line-clamp-1">
+                        {p.provider_name || t("مزود", "Provider")}
+                      </div>
+                      <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                        {p.title}
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
+                        <span className="line-clamp-1">{p.city || ""}</span>
+                        <span className="line-clamp-1">{p.sub_city || ""}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Featured services (subcategories) */}
         {featuredSubcats.length > 0 && (

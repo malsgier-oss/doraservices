@@ -1003,13 +1003,21 @@ function ProviderDetailView({
 
           <div className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory">
             {suggestions.map((s) => (
-              <button
+              <div
                 key={s.id}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={() => onOpenSuggestion?.(s)}
-                className="shrink-0 w-[68vw] max-w-[320px] snap-center text-right"
+                // Mobile Safari sometimes misses click events inside horizontal scrollers.
+                // PointerUp is more reliable.
+                onPointerUp={() => onOpenSuggestion?.(s)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") onOpenSuggestion?.(s);
+                }}
+                className="shrink-0 w-[68vw] max-w-[320px] snap-center text-right cursor-pointer focus:outline-none"
+                style={{ touchAction: "pan-x" }}
               >
-                <div className="rounded-2xl border bg-card overflow-hidden shadow-sm">
+                <div className="rounded-2xl border bg-card overflow-hidden shadow-sm active:scale-[0.99] transition-transform">
                   <div className="h-[110px] bg-muted">
                     {s.image_url ? (
                       <img
@@ -1041,7 +1049,7 @@ function ProviderDetailView({
                     </div>
                   </div>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         </div>
