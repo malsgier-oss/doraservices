@@ -387,9 +387,14 @@ export function ServiceDetailSheet({
     if (!id) return;
     if (viewedServiceIdsRef.current.has(id)) return;
     viewedServiceIdsRef.current.add(id);
-    supabase
-      .rpc("record_service_event", { p_service_id: id, p_event_type: "view" } as any)
-      .catch(() => {});
+    // Best-effort telemetry. In some builds supabase.rpc() is not a real Promise (no .catch).
+    void (async () => {
+      try {
+        await supabase.rpc("record_service_event", { p_service_id: id, p_event_type: "view" } as any);
+      } catch {
+        // ignore
+      }
+    })();
   }, [open, selectedProvider?.id]);
 
   const getProviderWithRating = (p: ProviderData) => {
@@ -548,9 +553,13 @@ function ProviderActionBar({
   const handleCall = () => {
     if (!provider.provider_phone) return toast.error("لا يوجد رقم هاتف");
     if (provider?.id) {
-      supabase
-        .rpc("record_service_event", { p_service_id: provider.id, p_event_type: "call" } as any)
-        .catch(() => {});
+      void (async () => {
+        try {
+          await supabase.rpc("record_service_event", { p_service_id: provider.id, p_event_type: "call" } as any);
+        } catch {
+          // ignore
+        }
+      })();
     }
     window.open(`tel:${provider.provider_phone.replace(/\s+/g, "")}`, "_self");
   };
@@ -560,9 +569,13 @@ function ProviderActionBar({
     if (!provider.provider_phone) return toast.error("لا يوجد رقم هاتف");
     const digits = provider.provider_phone.replace(/[^\d]/g, "");
     if (provider?.id) {
-      supabase
-        .rpc("record_service_event", { p_service_id: provider.id, p_event_type: "whatsapp" } as any)
-        .catch(() => {});
+      void (async () => {
+        try {
+          await supabase.rpc("record_service_event", { p_service_id: provider.id, p_event_type: "whatsapp" } as any);
+        } catch {
+          // ignore
+        }
+      })();
     }
     if (digits) window.open(`https://wa.me/${digits}`, "_blank");
   };
@@ -915,7 +928,7 @@ function ProviderDetailView({
           <div className="flex items-center gap-2 min-w-0">
             {provider.rating_count && provider.rating_count > 0 ? (
               <div className="flex items-center gap-1 font-semibold text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-100">
-                <span>{Number(provider.rating ?? 0).toFixed(1)}</span>
+                <span>{provider.rating.toFixed(1)}</span>
                 <Star className="h-4 w-4 fill-current" />
                 <span className="text-muted-foreground font-normal ml-1">
                   ({provider.rating_count})
@@ -1061,7 +1074,7 @@ function ProviderDetailView({
                       <span className="line-clamp-1">{s.city || ""}</span>
                       {typeof (s as any).rating === "number" && (s as any).rating > 0 ? (
                         <span className="inline-flex items-center gap-1">
-                          <Star className="h-3.5 w-3.5" /> {Number((s as any).rating ?? 0).toFixed(1)}
+                          <Star className="h-3.5 w-3.5" /> {(s as any).rating.toFixed(1)}
                         </span>
                       ) : null}
                     </div>

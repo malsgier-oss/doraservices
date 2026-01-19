@@ -128,7 +128,14 @@ export function ServiceProviderCard({
     e.stopPropagation();
     // Best-effort tracking (doesn't block the call)
     if (provider?.id) {
-      supabase.rpc("record_service_event", { p_service_id: provider.id, p_event_type: "call" } as any).catch(() => {});
+      // supabase.rpc() may not return a Promise in some builds; wrap in async IIFE to avoid runtime .catch errors.
+      void (async () => {
+        try {
+          await supabase.rpc("record_service_event", { p_service_id: provider.id, p_event_type: "call" } as any);
+        } catch {
+          // best-effort telemetry only
+        }
+      })();
     }
     if(tel) window.open(`tel:${tel}`, "_self");
   };
@@ -137,7 +144,14 @@ export function ServiceProviderCard({
     e.stopPropagation();
     // Best-effort tracking (doesn't block WhatsApp)
     if (provider?.id) {
-      supabase.rpc("record_service_event", { p_service_id: provider.id, p_event_type: "whatsapp" } as any).catch(() => {});
+      // supabase.rpc() may not return a Promise in some builds; wrap in async IIFE to avoid runtime .catch errors.
+      void (async () => {
+        try {
+          await supabase.rpc("record_service_event", { p_service_id: provider.id, p_event_type: "whatsapp" } as any);
+        } catch {
+          // best-effort telemetry only
+        }
+      })();
     }
     if(whatsapp) window.open(`https://wa.me/${whatsapp}`, "_blank");
   };
