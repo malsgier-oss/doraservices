@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Drawer,
   DrawerContent,
@@ -242,6 +242,11 @@ export function ServiceDetailSheet({
   
   const [selectedProvider, setSelectedProvider] = useState<ProviderData | null>(null);
 
+  // The scrollable container inside the drawer (NOT window). We must scroll this to top
+  // when switching providers via Suggestions so the user instantly sees the new provider.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const lastSuggestionTapAtRef = useRef<number>(0);
+
   // ---- Favorites (fallback wiring)
   // If the parent doesn't provide favorite handlers, we make favorites work here using Supabase.
   const [userId, setUserId] = useState<string | null>(null);
@@ -430,7 +435,7 @@ export function ServiceDetailSheet({
         </DrawerHeader>
 
         {/* Body Content (scrollable) */}
-        <div className="flex-1 overflow-y-auto bg-muted/10 p-4">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto bg-muted/10 p-4">
           {activeProvider ? (
             <ProviderDetailView
               provider={activeProvider}
@@ -439,7 +444,21 @@ export function ServiceDetailSheet({
               userId={userId}
               onReport={(serviceId, reason) => reportService(serviceId, userId, reason)}
               suggestions={suggestedProviders}
-              onOpenSuggestion={(p) => setSelectedProvider(p)}
+              onOpenSuggestion={(p) => {
+                // Prevent rapid taps from fighting scroll / state.
+                const now = Date.now();
+                if (now - lastSuggestionTapAtRef.current < 200) return;
+                lastSuggestionTapAtRef.current = now;
+
+                setSelectedProvider(p);
+
+                // Scroll the drawer content to top so the change is obvious to the user.
+                // Important: this is NOT window scroll.
+                const el = scrollRef.current;
+                if (!el) return;
+                if (el.scrollTop < 40) return;
+                el.scrollTo({ top: 0, behavior: "smooth" });
+              }}
             />
           ) : (
             <div className="space-y-3 pb-8">

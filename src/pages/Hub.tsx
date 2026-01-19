@@ -1,6 +1,6 @@
 // DORA_HUB_PATCH_v4 (ticker+banner-loop+no-all-cities+sticky-fullwidth)
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Bell, CheckCheck, ChevronDown, Search, Wrench, Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper, Droplets, Wind, Fuel, ClipboardCheck } from "lucide-react";
+import { Bell, CheckCheck, ChevronDown, Search, Wrench, Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper, Droplets, Wind, Fuel, ClipboardCheck, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 
 import { MobileNav } from "@/components/layout/MobileNav";
 import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
@@ -63,6 +64,14 @@ type AnnouncementRow = {
   end_at?: string | null;
 };
 
+type GuideCard = {
+  id: string;
+  icon: LucideIcon;
+  title: string;
+  summaryLines: [string, string];
+  bullets: string[];
+};
+
 const ICON_MAP: Record<string, LucideIcon> = {
   Home,
   Car,
@@ -80,6 +89,128 @@ const ICON_MAP: Record<string, LucideIcon> = {
 };
 
 const CITY_STORAGE_KEY = "dora_city_id";
+
+// PHASE 1 (UI scaffolding): Global guides are static for now.
+// In Phase 3 we will move this to admin-controlled content.
+const DEFAULT_GUIDES_AR: GuideCard[] = [
+  {
+    id: "guide-electricity",
+    icon: Zap,
+    title: "قبل ما تتصل بالكهربائي",
+    summaryLines: [
+      "هل المشكلة من العداد أو داخل البيت؟",
+      "اسأل عن المعاينة قبل بدء التصليح",
+    ],
+    bullets: [
+      "هل المشكلة من العداد أو داخل البيت؟",
+      "اسأل لو في معاينة قبل بدء الشغل",
+      "حدّد مكان المشكلة بدقة",
+      "اسأل لو السعر تقريبي أو نهائي",
+      "اتفق على الوقت قبل ما يطلع الفني",
+    ],
+  },
+  {
+    id: "guide-plumbing",
+    icon: Droplets,
+    title: "تبي سباك؟",
+    summaryLines: [
+      "صوّر المشكلة قبل ما تتصل",
+      "اسأل لو السعر شامل القطعة",
+    ],
+    bullets: [
+      "صوّر المشكلة قبل ما تتصل",
+      "اسأل لو السعر شامل القطعة",
+      "خليك واضح: تسريب ولا انسداد؟",
+      "اتفق على سعر تقريبي قبل الزيارة",
+      "اسأل عن مدة الشغل والضمان",
+    ],
+  },
+  {
+    id: "guide-ac",
+    icon: Wind,
+    title: "صيانة التكييف",
+    summaryLines: [
+      "تنظيف أو فريون؟ الفرق كبير بالسعر",
+      "اسأل عن الضمان بعد الشغل",
+    ],
+    bullets: [
+      "تنظيف أو فريون؟ الفرق كبير بالسعر",
+      "اسأل عن الضمان بعد الشغل",
+      "اسأل هل السعر شامل زيارة وفحص",
+      "حدد نوع التكييف وقدرته (مثلاً 1.5 طن)",
+      "اتفق لو في قطع غيار قبل التركيب",
+    ],
+  },
+  {
+    id: "guide-general",
+    icon: ClipboardCheck,
+    title: "كيف تختار فني صح",
+    summaryLines: [
+      "خليك واضح من أول مكالمة",
+      "لا تدفع كامل المبلغ قبل الشغل",
+    ],
+    bullets: [
+      "خليك واضح من أول مكالمة",
+      "لا تدفع كامل المبلغ قبل الشغل",
+      "اسأل عن مدة التنفيذ قبل ما يجي",
+      "اتفق على السعر أو الحد الأعلى",
+      "خلي كلامك بسيط ومحدد",
+    ],
+  },
+];
+
+function HorizontalSection(props: {
+  title: string;
+  count?: number | null;
+  id?: string;
+  children: React.ReactNode;
+  isRTL: boolean;
+}) {
+  const { title, count, id, children, isRTL } = props;
+  return (
+    <div className="space-y-2" id={id}>
+      <div className="flex items-center justify-between">
+        <div className="text-base font-semibold">{title}</div>
+        {typeof count === "number" ? <div className="text-xs text-muted-foreground">{count}</div> : null}
+      </div>
+      <div
+        dir={isRTL ? "rtl" : "ltr"}
+        className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory"
+        style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x" }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function MiniInfoCard(props: {
+  title: string;
+  line1: string;
+  line2: string;
+  Icon: LucideIcon;
+  onClick: () => void;
+}) {
+  const { title, line1, line2, Icon, onClick } = props;
+  return (
+    <button
+      type="button"
+      className="shrink-0 w-[70vw] max-w-[340px] snap-center rounded-2xl border bg-card p-4 text-left hover:bg-accent transition"
+      onClick={onClick}
+    >
+      <div className="flex items-start gap-3" dir="rtl">
+        <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <div className="font-semibold text-sm line-clamp-1">{title}</div>
+          <div className="text-xs text-muted-foreground mt-1 line-clamp-1">{line1}</div>
+          <div className="text-xs text-muted-foreground line-clamp-1">{line2}</div>
+        </div>
+      </div>
+    </button>
+  );
+}
 
 function useSelectedCityId() {
   const [cityId, setCityId] = useState<string | null>(() => {
@@ -536,8 +667,21 @@ export default function Hub() {
   // On mobile, Radix/shadcn Drawers can crash (minified React error) when
   // one Drawer is closing while another is mounting.
   // We use a simple state machine so only one Drawer exists in the tree.
-  type ActiveSheet = "none" | "browse" | "providers";
+  type ActiveSheet = "none" | "browse" | "providers" | "guide";
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>("none");
+
+  // 3) Guide drawer (global guidance cards)
+  const guideOpen = activeSheet === "guide";
+  const [activeGuideId, setActiveGuideId] = useState<string | null>(null);
+  const activeGuide = useMemo(() => {
+    if (!activeGuideId) return null;
+    return (DEFAULT_GUIDES_AR || []).find((g) => g.id === activeGuideId) || null;
+  }, [activeGuideId]);
+
+  function openGuide(guideId: string) {
+    setActiveGuideId(guideId);
+    setActiveSheet("guide");
+  }
 
   // 1) Category browse (shows subcategories)
   const browseOpen = activeSheet === "browse";
@@ -1040,34 +1184,80 @@ export default function Hub() {
           </div>
         )}
 
-        {/* Featured services (subcategories) */}
+        {/* Featured services (subcategories) - cards */}
         {featuredSubcats.length > 0 && (
-          <div className="space-y-2" id="featured-services">
-            <div className="text-base font-semibold">{t("الخدمات المميزة", "Featured services")}</div>
-            <div
-              dir={isRTL ? "rtl" : "ltr"}
-              className="flex gap-3 overflow-x-auto pb-2"
-              style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any }}
-            >
-              {featuredSubcats.map((sc) => {
-                const Icon = ICON_MAP[sc.icon] || Wrench;
-                return (
-                  <button
-                    key={sc.id}
-                    className="shrink-0 w-[34%] md:w-[22%] rounded-xl border bg-card p-3 hover:bg-accent transition flex flex-col items-center gap-2"
-                    style={{ scrollSnapAlign: "start" }}
-                    onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
-                  >
-                    <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ backgroundColor: (sc.color || "#888") + "22" }}>
-                      <Icon className="h-6 w-6" />
+          <HorizontalSection
+            id="featured-services"
+            title={t("الخدمات المميزة", "Featured services")}
+            count={featuredSubcats.length}
+            isRTL={isRTL}
+          >
+            {featuredSubcats.slice(0, 6).map((sc) => {
+              const Icon = ICON_MAP[sc.icon] || Wrench;
+              return (
+                <button
+                  key={sc.id}
+                  className="shrink-0 w-[70vw] max-w-[340px] snap-center rounded-2xl border bg-card overflow-hidden shadow-sm hover:bg-accent transition"
+                  onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
+                >
+                  <div className="p-4" dir="rtl">
+                    <div className="flex items-center gap-3">
+                      <div className="h-12 w-12 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: (sc.color || "#888") + "22" }}>
+                        <Icon className="h-6 w-6" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-sm line-clamp-1">{sc.name_ar || sc.name}</div>
+                        <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                          {t("اضغط لعرض المزودين", "Tap to view providers")}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-xs text-center leading-tight line-clamp-2">{sc.name_ar || sc.name}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+                  </div>
+                </button>
+              );
+            })}
+          </HorizontalSection>
         )}
+
+        {/* Most demanded services - Phase 1 UI scaffolding (system logic comes in Phase 2) */}
+        <HorizontalSection
+          id="most-demanded-services"
+          title={t("الأكثر طلباً", "Most demanded")}
+          count={null}
+          isRTL={isRTL}
+        >
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={`demanded-placeholder-${i}`}
+              className="shrink-0 w-[70vw] max-w-[340px] snap-center rounded-2xl border bg-card overflow-hidden"
+            >
+              <div className="p-4" dir="rtl">
+                <div className="h-4 w-40 rounded bg-muted" />
+                <div className="mt-3 h-3 w-56 rounded bg-muted" />
+                <div className="mt-2 h-3 w-44 rounded bg-muted" />
+              </div>
+            </div>
+          ))}
+        </HorizontalSection>
+
+        {/* Guides (global) - cards + drawer */}
+        <HorizontalSection
+          id="guides"
+          title={t("نصائح قبل ما تتصل", "Guides")}
+          count={null}
+          isRTL={isRTL}
+        >
+          {DEFAULT_GUIDES_AR.slice(0, 4).map((g) => (
+            <MiniInfoCard
+              key={g.id}
+              title={g.title}
+              line1={g.summaryLines[0]}
+              line2={g.summaryLines[1]}
+              Icon={g.icon}
+              onClick={() => openGuide(g.id)}
+            />
+          ))}
+        </HorizontalSection>
 
         {/* Shelves (admin-controlled) */}
         <div className="space-y-6">
@@ -1245,6 +1435,48 @@ export default function Hub() {
           service={selectedSheetService}
           initialProviderServiceId={initialProviderServiceId}
         />
+      )}
+
+      {activeSheet === "guide" && activeGuide && (
+        <Drawer
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) {
+              setActiveSheet("none");
+              setActiveGuideId(null);
+            }
+          }}
+        >
+          <DrawerContent>
+            <DrawerHeader className="text-left" dir="rtl">
+              <div className="flex items-start justify-between gap-3">
+                <DrawerTitle className="text-base">{activeGuide.title}</DrawerTitle>
+                <button
+                  type="button"
+                  aria-label="Close"
+                  className="h-9 w-9 rounded-full hover:bg-muted transition flex items-center justify-center"
+                  onClick={() => {
+                    setActiveSheet("none");
+                    setActiveGuideId(null);
+                  }}
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </DrawerHeader>
+
+            <div className="px-4 pb-6" dir="rtl">
+              <ul className="space-y-2 text-sm">
+                {activeGuide.bullets.slice(0, 6).map((b, idx) => (
+                  <li key={`${activeGuide.id}-b-${idx}`} className="flex gap-2">
+                    <span className="mt-1 h-2 w-2 rounded-full bg-muted-foreground/60 shrink-0" />
+                    <span className="text-foreground/90 leading-relaxed">{b}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </DrawerContent>
+        </Drawer>
       )}
 
       <MobileNav />
