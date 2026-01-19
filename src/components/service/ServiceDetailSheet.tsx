@@ -915,7 +915,7 @@ function ProviderDetailView({
           <div className="flex items-center gap-2 min-w-0">
             {provider.rating_count && provider.rating_count > 0 ? (
               <div className="flex items-center gap-1 font-semibold text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-100">
-                <span>{provider.rating.toFixed(1)}</span>
+                <span>{Number(provider.rating ?? 0).toFixed(1)}</span>
                 <Star className="h-4 w-4 fill-current" />
                 <span className="text-muted-foreground font-normal ml-1">
                   ({provider.rating_count})
@@ -1061,7 +1061,7 @@ function ProviderDetailView({
                       <span className="line-clamp-1">{s.city || ""}</span>
                       {typeof (s as any).rating === "number" && (s as any).rating > 0 ? (
                         <span className="inline-flex items-center gap-1">
-                          <Star className="h-3.5 w-3.5" /> {(s as any).rating.toFixed(1)}
+                          <Star className="h-3.5 w-3.5" /> {Number((s as any).rating ?? 0).toFixed(1)}
                         </span>
                       ) : null}
                     </div>
