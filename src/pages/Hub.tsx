@@ -271,7 +271,7 @@ function HorizontalSection(props: {
       <div
         dir={isRTL ? "rtl" : "ltr"}
         className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory"
-        style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x" }}
+        style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
       >
         {children}
       </div>
@@ -1273,7 +1273,7 @@ export default function Hub() {
             <div
               dir={isRTL ? "rtl" : "ltr"}
               className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory"
-              style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x" }}
+              style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
             >
               {featuredServices.map((p) => (
                 <div
@@ -1287,11 +1287,6 @@ export default function Hub() {
                       toast({ title: t("تعذر فتح الخدمة", "Could not open"), description: t("هذه الخدمة غير مرتبطة بتصنيف معروف", "This service category is not linked to a known subcategory"), variant: "destructive" });
                       return;
                     }
-                    openSubcategoryProviders(subcat, p.id);
-                  }}
-                  onPointerUp={() => {
-                    const subcat = subcatByName.get(String(p.category || "").trim());
-                    if (!subcat) return;
                     openSubcategoryProviders(subcat, p.id);
                   }}
                   onKeyDown={(e) => {
@@ -1403,6 +1398,7 @@ export default function Hub() {
                     role="button"
                     tabIndex={0}
                     className="shrink-0 w-[70vw] max-w-[340px] snap-center cursor-pointer focus:outline-none"
+                    style={{ touchAction: "manipulation" }}
                     onClick={() => {
                       const subcat = subcatByName.get(String(p.category || "").trim());
                       if (!subcat) {
@@ -1505,7 +1501,7 @@ export default function Hub() {
                   <div
                     dir={isRTL ? "rtl" : "ltr"}
                     className="flex gap-3 overflow-x-auto pb-2"
-                    style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any }}
+                    style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
                   >
                       {subcats.map((sc) => {
                         const Icon = ICON_MAP[sc.icon] || Wrench;
