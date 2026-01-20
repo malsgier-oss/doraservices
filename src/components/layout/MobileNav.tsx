@@ -40,29 +40,51 @@ export function MobileNav() {
           },
         ]),
     { to: "/profile", icon: User, label: t.nav.profile },
-    ...(admin ? [{ to: "/admin", icon: Shield, label: isRTL ? "لوحة التحكم" : "Admin" }] : []),
+    ...(admin
+      ? [{ to: "/admin", icon: Shield, label: isRTL ? "لوحة التحكم" : "Admin" }]
+      : []),
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-background border-t border-border shadow-lg">
-      <div className="flex items-center justify-around h-16 px-4">
-        {navItems.map((item) => {
-          const isActive = item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to);
-          const Icon = item.icon;
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={cn(
-                "flex flex-col items-center justify-center gap-1 px-4 py-2 rounded-xl transition-colors",
-                isActive ? "text-primary" : "text-muted-foreground",
-              )}
-            >
-              <Icon className="h-6 w-6" strokeWidth={isActive ? 2 : 1.5} />
-              <span className="text-xs font-medium">{item.label}</span>
-            </NavLink>
-          );
-        })}
+    <nav
+      className={cn(
+        "fixed inset-x-0 z-40",
+        // lift it up like YouTube + respect iOS safe area
+        "bottom-[calc(env(safe-area-inset-bottom)+12px)]",
+      )}
+    >
+      <div
+        className={cn(
+          // floating “pill”
+          "mx-3 rounded-2xl border border-border shadow-xl",
+          "bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75",
+        )}
+      >
+        <div className="flex items-center justify-around h-16 px-2">
+          {navItems.map((item) => {
+            const isActive =
+              item.to === "/"
+                ? location.pathname === "/"
+                : location.pathname.startsWith(item.to);
+
+            const Icon = item.icon;
+
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-1",
+                  "px-4 py-2 rounded-xl transition-colors",
+                  isActive ? "text-primary" : "text-muted-foreground",
+                )}
+              >
+                <Icon className="h-6 w-6" strokeWidth={isActive ? 2 : 1.5} />
+                <span className="text-xs font-medium">{item.label}</span>
+              </NavLink>
+            );
+          })}
+        </div>
       </div>
     </nav>
   );
