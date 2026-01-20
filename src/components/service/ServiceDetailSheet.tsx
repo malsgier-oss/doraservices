@@ -85,6 +85,16 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
         const categoryVal = (service?.category ?? "").trim();
         const categoryOr = categoryVal ? `category.eq.${escOrValue(categoryVal)}` : "";
 
+        // DEV: Log filter values for debugging
+        if (import.meta.env?.DEV || import.meta.env?.MODE === "development") {
+          console.log("[ServiceDetailSheet] Filter values:", {
+            subcategoryId: subcategoryIdVal || "(empty)",
+            category: categoryVal || "(empty)",
+            city: city || "(empty)",
+            categoryFilter: categoryOr || "(none)",
+          });
+        }
+
         let cityOr = "";
         const cityVal = (city || "").trim();
         if (cityVal) {
@@ -158,8 +168,10 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           return await q;
         };
 
+        // IMPORTANT: services table doesn't have subcategory_id column yet
+        // Always use category name filtering until subcategory_id is added via migration
         let allowCityFilter = true;
-        let allowSubcategoryId = Boolean(subcategoryIdVal);
+        let allowSubcategoryId = false; // Disabled until column exists in DB
         let { data, error } = await runQuery("strict", allowCityFilter, allowSubcategoryId);
         if (error) {
           const msg = String((error as any)?.message || error);
@@ -215,6 +227,17 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           }
 
           if (error) throw error;
+
+          // DEV: Log empty result with filter info
+          if ((!data || data.length === 0) && (import.meta.env?.DEV || import.meta.env?.MODE === "development")) {
+            console.warn("[ServiceDetailSheet] No providers found with filters:", {
+              subcategoryId: subcategoryIdVal || "(not used)",
+              categoryFilter: categoryVal || "(none)",
+              cityFilter: cityOr || "(none)",
+              allowCityFilter,
+              allowSubcategoryId,
+            });
+          }
         }
 
         const rows = (data || []) as any[];
@@ -538,8 +561,16 @@ export function ServiceDetailSheet({
               )}
 
               {!loading && !error && providers.length === 0 && (
-                <div className="text-center py-10 text-muted-foreground">
-                  لا يوجد مزودين حالياً في هذه القائمة
+                <div className="text-center py-10 text-muted-foreground space-y-2">
+                  <div className="text-base font-medium">لا يوجد مزودين حالياً في هذه القائمة</div>
+                  {(import.meta.env?.DEV || import.meta.env?.MODE === "development") && (
+                    <div className="text-xs mt-2 p-3 bg-muted/50 rounded-lg text-left font-mono">
+                      <div className="font-semibold mb-1">Debug info:</div>
+                      <div>Category filter: {service?.category || "(none)"}</div>
+                      <div>Subcategory ID: {service?.subcategoryId || "(none)"}</div>
+                      <div>City filter: {city || "(none)"}</div>
+                    </div>
+                  )}
                 </div>
               )}
 
