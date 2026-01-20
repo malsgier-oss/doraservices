@@ -842,9 +842,9 @@ export default function Hub() {
       {/* Sticky top: Header + Search/City + Chips */}
       <div
         ref={headerRef}
-        className="fixed top-0 left-0 right-0 w-full z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pt-[calc(env(safe-area-inset-top)+12px)] pb-3 border-b border-border/60 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+        className="fixed top-0 left-0 right-0 w-full z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pt-[calc(env(safe-area-inset-top)+16px)] pb-4 border-b border-border/60 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
       >
-        <div className="px-4 space-y-3">
+        <div className="px-4 space-y-4">
           {/* Header */}
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -949,7 +949,7 @@ export default function Hub() {
           </div>
 
           {/* Search + City */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             {/* Option 1: City inside search row */}
             <div className={`flex items-center gap-2 ${isRTL ? "flex-row-reverse" : ""}`}
             >
@@ -1092,7 +1092,7 @@ export default function Hub() {
           fallbackCta={t("استكشف", "Explore")}
         />
 
-        <div className="mx-auto max-w-3xl px-4 space-y-4">
+        <div className="px-4 space-y-4">
           {/* Services (MAIN categories) grid - exactly 8 */}
           <HubSection title={t("الخدمات", "Categories")}>
             {categoriesLoading ? (
