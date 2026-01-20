@@ -53,7 +53,7 @@ export function ServiceCardCompact({
   const ratingValue = hasRating ? rating?.value.toFixed(1) : labels.ratingFallback;
 
   return (
-    <div className={cn(HUB_CARD_BASE, "bg-card overflow-hidden")}>
+    <div className={cn(HUB_CARD_BASE, "overflow-hidden")}>
       <button
         type="button"
         className={cn(
@@ -93,7 +93,7 @@ export function ServiceCardCompact({
         </div>
       </button>
 
-      <div className="border-t border-border/60 px-3 pb-3 pt-2.5" dir={isRTL ? "rtl" : "ltr"}>
+      <div className="border-t border-border/60 bg-muted/20 px-3 pb-3 pt-2.5" dir={isRTL ? "rtl" : "ltr"}>
         <div className="flex gap-2">
           <Button
             type="button"
