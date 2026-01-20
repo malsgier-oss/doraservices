@@ -294,8 +294,10 @@ export function ServiceProviderCard({
   // --- VARIANT 2: The "Card" (Grid View) ---
   return (
     <div 
-      className={cn("group flex flex-col rounded-2xl border bg-card shadow-sm overflow-hidden transition-all hover:shadow-md", className)} 
+      onClick={() => onDetails?.()}
+      className={cn("group flex flex-col rounded-2xl border bg-card shadow-sm overflow-hidden transition-all hover:shadow-md cursor-pointer active:scale-[0.99]", className)} 
       dir="rtl"
+      style={{ touchAction: "manipulation" }}
     >
       {/* Hero Image */}
       <div className="relative aspect-[4/3] w-full bg-muted overflow-hidden">
@@ -303,8 +305,7 @@ export function ServiceProviderCard({
           <img 
             src={coverImage} 
             alt={provider.provider_name || ""} 
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110 cursor-pointer"
-            onClick={() => onDetails?.()}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
@@ -313,9 +314,9 @@ export function ServiceProviderCard({
         )}
 
         {/* Overlay Badges */}
-        <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
+        <div className="absolute top-2 left-2 flex flex-col gap-1 items-start pointer-events-none">
            {provider.price && provider.price > 0 && (
-             <Badge className="bg-black/60 backdrop-blur hover:bg-black/70 border-none text-white px-2">
+             <Badge className="bg-black/60 backdrop-blur hover:bg-black/70 border-none text-white px-2 pointer-events-none">
                {provider.price} د.ل
              </Badge>
            )}
@@ -323,7 +324,7 @@ export function ServiceProviderCard({
         
         {/* Rating Floating on Image (Modern Look) */}
         {!!provider.rating_count && provider.rating_count > 0 && provider.rating !== undefined && provider.rating !== null && (
-           <div className="absolute bottom-2 right-2">
+           <div className="absolute bottom-2 right-2 pointer-events-none">
               <div className="flex items-center gap-1 rounded-lg bg-white/90 backdrop-blur px-2 py-1 text-xs font-bold text-foreground shadow-sm dark:bg-black/80">
                 <span>{provider.rating.toFixed(1)}</span>
                 <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
@@ -336,8 +337,7 @@ export function ServiceProviderCard({
       <div className="flex flex-col flex-1 p-3">
         <div className="flex justify-between items-start mb-1">
           <h3 
-            className="font-bold text-lg leading-tight truncate cursor-pointer hover:underline decoration-primary/50"
-            onClick={onDetails}
+            className="font-bold text-lg leading-tight truncate hover:underline decoration-primary/50"
           >
             {provider.provider_name}
           </h3>
