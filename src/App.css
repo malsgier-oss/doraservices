@@ -1,9 +1,28 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+/* GLOBAL ZOOM & GESTURE LOCK */
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+
+  touch-action: manipulation;
+  overscroll-behavior: none;
+
+  -webkit-text-size-adjust: 100%;
 }
+
+/* REMOVE CENTER-CONSTRAINED ROOT (causes zoom / scale issues on mobile) */
+#root {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+/* KEEP EXISTING STYLES (SAFE) */
 
 .logo {
   height: 6em;
@@ -11,9 +30,11 @@
   will-change: filter;
   transition: filter 300ms;
 }
+
 .logo:hover {
   filter: drop-shadow(0 0 2em #646cffaa);
 }
+
 .logo.react:hover {
   filter: drop-shadow(0 0 2em #61dafbaa);
 }
