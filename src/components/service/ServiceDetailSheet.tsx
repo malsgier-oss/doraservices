@@ -552,9 +552,6 @@ export function ServiceDetailSheet({
                     role="button"
                     tabIndex={0}
                     onClick={openDetails}
-                    // IMPORTANT: iOS / Drawer + scroll containers sometimes miss click.
-                    // PointerUp is more reliable for taps.
-                    onPointerUp={openDetails}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") openDetails();
                     }}
@@ -1078,7 +1075,7 @@ function ProviderDetailView({
               {sanitizedDescription}
             </p>
             {!descExpanded && (
-              <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-card to-transparent" />
+              <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-card to-transparent" aria-hidden="true" />
             )}
           </div>
 
@@ -1096,19 +1093,21 @@ function ProviderDetailView({
             <div className="text-xs text-muted-foreground">{suggestions.length} مزود</div>
           </div>
 
-          <div className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory">
+          <div 
+            className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory"
+            style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+          >
             {suggestions.map((s) => (
               <div
                 key={s.id}
                 role="button"
                 tabIndex={0}
                 onClick={() => onOpenSuggestion?.(s)}
-                onPointerUp={() => onOpenSuggestion?.(s)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") onOpenSuggestion?.(s);
                 }}
                 className="shrink-0 w-[68vw] max-w-[320px] snap-center text-right cursor-pointer focus:outline-none"
-                style={{ touchAction: "pan-x" }}
+                style={{ touchAction: "manipulation" }}
               >
                 <div className="rounded-2xl border bg-card overflow-hidden shadow-sm active:scale-[0.99] transition-transform">
                   <div className="h-[110px] bg-muted">
