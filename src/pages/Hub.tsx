@@ -1131,7 +1131,7 @@ export default function Hub() {
             <HubSection id="featured-providers" title={t("مزودين مميزين", "Featured providers")}>
               <div
                 dir={isRTL ? "rtl" : "ltr"}
-                className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory"
+                className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
                 style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
               >
                 {featuredServices.map((service) => {
@@ -1161,7 +1161,7 @@ export default function Hub() {
             <HubSection id="featured-services" title={t("الخدمات المميزة", "Featured services")}>
               <div
                 dir={isRTL ? "rtl" : "ltr"}
-                className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory"
+                className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
                 style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
               >
                 {featuredSubcats.slice(0, 6).map((sc) => {
@@ -1194,7 +1194,7 @@ export default function Hub() {
           <HubSection id="most-demanded-services" title={t("الأكثر طلباً", "Most demanded")}>
             <div
               dir={isRTL ? "rtl" : "ltr"}
-              className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory"
+              className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
               style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
             >
               {mostDemandedLoading && mostDemandedRows.length === 0
@@ -1245,7 +1245,7 @@ export default function Hub() {
           <HubSection id="guides" title={t("نصائح قبل ما تتصل", "Tips before you call")}>
             <div
               dir={isRTL ? "rtl" : "ltr"}
-              className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory"
+              className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
               style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
             >
               {guidesLoading && guidesCards.length === 0
@@ -1296,7 +1296,7 @@ export default function Hub() {
                   >
                     <div
                       dir={isRTL ? "rtl" : "ltr"}
-                      className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory"
+                      className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
                       style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
                     >
                       {subcats.map((sc) => {
@@ -1349,7 +1349,7 @@ export default function Hub() {
                 <HubSection key={shelf.id} id={`shelf-${shelf.id}`} title={shelf.title_ar}>
                   <div
                     dir={isRTL ? "rtl" : "ltr"}
-                    className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory"
+                    className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
                     style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any }}
                   >
                     {subcats.map((s) => {

@@ -95,7 +95,7 @@ export function ServiceCardFeatured({
         </div>
       </button>
 
-      <div className="border-t border-border/60 bg-muted/20 px-4 pb-4 pt-3" dir={isRTL ? "rtl" : "ltr"}>
+      <div className="border-t border-border/60 bg-muted/20 px-4 py-3" dir={isRTL ? "rtl" : "ltr"}>
         <div className="flex gap-2">
           <Button
             type="button"
