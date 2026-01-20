@@ -846,15 +846,15 @@ export default function Hub() {
 
   const selectedSheetService = useMemo(() => {
     if (!selectedSubcategory) return null;
+    // Normalize category value: trim whitespace to match exactly what's stored in services.category
+    const normalizedCategory = (selectedSubcategory.name || "").trim();
     return {
       id: selectedSubcategory.id,
-      // Stable ID-based filtering (preferred) for ServiceDetailSheet.
-      subcategoryId: selectedSubcategory.id,
       titleKey: selectedSubcategory.name_ar || selectedSubcategory.name,
       descKey: "",
       // IMPORTANT: ServiceDetailSheet filters services.category by this value.
-      // We use the subcategory English name as the canonical stored value.
-      category: selectedSubcategory.name,
+      // Must match exactly what's saved in services.category (subcategory.name from ServiceCreator).
+      category: normalizedCategory,
       categoryName: selectedSubcategory.name,
       categoryNameAr: selectedSubcategory.name_ar || undefined,
       color: selectedSubcategory.color || "#888888",
