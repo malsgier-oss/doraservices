@@ -863,6 +863,16 @@ export default function Hub() {
   }, [selectedSubcategory]);
 
   function openSubcategoryProviders(subcat: { id: string; name: string; name_ar?: string | null; icon: LucideIcon; color: string | null }, providerServiceId?: string | null) {
+    // DEV: Log subcategory being opened
+    if (import.meta.env?.DEV || import.meta.env?.MODE === "development") {
+      console.log("[Hub] Opening subcategory:", {
+        id: subcat.id,
+        name: subcat.name,
+        name_ar: subcat.name_ar || "(none)",
+        cityId: cityId || "(none)",
+        cityName: selectedCityName || "(none)",
+      });
+    }
     setSelectedSubcategory(subcat);
     setInitialProviderServiceId(providerServiceId || null);
     setActiveSheet("providers");
