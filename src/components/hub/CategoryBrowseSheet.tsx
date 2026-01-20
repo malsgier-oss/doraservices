@@ -6,6 +6,7 @@ import { X, Wrench } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { useSubcategories } from "@/hooks/useSubcategories";
+import { HUB_CARD_BASE } from "@/components/hub/hubStyles";
 
 type Category = {
   id: string;
@@ -59,8 +60,8 @@ export function CategoryBrowseSheet({
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="h-[70dvh] max-h-[70dvh] flex flex-col overflow-hidden mt-0">
         <DrawerHeader className="relative pb-0">
-          <DrawerClose className="absolute top-0 right-4 h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-            <X className="h-4 w-4 text-muted-foreground" />
+          <DrawerClose className="absolute top-0 right-4 h-11 w-11 rounded-full bg-muted flex items-center justify-center">
+            <X className="h-5 w-5 text-muted-foreground" />
           </DrawerClose>
 
           <div className="flex flex-col items-center pt-2">
@@ -90,7 +91,7 @@ export function CategoryBrowseSheet({
                   return (
                     <button
                       key={s.id}
-                      className="flex items-center gap-3 rounded-xl border bg-card p-3 hover:bg-accent transition"
+                      className={`${HUB_CARD_BASE} bg-card p-3 flex items-center gap-3 transition-colors hover:bg-accent active:scale-[0.99]`}
                       onClick={() => onSelectSubcategory({ id: s.id, name: s.name, name_ar: s.name_ar, icon: Icon, color: s.color })}
                     >
                       <div
@@ -110,7 +111,7 @@ export function CategoryBrowseSheet({
             )}
 
             <div className="pt-4">
-              <Button variant="secondary" className="w-full" onClick={() => onOpenChange(false)}>
+              <Button variant="secondary" className="w-full h-11" onClick={() => onOpenChange(false)}>
                 إغلاق
               </Button>
             </div>

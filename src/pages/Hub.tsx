@@ -1,7 +1,7 @@
 // DORA_HUB_PATCH_v4 (ticker+banner-loop+no-all-cities+sticky-fullwidth)
-import { Component, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { Bell, CheckCheck, ChevronDown, Search, Wrench, Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper, Droplets, Wind, Fuel, ClipboardCheck, X } from "lucide-react";
+import { Bell, CheckCheck, ChevronDown, Search, Wrench, Home, Car, Zap, Briefcase, Building2, GraduationCap, PartyPopper, Droplets, Wind, Fuel, ClipboardCheck, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,12 @@ import { MobileNav } from "@/components/layout/MobileNav";
 import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { FeaturedHero } from "@/components/hub/FeaturedHero";
+import { HubSection } from "@/components/hub/HubSection";
+import { ServiceCardFeatured } from "@/components/hub/ServiceCardFeatured";
+import { ServiceCardCompact } from "@/components/hub/ServiceCardCompact";
+import { TipChip } from "@/components/hub/TipChip";
+import { HUB_CARD_BASE } from "@/components/hub/hubStyles";
 
 import { useCategories } from "@/hooks/useCategories";
 import { useCities } from "@/hooks/useCities";
@@ -26,6 +32,7 @@ import { useFeaturedSubcategories } from "@/hooks/useFeaturedSubcategories";
 import { useAllSubcategories } from "@/hooks/useSubcategories";
 import { useMostDemandedServices } from "@/hooks/useMostDemandedServices";
 import { useGuides } from "@/hooks/useGuides";
+import { useServiceRatings } from "@/hooks/useReviews";
 import { CategoryBrowseSheet } from "@/components/hub/CategoryBrowseSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -254,59 +261,6 @@ const DEFAULT_GUIDES_EN: GuideCard[] = [
   },
 ];
 
-function HorizontalSection(props: {
-  title: string;
-  count?: number | null;
-  id?: string;
-  children: React.ReactNode;
-  isRTL: boolean;
-}) {
-  const { title, count, id, children, isRTL } = props;
-  return (
-    <div className="space-y-2" id={id}>
-      <div className="flex items-center justify-between">
-        <div className="text-base font-semibold">{title}</div>
-        {typeof count === "number" ? <div className="text-xs text-muted-foreground">{count}</div> : null}
-      </div>
-      <div
-        dir={isRTL ? "rtl" : "ltr"}
-        className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory"
-        style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function MiniInfoCard(props: {
-  title: string;
-  line1: string;
-  line2: string;
-  Icon: LucideIcon;
-  onClick: () => void;
-}) {
-  const { title, line1, line2, Icon, onClick } = props;
-  return (
-    <button
-      type="button"
-      className="shrink-0 w-[70vw] max-w-[340px] snap-center rounded-2xl border bg-card p-4 text-left hover:bg-accent transition"
-      onClick={onClick}
-    >
-      <div className="flex items-start gap-3" dir="rtl">
-        <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
-          <Icon className="h-5 w-5" />
-        </div>
-        <div className="min-w-0">
-          <div className="font-semibold text-sm line-clamp-1">{title}</div>
-          <div className="text-xs text-muted-foreground mt-1 line-clamp-1">{line1}</div>
-          <div className="text-xs text-muted-foreground line-clamp-1">{line2}</div>
-        </div>
-      </div>
-    </button>
-  );
-}
-
 function useSelectedCityId() {
   const [cityId, setCityId] = useState<string | null>(() => {
     try {
@@ -348,195 +302,6 @@ async function fetchShelfSubcategories(params: { categoryId: string; limit: numb
 
 
 
-type BannerItem = {
-  id: string;
-  target_type?: "none" | "category" | "subcategory" | "shelf";
-  target_category_id?: string | null;
-  target_subcategory_id?: string | null;
-  target_shelf_id?: string | null;
-};
-
-type BannerCarouselProps = {
-  banners: BannerItem[];
-  publicUrlsById: Record<string, string | undefined>;
-  allSubcategories: any[];
-  iconMap: Record<string, any>;
-  onOpenCategory: (categoryId: string) => void;
-  onOpenSubcategory: (sc: { id: string; name: string; name_ar: string | null; icon: any; color: string | null }) => void;
-  onScrollToShelf: (shelfId: string) => void;
-};
-
-const BannerCarousel = memo(function BannerCarousel(props: BannerCarouselProps) {
-  const { banners, publicUrlsById, allSubcategories, iconMap, onOpenCategory, onOpenSubcategory, onScrollToShelf } = props;
-
-  const rowRef = useRef<HTMLDivElement | null>(null);
-  const [index, setIndex] = useState(0);
-  const pauseUntilRef = useRef<number>(0);
-  const scrollRafRef = useRef<number | null>(null);
-  const programmaticRef = useRef(false);
-
-  // A+B: do NOT autoplay until the user interacts with the carousel.
-  const interactedRef = useRef(false);
-  const [autoplayEnabled, setAutoplayEnabled] = useState(false);
-
-  const markInteracted = () => {
-    if (!interactedRef.current) {
-      interactedRef.current = true;
-      setAutoplayEnabled(true);
-    }
-    pauseUntilRef.current = Date.now() + 6000;
-  };
-
-  // Keep index in range.
-  useEffect(() => {
-    if (banners.length === 0) return;
-    setIndex((i) => Math.min(i, banners.length - 1));
-  }, [banners.length]);
-
-  // Autoplay ONLY after interaction.
-  useEffect(() => {
-    if (!autoplayEnabled) return;
-    if (banners.length <= 1) return;
-
-    const id = window.setInterval(() => {
-      if (document.visibilityState !== "visible") return;
-      if (Date.now() < pauseUntilRef.current) return;
-      setIndex((i) => (i + 1) % banners.length);
-    }, 4500);
-
-    return () => window.clearInterval(id);
-  }, [autoplayEnabled, banners.length]);
-
-  // Scroll to active banner.
-  useEffect(() => {
-    const el = rowRef.current;
-    if (!el) return;
-    const child = el.children.item(index) as HTMLElement | null;
-    if (!child) return;
-
-    programmaticRef.current = true;
-    const timeout = window.setTimeout(() => {
-      programmaticRef.current = false;
-    }, 650);
-
-    child.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-
-    return () => window.clearTimeout(timeout);
-  }, [index]);
-
-  const handleScroll = () => {
-    markInteracted();
-    if (programmaticRef.current) return;
-    if (scrollRafRef.current) return;
-
-    scrollRafRef.current = window.requestAnimationFrame(() => {
-      scrollRafRef.current = null;
-      const el = rowRef.current;
-      if (!el) return;
-
-      const containerRect = el.getBoundingClientRect();
-      const targetX = (containerRect.left + containerRect.right) / 2;
-
-      let bestIdx = 0;
-      let bestDist = Number.POSITIVE_INFINITY;
-      for (let i = 0; i < el.children.length; i++) {
-        const child = el.children.item(i) as HTMLElement | null;
-        if (!child) continue;
-        const r = child.getBoundingClientRect();
-        const anchorX = (r.left + r.right) / 2;
-        const dist = Math.abs(anchorX - targetX);
-        if (dist < bestDist) {
-          bestDist = dist;
-          bestIdx = i;
-        }
-      }
-      setIndex(bestIdx);
-    });
-  };
-
-  useEffect(() => {
-    return () => {
-      if (scrollRafRef.current) window.cancelAnimationFrame(scrollRafRef.current);
-    };
-  }, []);
-
-  if (!banners || banners.length === 0) return null;
-
-  return (
-    <div className="space-y-2">
-      <div
-        ref={rowRef}
-        dir="ltr"
-        className={`flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory ${banners.length === 1 ? "justify-center" : ""}`}
-        style={{
-          WebkitOverflowScrolling: "touch" as any,
-          scrollPaddingInline: "16px",
-          // Allow horizontal pan; don't block vertical page scroll.
-          touchAction: "pan-x pan-y",
-        }}
-        onScroll={handleScroll}
-        onPointerDown={markInteracted}
-        onTouchStart={markInteracted}
-        onWheel={markInteracted}
-      >
-        {banners.map((b) => {
-          const url = publicUrlsById[b.id];
-          const clickable = (b as any).target_type !== "none";
-          return (
-            <button
-              key={b.id}
-              className={`shrink-0 w-[92%] md:w-[70%] rounded-xl overflow-hidden border bg-card snap-center ${clickable ? "cursor-pointer" : "cursor-default"}`}
-              style={{ scrollSnapAlign: "center" }}
-              onClick={() => {
-                markInteracted();
-                const bt = (b as any).target_type;
-                if (!bt || bt === "none") return;
-
-                if (bt === "category" && (b as any).target_category_id) {
-                  onOpenCategory((b as any).target_category_id);
-                  return;
-                }
-
-                if (bt === "subcategory" && (b as any).target_subcategory_id) {
-                  const sc = (allSubcategories || []).find((s) => s.id === (b as any).target_subcategory_id);
-                  if (!sc) return;
-                  const Icon = (iconMap as any)[sc.icon] || Wrench;
-                  onOpenSubcategory({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color });
-                  return;
-                }
-
-                if (bt === "shelf" && (b as any).target_shelf_id) {
-                  onScrollToShelf((b as any).target_shelf_id);
-                }
-              }}
-            >
-              {/* Height locked to prevent layout shift */}
-              <div className="h-36 w-full bg-muted">
-                {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : null}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {banners.length > 1 && (
-        <div className="flex items-center justify-center gap-1.5">
-          {banners.map((b, i) => (
-            <button
-              key={b.id}
-              aria-label={`Banner ${i + 1}`}
-              className={`h-2 w-2 rounded-full transition ${i === index ? "bg-foreground" : "bg-muted-foreground/30"}`}
-              onClick={() => {
-                markInteracted();
-                setIndex(i);
-              }}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-});
 export default function Hub() {
   const { language, isRTL } = useLanguage();
   const { user } = useAuth();
@@ -622,6 +387,28 @@ export default function Hub() {
 
   // Featured services/providers shelf (horizontal cards)
   const [featuredServices, setFeaturedServices] = useState<ServiceRow[]>([]);
+
+  const ratingServiceIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const svc of featuredServices) {
+      if (svc?.id) ids.add(String(svc.id));
+    }
+    for (const svc of mostDemandedRows) {
+      if (svc?.id) ids.add(String(svc.id));
+    }
+    return Array.from(ids).sort();
+  }, [featuredServices, mostDemandedRows]);
+
+  const { ratings: serviceRatings } = useServiceRatings(ratingServiceIds);
+
+  const getRating = (serviceId: string) => {
+    const row = serviceRatings.get(serviceId);
+    if (!row) return null;
+    return {
+      value: Number(row.averageRating || 0),
+      count: Number(row.totalReviews || 0),
+    };
+  };
 
   const subcatByName = useMemo(() => {
     const map = new Map<string, {
@@ -878,6 +665,19 @@ export default function Hub() {
     setActiveSheet("providers");
   }
 
+  const openServiceFromRow = (service: ServiceRow) => {
+    const subcat = subcatByName.get(String(service.category || "").trim());
+    if (!subcat) {
+      toast({
+        title: t("تعذر فتح الخدمة", "Could not open"),
+        description: t("هذه الخدمة غير مرتبطة بتصنيف معروف", "This service category is not linked to a known subcategory"),
+        variant: "destructive",
+      });
+      return;
+    }
+    openSubcategoryProviders(subcat, service.id);
+  };
+
   // When selecting a subcategory from the browse sheet, we must close/unmount the browse Drawer
   // before mounting the provider Drawer. Otherwise mobile browsers can crash.
   const [pendingSubcategory, setPendingSubcategory] = useState<{
@@ -954,6 +754,58 @@ export default function Hub() {
 
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
 
+  const labels = {
+    call: t("اتصال", "Call"),
+    whatsapp: t("واتساب", "WhatsApp"),
+    providerFallback: t("مزود", "Provider"),
+    noPhoto: t("بدون صورة", "No photo"),
+    ratingFallback: t("جديد", "New"),
+  };
+
+  const getContactState = (service: ServiceRow) => {
+    const tel = service.provider_phone?.replace(/\s+/g, "") || "";
+    const whatsapp = service.provider_phone?.replace(/[^\d]/g, "") || "";
+    const allowWhatsapp = service.allow_whatsapp !== false;
+    return {
+      tel,
+      whatsapp,
+      canCall: Boolean(tel),
+      canWhatsApp: Boolean(whatsapp) && allowWhatsapp,
+      allowWhatsapp,
+    };
+  };
+
+  const trackServiceEvent = (serviceId: string, type: "call" | "whatsapp") => {
+    if (!serviceId) return;
+    void (async () => {
+      try {
+        await supabase.rpc("record_service_event", { p_service_id: serviceId, p_event_type: type } as any);
+      } catch {
+        // Best-effort telemetry only.
+      }
+    })();
+  };
+
+  const handleCall = (service: ServiceRow) => {
+    const { tel } = getContactState(service);
+    if (!tel) {
+      toast({ title: t("رقم الهاتف غير متوفر", "Phone number not available"), variant: "destructive" });
+      return;
+    }
+    trackServiceEvent(service.id, "call");
+    window.open(`tel:${tel}`, "_self");
+  };
+
+  const handleWhatsApp = (service: ServiceRow) => {
+    const { whatsapp, allowWhatsapp } = getContactState(service);
+    if (!whatsapp || !allowWhatsapp) {
+      toast({ title: t("واتساب غير متوفر", "WhatsApp not available"), variant: "destructive" });
+      return;
+    }
+    trackServiceEvent(service.id, "whatsapp");
+    window.open(`https://wa.me/${whatsapp}`, "_blank");
+  };
+
   // City label (no "All cities" option; auto-picks first city)
   const cityLabel = selectedCity ? (selectedCity.name_ar || selectedCity.name) : t("اختر المدينة", "Choose a city");
 
@@ -986,10 +838,13 @@ export default function Hub() {
 
 
   return (
-    <div className={`min-h-screen bg-background pb-20 overflow-x-hidden ${isRTL ? "rtl" : ""}`}>
+    <div className={`min-h-screen bg-background pb-[calc(5rem+env(safe-area-inset-bottom))] overflow-x-hidden ${isRTL ? "rtl" : ""}`}>
       {/* Sticky top: Header + Search/City + Chips */}
-      <div ref={headerRef} className="fixed top-0 left-0 right-0 w-full z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70 pt-4 space-y-4 pb-3 border-b border-border shadow-sm">
-        <div className="mx-auto max-w-3xl px-4">
+      <div
+        ref={headerRef}
+        className="fixed top-0 left-0 right-0 w-full z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pt-[calc(env(safe-area-inset-top)+12px)] pb-3 border-b border-border/60 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+      >
+        <div className="px-4 space-y-3">
           {/* Header */}
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -997,8 +852,8 @@ export default function Hub() {
               <div className={`text-sm text-muted-foreground ${isRTL ? "text-right" : "text-left"}`}>{t("ابحث وتواصل مباشرة", "Search and contact directly")}</div>
             </div>
             <div className="flex items-center gap-2">
-              <LanguageToggle />
-              <ThemeToggle />
+              <LanguageToggle className="h-11 w-11" />
+              <ThemeToggle className="h-11 w-11" />
               <Popover>
                 <PopoverTrigger asChild>
                   <button
@@ -1012,7 +867,7 @@ export default function Hub() {
                         });
                       }
                     }}
-                    className="relative h-9 w-9 rounded-full hover:bg-muted transition-colors flex items-center justify-center"
+                    className="relative h-11 w-11 rounded-full hover:bg-muted transition-colors flex items-center justify-center"
                   >
                     <Bell className="h-5 w-5" />
                     {user && unreadCount && unreadCount > 0 && (
@@ -1035,7 +890,7 @@ export default function Hub() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-7 text-xs"
+                          className="h-11 px-3 text-xs"
                           onClick={() => markAllAsRead.mutate()}
                         >
                           <CheckCheck className="h-3 w-3 mr-1" />
@@ -1103,7 +958,7 @@ export default function Hub() {
                   <Button
                     type="button"
                     variant="secondary"
-                    className="h-10 px-3 rounded-xl shrink-0 justify-between gap-2"
+                    className="h-11 px-3 rounded-xl shrink-0 justify-between gap-2"
                   >
                     <span className="max-w-[7.5rem] truncate">{cityLabel}</span>
                     <ChevronDown className="h-4 w-4 opacity-70" />
@@ -1118,7 +973,7 @@ export default function Hub() {
                         <Button
                           key={c.id}
                           variant={cityId === c.id ? "default" : "ghost"}
-                          className="w-full justify-start"
+                          className="w-full justify-start h-11"
                           onClick={() => setCityId(c.id)}
                         >
                           {c.name_ar || c.name}
@@ -1130,26 +985,26 @@ export default function Hub() {
 
               <div className="relative flex-1">
                 <Search
-                  className={`absolute top-3 h-4 w-4 text-muted-foreground ${isRTL ? "right-3" : "left-3"}`}
+                  className={`absolute top-3.5 h-4 w-4 text-muted-foreground ${isRTL ? "right-3" : "left-3"}`}
                 />
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  className={`${isRTL ? "pr-9" : "pl-9"} h-10 rounded-xl`}
+                  className={`${isRTL ? "pr-9" : "pl-9"} h-11 rounded-xl`}
                   placeholder={t("ابحث عن خدمة… كهرباء، سباكة، تكييف", "Search services… electricity, plumbing, AC")}
                 />
               </div>
             </div>
 
             {activeAnnouncement && (
-              <div className="rounded-2xl border border-border bg-muted/30 px-4 py-3">
+              <div className={`${HUB_CARD_BASE} bg-muted/30 px-4 py-3`}>
                 <div className="text-sm text-muted-foreground">📢 📢 {activeAnnouncement.message}</div>
               </div>
             )}
 
             {/* Search results (category matches) */}
             {queryTrim && (
-              <Card>
+              <Card className="rounded-2xl border-border/60">
                 <CardContent className="p-2 space-y-1">
                 {filteredCategories.length === 0 ? (
                   <div className="text-sm text-muted-foreground p-2">{t("لا توجد نتائج", "No results")}</div>
@@ -1158,7 +1013,7 @@ export default function Hub() {
                     <Button
                       key={c.id}
                       variant="ghost"
-                      className="w-full justify-start"
+                      className="w-full justify-start h-11"
                       onClick={() => {
                         setQuery("");
                         openCategoryBrowse(c.id);
@@ -1184,7 +1039,7 @@ export default function Hub() {
                     <Button
                       key={chip.id}
                       variant="secondary"
-                      className="rounded-full shrink-0 px-4"
+                      className="rounded-full shrink-0 px-4 h-11"
                       onClick={() => {
                         if (chip.target_type === "category" && chip.target_category_id) {
                           openCategoryBrowse(chip.target_category_id);
@@ -1217,10 +1072,8 @@ export default function Hub() {
       <div style={{ height: headerHeight }} aria-hidden="true" />
 
       {/* Everything below the fixed header scrolls normally */}
-      <div className="mx-auto max-w-3xl px-4 pt-4 space-y-4">
-
-        {/* Banner carousel (manual first; autoplay after interaction; isolated) */}
-        <BannerCarousel
+      <div className="space-y-4">
+        <FeaturedHero
           banners={banners as any}
           publicUrlsById={publicUrlsById as any}
           allSubcategories={(allSubcategories || []) as any}
@@ -1233,349 +1086,278 @@ export default function Hub() {
               : document.getElementById(`shelf-${shelfId}`);
             el?.scrollIntoView({ behavior: "smooth", block: "start" });
           }}
+          language={language === "ar" ? "ar" : "en"}
+          isRTL={isRTL}
+          fallbackTitle={t("خدمات موثوقة بالقرب منك", "Trusted services near you")}
+          fallbackCta={t("استكشف", "Explore")}
         />
 
-        {/* Services (MAIN categories) grid - exactly 8 */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="text-base font-semibold">{t("الخدمات", "Categories")}</div>
-          </div>
-
-          {categoriesLoading ? (
-            <div className="text-sm text-muted-foreground">Loading...</div>
-          ) : categoriesError ? (
-            <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-              {t("تعذر تحميل الأقسام. حاول مرة أخرى.", "Couldn't load categories. Please try again.")}
-            </div>
-          ) : gridCategories.length === 0 ? (
-            <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-              {t("لا توجد أقسام متاحة حالياً.", "No categories available right now.")}
-            </div>
-          ) : (
-            <div className="grid grid-cols-4 gap-3">
-              {gridCategories.map((c) => {
-                const Icon = ICON_MAP[c.icon] || Wrench;
-                return (
-                  <button
-                    key={c.id}
-                    className="flex flex-col items-center gap-2 rounded-xl border bg-card p-3 hover:bg-accent transition"
-                    onClick={() => openCategoryBrowse(c.id)}
-                  >
-                    <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ backgroundColor: c.color + "22" }}>
-                      <Icon className="h-6 w-6" />
-                    </div>
-                    <div className="text-xs text-center leading-tight line-clamp-2">{c.name_ar || c.name}</div>
-                  </button>
-                );
-              })}
-            </div>
+        <div className="mx-auto max-w-3xl px-4 space-y-4">
+          {/* Services (MAIN categories) grid - exactly 8 */}
+          <HubSection title={t("الخدمات", "Categories")}>
+            {categoriesLoading ? (
+              <div className="text-sm text-muted-foreground">Loading...</div>
+            ) : categoriesError ? (
+              <div className={`${HUB_CARD_BASE} bg-card p-4 text-sm text-muted-foreground`}>
+                {t("تعذر تحميل الأقسام. حاول مرة أخرى.", "Couldn't load categories. Please try again.")}
+              </div>
+            ) : gridCategories.length === 0 ? (
+              <div className={`${HUB_CARD_BASE} bg-card p-4 text-sm text-muted-foreground`}>
+                {t("لا توجد أقسام متاحة حالياً.", "No categories available right now.")}
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 gap-3">
+                {gridCategories.map((c) => {
+                  const Icon = ICON_MAP[c.icon] || Wrench;
+                  return (
+                    <button
+                      key={c.id}
+                      className={`${HUB_CARD_BASE} bg-card min-h-[92px] p-3 flex flex-col items-center gap-2 transition-colors hover:bg-accent active:scale-[0.99]`}
+                      onClick={() => openCategoryBrowse(c.id)}
+                    >
+                      <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ backgroundColor: c.color + "22" }}>
+                        <Icon className="h-6 w-6" />
+                      </div>
+                      <div className="text-xs text-center leading-tight line-clamp-2">{c.name_ar || c.name}</div>
+                    </button>
+                  );
+                })}
+              </div>
             )}
-          </div>
+          </HubSection>
 
-        {/* Featured providers/services (horizontal) */}
-        {featuredServices.length > 0 && (
-          <div className="space-y-2" id="featured-providers">
-            <div className="flex items-center justify-between">
-              <div className="text-base font-semibold">{t("مزودين مميزين", "Featured providers")}</div>
-              <div className="text-xs text-muted-foreground">{featuredServices.length}</div>
-            </div>
+          {/* Featured providers/services (horizontal) */}
+          {featuredServices.length > 0 && (
+            <HubSection id="featured-providers" title={t("مزودين مميزين", "Featured providers")}>
+              <div
+                dir={isRTL ? "rtl" : "ltr"}
+                className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory"
+                style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+              >
+                {featuredServices.map((service) => {
+                  const contact = getContactState(service);
+                  return (
+                    <div key={service.id} className="shrink-0 w-[82vw] max-w-[360px] snap-center">
+                      <ServiceCardFeatured
+                        service={service}
+                        rating={getRating(service.id)}
+                        isRTL={isRTL}
+                        canCall={contact.canCall}
+                        canWhatsApp={contact.canWhatsApp}
+                        onOpen={() => openServiceFromRow(service)}
+                        onCall={() => handleCall(service)}
+                        onWhatsApp={() => handleWhatsApp(service)}
+                        labels={labels}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </HubSection>
+          )}
 
+          {/* Featured services (subcategories) */}
+          {featuredSubcats.length > 0 && (
+            <HubSection id="featured-services" title={t("الخدمات المميزة", "Featured services")}>
+              <div
+                dir={isRTL ? "rtl" : "ltr"}
+                className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory"
+                style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+              >
+                {featuredSubcats.slice(0, 6).map((sc) => {
+                  const Icon = ICON_MAP[sc.icon] || Wrench;
+                  return (
+                    <button
+                      key={sc.id}
+                      className={`${HUB_CARD_BASE} bg-card shrink-0 w-[66vw] max-w-[300px] snap-center p-4 text-left transition-colors hover:bg-accent active:scale-[0.99]`}
+                      onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
+                    >
+                      <div className={`flex items-center gap-3 ${isRTL ? "text-right" : "text-left"}`} dir={isRTL ? "rtl" : "ltr"}>
+                        <div className="h-12 w-12 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: (sc.color || "#888") + "22" }}>
+                          <Icon className="h-6 w-6" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-semibold text-sm line-clamp-1">{sc.name_ar || sc.name}</div>
+                          <div className="text-xs text-muted-foreground line-clamp-1 mt-1">
+                            {t("اضغط لعرض المزودين", "Tap to view providers")}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </HubSection>
+          )}
+
+          {/* Most demanded services (SYSTEM) */}
+          <HubSection id="most-demanded-services" title={t("الأكثر طلباً", "Most demanded")}>
             <div
               dir={isRTL ? "rtl" : "ltr"}
               className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory"
               style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
             >
-              {featuredServices.map((p) => (
-                <div
-                  key={p.id}
-                  role="button"
-                  tabIndex={0}
-                  className="shrink-0 w-[68vw] max-w-[320px] snap-center cursor-pointer focus:outline-none"
-                  onClick={() => {
-                    const subcat = subcatByName.get(String(p.category || "").trim());
-                    if (!subcat) {
-                      toast({ title: t("تعذر فتح الخدمة", "Could not open"), description: t("هذه الخدمة غير مرتبطة بتصنيف معروف", "This service category is not linked to a known subcategory"), variant: "destructive" });
-                      return;
-                    }
-                    openSubcategoryProviders(subcat, p.id);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key !== "Enter" && e.key !== " ") return;
-                    const subcat = subcatByName.get(String(p.category || "").trim());
-                    if (!subcat) return;
-                    openSubcategoryProviders(subcat, p.id);
-                  }}
-                >
-                  <div className="rounded-2xl border bg-card overflow-hidden shadow-sm active:scale-[0.99] transition-transform">
-                    <div className="h-[110px] bg-muted">
-                      {p.image_url ? (
-                        <img src={p.image_url} alt="" className="h-full w-full object-cover" loading="lazy" />
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center text-muted-foreground text-sm">
-                          {t("بدون صورة", "No photo")}
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-3" dir="rtl">
-                      <div className="font-semibold text-sm text-foreground line-clamp-1">
-                        {p.provider_name || t("مزود", "Provider")}
-                      </div>
-                      <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
-                        {p.title}
-                      </div>
-                      <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
-                        <span className="line-clamp-1">{p.city || ""}</span>
-                        <span className="line-clamp-1">{p.sub_city || ""}</span>
+              {mostDemandedLoading && mostDemandedRows.length === 0
+                ? Array.from({ length: 6 }).map((_, i) => (
+                    <div
+                      key={`demanded-placeholder-${i}`}
+                      className={`${HUB_CARD_BASE} bg-card shrink-0 w-[72vw] max-w-[320px] snap-center overflow-hidden`}
+                    >
+                      <div className="aspect-[4/3] bg-muted" />
+                      <div className="p-3">
+                        <div className="h-4 w-36 rounded bg-muted" />
+                        <div className="mt-2 h-3 w-44 rounded bg-muted" />
+                        <div className="mt-2 h-3 w-32 rounded bg-muted" />
                       </div>
                     </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Featured services (subcategories) - cards */}
-        {featuredSubcats.length > 0 && (
-          <HorizontalSection
-            id="featured-services"
-            title={t("الخدمات المميزة", "Featured services")}
-            count={featuredSubcats.length}
-            isRTL={isRTL}
-          >
-            {featuredSubcats.slice(0, 6).map((sc) => {
-              const Icon = ICON_MAP[sc.icon] || Wrench;
-              return (
-                <button
-                  key={sc.id}
-                  className="shrink-0 w-[70vw] max-w-[340px] snap-center rounded-2xl border bg-card overflow-hidden shadow-sm hover:bg-accent transition"
-                  onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
-                >
-                  <div className="p-4" dir="rtl">
-                    <div className="flex items-center gap-3">
-                      <div className="h-12 w-12 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: (sc.color || "#888") + "22" }}>
-                        <Icon className="h-6 w-6" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="font-semibold text-sm line-clamp-1">{sc.name_ar || sc.name}</div>
-                        <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
-                          {t("اضغط لعرض المزودين", "Tap to view providers")}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </HorizontalSection>
-        )}
-
-        {/* Most demanded services (SYSTEM) - cards */}
-        {
-          <HorizontalSection
-            id="most-demanded-services"
-            title={t("الأكثر طلباً", "Most demanded")}
-            count={mostDemandedLoading ? null : mostDemandedRows.length}
-            isRTL={isRTL}
-          >
-            {mostDemandedLoading && mostDemandedRows.length === 0
-              ? Array.from({ length: 6 }).map((_, i) => (
-                  <div
-                    key={`demanded-placeholder-${i}`}
-                    className="shrink-0 w-[70vw] max-w-[340px] snap-center rounded-2xl border bg-card overflow-hidden"
-                  >
-                    <div className="p-4" dir="rtl">
-                      <div className="h-4 w-40 rounded bg-muted" />
-                      <div className="mt-3 h-3 w-56 rounded bg-muted" />
-                      <div className="mt-2 h-3 w-44 rounded bg-muted" />
-                    </div>
-                  </div>
-                ))
-              : mostDemandedRows.length === 0
-                ? (
-                    <div className="shrink-0 w-[70vw] max-w-[340px] snap-center rounded-2xl border bg-card overflow-hidden">
-                      <div className="p-4" dir="rtl">
+                  ))
+                : mostDemandedRows.length === 0
+                  ? (
+                      <div className={`${HUB_CARD_BASE} bg-card shrink-0 w-[72vw] max-w-[320px] snap-center p-4`}>
                         <div className="font-semibold text-sm">{t("لا توجد بيانات بعد", "No data yet")}</div>
                         <div className="text-xs text-muted-foreground mt-1">
                           {t("سيظهر هذا القسم تلقائياً بعد تفاعل المستخدمين (مشاهدات/اتصالات)", "This will appear automatically once users interact (views/calls).")}
                         </div>
                       </div>
-                    </div>
-                  )
-                : mostDemandedRows.slice(0, 6).map((p) => (
-                  <div
-                    key={p.id}
-                    role="button"
-                    tabIndex={0}
-                    className="shrink-0 w-[70vw] max-w-[340px] snap-center cursor-pointer focus:outline-none"
-                    style={{ touchAction: "manipulation" }}
-                    onClick={() => {
-                      const subcat = subcatByName.get(String(p.category || "").trim());
-                      if (!subcat) {
-                        toast({
-                          title: t("تعذر فتح الخدمة", "Could not open"),
-                          description: t("هذه الخدمة غير مرتبطة بتصنيف معروف", "This service category is not linked to a known subcategory"),
-                          variant: "destructive",
-                        });
-                        return;
-                      }
-                      openSubcategoryProviders(subcat, p.id);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key !== "Enter" && e.key !== " ") return;
-                      const subcat = subcatByName.get(String(p.category || "").trim());
-                      if (!subcat) return;
-                      openSubcategoryProviders(subcat, p.id);
-                    }}
-                  >
-                    <div className="rounded-2xl border bg-card overflow-hidden shadow-sm active:scale-[0.99] transition-transform">
-                      <div className="h-[110px] bg-muted">
-                        {p.image_url ? (
-                          <img src={p.image_url} alt="" className="h-full w-full object-cover" loading="lazy" />
-                        ) : (
-                          <div className="h-full w-full flex items-center justify-center text-muted-foreground text-sm">
-                            {t("بدون صورة", "No photo")}
-                          </div>
-                        )}
-                      </div>
-                      <div className="p-3" dir="rtl">
-                        <div className="font-semibold text-sm text-foreground line-clamp-1">
-                          {p.provider_name || t("مزود", "Provider")}
+                    )
+                  : mostDemandedRows.slice(0, 6).map((service) => {
+                      const contact = getContactState(service);
+                      return (
+                        <div key={service.id} className="shrink-0 w-[72vw] max-w-[320px] snap-center">
+                          <ServiceCardCompact
+                            service={service}
+                            rating={getRating(service.id)}
+                            isRTL={isRTL}
+                            canCall={contact.canCall}
+                            canWhatsApp={contact.canWhatsApp}
+                            onOpen={() => openServiceFromRow(service)}
+                            onCall={() => handleCall(service)}
+                            onWhatsApp={() => handleWhatsApp(service)}
+                            labels={labels}
+                          />
                         </div>
-                        <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{p.title}</div>
-                        <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
-                          <span className="line-clamp-1">{p.city || ""}</span>
-                          <span className="line-clamp-1">{p.sub_city || ""}</span>
-                        </div>
-                      </div>
+                      );
+                    })}
+            </div>
+          </HubSection>
+
+          {/* Tips before you call */}
+          <HubSection id="guides" title={t("نصائح قبل ما تتصل", "Tips before you call")}>
+            <div
+              dir={isRTL ? "rtl" : "ltr"}
+              className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory"
+              style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+            >
+              {guidesLoading && guidesCards.length === 0
+                ? Array.from({ length: 4 }).map((_, i) => (
+                    <div
+                      key={`guide-placeholder-${i}`}
+                      className={`${HUB_CARD_BASE} bg-muted/30 shrink-0 w-[64vw] max-w-[280px] min-h-[92px] snap-center p-3`}
+                    >
+                      <div className="h-4 w-32 rounded bg-muted" />
+                      <div className="mt-2 h-3 w-40 rounded bg-muted" />
+                      <div className="mt-2 h-3 w-28 rounded bg-muted" />
                     </div>
-                  </div>
-                ))}
-          </HorizontalSection>
-        }
+                  ))
+                : guidesCards.slice(0, 4).map((g) => (
+                    <TipChip
+                      key={g.id}
+                      title={g.title}
+                      line1={g.summaryLines[0]}
+                      line2={g.summaryLines[1]}
+                      Icon={g.icon}
+                      onClick={() => openGuide(g.id)}
+                      isRTL={isRTL}
+                    />
+                  ))}
+            </div>
+          </HubSection>
 
-        {/* Guides (global) - cards + drawer */}
-        <HorizontalSection
-          id="guides"
-          title={t("نصائح قبل ما تتصل", "Guides")}
-          count={null}
-          isRTL={isRTL}
-        >
-          {guidesLoading && guidesCards.length === 0
-            ? Array.from({ length: 4 }).map((_, i) => (
-                <div
-                  key={`guide-placeholder-${i}`}
-                  className="shrink-0 w-[70vw] max-w-[340px] snap-center rounded-2xl border bg-card overflow-hidden"
-                >
-                  <div className="p-4" dir="rtl">
-                    <div className="h-4 w-44 rounded bg-muted" />
-                    <div className="mt-3 h-3 w-56 rounded bg-muted" />
-                    <div className="mt-2 h-3 w-48 rounded bg-muted" />
-                  </div>
-                </div>
-              ))
-            : guidesCards.slice(0, 4).map((g) => (
-                <MiniInfoCard
-                  key={g.id}
-                  title={g.title}
-                  line1={g.summaryLines[0]}
-                  line2={g.summaryLines[1]}
-                  Icon={g.icon}
-                  onClick={() => openGuide(g.id)}
-                />
-              ))}
-        </HorizontalSection>
+          {/* Shelves (admin-controlled) */}
+          <div className="space-y-4">
+            {shelves.map((shelf) => {
+              const cityOk = true;
+              if (!cityOk) return null;
 
-        {/* Shelves (admin-controlled) */}
-        <div className="space-y-6">
-          {shelves.map((shelf) => {
-            const cityOk = true;
-            if (!cityOk) return null;
+              if (shelf.shelf_type === "category") {
+                if (!shelf.category_id) return null;
+                const cat = categoriesById[shelf.category_id];
+                if (!cat) return null;
+                const subcats = subcatsByShelfId[shelf.id] || [];
+                if (subcats.length === 0) return null;
 
-            if (shelf.shelf_type === "category") {
-              if (!shelf.category_id) return null;
-              const cat = categoriesById[shelf.category_id];
-              if (!cat) return null;
-              const subcats = subcatsByShelfId[shelf.id] || [];
-              if (subcats.length === 0) return null;
-
-              return (
-                <div key={shelf.id} className="space-y-2" id={`shelf-${shelf.id}`}>
-                  <div className="flex items-center justify-between">
-                    <div className="text-base font-semibold">{shelf.title_ar}</div>
-                    <Button variant="ghost" size="sm" onClick={() => openCategoryBrowse(cat.id)}>
-                      عرض الكل
-                    </Button>
-                  </div>
-
-                  <div
-                    dir={isRTL ? "rtl" : "ltr"}
-                    className="flex gap-3 overflow-x-auto pb-2"
-                    style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+                return (
+                  <HubSection
+                    key={shelf.id}
+                    id={`shelf-${shelf.id}`}
+                    title={shelf.title_ar}
+                    actionLabel={t("عرض الكل", "See all")}
+                    onAction={() => openCategoryBrowse(cat.id)}
                   >
+                    <div
+                      dir={isRTL ? "rtl" : "ltr"}
+                      className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory"
+                      style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+                    >
                       {subcats.map((sc) => {
                         const Icon = ICON_MAP[sc.icon] || Wrench;
                         return (
-                        <button
-                          key={sc.id}
-                          className="shrink-0 w-[44%] md:w-[28%] rounded-xl border bg-card p-3 hover:bg-accent transition flex flex-col items-center gap-2"
-                          style={{ scrollSnapAlign: "start" }}
-                          onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
-                        >
-                          <div
-                            className="h-12 w-12 rounded-full flex items-center justify-center"
-                            style={{ backgroundColor: (sc.color || "#888") + "22" }}
+                          <button
+                            key={sc.id}
+                            className={`${HUB_CARD_BASE} bg-card shrink-0 w-[44%] md:w-[28%] p-3 flex flex-col items-center gap-2 text-center transition-colors hover:bg-accent active:scale-[0.99]`}
+                            style={{ scrollSnapAlign: "start" }}
+                            onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
                           >
-                            <Icon className="h-6 w-6" />
-                          </div>
-                          <div className="text-xs text-center leading-tight line-clamp-2">{sc.name_ar || sc.name}</div>
-                        </button>
+                            <div
+                              className="h-12 w-12 rounded-full flex items-center justify-center"
+                              style={{ backgroundColor: (sc.color || "#888") + "22" }}
+                            >
+                              <Icon className="h-6 w-6" />
+                            </div>
+                            <div className="text-xs leading-tight line-clamp-2">{sc.name_ar || sc.name}</div>
+                          </button>
                         );
                       })}
-                  </div>
-                </div>
-              );
-            }
+                    </div>
+                  </HubSection>
+                );
+              }
 
-            // Manual shelf: primarily curated *subcategories*.
-            // Backward compatibility: if some rows still have category_id, we show category tiles.
-            const items = itemsByShelf[shelf.id] || [];
+              // Manual shelf: primarily curated *subcategories*.
+              // Backward compatibility: if some rows still have category_id, we show category tiles.
+              const items = itemsByShelf[shelf.id] || [];
 
-            const subcats = (items
-              .map((it) => {
-                const sid = (it as any).subcategory_id as string | null | undefined;
-                if (!sid) return null;
-                return (allSubcategories || []).find((s) => s.id === sid) || null;
-              })
-              .filter(Boolean) as any[]) as SubcategoryRow[];
+              const subcats = (items
+                .map((it) => {
+                  const sid = (it as any).subcategory_id as string | null | undefined;
+                  if (!sid) return null;
+                  return (allSubcategories || []).find((s) => s.id === sid) || null;
+                })
+                .filter(Boolean) as any[]) as SubcategoryRow[];
 
-            const catsFallback = items
-              .map((it) => {
-                const cid = (it as any).category_id as string | null | undefined;
-                if (!cid) return null;
-                return categoriesById[cid] || null;
-              })
-              .filter(Boolean) as any[];
+              const catsFallback = items
+                .map((it) => {
+                  const cid = (it as any).category_id as string | null | undefined;
+                  if (!cid) return null;
+                  return categoriesById[cid] || null;
+                })
+                .filter(Boolean) as any[];
 
-            if (subcats.length === 0 && catsFallback.length === 0) return null;
+              if (subcats.length === 0 && catsFallback.length === 0) return null;
 
-            return (
-              <div key={shelf.id} className="space-y-2" id={`shelf-${shelf.id}`}>
-                <div className="flex items-center justify-between">
-                  <div className="text-base font-semibold">{shelf.title_ar}</div>
-                </div>
-
-                <div
-                  dir={isRTL ? "rtl" : "ltr"}
-                  className="flex gap-3 overflow-x-auto pb-2"
-                  style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any }}
-                >
+              return (
+                <HubSection key={shelf.id} id={`shelf-${shelf.id}`} title={shelf.title_ar}>
+                  <div
+                    dir={isRTL ? "rtl" : "ltr"}
+                    className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory"
+                    style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any }}
+                  >
                     {subcats.map((s) => {
                       const Icon = ICON_MAP[s.icon] || Wrench;
                       return (
                         <button
                           key={s.id}
-                          className="shrink-0 w-[34%] md:w-[22%] rounded-xl border bg-card p-3 hover:bg-accent transition flex flex-col items-center gap-2"
+                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[34%] md:w-[22%] p-3 flex flex-col items-center gap-2 text-center transition-colors hover:bg-accent active:scale-[0.99]`}
                           style={{ scrollSnapAlign: "start" }}
                           onClick={() => openSubcategoryProviders({ id: s.id, name: s.name, name_ar: s.name_ar, icon: Icon, color: s.color })}
                         >
@@ -1585,7 +1367,7 @@ export default function Hub() {
                           >
                             <Icon className="h-6 w-6" />
                           </div>
-                          <div className="text-xs text-center leading-tight line-clamp-2">{s.name_ar || s.name}</div>
+                          <div className="text-xs leading-tight line-clamp-2">{s.name_ar || s.name}</div>
                         </button>
                       );
                     })}
@@ -1595,7 +1377,7 @@ export default function Hub() {
                       return (
                         <button
                           key={c.id}
-                          className="shrink-0 w-[34%] md:w-[22%] rounded-xl border bg-card p-3 hover:bg-accent transition flex flex-col items-center gap-2"
+                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[34%] md:w-[22%] p-3 flex flex-col items-center gap-2 text-center transition-colors hover:bg-accent active:scale-[0.99]`}
                           style={{ scrollSnapAlign: "start" }}
                           onClick={() => openCategoryBrowse(c.id)}
                         >
@@ -1605,26 +1387,27 @@ export default function Hub() {
                           >
                             <Icon className="h-6 w-6" />
                           </div>
-                          <div className="text-xs text-center leading-tight line-clamp-2">{c.name_ar || c.name}</div>
+                          <div className="text-xs leading-tight line-clamp-2">{c.name_ar || c.name}</div>
                         </button>
                       );
                     })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Footer links */}
-        <div className="pt-6 pb-2 border-t text-sm text-muted-foreground space-y-3">
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            <a className="hover:text-foreground" href="/about">{t("من نحن", "About Us")}</a>
-            <a className="hover:text-foreground" href="/help">{t("مركز المساعدة", "Help Center")}</a>
-            <a className="hover:text-foreground" href="/become-provider">{t("انضم كمزود خدمة", "Become a Provider")}</a>
+                  </div>
+                </HubSection>
+              );
+            })}
           </div>
-          <div className="flex gap-4 text-xs">
-            <a className="hover:text-foreground" href="/terms">{t("الشروط", "Terms")}</a>
-            <a className="hover:text-foreground" href="/privacy">{t("الخصوصية", "Privacy")}</a>
+
+          {/* Footer links */}
+          <div className="pt-4 pb-2 border-t text-sm text-muted-foreground space-y-3">
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              <a className="hover:text-foreground" href="/about">{t("من نحن", "About Us")}</a>
+              <a className="hover:text-foreground" href="/help">{t("مركز المساعدة", "Help Center")}</a>
+              <a className="hover:text-foreground" href="/become-provider">{t("انضم كمزود خدمة", "Become a Provider")}</a>
+            </div>
+            <div className="flex gap-4 text-xs">
+              <a className="hover:text-foreground" href="/terms">{t("الشروط", "Terms")}</a>
+              <a className="hover:text-foreground" href="/privacy">{t("الخصوصية", "Privacy")}</a>
+            </div>
           </div>
         </div>
       </div>
@@ -1691,13 +1474,13 @@ export default function Hub() {
           }}
         >
           <DrawerContent>
-            <DrawerHeader className="text-left" dir="rtl">
+            <DrawerHeader className={isRTL ? "text-right" : "text-left"} dir={isRTL ? "rtl" : "ltr"}>
               <div className="flex items-start justify-between gap-3">
                 <DrawerTitle className="text-base">{activeGuide.title}</DrawerTitle>
                 <button
                   type="button"
                   aria-label="Close"
-                  className="h-9 w-9 rounded-full hover:bg-muted transition flex items-center justify-center"
+                  className="h-11 w-11 rounded-full hover:bg-muted transition flex items-center justify-center"
                   onClick={() => {
                     setActiveSheet("none");
                     setActiveGuideId(null);
@@ -1708,7 +1491,7 @@ export default function Hub() {
               </div>
             </DrawerHeader>
 
-            <div className="px-4 pb-6" dir="rtl">
+            <div className="px-4 pb-6" dir={isRTL ? "rtl" : "ltr"}>
               <ul className="space-y-2 text-sm">
                 {activeGuide.bullets.slice(0, 6).map((b, idx) => (
                   <li key={`${activeGuide.id}-b-${idx}`} className="flex gap-2">

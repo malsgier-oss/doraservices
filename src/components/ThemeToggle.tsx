@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 type ThemeValue = "light" | "dark" | "system";
 
@@ -18,7 +19,7 @@ function ThemeIcon({ value }: { value: ThemeValue }) {
   return <Laptop className="h-4 w-4" />;
 }
 
-export function ThemeToggle() {
+export function ThemeToggle({ className }: { className?: string }) {
   const { theme, setTheme } = useTheme();
 
   const current = (theme ?? "system") as ThemeValue;
@@ -29,7 +30,7 @@ export function ThemeToggle() {
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-full hover:bg-muted"
+          className={cn("h-9 w-9 rounded-full hover:bg-muted", className)}
           aria-label="Toggle theme"
           title="Theme"
         >
