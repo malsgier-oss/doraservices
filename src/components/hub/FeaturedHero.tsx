@@ -175,7 +175,7 @@ const FeaturedHero = memo(function FeaturedHero({
           };
 
           const card = (
-            <div className="relative aspect-[16/9] w-full overflow-hidden rounded-3xl border border-border/60 bg-muted">
+            <div className="relative aspect-[16/9] w-full overflow-hidden bg-muted">
               {url ? (
                 <img
                   src={url}
@@ -186,7 +186,7 @@ const FeaturedHero = memo(function FeaturedHero({
               ) : null}
               <div className="absolute inset-x-0 bottom-0 p-4">
                 <div
-                  className="space-y-1 rounded-2xl bg-black/35 px-4 py-3 text-white"
+                  className="space-y-1 rounded-2xl bg-black/25 px-4 py-3 text-white"
                   dir={isRTL ? "rtl" : "ltr"}
                 >
                   <div className="text-base font-semibold line-clamp-1">{bannerTitle}</div>
