@@ -20,6 +20,7 @@ import doraLogo from "@/assets/dora-logo.png";
 import { useRegistrationEnabled } from "@/hooks/usePlatformSettings";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { isValidLibyanPhone, cleanPhoneForStorage } from "@/lib/phoneUtils";
+import { MobileNav } from "@/components/layout/MobileNav";
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
 const nameSchema = z.string().min(2, "Name must be at least 2 characters");
 export default function Auth() {
@@ -248,7 +249,7 @@ export default function Auth() {
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>;
   }
-  return <div className="min-h-screen bg-[#F9F9F9] flex flex-col items-center justify-center p-4" dir={isRTL ? "rtl" : "ltr"}>
+  return <div className="min-h-screen bg-[#F9F9F9] flex flex-col items-center justify-center p-4 pb-[calc(4rem+env(safe-area-inset-bottom))]" dir={isRTL ? "rtl" : "ltr"}>
       <div className="absolute top-4 left-4">
         <LanguageToggle />
       </div>
@@ -441,5 +442,6 @@ export default function Auth() {
           </CardContent>
         </Tabs>
       </Card>
+      <MobileNav />
     </div>;
 }
