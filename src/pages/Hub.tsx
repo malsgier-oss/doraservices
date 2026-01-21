@@ -446,6 +446,32 @@ export default function Hub() {
     return map;
   }, [allSubcategories]);
 
+  const subcatById = useMemo(() => {
+    const map = new Map<string, {
+      id: string;
+      name: string;
+      name_ar?: string | null;
+      icon: LucideIcon;
+      color: string | null;
+    }>();
+    for (const sc of (allSubcategories || []) as any[]) {
+      if (!sc?.id) continue;
+      const name = String(sc?.name || "").trim();
+      const nameAr = String(sc?.name_ar || "").trim();
+      if (!name && !nameAr) continue;
+      const iconKey = String(sc?.icon || "");
+      const icon = ICON_MAP[iconKey] || Wrench;
+      map.set(String(sc.id), {
+        id: String(sc.id),
+        name: name || nameAr,
+        name_ar: sc?.name_ar ?? null,
+        icon,
+        color: (sc?.color ?? null) as string | null,
+      });
+    }
+    return map;
+  }, [allSubcategories]);
+
   useEffect(() => {
     let alive = true;
 
@@ -653,6 +679,7 @@ export default function Hub() {
       // IMPORTANT: ServiceDetailSheet filters services.category by this value.
       // Must match exactly what's saved in services.category (subcategory.name from ServiceCreator).
       category: normalizedCategory,
+      categoryId: selectedSubcategory.id,
       categoryName: selectedSubcategory.name,
       categoryNameAr: selectedSubcategory.name_ar || undefined,
       color: selectedSubcategory.color || "#888888",
@@ -678,7 +705,9 @@ export default function Hub() {
 
   const openServiceFromRow = (service: ServiceRow) => {
     const subcatKey = normalizeCategory(String(service.category || "")).toLowerCase();
-    const subcat = subcatByName.get(subcatKey);
+    const subcat =
+      subcatByName.get(subcatKey) ||
+      subcatById.get(String(service.category || ""));
     if (!subcat) {
       toast({
         title: t("تعذر فتح الخدمة", "Could not open"),

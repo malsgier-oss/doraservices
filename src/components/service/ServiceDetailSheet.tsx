@@ -30,6 +30,7 @@ import { getTelLink, getWhatsAppLink } from "@/lib/phoneUtils";
 export type SheetService = {
   titleKey: string;
   category: string;
+  categoryId?: string;
   categoryName?: string;
   categoryNameAr?: string;
 };
@@ -85,6 +86,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
         const categoryVal = service?.category ? normalizeCategory(service.category) : "";
         const categoryNames = new Set<string>();
         if (categoryVal) categoryNames.add(categoryVal);
+        if (service?.categoryId) categoryNames.add(String(service.categoryId));
         if (service?.categoryName) categoryNames.add(normalizeCategory(String(service.categoryName)));
         if (service?.categoryNameAr) categoryNames.add(normalizeCategory(String(service.categoryNameAr)));
 
