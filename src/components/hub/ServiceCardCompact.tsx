@@ -57,7 +57,7 @@ export function ServiceCardCompact({
       <button
         type="button"
         className={cn(
-          "w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] transition-transform",
+          "w-full text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] transition-transform touch-manipulation",
           isRTL && "text-right"
         )}
         onClick={onOpen}
@@ -72,10 +72,10 @@ export function ServiceCardCompact({
           )}
         </div>
 
-        <div className="space-y-1.5 p-3" dir={isRTL ? "rtl" : "ltr"}>
-          <div className="text-sm font-semibold text-foreground line-clamp-1">{service.title}</div>
+        <div className="space-y-2 p-3" dir={isRTL ? "rtl" : "ltr"}>
+          <div className="text-sm font-semibold text-foreground leading-snug line-clamp-1">{service.title}</div>
           <div className="text-xs text-muted-foreground line-clamp-1">{providerName}</div>
-          <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+          <div className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
             <div className="flex items-center gap-1">
               <Star
                 className={cn("h-3 w-3", hasRating ? "text-amber-500" : "text-muted-foreground")}
@@ -93,7 +93,7 @@ export function ServiceCardCompact({
         </div>
       </button>
 
-      <div className="border-t border-border/60 bg-muted/20 px-3 py-3" dir={isRTL ? "rtl" : "ltr"}>
+      <div className="border-t border-border/30 bg-background/80 px-3 py-3" dir={isRTL ? "rtl" : "ltr"}>
         <div className="flex gap-2">
           <Button
             type="button"

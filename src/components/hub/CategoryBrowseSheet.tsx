@@ -85,24 +85,24 @@ export function CategoryBrowseSheet({
                 <div className="text-muted-foreground">لا توجد خدمات داخل هذا القسم بعد</div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                 {list.map((s) => {
                   const Icon = iconMap[s.icon] || Wrench;
                   return (
                     <button
                       key={s.id}
-                      className={`${HUB_CARD_BASE} bg-card p-3 flex items-center gap-3 transition-colors hover:bg-accent active:scale-[0.99]`}
+                        className={`${HUB_CARD_BASE} bg-card min-h-[96px] p-4 flex items-center gap-4 transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
                       onClick={() => onSelectSubcategory({ id: s.id, name: s.name, name_ar: s.name_ar, icon: Icon, color: s.color })}
                     >
                       <div
-                        className="h-12 w-12 rounded-full flex items-center justify-center"
-                        style={{ backgroundColor: (s.color || "#888") + "22" }}
+                          className="h-14 w-14 rounded-full flex items-center justify-center shadow-sm"
+                          style={{ backgroundColor: (s.color || "#888") + "1f" }}
                       >
-                        <Icon className="h-6 w-6" />
+                          <Icon className="h-7 w-7 text-foreground" strokeWidth={2.1} />
                       </div>
                       <div className="min-w-0 text-right">
-                        <div className="text-sm font-semibold truncate">{s.name_ar || s.name}</div>
-                        <div className="text-xs text-muted-foreground truncate">{category.name_ar || category.name}</div>
+                          <div className="text-[15px] font-semibold truncate">{s.name_ar || s.name}</div>
+                          <div className="text-xs text-muted-foreground truncate">{category.name_ar || category.name}</div>
                       </div>
                     </button>
                   );
