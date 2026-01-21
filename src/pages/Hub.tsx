@@ -30,6 +30,7 @@ import { CategoryBrowseSheet } from "@/components/hub/CategoryBrowseSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { normalizeCategory } from "@/lib/utils";
 import { useNotifications, useUnreadCount, useNotificationMutations } from "@/hooks/useNotifications";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -846,15 +847,15 @@ export default function Hub() {
 
   const selectedSheetService = useMemo(() => {
     if (!selectedSubcategory) return null;
+    // Normalize category value to match exactly what's stored in services.category
+    const normalizedCategory = normalizeCategory(selectedSubcategory.name || "");
     return {
       id: selectedSubcategory.id,
-      // Stable ID-based filtering (preferred) for ServiceDetailSheet.
-      subcategoryId: selectedSubcategory.id,
       titleKey: selectedSubcategory.name_ar || selectedSubcategory.name,
       descKey: "",
       // IMPORTANT: ServiceDetailSheet filters services.category by this value.
-      // We use the subcategory English name as the canonical stored value.
-      category: selectedSubcategory.name,
+      // Must match exactly what's saved in services.category (normalized subcategory.name from ServiceCreator).
+      category: normalizedCategory,
       categoryName: selectedSubcategory.name,
       categoryNameAr: selectedSubcategory.name_ar || undefined,
       color: selectedSubcategory.color || "#888888",
@@ -863,6 +864,16 @@ export default function Hub() {
   }, [selectedSubcategory]);
 
   function openSubcategoryProviders(subcat: { id: string; name: string; name_ar?: string | null; icon: LucideIcon; color: string | null }, providerServiceId?: string | null) {
+    // DEV: Log subcategory being opened
+    if (import.meta.env?.DEV || import.meta.env?.MODE === "development") {
+      console.log("[Hub] Opening subcategory:", {
+        id: subcat.id,
+        name: subcat.name,
+        name_ar: subcat.name_ar || "(none)",
+        cityId: cityId || "(none)",
+        cityName: selectedCityName || "(none)",
+      });
+    }
     setSelectedSubcategory(subcat);
     setInitialProviderServiceId(providerServiceId || null);
     setActiveSheet("providers");

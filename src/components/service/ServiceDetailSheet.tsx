@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
+import { cn, normalizeCategory } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   Phone,
@@ -30,8 +30,6 @@ export type SheetService = {
   category: string;
   categoryName?: string;
   categoryNameAr?: string;
-  /** Preferred stable filter if services table has subcategory_id */
-  subcategoryId?: string;
 };
 
 type Props = {
@@ -81,9 +79,18 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           return `"${escaped}"`;
         };
 
-        const subcategoryIdVal = String(service?.subcategoryId || "").trim();
-        const categoryVal = (service?.category ?? "").trim();
+        // Normalize category value for exact matching with stored services.category
+        const categoryVal = service?.category ? normalizeCategory(service.category) : "";
         const categoryOr = categoryVal ? `category.eq.${escOrValue(categoryVal)}` : "";
+
+        // DEV: Log filter values for debugging (console only, no UI)
+        if (import.meta.env?.DEV || import.meta.env?.MODE === "development") {
+          console.log("[ServiceDetailSheet] Filter values:", {
+            category: categoryVal || "(empty)",
+            city: city || "(empty)",
+            categoryFilter: categoryOr || "(none)",
+          });
+        }
 
         let cityOr = "";
         const cityVal = (city || "").trim();
@@ -128,8 +135,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
 
         const runQuery = async (
           mode: "strict" | "permissive",
-          allowCityFilter: boolean,
-          allowSubcategoryId: boolean
+          allowCityFilter: boolean
         ) => {
           let q: any = allowCityFilter ? baseWithCity : baseNoCity;
 
@@ -147,10 +153,8 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
               .or("approval_status.eq.approved,approval_status.is.null");
           }
 
-          // Prefer stable subcategory_id filtering when available.
-          if (allowSubcategoryId && subcategoryIdVal) {
-            q = q.eq("subcategory_id", subcategoryIdVal);
-          } else if (categoryOr) {
+          // Filter by category name (matches services.category column exactly)
+          if (categoryOr) {
             q = q.or(categoryOr);
           }
           if (allowCityFilter && cityOr) q = q.or(cityOr);
@@ -159,8 +163,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
         };
 
         let allowCityFilter = true;
-        let allowSubcategoryId = Boolean(subcategoryIdVal);
-        let { data, error } = await runQuery("strict", allowCityFilter, allowSubcategoryId);
+        let { data, error } = await runQuery("strict", allowCityFilter);
         if (error) {
           const msg = String((error as any)?.message || error);
           const low = msg.toLowerCase();
@@ -168,53 +171,37 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
             low.includes("column") &&
             (low.includes("city") || low.includes("sub_city")) &&
             low.includes("does not exist");
-          const missingSubcategoryId =
-            low.includes("column") &&
-            low.includes("subcategory_id") &&
-            low.includes("does not exist");
           if (missingCity) {
             allowCityFilter = false;
-          }
-          if (missingSubcategoryId) {
-            allowSubcategoryId = false;
-          }
-          if (missingCity || missingSubcategoryId) {
-            ({ data, error } = await runQuery("strict", allowCityFilter, allowSubcategoryId));
+            ({ data, error } = await runQuery("strict", allowCityFilter));
           }
         }
         if (error) throw error;
 
         if (!data || data.length === 0) {
-          // Retry permissive filters (allows NULLs) with same filtering strategy.
-          let res = await runQuery("permissive", allowCityFilter, allowSubcategoryId);
+          // Retry permissive filters (allows NULLs)
+          let res = await runQuery("permissive", allowCityFilter);
           data = res.data;
           error = res.error;
 
-          // If city filtering yields zero, do one last retry without city filters.
+          // If city filtering yields zero, retry without city filters
           if ((!data || data.length === 0) && allowCityFilter && cityOr) {
             allowCityFilter = false;
-            res = await runQuery("permissive", allowCityFilter, allowSubcategoryId);
+            res = await runQuery("permissive", allowCityFilter);
             data = res.data;
             error = res.error;
           }
 
-          // If schema doesn't have subcategory_id, fall back to name-based category filter.
-          if (error) {
-            const msg = String((error as any)?.message || error);
-            const low = msg.toLowerCase();
-            const missingSubcategoryId =
-              low.includes("column") &&
-              low.includes("subcategory_id") &&
-              low.includes("does not exist");
-            if (missingSubcategoryId && allowSubcategoryId) {
-              allowSubcategoryId = false;
-              res = await runQuery("permissive", allowCityFilter, allowSubcategoryId);
-              data = res.data;
-              error = res.error;
-            }
-          }
-
           if (error) throw error;
+
+          // DEV: Log empty result (console only, no UI)
+          if ((!data || data.length === 0) && (import.meta.env?.DEV || import.meta.env?.MODE === "development")) {
+            console.warn("[ServiceDetailSheet] No providers found with filters:", {
+              categoryFilter: categoryVal || "(none)",
+              cityFilter: cityOr || "(none)",
+              allowCityFilter,
+            });
+          }
         }
 
         const rows = (data || []) as any[];
@@ -283,7 +270,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
     return () => {
       alive = false;
     };
-  }, [open, service.category, service.subcategoryId, city]);
+  }, [open, service.category, city]);
 
   return { providers, loading, error };
 }
@@ -539,7 +526,7 @@ export function ServiceDetailSheet({
 
               {!loading && !error && providers.length === 0 && (
                 <div className="text-center py-10 text-muted-foreground">
-                  لا يوجد مزودين حالياً في هذه القائمة
+                  <div className="text-base font-medium">لا يوجد مزودين حالياً في هذه القائمة</div>
                 </div>
               )}
 

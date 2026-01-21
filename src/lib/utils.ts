@@ -6,6 +6,14 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Normalizes category/subcategory names for consistent storage and filtering.
+ * Ensures exact matching between written values and filter queries.
+ */
+export function normalizeCategory(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+/**
  * Cleans phone number for storage + internal login:
  * - keeps digits only
  * - supports +218 / 218 / 00218
