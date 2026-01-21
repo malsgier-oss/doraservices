@@ -33,7 +33,8 @@ import { BusinessCard } from "@/components/hub/BusinessCard";
 import { BuySellCategories } from "@/components/hub/BuySellCategories";
 import { SearchFilters, type FilterState } from "@/components/hub/SearchFilters";
 import { AnimatedSection } from "@/components/hub/AnimatedSection";
-import { useDeals } from "@/hooks/useDeals";
+import { DealDetailSheet } from "@/components/hub/DealDetailSheet";
+import { useDeals, type Deal } from "@/hooks/useDeals";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { HUB_CARD_BASE } from "@/components/hub/hubStyles";
 
@@ -321,7 +322,7 @@ async function fetchShelfSubcategories(params: { categoryId: string; limit: numb
 
 
 // Buy/Sell Sections Components
-function BuySellDealsSection({ cityId }: { cityId?: string | null }) {
+function BuySellDealsSection({ cityId, onDealClick }: { cityId?: string | null; onDealClick: (deal: Deal) => void }) {
   const { data: deals, isLoading } = useDeals({ cityId, limit: 12 });
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
@@ -369,10 +370,7 @@ function BuySellDealsSection({ cityId }: { cityId?: string | null }) {
           <div key={deal.id} className="shrink-0 w-[72vw] max-w-[320px] snap-center">
             <DealCard
               deal={deal}
-              onClick={() => {
-                // TODO: Open deal detail
-                console.log("Deal clicked:", deal);
-              }}
+              onClick={() => onDealClick(deal)}
               isRTL={isRTL}
             />
           </div>
@@ -441,6 +439,15 @@ export default function Hub() {
   const { language, isRTL } = useLanguage();
   const { user } = useAuth();
   const { toast } = useToast();
+
+  // Deal detail state
+  const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
+  const [dealSheetOpen, setDealSheetOpen] = useState(false);
+
+  const openDealDetail = (deal: Deal) => {
+    setSelectedDeal(deal);
+    setDealSheetOpen(true);
+  };
 
   const { data: notifications } = useNotifications();
   const { data: unreadCount } = useUnreadCount();
@@ -1715,15 +1722,12 @@ export default function Hub() {
                 <FeaturedDeals
                   cityId={cityId}
                   limit={6}
-                  onDealClick={(deal) => {
-                    // TODO: Open deal detail view
-                    console.log("Deal clicked:", deal);
-                  }}
+                  onDealClick={(deal) => openDealDetail(deal)}
                 />
               </HubSection>
 
               {/* Active Deals Grid */}
-              <BuySellDealsSection cityId={cityId} />
+              <BuySellDealsSection cityId={cityId} onDealClick={openDealDetail} />
 
               {/* Featured Businesses */}
               <BuySellBusinessesSection cityId={cityId} />
@@ -2155,6 +2159,18 @@ export default function Hub() {
           </div>
         </div>
       )}
+
+      {/* Deal Detail Sheet */}
+      <DealDetailSheet
+        open={dealSheetOpen}
+        onOpenChange={(open) => {
+          setDealSheetOpen(open);
+          if (!open) {
+            setSelectedDeal(null);
+          }
+        }}
+        deal={selectedDeal}
+      />
 
       {activeSheet === "browse" && (
         <CategoryBrowseSheet
