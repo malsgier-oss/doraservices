@@ -836,7 +836,21 @@ export function usePlatformSettings() {
 
       const settings: Record<string, string> = {};
       data?.forEach((s) => {
-        settings[s.key] = typeof s.value === "string" ? s.value : JSON.stringify(s.value);
+        // Handle JSONB values: convert to string representation
+        // JSONB can store: boolean, number, string, object, array, null
+        if (s.value === null || s.value === undefined) {
+          settings[s.key] = "";
+        } else if (typeof s.value === "boolean") {
+          settings[s.key] = s.value ? "true" : "false";
+        } else if (typeof s.value === "number") {
+          settings[s.key] = String(s.value);
+        } else if (typeof s.value === "string") {
+          // If it's a JSONB string, it might be quoted, unquote it
+          settings[s.key] = s.value;
+        } else {
+          // Object or array - stringify it
+          settings[s.key] = JSON.stringify(s.value);
+        }
       });
       return settings;
     },
@@ -854,10 +868,21 @@ export function useSettingsMutations() {
       } = await supabase.auth.getUser();
       // Use upsert so new settings keys can be introduced from the UI without
       // requiring a manual DB row insert.
+      // Convert string values to appropriate JSONB types
+      let jsonbValue: any = value;
+      // If value is "true" or "false", convert to boolean
+      if (value === "true" || value === "false") {
+        jsonbValue = value === "true";
+      } else if (!isNaN(Number(value)) && value.trim() !== "") {
+        // If it's a number string, convert to number
+        jsonbValue = Number(value);
+      }
+      // Otherwise keep as string (JSONB will store it as a string)
+      
       const { error } = await supabase
         .from("platform_settings")
         .upsert(
-          { key, value, updated_at: new Date().toISOString(), updated_by: user?.id },
+          { key, value: jsonbValue, updated_at: new Date().toISOString(), updated_by: user?.id },
           { onConflict: "key" },
         );
       if (error) throw error;

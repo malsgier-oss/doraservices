@@ -17,7 +17,12 @@ export default function AdminSettings() {
 
   useEffect(() => {
     if (settings) {
-      setLocalSettings(settings);
+      // Ensure all settings are strings for the local state
+      const normalized: Record<string, string> = {};
+      Object.entries(settings).forEach(([key, value]) => {
+        normalized[key] = String(value ?? "");
+      });
+      setLocalSettings(normalized);
     }
   }, [settings]);
 
