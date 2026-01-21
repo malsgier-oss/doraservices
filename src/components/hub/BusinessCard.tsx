@@ -1,6 +1,7 @@
 import { MapPin, Star } from "lucide-react";
 import { HUB_CARD_BASE } from "./hubStyles";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/contexts/LanguageContext";
 import type { Business } from "@/hooks/useBusinesses";
 
 interface BusinessCardProps {
@@ -55,10 +56,14 @@ export function BusinessCard({
       {/* Content */}
       <div className="p-4 space-y-2">
         {/* Business name */}
-        <h3 className="font-semibold text-sm line-clamp-1">{business.name}</h3>
+        <h3 className="font-semibold text-sm line-clamp-1">
+          {business.name || t("بدون اسم", "Unnamed Business")}
+        </h3>
 
         {/* Category */}
-        <div className="text-xs text-primary">{business.category}</div>
+        {business.category && (
+          <div className="text-xs text-primary">{business.category}</div>
+        )}
 
         {/* Rating */}
         {rating !== undefined && rating > 0 && (

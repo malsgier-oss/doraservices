@@ -42,11 +42,18 @@ export function BusinessDirectory({
   }
 
   if (!businesses || businesses.length === 0) {
+    if (import.meta.env.DEV) {
+      console.log("[BusinessDirectory] No businesses found", { cityId, category, limit });
+    }
     return (
       <div className={`${HUB_CARD_BASE} bg-card p-4 text-sm text-muted-foreground text-center`}>
         {t("لا توجد متاجر متاحة", "No businesses available")}
       </div>
     );
+  }
+
+  if (import.meta.env.DEV) {
+    console.log("[BusinessDirectory] Rendering businesses", { count: businesses.length, businesses });
   }
 
   return (

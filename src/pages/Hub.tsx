@@ -412,7 +412,14 @@ function BuySellBusinessesSection({ cityId, onBusinessClick }: { cityId?: string
   }
 
   if (!businesses || businesses.length === 0) {
+    if (import.meta.env.DEV) {
+      console.log("[BuySellBusinessesSection] No businesses found", { cityId, featured: true });
+    }
     return null;
+  }
+
+  if (import.meta.env.DEV) {
+    console.log("[BuySellBusinessesSection] Rendering businesses", { count: businesses.length });
   }
 
   return (

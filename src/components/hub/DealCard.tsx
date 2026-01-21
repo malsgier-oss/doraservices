@@ -1,6 +1,7 @@
 import { Tag, Clock } from "lucide-react";
 import { HUB_CARD_BASE } from "./hubStyles";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/contexts/LanguageContext";
 import type { Deal } from "@/hooks/useDeals";
 
 interface DealCardProps {
@@ -10,16 +11,24 @@ interface DealCardProps {
 }
 
 export function DealCard({ deal, onClick, isRTL }: DealCardProps) {
+  const { language } = useLanguage();
+  const t = (ar: string, en: string) => (language === "ar" ? ar : en);
+
+  // Safety check
+  if (!deal || !deal.id) {
+    return null;
+  }
+
   const daysRemaining = deal.expires_at
     ? Math.ceil((new Date(deal.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : null;
 
   const discountText =
     deal.discount_type === "percentage"
-      ? `${deal.discount}% OFF`
+      ? `${deal.discount}% ${t("خصم", "OFF")}`
       : deal.discount_type === "fixed"
-        ? `${deal.discount} OFF`
-        : deal.discount;
+        ? `${deal.discount} ${t("د.ل", "LYD")} ${t("خصم", "OFF")}`
+        : deal.discount || t("عرض", "Deal");
 
   return (
     <button
