@@ -816,6 +816,7 @@ export default function Hub() {
 
   // Measure the fixed header height so content below doesn't get hidden under it.
   useLayoutEffect(() => {
+    if (typeof window === "undefined") return;
     const el = headerRef.current;
     if (!el) return;
 
@@ -825,6 +826,11 @@ export default function Hub() {
     };
 
     measure();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
 
     const ro = new ResizeObserver(() => measure());
     ro.observe(el);
