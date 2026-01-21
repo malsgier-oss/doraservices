@@ -80,18 +80,26 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           const escaped = v.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
           return `"${escaped}"`;
         };
+        const escapeLike = (v: string) => v.replace(/[%_]/g, "\\$&");
 
         // Normalize category value for exact matching with stored services.category
         const categoryVal = service?.category ? normalizeCategory(service.category) : "";
         const categoryNames = new Set<string>();
-        if (categoryVal) categoryNames.add(categoryVal);
-        if (service?.categoryName) categoryNames.add(String(service.categoryName));
-        if (service?.categoryNameAr) categoryNames.add(String(service.categoryNameAr));
+        const addCategoryName = (value?: string | null) => {
+          if (!value) return;
+          const trimmed = String(value).trim();
+          if (!trimmed) return;
+          categoryNames.add(trimmed);
+          const normalized = normalizeCategory(trimmed);
+          if (normalized) categoryNames.add(normalized);
+        };
+        addCategoryName(categoryVal);
+        addCategoryName(service?.categoryName);
+        addCategoryName(service?.categoryNameAr);
 
         const categoryOr = Array.from(categoryNames)
-          .map((n) => String(n || "").trim())
           .filter(Boolean)
-          .map((n) => `category.eq.${escOrValue(n)}`)
+          .map((n) => `category.ilike.${escOrValue(escapeLike(String(n).trim()))}`)
           .join(",");
 
         // DEV: Log filter values for debugging (console only, no UI)
