@@ -644,7 +644,11 @@ function ProviderActionBar({
       void trackProviderEvent(provider.id, "call");
       onTrack?.("call_clicks");
     }
-    window.open(telLink, "_self");
+    try {
+      window.location.href = telLink;
+    } catch {
+      window.open(telLink, "_self");
+    }
   };
 
   const handleWhatsapp = () => {
@@ -655,7 +659,12 @@ function ProviderActionBar({
       void trackProviderEvent(provider.id, "whatsapp");
       onTrack?.("whatsapp_clicks");
     }
-    window.open(waLink, "_blank");
+    try {
+      const w = window.open(waLink, "_blank", "noopener,noreferrer");
+      if (!w) window.location.href = waLink;
+    } catch {
+      window.location.href = waLink;
+    }
   };
 
   const submitReport = async () => {
