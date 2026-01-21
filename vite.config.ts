@@ -29,10 +29,6 @@ export default defineConfig(({ mode }) => ({
 
           if (nm.includes("@tanstack/")) return "tanstack";
           if (nm.includes("@supabase/")) return "supabase";
-          if (nm.includes("@radix-ui/")) return "radix";
-          if (nm.includes("lucide-react/")) return "icons";
-          if (nm.includes("posthog-js/")) return "analytics";
-          if (nm.includes("@sentry/")) return "sentry";
           if (nm.includes("mapbox-gl/")) return "mapbox";
           if (nm.includes("recharts/") || nm.includes("d3-")) return "charts";
 
