@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { getTelLink, getWhatsAppLink } from "@/lib/phoneUtils";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 import { trackProviderEvent } from "@/lib/providerTelemetry";
@@ -122,17 +123,16 @@ export function ServiceProviderCard({
   const initials = (provider.provider_name || "?").slice(0, 2).toUpperCase();
   const location = [provider.city, provider.sub_city].filter(Boolean).join(" • ");
   
-  // Clean phone numbers
-  const tel = provider.provider_phone?.replace(/\s+/g, "");
-  const whatsapp = provider.provider_phone?.replace(/[^\d]/g, "");
+  const telLink = getTelLink(String(provider.provider_phone || ""));
+  const waLink = getWhatsAppLink(String(provider.provider_phone || ""));
   const allowWhatsapp = provider.allow_whatsapp !== false;
 
-  const canCall = Boolean(tel);
-  const canWhatsApp = Boolean(whatsapp) && allowWhatsapp;
+  const canCall = telLink !== "tel:";
+  const canWhatsApp = waLink !== "https://wa.me/" && allowWhatsapp;
 
   const handleCall = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!tel) {
+    if (!canCall) {
       toast.error(t("رقم الهاتف غير متوفر", "Phone number not available"));
       return;
     }
@@ -140,12 +140,12 @@ export function ServiceProviderCard({
     if (provider?.id) {
       void trackProviderEvent(provider.id, "call");
     }
-    window.open(`tel:${tel}`, "_self");
+    window.open(telLink, "_self");
   };
 
   const handleWhatsapp = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!whatsapp || !allowWhatsapp) {
+    if (!canWhatsApp) {
       toast.error(t("واتساب غير متوفر", "WhatsApp not available"));
       return;
     }
@@ -153,7 +153,7 @@ export function ServiceProviderCard({
     if (provider?.id) {
       void trackProviderEvent(provider.id, "whatsapp");
     }
-    window.open(`https://wa.me/${whatsapp}`, "_blank");
+    window.open(waLink, "_blank");
   };
 
   const handleFav = (e: React.MouseEvent) => {
