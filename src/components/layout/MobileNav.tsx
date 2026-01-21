@@ -18,6 +18,14 @@ export function MobileNav() {
   const { profile } = useAuth();
   const location = useLocation();
 
+  const preloadRoute = (to: string) => {
+    // Keep this intentionally tiny: only preload the next screen chunk.
+    if (to === "/favorites") void import("@/pages/Favorites");
+    if (to === "/profile") void import("@/pages/Profile");
+    if (to === "/provider-dashboard") void import("@/pages/ProviderDashboard");
+    if (to.startsWith("/admin")) void import("@/pages/admin/AdminLayout");
+  };
+
   const role = (profile?.role || "user").toString();
   const providerLike = isProviderLike(role);
   const admin = isAdmin(role);
@@ -73,6 +81,8 @@ export function MobileNav() {
               <NavLink
                 key={item.to}
                 to={item.to}
+                onMouseEnter={() => preloadRoute(item.to)}
+                onTouchStart={() => preloadRoute(item.to)}
                 className={cn(
                   "flex flex-col items-center justify-center gap-1",
                   "px-4 py-2 rounded-xl transition-colors",

@@ -9,8 +9,7 @@ import { LanguageToggle } from "@/components/LanguageToggle";
 import { cn } from "@/lib/utils";
 import { Briefcase, PhoneCall, Search, ShieldCheck } from "lucide-react";
 import doraLogo from "@/assets/dora-logo.png";
-const ONBOARDING_DONE_KEY = "dora_onboarding_v1_done";
-const ONBOARDING_INTENT_KEY = "dora_onboarding_intent"; // "user" | "provider"
+import { ONBOARDING_DONE_KEY, ONBOARDING_INTENT_KEY } from "./onboardingKeys";
 
 type Intent = "user" | "provider";
 export default function Onboarding() {
