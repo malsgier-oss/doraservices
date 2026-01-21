@@ -18,12 +18,14 @@ import {
   X,
   Star,
   Flag,
+  Eye,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useServiceRatings } from "@/hooks/useReviews";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ServiceProviderCard, ProviderData } from "./ServiceProviderCard";
 import { trackProviderEvent } from "@/lib/providerTelemetry";
+import { normalizeLibyaForTel, normalizeLibyaForWhatsApp } from "@/lib/phone";
 
 // --- Types ---
 export type SheetService = {
@@ -121,7 +123,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
         const baseWithCity = supabase
           .from("services")
           .select(
-            "id,user_id,title,description,category,city,sub_city,provider_name,provider_phone,allow_whatsapp,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count"
+            "id,user_id,title,description,category,city,sub_city,provider_name,provider_phone,allow_whatsapp,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count,call_clicks,whatsapp_clicks"
           )
           .order("is_featured", { ascending: false })
           .order("views_count", { ascending: false });
@@ -129,7 +131,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
         const baseNoCity = supabase
           .from("services")
           .select(
-            "id,user_id,title,description,category,provider_name,provider_phone,allow_whatsapp,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count"
+            "id,user_id,title,description,category,provider_name,provider_phone,allow_whatsapp,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count,call_clicks,whatsapp_clicks"
           )
           .order("is_featured", { ascending: false })
           .order("views_count", { ascending: false });
@@ -223,6 +225,8 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           is_active: r.is_active ?? null,
           approval_status: r.approval_status ?? null,
           views_count: r.views_count ?? null,
+          call_clicks: r.call_clicks ?? null,
+          whatsapp_clicks: r.whatsapp_clicks ?? null,
           reviews: undefined,
         }));
 
@@ -627,18 +631,19 @@ function ProviderActionBar({
   const [submitting, setSubmitting] = useState(false);
 
   const handleCall = () => {
-    if (!provider.provider_phone) return toast.error("لا يوجد رقم هاتف");
+    const tel = normalizeLibyaForTel(provider.provider_phone);
+    if (!tel) return toast.error("لا يوجد رقم هاتف");
     if (provider?.id) {
       void trackProviderEvent(provider.id, "call");
       onTrack?.("call_clicks");
     }
-    window.open(`tel:${provider.provider_phone.replace(/\s+/g, "")}`, "_self");
+    window.open(`tel:${tel}`, "_self");
   };
 
   const handleWhatsapp = () => {
     if (provider.allow_whatsapp === false) return;
-    if (!provider.provider_phone) return toast.error("لا يوجد رقم هاتف");
-    const digits = provider.provider_phone.replace(/[^\d]/g, "");
+    const digits = normalizeLibyaForWhatsApp(provider.provider_phone);
+    if (!digits) return toast.error("لا يوجد رقم هاتف");
     if (provider?.id) {
       void trackProviderEvent(provider.id, "whatsapp");
       onTrack?.("whatsapp_clicks");
@@ -951,6 +956,20 @@ function ProviderDetailView({
           <div>
             <h1 className="text-xl font-bold text-foreground">{provider.provider_name}</h1>
             <p className="text-sm text-muted-foreground mt-1">{provider.title}</p>
+            <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground" dir="rtl">
+              <div className="flex items-center gap-1">
+                <Eye className="h-3 w-3" />
+                <span>{Number(provider.views_count ?? 0)} مشاهدة</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Phone className="h-3 w-3" />
+                <span>{Number(provider.call_clicks ?? 0)} اتصال</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <MessageCircle className="h-3 w-3" />
+                <span>{Number(provider.whatsapp_clicks ?? 0)} واتساب</span>
+              </div>
+            </div>
           </div>
           <div className="flex gap-2">
             <Button

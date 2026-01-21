@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 import { trackProviderEvent } from "@/lib/providerTelemetry";
+import { normalizeLibyaForTel, normalizeLibyaForWhatsApp } from "@/lib/phone";
 
 // --- Types (Shared) ---
 export interface ProviderData {
@@ -123,8 +124,8 @@ export function ServiceProviderCard({
   const location = [provider.city, provider.sub_city].filter(Boolean).join(" • ");
   
   // Clean phone numbers
-  const tel = provider.provider_phone?.replace(/\s+/g, "");
-  const whatsapp = provider.provider_phone?.replace(/[^\d]/g, "");
+  const tel = normalizeLibyaForTel(provider.provider_phone);
+  const whatsapp = normalizeLibyaForWhatsApp(provider.provider_phone);
   const allowWhatsapp = provider.allow_whatsapp !== false;
 
   const canCall = Boolean(tel);

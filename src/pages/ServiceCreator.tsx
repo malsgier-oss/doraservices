@@ -15,6 +15,7 @@ import { useSubCities } from "@/hooks/useSubCities";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { digitsOnlyAscii } from "@/lib/phone";
 import { Loader2 } from "lucide-react";
 import { ImagePlus, Trash2 } from "lucide-react";
 import {
@@ -79,13 +80,9 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Sparkles,
 };
 
-function digitsOnly(v: string) {
-  return (v || "").replace(/\D/g, "");
-}
-
 // Dora P0: store phone in services row so anonymous users can call/WhatsApp
 function normalizeLibyaPhoneForStorage(raw: string | null | undefined) {
-  const d = digitsOnly(raw || "");
+  const d = digitsOnlyAscii(raw || "");
   if (!d) return "";
 
   // already has country code

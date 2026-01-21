@@ -15,6 +15,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { normalizeLibyaForTel } from "@/lib/phone";
 import { toast } from "sonner";
 import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
 import { LucideIcon } from "lucide-react";
@@ -161,8 +162,9 @@ export default function Favorites() {
       navigate("/auth");
       return;
     }
-    if (phone) {
-      window.location.href = `tel:${phone}`;
+    const tel = normalizeLibyaForTel(phone);
+    if (tel) {
+      window.location.href = `tel:${tel}`;
     }
   };
 

@@ -36,6 +36,7 @@ import { useServiceRatings } from "@/hooks/useReviews";
 import { CategoryBrowseSheet } from "@/components/hub/CategoryBrowseSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { trackProviderEvent } from "@/lib/providerTelemetry";
+import { normalizeLibyaForTel, normalizeLibyaForWhatsApp } from "@/lib/phone";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications, useUnreadCount, useNotificationMutations } from "@/hooks/useNotifications";
@@ -411,6 +412,8 @@ export default function Hub() {
     };
   };
 
+  const normalizeSubcategoryKey = (value: string) => value.trim().toLowerCase();
+
   const subcatByName = useMemo(() => {
     const map = new Map<string, {
       id: string;
@@ -422,16 +425,21 @@ export default function Hub() {
 
     for (const sc of (allSubcategories || []) as any[]) {
       const name = String(sc?.name || "").trim();
+      const nameAr = String(sc?.name_ar || "").trim();
       if (!name) continue;
       const iconKey = String(sc?.icon || "");
       const icon = ICON_MAP[iconKey] || Wrench;
-      map.set(name, {
+      const payload = {
         id: String(sc.id),
         name,
         name_ar: sc?.name_ar ?? null,
         icon,
         color: (sc?.color ?? null) as string | null,
-      });
+      };
+      map.set(normalizeSubcategoryKey(name), payload);
+      if (nameAr) {
+        map.set(normalizeSubcategoryKey(nameAr), payload);
+      }
     }
     return map;
   }, [allSubcategories]);
@@ -667,7 +675,8 @@ export default function Hub() {
   }
 
   const openServiceFromRow = (service: ServiceRow) => {
-    const subcat = subcatByName.get(String(service.category || "").trim());
+    const lookupKey = normalizeSubcategoryKey(String(service.category || ""));
+    const subcat = lookupKey ? subcatByName.get(lookupKey) : undefined;
     if (!subcat) {
       toast({
         title: t("تعذر فتح الخدمة", "Could not open"),
@@ -764,8 +773,8 @@ export default function Hub() {
   };
 
   const getContactState = (service: ServiceRow) => {
-    const tel = service.provider_phone?.replace(/\s+/g, "") || "";
-    const whatsapp = service.provider_phone?.replace(/[^\d]/g, "") || "";
+    const tel = normalizeLibyaForTel(service.provider_phone);
+    const whatsapp = normalizeLibyaForWhatsApp(service.provider_phone);
     const allowWhatsapp = service.allow_whatsapp !== false;
     return {
       tel,
