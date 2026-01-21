@@ -528,7 +528,10 @@ export function ServiceDetailSheet({
     reporterId?: string | null,
     reason?: string | null
   ) => {
-    if (!reporterId) return toast.info("سجل دخولك للإبلاغ");
+    if (!reporterId) {
+      toast.info("سجل دخولك للإبلاغ");
+      return;
+    }
     try {
       const { error } = await supabase.from("user_reports").insert({
         reporter_id: reporterId,

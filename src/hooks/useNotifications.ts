@@ -42,7 +42,14 @@ export function useNotifications() {
         .limit(20);
 
       if (error) throw error;
-      return data as Notification[];
+      const normalized = (data ?? []).map((row: any) => {
+        const msg = Array.isArray(row.message) ? row.message[0] : row.message;
+        return {
+          ...row,
+          message: msg ?? null,
+        };
+      });
+      return normalized as Notification[];
     },
     enabled: !!user,
   });

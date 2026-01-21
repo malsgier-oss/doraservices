@@ -30,6 +30,7 @@ interface FavoriteService {
 }
 
 type SheetService = {
+  id: string;
   titleKey: string;
   descKey: string;
   category: string;
