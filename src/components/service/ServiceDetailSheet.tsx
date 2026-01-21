@@ -111,10 +111,12 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
             // ignore mapping errors
           }
 
-          cityOr = Array.from(cityNames)
-            .filter(Boolean)
-            .map((n) => `city.eq.${escOrValue(n)}`)
-            .join(",");
+          const cityArray = Array.from(cityNames).filter(Boolean);
+          if (cityArray.length > 0) {
+            cityOr = cityArray
+              .map((n) => `city.eq.${escOrValue(n)}`)
+              .join(",");
+          }
         }
 
         const baseWithCity = supabase
