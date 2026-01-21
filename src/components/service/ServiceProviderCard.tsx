@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getTelLink, getWhatsAppLink } from "@/lib/phoneUtils";
@@ -286,6 +286,9 @@ export function ServiceProviderCard({
         {/* Full Image Dialog */}
         <Dialog open={imageOpen} onOpenChange={setImageOpen}>
           <DialogContent className="max-w-[90vw] p-0 border-none bg-black/90">
+            <DialogDescription className="sr-only">
+              {language === "ar" ? "عرض صورة بحجم كامل" : "Full screen image viewer"}
+            </DialogDescription>
              <div className="h-[60vh] flex items-center justify-center">
                <img src={coverImage || ""} className="max-h-full max-w-full object-contain" />
              </div>
