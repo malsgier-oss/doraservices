@@ -180,9 +180,9 @@ const AppRoutes = () => {
       <Route
         path="/create-service"
         element={
-          <ProtectedRoute>
+          <ProviderRoute>
             <ServiceCreator />
-          </ProtectedRoute>
+          </ProviderRoute>
         }
       />
 
