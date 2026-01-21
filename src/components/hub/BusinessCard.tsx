@@ -19,6 +19,21 @@ export function BusinessCard({
   rating,
   ratingCount,
 }: BusinessCardProps) {
+  const { language } = useLanguage();
+  const t = (ar: string, en: string) => (language === "ar" ? ar : en);
+
+  // Safety check
+  if (!business || !business.id) {
+    if (import.meta.env.DEV) {
+      console.warn("[BusinessCard] Invalid business data", business);
+    }
+    return null;
+  }
+
+  if (import.meta.env.DEV && !business.name) {
+    console.warn("[BusinessCard] Business missing name", business);
+  }
+
   return (
     <button
       onClick={onClick}
