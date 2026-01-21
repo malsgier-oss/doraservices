@@ -46,8 +46,6 @@ const AdminPasswordResets = React.lazy(() => import("./pages/admin/AdminPassword
 const AdminReviews = React.lazy(() => import("./pages/admin/AdminReviews"));
 const AdminAnnouncements = React.lazy(() => import("./pages/admin/AdminAnnouncements"));
 
-// ✅ NEW: Env Debug page (optional)
-const EnvDebug = React.lazy(() => import("./pages/EnvDebug"));
 const SitePage = React.lazy(() => import("./pages/SitePage"));
 const AdminHubSuggestions = React.lazy(() => import("./pages/admin/AdminHubSuggestions"));
 const AdminHub = React.lazy(() => import("./pages/admin/AdminHub"));
@@ -123,7 +121,6 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
       path === "/forgot-password" ||
       path === "/change-password" ||
       path === "/pending-verification" ||
-      path === "/env" ||
       path.startsWith("/admin");
 
     if (allow) return;
@@ -155,9 +152,6 @@ const AppRoutes = () => {
 
         {/* Public site pages */}
         <Route path="/:slug(about|contact|help|become-provider|terms|privacy)" element={<SitePage />} />
-
-        {/* ✅ ENV DEBUG ROUTE (optional) */}
-        <Route path="/env" element={<EnvDebug />} />
 
         {/* Auth routes */}
         <Route
