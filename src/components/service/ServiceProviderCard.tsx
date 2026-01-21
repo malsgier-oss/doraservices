@@ -107,7 +107,8 @@ export function ServiceProviderCard({
   onReport,
   onDetails,
 }: ServiceProviderCardProps) {
-  const { t } = useLanguage();
+  const { language } = useLanguage();
+  const t = (ar: string, en: string) => (language === "ar" ? ar : en);
   const [imageOpen, setImageOpen] = useState(false);
 
   // -- Data Prep --
