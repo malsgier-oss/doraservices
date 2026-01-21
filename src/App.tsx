@@ -11,6 +11,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AdminRoute } from "@/components/auth/AdminRoute";
 import { ProviderRoute } from "@/components/auth/ProviderRoute";
 import { AppErrorBoundary } from "@/components/layout/AppErrorBoundary";
+import { RouteAnalytics } from "@/observability/RouteAnalytics";
 
 import { ONBOARDING_DONE_KEY } from "./pages/onboardingKeys";
 
@@ -281,6 +282,7 @@ const App = () => (
           <BrowserRouter>
             <AppErrorBoundary>
               <AppRoutes />
+              <RouteAnalytics />
               <React.Suspense fallback={null}>
                 <PendingRatingPrompt />
               </React.Suspense>
