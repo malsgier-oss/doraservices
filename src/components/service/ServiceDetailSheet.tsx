@@ -132,19 +132,17 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
 
         const baseWithCity = supabase
           .from("services")
-          .select(
-            "id,user_id,title,description,category,city,sub_city,provider_name,provider_phone,allow_whatsapp,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count,call_clicks,whatsapp_clicks"
-          )
-          .order("is_featured", { ascending: false })
-          .order("views_count", { ascending: false });
+          // Use select("*") so this stays compatible across older schemas
+          // (some deployments may not have optional columns like allow_whatsapp/call_clicks/etc).
+          .select("*")
+          .order("views_count", { ascending: false })
+          .order("created_at", { ascending: false });
 
         const baseNoCity = supabase
           .from("services")
-          .select(
-            "id,user_id,title,description,category,provider_name,provider_phone,allow_whatsapp,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count,call_clicks,whatsapp_clicks"
-          )
-          .order("is_featured", { ascending: false })
-          .order("views_count", { ascending: false });
+          .select("*")
+          .order("views_count", { ascending: false })
+          .order("created_at", { ascending: false });
 
         const runQuery = async (
           mode: "strict" | "permissive",
