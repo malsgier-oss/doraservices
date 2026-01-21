@@ -95,6 +95,19 @@ export default function AdminSettings() {
 
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
+              <Label>Buy & Sell Marketplace</Label>
+              <p className="text-sm text-muted-foreground">
+                Enable marketplace features (deals, businesses) on Hub
+              </p>
+            </div>
+            <Switch
+              checked={localSettings.buy_sell_enabled === "true"}
+              onCheckedChange={() => handleToggle("buy_sell_enabled")}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
               <Label>User Registration</Label>
               <p className="text-sm text-muted-foreground">
                 Allow new user signups
