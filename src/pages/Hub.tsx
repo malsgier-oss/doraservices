@@ -42,6 +42,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications, useUnreadCount, useNotificationMutations } from "@/hooks/useNotifications";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { normalizeCategory } from "@/lib/utils";
 
 /**
  * Safety net: prevent a whole-app white screen if ServiceDetailSheet crashes.
@@ -421,7 +422,7 @@ export default function Hub() {
       color: string | null;
     }>();
 
-    const keyOf = (v: string) => String(v || "").trim().toLowerCase();
+    const keyOf = (v: string) => normalizeCategory(String(v || "")).toLowerCase();
 
     for (const sc of (allSubcategories || []) as any[]) {
       const name = String(sc?.name || "").trim();
@@ -643,8 +644,8 @@ export default function Hub() {
 
   const selectedSheetService = useMemo(() => {
     if (!selectedSubcategory) return null;
-    // Normalize category value: trim whitespace to match exactly what's stored in services.category
-    const normalizedCategory = (selectedSubcategory.name || "").trim();
+    // Normalize category value to match exactly what's stored in services.category
+    const normalizedCategory = normalizeCategory(selectedSubcategory.name || "");
     return {
       id: selectedSubcategory.id,
       titleKey: selectedSubcategory.name_ar || selectedSubcategory.name,
@@ -676,7 +677,8 @@ export default function Hub() {
   }
 
   const openServiceFromRow = (service: ServiceRow) => {
-    const subcat = subcatByName.get(String(service.category || "").trim().toLowerCase());
+    const subcatKey = normalizeCategory(String(service.category || "")).toLowerCase();
+    const subcat = subcatByName.get(subcatKey);
     if (!subcat) {
       toast({
         title: t("تعذر فتح الخدمة", "Could not open"),

@@ -85,8 +85,8 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
         const categoryVal = service?.category ? normalizeCategory(service.category) : "";
         const categoryNames = new Set<string>();
         if (categoryVal) categoryNames.add(categoryVal);
-        if (service?.categoryName) categoryNames.add(String(service.categoryName));
-        if (service?.categoryNameAr) categoryNames.add(String(service.categoryNameAr));
+        if (service?.categoryName) categoryNames.add(normalizeCategory(String(service.categoryName)));
+        if (service?.categoryNameAr) categoryNames.add(normalizeCategory(String(service.categoryNameAr)));
 
         const categoryOr = Array.from(categoryNames)
           .map((n) => String(n || "").trim())
