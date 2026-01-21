@@ -140,7 +140,12 @@ export function ServiceProviderCard({
     if (provider?.id) {
       void trackProviderEvent(provider.id, "call");
     }
-    window.open(telLink, "_self");
+    // Mobile Safari can block window.open; location navigation is more reliable for tel: links.
+    try {
+      window.location.href = telLink;
+    } catch {
+      window.open(telLink, "_self");
+    }
   };
 
   const handleWhatsapp = (e: React.MouseEvent) => {
@@ -153,7 +158,12 @@ export function ServiceProviderCard({
     if (provider?.id) {
       void trackProviderEvent(provider.id, "whatsapp");
     }
-    window.open(waLink, "_blank");
+    try {
+      const w = window.open(waLink, "_blank", "noopener,noreferrer");
+      if (!w) window.location.href = waLink;
+    } catch {
+      window.location.href = waLink;
+    }
   };
 
   const handleFav = (e: React.MouseEvent) => {

@@ -81,29 +81,31 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           return `"${escaped}"`;
         };
 
-        // Normalize category value for exact matching with stored services.category
+        // Normalize category value for matching with stored services.category
         const categoryVal = service?.category ? normalizeCategory(service.category) : "";
         const categoryNames = new Set<string>();
         if (categoryVal) categoryNames.add(categoryVal);
         if (service?.categoryName) categoryNames.add(String(service.categoryName));
         if (service?.categoryNameAr) categoryNames.add(String(service.categoryNameAr));
 
-        const categoryOr = Array.from(categoryNames)
+        // Use `.in()` instead of `.or(...)` for reliability with quoting/encoding.
+        // Include both raw + normalized variants to match legacy stored values.
+        const categoryList = Array.from(categoryNames)
           .map((n) => String(n || "").trim())
           .filter(Boolean)
-          .map((n) => `category.eq.${escOrValue(n)}`)
-          .join(",");
+          .flatMap((n) => [n, normalizeCategory(n)]);
+        const categoryIn = Array.from(new Set(categoryList)).filter(Boolean);
 
         // DEV: Log filter values for debugging (console only, no UI)
         if (import.meta.env?.DEV || import.meta.env?.MODE === "development") {
           console.log("[ServiceDetailSheet] Filter values:", {
             category: categoryVal || "(empty)",
             city: city || "(empty)",
-            categoryFilter: categoryOr || "(none)",
+            categoryFilter: categoryIn.length ? categoryIn : "(none)",
           });
         }
 
-        let cityOr = "";
+        let cityIn: string[] = [];
         const cityVal = (city || "").trim();
         if (cityVal) {
           const cityNames = new Set<string>();
@@ -122,27 +124,25 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
             // ignore mapping errors
           }
 
-          cityOr = Array.from(cityNames)
-            .filter(Boolean)
-            .map((n) => `city.eq.${escOrValue(n)}`)
-            .join(",");
+          const cityList = Array.from(cityNames)
+            .map((n) => String(n || "").trim())
+            .filter(Boolean);
+          cityIn = Array.from(new Set(cityList));
         }
 
         const baseWithCity = supabase
           .from("services")
-          .select(
-            "id,user_id,title,description,category,city,sub_city,provider_name,provider_phone,allow_whatsapp,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count,call_clicks,whatsapp_clicks"
-          )
-          .order("is_featured", { ascending: false })
-          .order("views_count", { ascending: false });
+          // Use select("*") so this stays compatible across older schemas
+          // (some deployments may not have optional columns like allow_whatsapp/call_clicks/etc).
+          .select("*")
+          .order("views_count", { ascending: false })
+          .order("created_at", { ascending: false });
 
         const baseNoCity = supabase
           .from("services")
-          .select(
-            "id,user_id,title,description,category,provider_name,provider_phone,allow_whatsapp,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count,call_clicks,whatsapp_clicks"
-          )
-          .order("is_featured", { ascending: false })
-          .order("views_count", { ascending: false });
+          .select("*")
+          .order("views_count", { ascending: false })
+          .order("created_at", { ascending: false });
 
         const runQuery = async (
           mode: "strict" | "permissive",
@@ -155,20 +155,21 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
               .eq("is_visible", true)
               .eq("is_active", true)
               .eq("is_paused", false)
-              .eq("approval_status", "approved");
+              // Approval status matching should be case-insensitive to align with RLS (lower(...) = 'approved')
+              .ilike("approval_status", "approved");
           } else {
             q = q
               .or("is_visible.eq.true,is_visible.is.null")
               .or("is_active.eq.true,is_active.is.null")
               .or("is_paused.eq.false,is_paused.is.null")
-              .or("approval_status.eq.approved,approval_status.is.null");
+              .or("approval_status.ilike.approved,approval_status.is.null");
           }
 
-          // Filter by category name (matches services.category column exactly)
-          if (categoryOr) {
-            q = q.or(categoryOr);
+          // Filter by category name (matches services.category column)
+          if (categoryIn.length > 0) {
+            q = q.in("category", categoryIn);
           }
-          if (allowCityFilter && cityOr) q = q.or(cityOr);
+          if (allowCityFilter && cityIn.length > 0) q = q.in("city", cityIn);
 
           return await q;
         };
@@ -196,7 +197,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           error = res.error;
 
           // If city filtering yields zero, retry without city filters
-          if ((!data || data.length === 0) && allowCityFilter && cityOr) {
+          if ((!data || data.length === 0) && allowCityFilter && cityIn.length > 0) {
             allowCityFilter = false;
             res = await runQuery("permissive", allowCityFilter);
             data = res.data;
@@ -209,7 +210,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           if ((!data || data.length === 0) && (import.meta.env?.DEV || import.meta.env?.MODE === "development")) {
             console.warn("[ServiceDetailSheet] No providers found with filters:", {
               categoryFilter: categoryVal || "(none)",
-              cityFilter: cityOr || "(none)",
+            cityFilter: cityIn.length ? cityIn : "(none)",
               allowCityFilter,
             });
           }
@@ -284,7 +285,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
     };
   }, [open, service.category, city]);
 
-  return { providers, loading, error };
+  return { providers, setProviders, loading, error };
 }
 
 // --- Main Component ---
@@ -297,7 +298,7 @@ export function ServiceDetailSheet({
   onToggleFavorite,
   isFavorite,
 }: Props) {
-  const { providers, loading, error } = useSheetData(open, service, city);
+  const { providers, setProviders, loading, error } = useSheetData(open, service, city);
 
   const [selectedProvider, setSelectedProvider] = useState<ProviderData | null>(null);
   const viewedServiceIdsRef = useRef<Set<string>>(new Set());
@@ -310,6 +311,21 @@ export function ServiceDetailSheet({
 
   const serviceIds = useMemo(() => providers.map((p) => p.id), [providers]);
   const { ratings } = useServiceRatings(serviceIds);
+
+  // Prevent the sheet from opening scrolled to the bottom (especially after a previous scroll).
+  useEffect(() => {
+    if (!open) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    // Ensure this runs after layout so the scroll container exists and has height.
+    requestAnimationFrame(() => {
+      try {
+        el.scrollTo({ top: 0, behavior: "auto" });
+      } catch {
+        el.scrollTop = 0;
+      }
+    });
+  }, [open, selectedProvider?.id]);
 
   const bumpProviderStat = (
     id: string,
@@ -643,7 +659,11 @@ function ProviderActionBar({
       void trackProviderEvent(provider.id, "call");
       onTrack?.("call_clicks");
     }
-    window.open(telLink, "_self");
+    try {
+      window.location.href = telLink;
+    } catch {
+      window.open(telLink, "_self");
+    }
   };
 
   const handleWhatsapp = () => {
@@ -654,7 +674,12 @@ function ProviderActionBar({
       void trackProviderEvent(provider.id, "whatsapp");
       onTrack?.("whatsapp_clicks");
     }
-    window.open(waLink, "_blank");
+    try {
+      const w = window.open(waLink, "_blank", "noopener,noreferrer");
+      if (!w) window.location.href = waLink;
+    } catch {
+      window.location.href = waLink;
+    }
   };
 
   const submitReport = async () => {

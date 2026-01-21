@@ -792,7 +792,11 @@ export default function Hub() {
       return;
     }
     void trackProviderEvent(service.id, "call");
-    window.open(telLink, "_self");
+    try {
+      window.location.href = telLink;
+    } catch {
+      window.open(telLink, "_self");
+    }
   };
 
   const handleWhatsApp = (service: ServiceRow) => {
@@ -802,7 +806,12 @@ export default function Hub() {
       return;
     }
     void trackProviderEvent(service.id, "whatsapp");
-    window.open(waLink, "_blank");
+    try {
+      const w = window.open(waLink, "_blank", "noopener,noreferrer");
+      if (!w) window.location.href = waLink;
+    } catch {
+      window.location.href = waLink;
+    }
   };
 
   // City label (no "All cities" option; auto-picks first city)
