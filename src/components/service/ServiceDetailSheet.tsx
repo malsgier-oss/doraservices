@@ -285,7 +285,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
     };
   }, [open, service.category, city]);
 
-  return { providers, loading, error };
+  return { providers, setProviders, loading, error };
 }
 
 // --- Main Component ---
@@ -298,7 +298,7 @@ export function ServiceDetailSheet({
   onToggleFavorite,
   isFavorite,
 }: Props) {
-  const { providers, loading, error } = useSheetData(open, service, city);
+  const { providers, setProviders, loading, error } = useSheetData(open, service, city);
 
   const [selectedProvider, setSelectedProvider] = useState<ProviderData | null>(null);
   const viewedServiceIdsRef = useRef<Set<string>>(new Set());
