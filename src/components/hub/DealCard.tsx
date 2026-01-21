@@ -38,6 +38,8 @@ export function DealCard({ deal, onClick, isRTL }: DealCardProps) {
             src={deal.image_url}
             alt={deal.title}
             className="w-full h-full object-cover"
+            loading="lazy"
+            decoding="async"
           />
           {deal.featured && (
             <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded">

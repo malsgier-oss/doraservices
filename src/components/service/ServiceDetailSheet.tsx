@@ -918,7 +918,7 @@ function ProviderDetailView({
               className="shrink-0 w-[82vw] h-[170px] rounded-2xl overflow-hidden bg-muted snap-center shadow-sm border first:ml-0 cursor-pointer"
             >
               {src ? (
-                <img src={src} className="h-full w-full object-cover" alt="" />
+                <img src={src} className="h-full w-full object-cover" alt="" loading="lazy" decoding="async" />
               ) : (
                 <div className="h-full w-full flex items-center justify-center text-muted-foreground">
                   لا توجد صور

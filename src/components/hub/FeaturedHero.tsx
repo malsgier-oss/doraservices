@@ -182,6 +182,8 @@ const FeaturedHero = memo(function FeaturedHero({
                   alt=""
                   className="h-full w-full object-cover"
                   loading={idx === 0 ? "eager" : "lazy"}
+                  decoding="async"
+                  fetchPriority={idx === 0 ? "high" : "auto"}
                 />
               ) : null}
               <div className="absolute inset-x-0 bottom-0 p-4">

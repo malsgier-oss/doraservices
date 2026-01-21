@@ -35,6 +35,8 @@ export function BusinessCard({
             src={business.image_url}
             alt={business.name}
             className="w-full h-full object-cover"
+            loading="lazy"
+            decoding="async"
           />
           {business.featured && (
             <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded">

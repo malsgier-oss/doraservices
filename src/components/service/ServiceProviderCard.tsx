@@ -284,7 +284,7 @@ export function ServiceProviderCard({
         <Dialog open={imageOpen} onOpenChange={setImageOpen}>
           <DialogContent className="max-w-[90vw] p-0 border-none bg-black/90">
              <div className="h-[60vh] flex items-center justify-center">
-               <img src={coverImage || ""} className="max-h-full max-w-full object-contain" />
+               <img src={coverImage || ""} className="max-h-full max-w-full object-contain" loading="eager" decoding="async" />
              </div>
           </DialogContent>
         </Dialog>
@@ -307,6 +307,8 @@ export function ServiceProviderCard({
             src={coverImage} 
             alt={provider.provider_name || ""} 
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+            loading="lazy"
+            decoding="async"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
