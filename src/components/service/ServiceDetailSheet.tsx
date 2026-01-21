@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useServiceRatings } from "@/hooks/useReviews";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription } from "@/components/ui/dialog";
 import { ServiceProviderCard, ProviderData } from "./ServiceProviderCard";
 import { trackProviderEvent } from "@/lib/providerTelemetry";
 import { getTelLink, getWhatsAppLink } from "@/lib/phoneUtils";
@@ -865,6 +865,9 @@ function ProviderActionBar({
 
       <Dialog open={reportOpen} onOpenChange={setReportOpen}>
         <DialogContent className="max-w-[92vw] sm:max-w-md rounded-2xl">
+          <DialogDescription className="sr-only">
+            {isRTL ? "نموذج إبلاغ عن مشكلة مع مزود الخدمة" : "Report an issue with a service provider"}
+          </DialogDescription>
           <div className="space-y-4" dir={isRTL ? "rtl" : "ltr"}>
             <div>
               <div className="text-lg font-bold text-foreground">إبلاغ عن مشكلة</div>
@@ -1318,6 +1321,9 @@ function ProviderDetailView({
       {/* Rate Dialog */}
       <Dialog open={rateOpen} onOpenChange={setRateOpen}>
         <DialogContent className="max-w-[92vw] sm:max-w-md rounded-2xl">
+          <DialogDescription className="sr-only">
+            {isRTL ? "نموذج تقييم خدمة المزود" : "Rate a service provider"}
+          </DialogDescription>
           <div className="space-y-4">
             <div>
               <div className="text-lg font-bold text-foreground">تقييم الخدمة</div>
@@ -1371,6 +1377,9 @@ function ProviderDetailView({
       {/* Full Screen Viewer */}
       <Dialog open={viewerIndex !== null} onOpenChange={(o) => !o && setViewerIndex(null)}>
         <DialogContent className="max-w-[100vw] h-[100dvh] p-0 border-none bg-black flex flex-col justify-center">
+          <DialogDescription className="sr-only">
+            {isRTL ? "عرض صورة بحجم كامل" : "Full screen image viewer"}
+          </DialogDescription>
           <div className="relative w-full h-full flex items-center justify-center">
             <button
               className="absolute top-4 right-4 z-50 p-2 bg-black/50 text-white rounded-full hover:bg-black/70"
