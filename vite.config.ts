@@ -20,11 +20,18 @@ export default defineConfig(({ mode }) => ({
       output: {
         manualChunks(id) {
           if (!id.includes("node_modules")) return;
-          if (id.includes("react")) return "react-vendor";
-          if (id.includes("@tanstack")) return "tanstack";
-          if (id.includes("@supabase")) return "supabase";
-          if (id.includes("mapbox-gl")) return "mapbox";
-          if (id.includes("recharts") || id.includes("d3-")) return "charts";
+
+          // Avoid overly-broad substring matches (e.g. "react" matches many deps)
+          const nm = id.split("node_modules/")[1] ?? id;
+
+          if (/^(react|react-dom|scheduler)\//.test(nm)) return "react";
+          if (/^react-router/.test(nm)) return "router";
+
+          if (nm.includes("@tanstack/")) return "tanstack";
+          if (nm.includes("@supabase/")) return "supabase";
+          if (nm.includes("mapbox-gl/")) return "mapbox";
+          if (nm.includes("recharts/") || nm.includes("d3-")) return "charts";
+
           return "vendor";
         },
       },
