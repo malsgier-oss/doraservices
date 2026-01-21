@@ -48,6 +48,7 @@ import {
   LucideIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getDigitsOnly } from "@/lib/phoneUtils";
 
 // Icon mapping for dynamic icons from database
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -79,13 +80,9 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Sparkles,
 };
 
-function digitsOnly(v: string) {
-  return (v || "").replace(/\D/g, "");
-}
-
 // Dora P0: store phone in services row so anonymous users can call/WhatsApp
 function normalizeLibyaPhoneForStorage(raw: string | null | undefined) {
-  const d = digitsOnly(raw || "");
+  const d = getDigitsOnly(raw || "");
   if (!d) return "";
 
   // already has country code
