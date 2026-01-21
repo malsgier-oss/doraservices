@@ -35,6 +35,7 @@ import { useGuides } from "@/hooks/useGuides";
 import { useServiceRatings } from "@/hooks/useReviews";
 import { CategoryBrowseSheet } from "@/components/hub/CategoryBrowseSheet";
 import { supabase } from "@/integrations/supabase/client";
+import { trackProviderEvent } from "@/lib/providerTelemetry";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications, useUnreadCount, useNotificationMutations } from "@/hooks/useNotifications";
@@ -775,24 +776,13 @@ export default function Hub() {
     };
   };
 
-  const trackServiceEvent = (serviceId: string, type: "call" | "whatsapp") => {
-    if (!serviceId) return;
-    void (async () => {
-      try {
-        await supabase.rpc("record_service_event", { p_service_id: serviceId, p_event_type: type } as any);
-      } catch {
-        // Best-effort telemetry only.
-      }
-    })();
-  };
-
   const handleCall = (service: ServiceRow) => {
     const { tel } = getContactState(service);
     if (!tel) {
       toast({ title: t("رقم الهاتف غير متوفر", "Phone number not available"), variant: "destructive" });
       return;
     }
-    trackServiceEvent(service.id, "call");
+    void trackProviderEvent(service.id, "call");
     window.open(`tel:${tel}`, "_self");
   };
 
@@ -802,7 +792,7 @@ export default function Hub() {
       toast({ title: t("واتساب غير متوفر", "WhatsApp not available"), variant: "destructive" });
       return;
     }
-    trackServiceEvent(service.id, "whatsapp");
+    void trackProviderEvent(service.id, "whatsapp");
     window.open(`https://wa.me/${whatsapp}`, "_blank");
   };
 

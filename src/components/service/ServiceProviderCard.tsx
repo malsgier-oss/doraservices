@@ -14,8 +14,8 @@ import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { trackProviderEvent } from "@/lib/providerTelemetry";
 
 // --- Types (Shared) ---
 export interface ProviderData {
@@ -40,6 +40,9 @@ export interface ProviderData {
   // New: Array of review texts for the snippet feature
   reviews?: string[]; 
   is_verified?: boolean;
+  views_count?: number | null;
+  call_clicks?: number | null;
+  whatsapp_clicks?: number | null;
   // Service lifecycle flags (used for trust/visibility logic in sheets)
   is_active?: boolean | null;
   is_visible?: boolean | null;
@@ -135,14 +138,7 @@ export function ServiceProviderCard({
     }
     // Best-effort tracking (doesn't block the call)
     if (provider?.id) {
-      // supabase.rpc() may not return a Promise in some builds; wrap in async IIFE to avoid runtime .catch errors.
-      void (async () => {
-        try {
-          await supabase.rpc("record_service_event", { p_service_id: provider.id, p_event_type: "call" } as any);
-        } catch {
-          // best-effort telemetry only
-        }
-      })();
+      void trackProviderEvent(provider.id, "call");
     }
     window.open(`tel:${tel}`, "_self");
   };
@@ -155,14 +151,7 @@ export function ServiceProviderCard({
     }
     // Best-effort tracking (doesn't block WhatsApp)
     if (provider?.id) {
-      // supabase.rpc() may not return a Promise in some builds; wrap in async IIFE to avoid runtime .catch errors.
-      void (async () => {
-        try {
-          await supabase.rpc("record_service_event", { p_service_id: provider.id, p_event_type: "whatsapp" } as any);
-        } catch {
-          // best-effort telemetry only
-        }
-      })();
+      void trackProviderEvent(provider.id, "whatsapp");
     }
     window.open(`https://wa.me/${whatsapp}`, "_blank");
   };
