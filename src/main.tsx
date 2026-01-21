@@ -1,5 +1,4 @@
 import { createRoot } from "react-dom/client";
-import App from "./App.tsx";
 import "./index.css";
 import { initSentry, captureException } from "@/observability/sentry";
 import { initAnalytics } from "@/observability/analytics";
@@ -31,6 +30,22 @@ if (!rootEl) {
   initSentry();
   initAnalytics();
 
+  const supabaseUrl = import.meta.env.VITE_DORA_SUPABASE_URL as string | undefined;
+  const supabaseAnonKey = import.meta.env.VITE_DORA_SUPABASE_ANON_KEY as string | undefined;
+
+  // If env vars are missing in production (common on first Cloudflare Pages setup),
+  // avoid a blank page by showing a fatal error before importing the app bundle.
+  if (!supabaseUrl || !supabaseAnonKey) {
+    showFatal(
+      `Missing required environment variables.
+VITE_DORA_SUPABASE_URL set? ${Boolean(supabaseUrl)}
+VITE_DORA_SUPABASE_ANON_KEY set? ${Boolean(supabaseAnonKey)}
+
+If you're on Cloudflare Pages, add these as build-time environment variables for the Production environment.`,
+    );
+    throw new Error("Missing Supabase env vars");
+  }
+
   window.addEventListener("error", (event) => {
     captureException(event.error || event.message);
     showFatal(event.error?.message || event.message || "Unexpected error");
@@ -44,7 +59,16 @@ if (!rootEl) {
   });
 
   try {
-    createRoot(rootEl).render(<App />);
+    // Import App lazily so startup can show a useful fatal screen if config is missing.
+    void import("./App.tsx")
+      .then(({ default: App }) => {
+        createRoot(rootEl).render(<App />);
+      })
+      .catch((error) => {
+        captureException(error);
+        const message = error instanceof Error ? error.message : "Unexpected error";
+        showFatal(message);
+      });
   } catch (error) {
     captureException(error);
     const message = error instanceof Error ? error.message : "Unexpected error";
