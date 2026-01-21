@@ -32,6 +32,7 @@ import { DealCard } from "@/components/hub/DealCard";
 import { BusinessCard } from "@/components/hub/BusinessCard";
 import { BuySellCategories } from "@/components/hub/BuySellCategories";
 import { SearchFilters, type FilterState } from "@/components/hub/SearchFilters";
+import { AnimatedSection } from "@/components/hub/AnimatedSection";
 import { useDeals } from "@/hooks/useDeals";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { HUB_CARD_BASE } from "@/components/hub/hubStyles";
@@ -1306,47 +1307,50 @@ export default function Hub() {
           <StatsBar />
 
           <div className="px-4 space-y-6">
-          {/* Services (MAIN categories) grid - exactly 8 */}
-          <HubSection title={t("الخدمات", "Categories")} icon={LayoutGrid}>
-            {categoriesLoading ? (
-              <div className="text-sm text-muted-foreground">Loading...</div>
-            ) : categoriesError ? (
-              <div className={`${HUB_CARD_BASE} bg-card p-4 text-sm text-muted-foreground`}>
-                {t("تعذر تحميل الأقسام. حاول مرة أخرى.", "Couldn't load categories. Please try again.")}
-              </div>
-            ) : gridCategories.length === 0 ? (
-              <div className={`${HUB_CARD_BASE} bg-card p-4 text-sm text-muted-foreground`}>
-                {t("لا توجد أقسام متاحة حالياً.", "No categories available right now.")}
-              </div>
-            ) : (
-              <div className="grid grid-cols-4 gap-4">
-                {gridCategories.map((c) => {
-                  const Icon = ICON_MAP[c.icon] || Wrench;
-                  return (
-                    <button
-                      key={c.id}
-                      className={`${HUB_CARD_BASE} bg-card min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
-                      onClick={() => openCategoryBrowse(c.id)}
-                    >
-                      <div
-                        className="h-14 w-14 rounded-full flex items-center justify-center shadow-sm"
-                        style={{ backgroundColor: (c.color || "#888") + "1f" }}
-                      >
-                        <Icon className="h-7 w-7 text-foreground" strokeWidth={2.2} />
-                      </div>
-                      <div className="text-xs font-medium text-muted-foreground leading-snug line-clamp-2">
-                        {c.name_ar || c.name}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </HubSection>
+            {/* Services (MAIN categories) grid - exactly 8 */}
+            <AnimatedSection direction="up" delay={100}>
+              <HubSection title={t("الخدمات", "Categories")} icon={LayoutGrid}>
+                {categoriesLoading ? (
+                  <div className="text-sm text-muted-foreground">Loading...</div>
+                ) : categoriesError ? (
+                  <div className={`${HUB_CARD_BASE} bg-card p-4 text-sm text-muted-foreground`}>
+                    {t("تعذر تحميل الأقسام. حاول مرة أخرى.", "Couldn't load categories. Please try again.")}
+                  </div>
+                ) : gridCategories.length === 0 ? (
+                  <div className={`${HUB_CARD_BASE} bg-card p-4 text-sm text-muted-foreground`}>
+                    {t("لا توجد أقسام متاحة حالياً.", "No categories available right now.")}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-4 gap-4">
+                    {gridCategories.map((c) => {
+                      const Icon = ICON_MAP[c.icon] || Wrench;
+                      return (
+                        <button
+                          key={c.id}
+                          className={`${HUB_CARD_BASE} bg-card min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
+                          onClick={() => openCategoryBrowse(c.id)}
+                        >
+                          <div
+                            className="h-14 w-14 rounded-full flex items-center justify-center shadow-sm"
+                            style={{ backgroundColor: (c.color || "#888") + "1f" }}
+                          >
+                            <Icon className="h-7 w-7 text-foreground" strokeWidth={2.2} />
+                          </div>
+                          <div className="text-xs font-medium text-muted-foreground leading-snug line-clamp-2">
+                            {c.name_ar || c.name}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </HubSection>
+            </AnimatedSection>
 
           {/* Featured providers/services (horizontal) */}
           {featuredServices.length > 0 && (
-            <HubSection id="featured-providers" title={t("مزودين مميزين", "Featured providers")} icon={Star}>
+            <AnimatedSection direction="up" delay={200}>
+              <HubSection id="featured-providers" title={t("مزودين مميزين", "Featured providers")} icon={Star}>
               <div
                 dir={isRTL ? "rtl" : "ltr"}
                 className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
@@ -1371,12 +1375,14 @@ export default function Hub() {
                   );
                 })}
               </div>
-            </HubSection>
+              </HubSection>
+            </AnimatedSection>
           )}
 
           {/* Featured services (subcategories) */}
           {featuredSubcats.length > 0 && (
-            <HubSection id="featured-services" title={t("الخدمات المميزة", "Featured services")} icon={Star}>
+            <AnimatedSection direction="up" delay={300}>
+              <HubSection id="featured-services" title={t("الخدمات المميزة", "Featured services")} icon={Star}>
               <div
                 dir={isRTL ? "rtl" : "ltr"}
                 className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
@@ -1408,11 +1414,13 @@ export default function Hub() {
                   );
                 })}
               </div>
-            </HubSection>
+              </HubSection>
+            </AnimatedSection>
           )}
 
           {/* Trending Services */}
-          <HubSection id="trending-services" title={t("ترند الآن", "Trending Now")} icon={TrendingUp}>
+          <AnimatedSection direction="up" delay={400}>
+            <HubSection id="trending-services" title={t("ترند الآن", "Trending Now")} icon={TrendingUp}>
             <TrendingSection
               cityId={cityId}
               cityName={selectedCityName}
@@ -1420,10 +1428,12 @@ export default function Hub() {
               onCall={handleCall}
               onWhatsApp={handleWhatsApp}
             />
-          </HubSection>
+            </HubSection>
+          </AnimatedSection>
 
           {/* Most demanded services (SYSTEM) */}
-          <HubSection id="most-demanded-services" title={t("الأكثر طلباً", "Most demanded")} icon={TrendingUp}>
+          <AnimatedSection direction="up" delay={500}>
+            <HubSection id="most-demanded-services" title={t("الأكثر طلباً", "Most demanded")} icon={TrendingUp}>
             <div
               dir={isRTL ? "rtl" : "ltr"}
               className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
@@ -1471,10 +1481,12 @@ export default function Hub() {
                       );
                     })}
             </div>
-          </HubSection>
+            </HubSection>
+          </AnimatedSection>
 
           {/* Recent Activity Feed */}
-          <HubSection id="activity-feed" title={t("النشاط الأخير", "Recent Activity")} icon={Heart}>
+          <AnimatedSection direction="up" delay={600}>
+            <HubSection id="activity-feed" title={t("النشاط الأخير", "Recent Activity")} icon={Heart}>
             <ActivityFeed
               cityId={cityId}
               cityName={selectedCityName}
@@ -1482,10 +1494,12 @@ export default function Hub() {
               onCall={handleCall}
               onWhatsApp={handleWhatsApp}
             />
-          </HubSection>
+            </HubSection>
+          </AnimatedSection>
 
           {/* Personalized Recommendations */}
-          <HubSection 
+          <AnimatedSection direction="up" delay={700}>
+            <HubSection 
             id="recommendations" 
             title={user 
               ? t("مقترح لك", "For You") 
@@ -1501,10 +1515,12 @@ export default function Hub() {
               onCall={handleCall}
               onWhatsApp={handleWhatsApp}
             />
-          </HubSection>
+            </HubSection>
+          </AnimatedSection>
 
           {/* Tips before you call */}
-          <HubSection id="guides" title={t("نصائح قبل ما تتصل", "Tips before you call")} icon={BookOpen}>
+          <AnimatedSection direction="up" delay={800}>
+            <HubSection id="guides" title={t("نصائح قبل ما تتصل", "Tips before you call")} icon={BookOpen}>
             <div
               dir={isRTL ? "rtl" : "ltr"}
               className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
@@ -1533,10 +1549,12 @@ export default function Hub() {
                     />
                   ))}
             </div>
-          </HubSection>
+            </HubSection>
+          </AnimatedSection>
 
           {/* Shelves (admin-controlled) */}
-          <div className="space-y-4">
+          <AnimatedSection direction="up" delay={900}>
+            <div className="space-y-4">
             {shelves.map((shelf) => {
               const cityOk = true;
               if (!cityOk) return null;
@@ -1663,7 +1681,8 @@ export default function Hub() {
                 </HubSection>
               );
             })}
-          </div>
+            </div>
+          </AnimatedSection>
 
           {/* Footer links */}
           <div className="pt-4 pb-2 border-t text-sm text-muted-foreground space-y-3">
@@ -1748,7 +1767,8 @@ export default function Hub() {
 
           <div className="px-4 space-y-6">
             {/* Services (MAIN categories) grid - exactly 8 */}
-            <HubSection title={t("الخدمات", "Categories")} icon={LayoutGrid}>
+            <AnimatedSection direction="up" delay={100}>
+              <HubSection title={t("الخدمات", "Categories")} icon={LayoutGrid}>
               {categoriesLoading ? (
                 <div className="text-sm text-muted-foreground">Loading...</div>
               ) : categoriesError ? (
@@ -1783,11 +1803,13 @@ export default function Hub() {
                   })}
                 </div>
               )}
-            </HubSection>
+              </HubSection>
+            </AnimatedSection>
 
             {/* Featured providers/services (horizontal) */}
             {featuredServices.length > 0 && (
-              <HubSection id="featured-providers" title={t("مزودين مميزين", "Featured providers")} icon={Star}>
+              <AnimatedSection direction="up" delay={200}>
+                <HubSection id="featured-providers" title={t("مزودين مميزين", "Featured providers")} icon={Star}>
                 <div
                   dir={isRTL ? "rtl" : "ltr"}
                   className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
@@ -1812,12 +1834,14 @@ export default function Hub() {
                     );
                   })}
                 </div>
-              </HubSection>
+                </HubSection>
+              </AnimatedSection>
             )}
 
             {/* Featured services (subcategories) */}
             {featuredSubcats.length > 0 && (
-              <HubSection id="featured-services" title={t("الخدمات المميزة", "Featured services")} icon={Star}>
+              <AnimatedSection direction="up" delay={300}>
+                <HubSection id="featured-services" title={t("الخدمات المميزة", "Featured services")} icon={Star}>
                 <div
                   dir={isRTL ? "rtl" : "ltr"}
                   className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
@@ -1849,11 +1873,13 @@ export default function Hub() {
                     );
                   })}
                 </div>
-              </HubSection>
+                </HubSection>
+              </AnimatedSection>
             )}
 
             {/* Trending Services */}
-            <HubSection id="trending-services" title={t("ترند الآن", "Trending Now")} icon={TrendingUp}>
+            <AnimatedSection direction="up" delay={400}>
+              <HubSection id="trending-services" title={t("ترند الآن", "Trending Now")} icon={TrendingUp}>
               <TrendingSection
                 cityId={cityId}
                 cityName={selectedCityName}
@@ -1861,10 +1887,12 @@ export default function Hub() {
                 onCall={handleCall}
                 onWhatsApp={handleWhatsApp}
               />
-            </HubSection>
+              </HubSection>
+            </AnimatedSection>
 
             {/* Most demanded services (SYSTEM) */}
-            <HubSection id="most-demanded-services" title={t("الأكثر طلباً", "Most demanded")} icon={TrendingUp}>
+            <AnimatedSection direction="up" delay={500}>
+              <HubSection id="most-demanded-services" title={t("الأكثر طلباً", "Most demanded")} icon={TrendingUp}>
               <div
                 dir={isRTL ? "rtl" : "ltr"}
                 className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
@@ -1912,10 +1940,12 @@ export default function Hub() {
                         );
                       })}
               </div>
-            </HubSection>
+              </HubSection>
+            </AnimatedSection>
 
             {/* Recent Activity Feed */}
-            <HubSection id="activity-feed" title={t("النشاط الأخير", "Recent Activity")} icon={Heart}>
+            <AnimatedSection direction="up" delay={600}>
+              <HubSection id="activity-feed" title={t("النشاط الأخير", "Recent Activity")} icon={Heart}>
               <ActivityFeed
                 cityId={cityId}
                 cityName={selectedCityName}
@@ -1923,10 +1953,12 @@ export default function Hub() {
                 onCall={handleCall}
                 onWhatsApp={handleWhatsApp}
               />
-            </HubSection>
+              </HubSection>
+            </AnimatedSection>
 
             {/* Personalized Recommendations */}
-            <HubSection 
+            <AnimatedSection direction="up" delay={700}>
+              <HubSection 
               id="recommendations" 
               title={user 
                 ? t("مقترح لك", "For You") 
@@ -1942,10 +1974,12 @@ export default function Hub() {
                 onCall={handleCall}
                 onWhatsApp={handleWhatsApp}
               />
-            </HubSection>
+              </HubSection>
+            </AnimatedSection>
 
             {/* Tips before you call */}
-            <HubSection id="guides" title={t("نصائح قبل ما تتصل", "Tips before you call")} icon={BookOpen}>
+            <AnimatedSection direction="up" delay={800}>
+              <HubSection id="guides" title={t("نصائح قبل ما تتصل", "Tips before you call")} icon={BookOpen}>
               <div
                 dir={isRTL ? "rtl" : "ltr"}
                 className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
@@ -1974,10 +2008,12 @@ export default function Hub() {
                       />
                     ))}
               </div>
-            </HubSection>
+              </HubSection>
+            </AnimatedSection>
 
             {/* Shelves (admin-controlled) */}
-            <div className="space-y-4">
+            <AnimatedSection direction="up" delay={900}>
+              <div className="space-y-4">
               {shelves.map((shelf) => {
                 const cityOk = true;
                 if (!cityOk) return null;
@@ -2101,7 +2137,8 @@ export default function Hub() {
                   </HubSection>
                 );
               })}
-            </div>
+              </div>
+            </AnimatedSection>
 
             {/* Footer links */}
             <div className="pt-4 pb-2 border-t text-sm text-muted-foreground space-y-3">
