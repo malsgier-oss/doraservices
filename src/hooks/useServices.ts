@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { getDigitsOnly } from "@/lib/phoneUtils";
 
 export interface Service {
   id: string;
@@ -29,10 +28,14 @@ export interface Service {
   sub_city?: string | null;
 }
 
+function digitsOnly(v: string) {
+  return (v || "").replace(/\D/g, "");
+}
+
 // Dora P0: store phone in services row so anonymous users can call/WhatsApp.
 // We store digits-only with Libya country code when possible.
 export function normalizeLibyaPhoneForStorage(raw: string | null | undefined) {
-  const d = getDigitsOnly(raw || "");
+  const d = digitsOnly(raw || "");
   if (!d) return "";
 
   if (d.startsWith("218")) return d;
@@ -55,9 +58,6 @@ export function useServices() {
       .select("*")
       .is("deleted_at", null)
       .eq("is_active", true)
-      .or("is_visible.is.null,is_visible.eq.true")
-      .or("is_paused.is.null,is_paused.eq.false")
-      .or("approval_status.is.null,approval_status.eq.approved")
       .order("created_at", { ascending: false });
 
     if (servicesError) {
@@ -67,7 +67,16 @@ export function useServices() {
       return;
     }
 
-    const rows = (servicesData || []) as any[];
+    // IMPORTANT:
+    // Treat NULL as the legacy/default value for older rows.
+    // Some rows may have NULL for is_visible / is_paused / approval_status.
+    // If we filter strictly at the query level, the Hub can appear empty.
+    const rows = ((servicesData || []) as any[]).filter((s) => {
+      const isVisible = s.is_visible ?? true;
+      const isPaused = s.is_paused ?? false;
+      const approval = (s.approval_status ?? "approved").toString().toLowerCase();
+      return Boolean(isVisible) && !Boolean(isPaused) && approval === "approved";
+    });
 
     // Optional enrichment from profiles (may fail for guests due to RLS).
     // IMPORTANT: never overwrite service-level provider_phone/name with empty values.
