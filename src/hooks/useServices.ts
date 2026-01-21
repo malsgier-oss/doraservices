@@ -75,7 +75,7 @@ export function useServices() {
       const isVisible = s.is_visible ?? true;
       const isPaused = s.is_paused ?? false;
       const approval = (s.approval_status ?? "approved").toString().toLowerCase();
-      return Boolean(isVisible) && !Boolean(isPaused) && approval === "approved";
+      return !!isVisible && !isPaused && approval === "approved";
     });
 
     // Optional enrichment from profiles (may fail for guests due to RLS).

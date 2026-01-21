@@ -450,7 +450,7 @@ export default function Hub() {
     let alive = true;
 
     const escOrValue = (v: string) => {
-      const escaped = v.replace(/\\/g, "\\\\").replace(/\"/g, '\\"');
+      const escaped = v.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
       return `"${escaped}"`;
     };
 
