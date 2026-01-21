@@ -57,7 +57,7 @@ export function ServiceCardCompact({
       <button
         type="button"
         className={cn(
-          "w-full text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] transition-transform touch-manipulation",
+          "w-full text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] transition-transform touch-manipulation no-tap-highlight",
           isRTL && "text-right"
         )}
         onClick={onOpen}
