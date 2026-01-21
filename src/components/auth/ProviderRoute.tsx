@@ -33,10 +33,20 @@ export function ProviderRoute({ children }: ProviderRouteProps) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  const role = (profile?.role as any) || "user";
+  // If the user is authenticated but the profile hasn't resolved yet, don't redirect.
+  // This prevents accidental redirects (e.g. to Hub) during brief profile races.
+  if (!profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const role = profile?.role as any;
 
   if (!isAdmin(role) && !isProviderLike(role)) {
-    return <Navigate to="/profile" replace />;
+    return <Navigate to="/profile" state={{ from: location }} replace />;
   }
 
   return <>{children}</>;

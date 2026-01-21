@@ -236,6 +236,15 @@ export default function Profile() {
       description: isRTL ? "تم تحديث ملفك الشخصي" : "Your profile was updated",
     });
 
+    // If we were redirected here from a protected route, go back after completing the profile.
+    const from = (location.state as any)?.from as
+      | { pathname?: string; search?: string; hash?: string }
+      | undefined;
+    if (from?.pathname) {
+      navigate(`${from.pathname}${from.search || ""}${from.hash || ""}`, { replace: true });
+      return;
+    }
+
     // Post-signup welcome flow: after profile completion, send the user to Hub.
     if (showWelcome) {
       navigate("/", { replace: true });
