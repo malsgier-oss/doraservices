@@ -20,7 +20,7 @@ export function Layout({
 
   return (
     <div
-      className="min-h-screen flex flex-col touch-manipulation no-tap-highlight bg-background pb-16"
+      className="min-h-screen flex flex-col touch-manipulation no-tap-highlight bg-background pb-[calc(4rem+env(safe-area-inset-bottom))]"
       dir={isRTL ? "rtl" : "ltr"}
     >
       {shouldShowHeader && <Header />}

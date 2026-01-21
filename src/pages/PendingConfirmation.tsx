@@ -13,7 +13,7 @@ export default function PendingConfirmation() {
 
   useEffect(() => {
     const t = setTimeout(() => {
-      navigate("/auth?tab=login", { replace: true });
+      navigate("/", { replace: true });
     }, 8000);
     return () => clearTimeout(t);
   }, [navigate]);
@@ -44,11 +44,11 @@ export default function PendingConfirmation() {
 
         <CardContent className="space-y-4">
           <div className="text-sm text-muted-foreground text-center">
-            {isRTL ? "سيتم تحويلك إلى صفحة تسجيل الدخول خلال ثوانٍ." : "You’ll be redirected to the login page in a few seconds."}
+            {isRTL ? "سيتم تحويلك إلى الصفحة الرئيسية خلال ثوانٍ." : "You’ll be redirected to the Hub in a few seconds."}
           </div>
 
-          <Button className="w-full rounded-full" onClick={() => navigate("/auth?tab=login", { replace: true })}>
-            {isRTL ? "العودة لتسجيل الدخول" : "Back to login"}
+          <Button className="w-full rounded-full" onClick={() => navigate("/", { replace: true })}>
+            {isRTL ? "الذهاب إلى الصفحة الرئيسية" : "Go to Hub"}
           </Button>
         </CardContent>
       </Card>
