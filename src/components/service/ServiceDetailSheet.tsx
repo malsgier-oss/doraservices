@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import {
   Phone,
   MessageCircle,
+  ChevronLeft,
   ChevronRight,
   Heart,
   Share2,
@@ -25,6 +26,23 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ServiceProviderCard, ProviderData } from "./ServiceProviderCard";
 import { trackProviderEvent } from "@/lib/providerTelemetry";
 import { getTelLink, getWhatsAppLink } from "@/lib/phoneUtils";
+
+type UnknownRecord = Record<string, unknown>;
+function toRecord(v: unknown): UnknownRecord {
+  if (v && typeof v === "object") return v as UnknownRecord;
+  return {};
+}
+function getString(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "string") return v;
+  return String(v);
+}
+function getNumber(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
 
 // --- Types ---
 export type SheetService = {
@@ -40,6 +58,8 @@ type Props = {
   service: SheetService;
   city?: string | null;
   initialProviderServiceId?: string | null;
+  startInProviderView?: boolean;
+  isRTL?: boolean;
   onToggleFavorite?: (providerId: string) => void;
   isFavorite?: (providerId: string) => boolean;
 };
@@ -148,7 +168,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           mode: "strict" | "permissive",
           allowCityFilter: boolean
         ) => {
-          let q: any = allowCityFilter ? baseWithCity : baseNoCity;
+          let q = allowCityFilter ? baseWithCity : baseNoCity;
 
           if (mode === "strict") {
             q = q
@@ -177,7 +197,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
         let allowCityFilter = true;
         let { data, error } = await runQuery("strict", allowCityFilter);
         if (error) {
-          const msg = String((error as any)?.message || error);
+          const msg = String((error as { message?: string } | null)?.message || error);
           const low = msg.toLowerCase();
           const missingCity =
             low.includes("column") &&
@@ -216,26 +236,31 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           }
         }
 
-        const rows = (data || []) as any[];
-        const normalizedBase: ProviderData[] = rows.map((r) => ({
-          id: String(r.id),
-          user_id: r.user_id ? String(r.user_id) : null,
-          title: r.title ?? null,
-          description: r.description ?? null,
-          category: r.category ?? null,
-          city: r.city ?? null,
-          sub_city: r.sub_city ?? null,
-          provider_name: r.provider_name ?? null,
-          provider_phone: r.provider_phone ?? null,
-          allow_whatsapp: r.allow_whatsapp ?? true,
-          image_url: r.image_url ?? null,
-          image_urls: null,
-          price: r.price,
-          is_active: r.is_active ?? null,
-          approval_status: r.approval_status ?? null,
-          views_count: r.views_count ?? null,
-          reviews: undefined,
-        }));
+        const rows = (data || []) as unknown[];
+        const normalizedBase: ProviderData[] = rows.map((raw) => {
+          const r = toRecord(raw);
+          return {
+            id: String(getString(r.id) || ""),
+            user_id: getString(r.user_id),
+            title: getString(r.title),
+            description: getString(r.description),
+            category: getString(r.category),
+            city: getString(r.city),
+            sub_city: getString(r.sub_city),
+            provider_name: getString(r.provider_name),
+            provider_phone: getString(r.provider_phone),
+            allow_whatsapp: (r.allow_whatsapp as boolean | null | undefined) ?? true,
+            image_url: getString(r.image_url),
+            image_urls: null,
+            price: getNumber(r.price),
+            is_active: (r.is_active as boolean | null | undefined) ?? null,
+            approval_status: getString(r.approval_status),
+            views_count: getNumber(r.views_count),
+            call_clicks: getNumber(r.call_clicks),
+            whatsapp_clicks: getNumber(r.whatsapp_clicks),
+            reviews: undefined,
+          };
+        }).filter((p) => !!p.id);
 
         let normalized = normalizedBase;
         try {
@@ -249,9 +274,10 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
               .limit(50);
 
             const map = new Map<string, string[]>();
-            (revs || []).forEach((r: any) => {
-              const sid = String(r.service_id);
-              const txt = (r.content ?? "").trim();
+            (revs || []).forEach((raw) => {
+              const r = toRecord(raw);
+              const sid = String(getString(r.service_id) || "");
+              const txt = String(getString(r.content) || "").trim();
               if (!sid || !txt) return;
               if (!map.has(sid)) map.set(sid, []);
               const arr = map.get(sid)!;
@@ -295,6 +321,8 @@ export function ServiceDetailSheet({
   service,
   city,
   initialProviderServiceId,
+  startInProviderView,
+  isRTL,
   onToggleFavorite,
   isFavorite,
 }: Props) {
@@ -308,6 +336,65 @@ export function ServiceDetailSheet({
 
   const [userId, setUserId] = useState<string | null>(null);
   const [favIds, setFavIds] = useState<Set<string>>(new Set());
+
+  const rtl = !!isRTL;
+  const dir = rtl ? "rtl" : "ltr";
+  const BackIcon = rtl ? ChevronRight : ChevronLeft;
+
+  // If a specific provider is requested, fetch it directly so the details view can open immediately.
+  // We still keep the category-based list fetch for suggestions + robustness.
+  useEffect(() => {
+    if (!open) return;
+    if (!startInProviderView) return;
+    const id = (initialProviderServiceId || "").trim();
+    if (!id) return;
+
+    let alive = true;
+    const run = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("services")
+          .select("*")
+          .eq("id", id)
+          .maybeSingle();
+        if (!alive) return;
+        if (error || !data) return;
+
+        const r = toRecord(data);
+        const p: ProviderData = {
+          id: String(getString(r.id) || ""),
+          user_id: getString(r.user_id),
+          title: getString(r.title),
+          description: getString(r.description),
+          category: getString(r.category),
+          city: getString(r.city),
+          sub_city: getString(r.sub_city),
+          provider_name: getString(r.provider_name),
+          provider_phone: getString(r.provider_phone),
+          allow_whatsapp: (r.allow_whatsapp as boolean | null | undefined) ?? true,
+          image_url: getString(r.image_url),
+          image_urls: null,
+          price: getNumber(r.price),
+          is_active: (r.is_active as boolean | null | undefined) ?? null,
+          approval_status: getString(r.approval_status),
+          views_count: getNumber(r.views_count),
+          call_clicks: getNumber(r.call_clicks),
+          whatsapp_clicks: getNumber(r.whatsapp_clicks),
+          reviews: undefined,
+        };
+
+        setSelectedProvider((prev) => (prev?.id === p.id ? prev : p));
+        setProviders((prev) => (prev.some((x) => x.id === p.id) ? prev : [p, ...prev]));
+      } catch {
+        // ignore: fall back to category-based list
+      }
+    };
+
+    void run();
+    return () => {
+      alive = false;
+    };
+  }, [open, startInProviderView, initialProviderServiceId, setProviders]);
 
   const serviceIds = useMemo(() => providers.map((p) => p.id), [providers]);
   const { ratings } = useServiceRatings(serviceIds);
@@ -333,11 +420,11 @@ export function ServiceDetailSheet({
   ) => {
     setProviders((prev) =>
       prev.map((p) =>
-        p.id === id ? { ...p, [field]: Number((p as any)[field] || 0) + 1 } : p
+        p.id === id ? { ...p, [field]: Number(p[field] ?? 0) + 1 } : p
       )
     );
     setSelectedProvider((prev) =>
-      prev?.id === id ? { ...prev, [field]: Number((prev as any)[field] || 0) + 1 } : prev
+      prev?.id === id ? { ...prev, [field]: Number(prev[field] ?? 0) + 1 } : prev
     );
   };
 
@@ -511,17 +598,17 @@ export function ServiceDetailSheet({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="h-[95dvh] flex flex-col bg-background/95 backdrop-blur-sm" dir="rtl">
-        <DrawerHeader className="px-4 py-3 shrink-0 border-b bg-background">
+      <DrawerContent className="h-[95dvh] flex flex-col bg-background/95 backdrop-blur-sm" dir={dir}>
+        <DrawerHeader className="px-4 py-3 shrink-0 border-b bg-background" dir={dir}>
           <div className="flex items-center gap-2">
             {selectedProvider && (
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 -mr-2"
+                className={cn("h-8 w-8", rtl ? "-mr-2" : "-ml-2")}
                 onClick={() => setSelectedProvider(null)}
               >
-                <ChevronRight className="h-5 w-5" />
+                <BackIcon className="h-5 w-5" />
               </Button>
             )}
             <DrawerTitle className="text-base font-semibold truncate flex-1 text-right">
@@ -535,10 +622,19 @@ export function ServiceDetailSheet({
                 {providers.length} نتيجة
               </div>
             )}
+
+            <button
+              type="button"
+              aria-label="Close"
+              className="h-10 w-10 rounded-full hover:bg-muted transition flex items-center justify-center"
+              onClick={() => onOpenChange(false)}
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
         </DrawerHeader>
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto bg-muted/10 p-4">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto bg-muted/10 p-4" dir={dir}>
           {activeProvider ? (
             <ProviderDetailView
               provider={activeProvider}
@@ -559,6 +655,7 @@ export function ServiceDetailSheet({
                 if (el.scrollTop < 40) return;
                 el.scrollTo({ top: 0, behavior: "smooth" });
               }}
+              isRTL={rtl}
             />
           ) : (
             <div className="space-y-3 pb-8">
@@ -628,6 +725,7 @@ export function ServiceDetailSheet({
               if (!activeProvider?.id) return;
               return reportService(activeProvider.id, userId, reason);
             }}
+            isRTL={rtl}
           />
         )}
       </DrawerContent>
@@ -641,12 +739,14 @@ function ProviderActionBar({
   onRequireAuth,
   onTrack,
   onReport,
+  isRTL,
 }: {
   provider: ProviderData;
   userId: string | null;
   onRequireAuth: () => void;
   onTrack?: (eventType: "call_clicks" | "whatsapp_clicks") => void;
   onReport: (reason: string) => Promise<void> | void;
+  isRTL?: boolean;
 }) {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
@@ -705,7 +805,7 @@ function ProviderActionBar({
   return (
     <div
       className="shrink-0 border-t bg-background/90 backdrop-blur px-4 py-3"
-      dir="rtl"
+      dir={isRTL ? "rtl" : "ltr"}
       style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
     >
       {/* Lightweight stats row (visible + kept in sync with optimistic bumps) */}
@@ -731,7 +831,7 @@ function ProviderActionBar({
           )}
           onClick={handleCall}
         >
-          <Phone className="ml-2 h-4 w-4" /> اتصال
+          <Phone className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} /> اتصال
         </Button>
 
         {allowWhatsapp && (
@@ -740,7 +840,7 @@ function ProviderActionBar({
             className="h-12 text-base rounded-xl flex-1 bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400"
             onClick={handleWhatsapp}
           >
-            <MessageCircle className="ml-2 h-4 w-4" /> واتساب
+            <MessageCircle className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} /> واتساب
           </Button>
         )}
 
@@ -762,7 +862,7 @@ function ProviderActionBar({
 
       <Dialog open={reportOpen} onOpenChange={setReportOpen}>
         <DialogContent className="max-w-[92vw] sm:max-w-md rounded-2xl">
-          <div className="space-y-4" dir="rtl">
+          <div className="space-y-4" dir={isRTL ? "rtl" : "ltr"}>
             <div>
               <div className="text-lg font-bold text-foreground">إبلاغ عن مشكلة</div>
               <div className="text-xs text-muted-foreground mt-1">
@@ -778,7 +878,7 @@ function ProviderActionBar({
               maxLength={200}
             />
 
-            <div className="flex gap-2" dir="rtl">
+            <div className="flex gap-2" dir={isRTL ? "rtl" : "ltr"}>
               <Button
                 variant="outline"
                 className="flex-1"
@@ -807,6 +907,7 @@ function ProviderDetailView({
   onReport,
   suggestions,
   onOpenSuggestion,
+  isRTL,
 }: {
   provider: ProviderData;
   onToggleFavorite?: (id: string) => void;
@@ -815,6 +916,7 @@ function ProviderDetailView({
   onReport?: (serviceId: string, reason?: string | null) => Promise<void> | void;
   suggestions?: SuggestedProvider[];
   onOpenSuggestion?: (provider: SuggestedProvider) => void;
+  isRTL?: boolean;
 }) {
   const [images, setImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
@@ -852,14 +954,16 @@ function ProviderDetailView({
         .order("position")
         .limit(5);
 
-      const dbImages = data?.map((x: any) => x.url) || [];
+      const dbImages = (data || []).map((x) => getString(toRecord(x).url)).filter(Boolean) as string[];
 
       if (dbImages.length === 0 && provider.image_url) {
         let fallback = [provider.image_url];
         if (provider.image_url.startsWith("[")) {
           try {
             fallback = JSON.parse(provider.image_url);
-          } catch {}
+          } catch {
+            // ignore
+          }
         }
         if (fallback.length === 1 && fallback[0].includes(",")) {
           fallback = fallback[0].split(",").map((s) => s.trim());
@@ -885,13 +989,16 @@ function ProviderDetailView({
         if (error) throw error;
         if (alive) {
           setReviews(
-            (data || []).map((r: any) => ({
-              id: String(r.id),
-              rating: Number(r.rating || 0),
-              content: r.content ?? null,
-              created_at: String(r.created_at),
-              user_id: r.user_id ? String(r.user_id) : null,
-            }))
+            (data || []).map((raw) => {
+              const r = toRecord(raw);
+              return {
+                id: String(getString(r.id) || ""),
+                rating: Number(getNumber(r.rating) || 0),
+                content: getString(r.content),
+                created_at: String(getString(r.created_at) || ""),
+                user_id: getString(r.user_id),
+              };
+            }).filter((r) => !!r.id)
           );
           setReviewSeed((s) => s + 1);
         }
@@ -1041,7 +1148,7 @@ function ProviderDetailView({
         </div>
 
         {/* Rating summary + rate icon */}
-        <div className="flex items-center justify-between gap-3" dir="rtl">
+        <div className="flex items-center justify-between gap-3" dir={isRTL ? "rtl" : "ltr"}>
           <div className="flex items-center gap-2 min-w-0">
             {provider.rating_count && provider.rating_count > 0 ? (
               <div className="flex items-center gap-1 font-semibold text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-100">
@@ -1146,7 +1253,7 @@ function ProviderDetailView({
       {/* 4. Suggestions */}
       {suggestions && suggestions.length > 0 && (
         <div className="mt-5">
-          <div className="flex items-center justify-between mb-2" dir="rtl">
+          <div className="flex items-center justify-between mb-2" dir={isRTL ? "rtl" : "ltr"}>
             <div className="text-sm font-semibold text-foreground">اقتراحات</div>
             <div className="text-xs text-muted-foreground">{suggestions.length} مزود</div>
           </div>
@@ -1191,9 +1298,9 @@ function ProviderDetailView({
                     </div>
                     <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
                       <span className="line-clamp-1">{s.city || ""}</span>
-                      {typeof (s as any).rating === "number" && (s as any).rating > 0 ? (
+                      {typeof s.rating === "number" && s.rating > 0 ? (
                         <span className="inline-flex items-center gap-1">
-                          <Star className="h-3.5 w-3.5" /> {(s as any).rating.toFixed(1)}
+                          <Star className="h-3.5 w-3.5" /> {s.rating.toFixed(1)}
                         </span>
                       ) : null}
                     </div>
@@ -1216,7 +1323,7 @@ function ProviderDetailView({
               </div>
             </div>
 
-            <div className="flex items-center gap-1 text-amber-600" dir="rtl">
+            <div className="flex items-center gap-1 text-amber-600" dir={isRTL ? "rtl" : "ltr"}>
               {Array.from({ length: 5 }).map((_, i) => {
                 const v = i + 1;
                 return (
@@ -1241,7 +1348,7 @@ function ProviderDetailView({
               maxLength={200}
             />
 
-            <div className="flex gap-2" dir="rtl">
+            <div className="flex gap-2" dir={isRTL ? "rtl" : "ltr"}>
               <Button
                 variant="outline"
                 className="flex-1"

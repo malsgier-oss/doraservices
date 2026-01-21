@@ -389,6 +389,7 @@ export default function Hub() {
 
   // Featured services/providers shelf (horizontal cards)
   const [featuredServices, setFeaturedServices] = useState<ServiceRow[]>([]);
+  const lastOpenAtRef = useRef<number>(0);
 
   const ratingServiceIds = useMemo(() => {
     const ids = new Set<string>();
@@ -633,6 +634,7 @@ export default function Hub() {
   // 2) Provider list sheet (for a selected subcategory)
   const serviceSheetOpen = activeSheet === "providers";
   const [initialProviderServiceId, setInitialProviderServiceId] = useState<string | null>(null);
+  const [startInProviderView, setStartInProviderView] = useState(false);
   const [selectedSubcategory, setSelectedSubcategory] = useState<{
     id: string;
     name: string;
@@ -672,10 +674,15 @@ export default function Hub() {
     }
     setSelectedSubcategory(subcat);
     setInitialProviderServiceId(providerServiceId || null);
+    setStartInProviderView(!!providerServiceId);
     setActiveSheet("providers");
   }
 
   const openServiceFromRow = (service: ServiceRow) => {
+    const now = Date.now();
+    if (now - lastOpenAtRef.current < 250) return;
+    lastOpenAtRef.current = now;
+
     const subcat = subcatByName.get(String(service.category || "").trim().toLowerCase());
     if (!subcat) {
       toast({
@@ -703,7 +710,7 @@ export default function Hub() {
     if (!pendingSubcategory) return;
 
     // Browse sheet is unmounted now; safe to open providers.
-    openSubcategoryProviders(pendingSubcategory);
+    openSubcategoryProviders(pendingSubcategory, null);
     setPendingSubcategory(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSheet, pendingSubcategory]);
@@ -1474,6 +1481,7 @@ export default function Hub() {
             });
             setActiveSheet("none");
             setInitialProviderServiceId(null);
+            setStartInProviderView(false);
           }}
         >
           <ServiceDetailSheet
@@ -1482,11 +1490,14 @@ export default function Hub() {
               if (!open) {
                 setActiveSheet("none");
                 setInitialProviderServiceId(null);
+                setStartInProviderView(false);
               }
             }}
             city={selectedCityName}
             service={selectedSheetService}
             initialProviderServiceId={initialProviderServiceId}
+            startInProviderView={startInProviderView}
+            isRTL={isRTL}
           />
         </SafeBoundary>
       )}
