@@ -28,6 +28,7 @@ import { HubTabSwitcher } from "@/components/hub/HubTabSwitcher";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
 import { FeaturedDeals } from "@/components/hub/FeaturedDeals";
+import { DealCard } from "@/components/hub/DealCard";
 import { BusinessCard } from "@/components/hub/BusinessCard";
 import { BuySellCategories } from "@/components/hub/BuySellCategories";
 import { useDeals } from "@/hooks/useDeals";
