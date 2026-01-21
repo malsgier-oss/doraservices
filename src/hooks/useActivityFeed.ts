@@ -6,7 +6,10 @@ export interface ActivityItem {
   title: string;
   category: string;
   provider_name: string | null;
+  provider_phone: string | null;
+  allow_whatsapp?: boolean | null;
   city: string | null;
+  sub_city: string | null;
   image_url: string | null;
   created_at: string;
   isNew?: boolean;
@@ -22,7 +25,7 @@ export function useActivityFeed(cityId?: string | null) {
       // Get new services (last 48 hours)
       let newServicesQuery = supabase
         .from("services")
-        .select("id,title,category,provider_name,city,image_url,created_at")
+        .select("id,title,category,provider_name,provider_phone,allow_whatsapp,city,sub_city,image_url,created_at")
         .eq("is_active", true)
         .eq("is_visible", true)
         .gte("created_at", new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString())
@@ -59,7 +62,7 @@ export function useActivityFeed(cityId?: string | null) {
       // Get popular services in city (by views)
       let popularQuery = supabase
         .from("services")
-        .select("id,title,category,provider_name,city,image_url,created_at,views_count")
+        .select("id,title,category,provider_name,provider_phone,allow_whatsapp,city,sub_city,image_url,created_at,views_count")
         .eq("is_active", true)
         .eq("is_visible", true)
         .gt("views_count", 0)

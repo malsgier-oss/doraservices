@@ -321,7 +321,8 @@ async function fetchShelfSubcategories(params: { categoryId: string; limit: numb
 // Buy/Sell Sections Components
 function BuySellDealsSection({ cityId }: { cityId?: string | null }) {
   const { data: deals, isLoading } = useDeals({ cityId, limit: 12 });
-  const { isRTL, t } = useLanguage();
+  const { language, isRTL } = useLanguage();
+  const t = (ar: string, en: string) => (language === "ar" ? ar : en);
 
   if (isLoading) {
     return (
@@ -381,7 +382,8 @@ function BuySellDealsSection({ cityId }: { cityId?: string | null }) {
 
 function BuySellBusinessesSection({ cityId }: { cityId?: string | null }) {
   const { data: businesses, isLoading } = useBusinesses({ cityId, featured: true, limit: 8 });
-  const { isRTL, t } = useLanguage();
+  const { language, isRTL } = useLanguage();
+  const t = (ar: string, en: string) => (language === "ar" ? ar : en);
 
   if (isLoading) {
     return (
@@ -2140,8 +2142,6 @@ export default function Hub() {
             city={selectedCityName}
             service={selectedSheetService}
             initialProviderServiceId={initialProviderServiceId}
-            startInProviderView={startInProviderView}
-            isRTL={isRTL}
           />
         </SafeBoundary>
       )}

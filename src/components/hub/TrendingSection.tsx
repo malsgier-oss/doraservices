@@ -23,9 +23,20 @@ export function TrendingSection({
   onWhatsApp,
 }: TrendingSectionProps) {
   const { data: trendingServices, isLoading } = useTrendingServices(cityId, 8);
-  const { isRTL, t } = useLanguage();
+  const { language, isRTL } = useLanguage();
   const { user } = useAuth();
-  const { getRating } = useServiceRatings();
+  
+  const serviceIds = trendingServices?.map(s => s.id) || [];
+  const { ratings } = useServiceRatings(serviceIds);
+  
+  const getRating = (serviceId: string) => {
+    const row = ratings.get(serviceId);
+    if (!row) return null;
+    return {
+      value: Number(row.averageRating || 0),
+      count: Number(row.totalReviews || 0),
+    };
+  };
 
   const getContactState = (service: any) => {
     const canCall = !!service.provider_phone;
@@ -36,6 +47,9 @@ export function TrendingSection({
   const labels = {
     call: isRTL ? "اتصال" : "Call",
     whatsapp: isRTL ? "واتساب" : "WhatsApp",
+    providerFallback: isRTL ? "مزود خدمة" : "Service Provider",
+    noPhoto: isRTL ? "لا توجد صورة" : "No Photo",
+    ratingFallback: isRTL ? "لا توجد تقييمات" : "No Ratings",
   };
 
   if (isLoading) {

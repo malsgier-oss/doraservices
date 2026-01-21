@@ -359,8 +359,6 @@ export default function Favorites() {
           }}
           service={sheetService}
           initialProviderServiceId={initialProviderServiceId || undefined}
-          startInProviderView={true}
-          isRTL={isRTL}
         />
       )}
     </Layout>

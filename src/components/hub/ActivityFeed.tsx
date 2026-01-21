@@ -24,9 +24,20 @@ export function ActivityFeed({
   onWhatsApp,
 }: ActivityFeedProps) {
   const { data: activities, isLoading } = useActivityFeed(cityId);
-  const { isRTL, t } = useLanguage();
+  const { language, isRTL } = useLanguage();
   const { user } = useAuth();
-  const { getRating } = useServiceRatings();
+  
+  const serviceIds = activities?.map(s => s.id) || [];
+  const { ratings } = useServiceRatings(serviceIds);
+  
+  const getRating = (serviceId: string) => {
+    const row = ratings.get(serviceId);
+    if (!row) return null;
+    return {
+      value: Number(row.averageRating || 0),
+      count: Number(row.totalReviews || 0),
+    };
+  };
 
   const getContactState = (service: any) => {
     const canCall = !!service.provider_phone;
@@ -37,6 +48,9 @@ export function ActivityFeed({
   const labels = {
     call: isRTL ? "اتصال" : "Call",
     whatsapp: isRTL ? "واتساب" : "WhatsApp",
+    providerFallback: isRTL ? "مزود خدمة" : "Service Provider",
+    noPhoto: isRTL ? "لا توجد صورة" : "No Photo",
+    ratingFallback: isRTL ? "لا توجد تقييمات" : "No Ratings",
   };
 
   if (isLoading) {

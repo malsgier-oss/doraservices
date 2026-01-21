@@ -494,7 +494,9 @@ export function ServiceDetailSheet({
               onToggleFavorite={toggleFavoriteLocal}
               isFavorite={isFavoriteLocal}
               userId={userId}
-              onReport={(serviceId, reason) => reportService(serviceId, userId, reason)}
+              onReport={(serviceId, reason) => {
+                void reportService(serviceId, userId, reason);
+              }}
               suggestions={suggestedProviders}
               onOpenSuggestion={(p) => {
                 const now = Date.now();
@@ -592,7 +594,7 @@ function ProviderActionBar({
   provider: ProviderData;
   userId: string | null;
   onRequireAuth: () => void;
-  onReport: (reason: string) => Promise<void> | void;
+  onReport: (reason: string) => Promise<string | number> | void;
 }) {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
