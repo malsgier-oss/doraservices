@@ -31,6 +31,7 @@ import { FeaturedDeals } from "@/components/hub/FeaturedDeals";
 import { DealCard } from "@/components/hub/DealCard";
 import { BusinessCard } from "@/components/hub/BusinessCard";
 import { BuySellCategories } from "@/components/hub/BuySellCategories";
+import { SearchFilters, type FilterState } from "@/components/hub/SearchFilters";
 import { useDeals } from "@/hooks/useDeals";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { HUB_CARD_BASE } from "@/components/hub/hubStyles";
@@ -788,6 +789,13 @@ export default function Hub() {
   const serviceSheetOpen = activeSheet === "providers";
   const [initialProviderServiceId, setInitialProviderServiceId] = useState<string | null>(null);
   const [startInProviderView, setStartInProviderView] = useState(false);
+  
+  // Search filters state
+  const [searchFilters, setSearchFilters] = useState<FilterState>({
+    priceRange: [0, 10000],
+    minRating: 0,
+    sortBy: "relevance",
+  });
   const [selectedSubcategory, setSelectedSubcategory] = useState<{
     id: string;
     name: string;
@@ -1173,6 +1181,24 @@ export default function Hub() {
             {activeAnnouncement && (
               <div className={`${HUB_CARD_BASE} bg-muted/30 px-4 py-3`}>
                 <div className="text-sm text-muted-foreground">📢 📢 {activeAnnouncement.message}</div>
+              </div>
+            )}
+
+            {/* Search Filters - shown when there's a search query */}
+            {queryTrim && filteredCategories.length > 0 && (
+              <div className="flex items-center justify-between gap-2">
+                <SearchFilters
+                  filters={searchFilters}
+                  onFiltersChange={setSearchFilters}
+                  onReset={() => setSearchFilters({
+                    priceRange: [0, 10000],
+                    minRating: 0,
+                    sortBy: "relevance",
+                  })}
+                />
+                <div className="text-xs text-muted-foreground">
+                  {t(`${filteredCategories.length} نتيجة`, `${filteredCategories.length} results`)}
+                </div>
               </div>
             )}
 
