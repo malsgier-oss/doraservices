@@ -199,7 +199,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           error = res.error;
 
           // If city filtering yields zero, retry without city filters
-          if ((!data || data.length === 0) && allowCityFilter && cityOr) {
+          if ((!data || data.length === 0) && allowCityFilter && cityIn.length > 0) {
             allowCityFilter = false;
             res = await runQuery("permissive", allowCityFilter);
             data = res.data;
