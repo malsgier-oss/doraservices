@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { getDigitsOnly } from "@/lib/phoneUtils";
 
 export interface Service {
   id: string;
@@ -28,14 +29,10 @@ export interface Service {
   sub_city?: string | null;
 }
 
-function digitsOnly(v: string) {
-  return (v || "").replace(/\D/g, "");
-}
-
 // Dora P0: store phone in services row so anonymous users can call/WhatsApp.
 // We store digits-only with Libya country code when possible.
 export function normalizeLibyaPhoneForStorage(raw: string | null | undefined) {
-  const d = digitsOnly(raw || "");
+  const d = getDigitsOnly(raw || "");
   if (!d) return "";
 
   if (d.startsWith("218")) return d;
