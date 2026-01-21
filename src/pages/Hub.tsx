@@ -36,6 +36,7 @@ import { useServiceRatings } from "@/hooks/useReviews";
 import { CategoryBrowseSheet } from "@/components/hub/CategoryBrowseSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { trackProviderEvent } from "@/lib/providerTelemetry";
+import { getTelLink, getWhatsAppLink } from "@/lib/phoneUtils";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications, useUnreadCount, useNotificationMutations } from "@/hooks/useNotifications";
@@ -420,18 +421,26 @@ export default function Hub() {
       color: string | null;
     }>();
 
+    const keyOf = (v: string) => String(v || "").trim().toLowerCase();
+
     for (const sc of (allSubcategories || []) as any[]) {
       const name = String(sc?.name || "").trim();
-      if (!name) continue;
+      const nameAr = String(sc?.name_ar || "").trim();
+      if (!name && !nameAr) continue;
       const iconKey = String(sc?.icon || "");
       const icon = ICON_MAP[iconKey] || Wrench;
-      map.set(name, {
+
+      const value = {
         id: String(sc.id),
-        name,
+        name: name || nameAr,
         name_ar: sc?.name_ar ?? null,
         icon,
         color: (sc?.color ?? null) as string | null,
-      });
+      };
+
+      // Key by both EN + AR so services.category can be either.
+      if (name) map.set(keyOf(name), value);
+      if (nameAr) map.set(keyOf(nameAr), value);
     }
     return map;
   }, [allSubcategories]);
@@ -667,7 +676,7 @@ export default function Hub() {
   }
 
   const openServiceFromRow = (service: ServiceRow) => {
-    const subcat = subcatByName.get(String(service.category || "").trim());
+    const subcat = subcatByName.get(String(service.category || "").trim().toLowerCase());
     if (!subcat) {
       toast({
         title: t("تعذر فتح الخدمة", "Could not open"),
@@ -764,36 +773,36 @@ export default function Hub() {
   };
 
   const getContactState = (service: ServiceRow) => {
-    const tel = service.provider_phone?.replace(/\s+/g, "") || "";
-    const whatsapp = service.provider_phone?.replace(/[^\d]/g, "") || "";
+    const telLink = getTelLink(String(service.provider_phone || ""));
+    const waLink = getWhatsAppLink(String(service.provider_phone || ""));
     const allowWhatsapp = service.allow_whatsapp !== false;
     return {
-      tel,
-      whatsapp,
-      canCall: Boolean(tel),
-      canWhatsApp: Boolean(whatsapp) && allowWhatsapp,
+      telLink,
+      waLink,
+      canCall: telLink !== "tel:",
+      canWhatsApp: waLink !== "https://wa.me/" && allowWhatsapp,
       allowWhatsapp,
     };
   };
 
   const handleCall = (service: ServiceRow) => {
-    const { tel } = getContactState(service);
-    if (!tel) {
+    const { telLink } = getContactState(service);
+    if (telLink === "tel:") {
       toast({ title: t("رقم الهاتف غير متوفر", "Phone number not available"), variant: "destructive" });
       return;
     }
     void trackProviderEvent(service.id, "call");
-    window.open(`tel:${tel}`, "_self");
+    window.open(telLink, "_self");
   };
 
   const handleWhatsApp = (service: ServiceRow) => {
-    const { whatsapp, allowWhatsapp } = getContactState(service);
-    if (!whatsapp || !allowWhatsapp) {
+    const { waLink, allowWhatsapp } = getContactState(service);
+    if (waLink === "https://wa.me/" || !allowWhatsapp) {
       toast({ title: t("واتساب غير متوفر", "WhatsApp not available"), variant: "destructive" });
       return;
     }
     void trackProviderEvent(service.id, "whatsapp");
-    window.open(`https://wa.me/${whatsapp}`, "_blank");
+    window.open(waLink, "_blank");
   };
 
   // City label (no "All cities" option; auto-picks first city)
