@@ -52,6 +52,7 @@ import AdminPages from "./pages/admin/AdminPages";
 import AdminGuides from "./pages/admin/AdminGuides";
 
 import { PendingRatingPrompt } from "@/components/service/PendingRatingPrompt";
+import { AppErrorBoundary } from "@/components/layout/AppErrorBoundary";
 
 // ✅ keep QueryClient stable
 const queryClient = new QueryClient();
@@ -260,8 +261,10 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            <AppRoutes />
-            <PendingRatingPrompt />
+            <AppErrorBoundary>
+              <AppRoutes />
+              <PendingRatingPrompt />
+            </AppErrorBoundary>
           </BrowserRouter>
           </TooltipProvider>
         </ThemeProvider>
