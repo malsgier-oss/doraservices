@@ -326,8 +326,8 @@ async function fetchShelfSubcategories(params: { categoryId: string; limit: numb
 
 
 // Buy/Sell Sections Components
-function BuySellDealsSection({ cityId, onDealClick }: { cityId?: string | null; onDealClick: (deal: Deal) => void }) {
-  const { data: deals, isLoading } = useDeals({ cityId, limit: 12 });
+function BuySellDealsSection({ cityId, category, onDealClick }: { cityId?: string | null; category?: string | null; onDealClick: (deal: Deal) => void }) {
+  const { data: deals, isLoading } = useDeals({ cityId, category, limit: 12 });
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
 
@@ -384,8 +384,8 @@ function BuySellDealsSection({ cityId, onDealClick }: { cityId?: string | null; 
   );
 }
 
-function BuySellBusinessesSection({ cityId, onBusinessClick }: { cityId?: string | null; onBusinessClick: (business: Business) => void }) {
-  const { data: businesses, isLoading } = useBusinesses({ cityId, featured: true, limit: 8 });
+function BuySellBusinessesSection({ cityId, category, onBusinessClick }: { cityId?: string | null; category?: string | null; onBusinessClick: (business: Business) => void }) {
+  const { data: businesses, isLoading } = useBusinesses({ cityId, category, featured: true, limit: 8 });
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
 
@@ -465,6 +465,9 @@ export default function Hub() {
     setSelectedBusiness(business);
     setBusinessSheetOpen(true);
   };
+
+  // Buy/Sell category filter state
+  const [selectedBuySellCategory, setSelectedBuySellCategory] = useState<string | null>(null);
 
   const { data: notifications } = useNotifications();
   const { data: unreadCount } = useUnreadCount();
@@ -1745,9 +1748,25 @@ export default function Hub() {
               {/* Categories Grid */}
               <HubSection title={t("التصنيفات", "Categories")} icon={LayoutGrid}>
                 <BuySellCategories onCategoryClick={(catId) => {
-                  // TODO: Navigate to category view or filter deals/businesses
-                  console.log("Category clicked:", catId);
+                  if (import.meta.env.DEV) {
+                    console.log("Category clicked:", catId);
+                  }
+                  // Toggle category filter - if same category clicked, clear filter
+                  setSelectedBuySellCategory(selectedBuySellCategory === catId ? null : catId);
                 }} />
+                {selectedBuySellCategory && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedBuySellCategory(null)}
+                      className="text-xs"
+                    >
+                      {t("إلغاء التصفية", "Clear filter")}: {selectedBuySellCategory}
+                      <X className="h-3 w-3 ml-1" />
+                    </Button>
+                  </div>
+                )}
               </HubSection>
 
               {/* Featured Deals */}
@@ -1765,6 +1784,7 @@ export default function Hub() {
                 >
                   <FeaturedDeals
                     cityId={cityId}
+                    category={selectedBuySellCategory}
                     limit={6}
                     onDealClick={(deal) => openDealDetail(deal)}
                   />
@@ -1772,7 +1792,7 @@ export default function Hub() {
               </AnimatedSection>
 
               {/* Active Deals Grid */}
-              <BuySellDealsSection cityId={cityId} onDealClick={openDealDetail} />
+              <BuySellDealsSection cityId={cityId} category={selectedBuySellCategory} onDealClick={openDealDetail} />
 
               {/* Trending Deals */}
               <AnimatedSection direction="up" delay={400}>
@@ -1789,6 +1809,7 @@ export default function Hub() {
                 >
                   <TrendingDeals
                     cityId={cityId}
+                    category={selectedBuySellCategory}
                     limit={8}
                     onDealClick={openDealDetail}
                   />
@@ -1810,6 +1831,7 @@ export default function Hub() {
                 >
                   <NewListings
                     cityId={cityId}
+                    category={selectedBuySellCategory}
                     limit={8}
                     onDealClick={openDealDetail}
                   />
@@ -1817,7 +1839,7 @@ export default function Hub() {
               </AnimatedSection>
 
               {/* Featured Businesses */}
-              <BuySellBusinessesSection cityId={cityId} onBusinessClick={openBusinessDetail} />
+              <BuySellBusinessesSection cityId={cityId} category={selectedBuySellCategory} onBusinessClick={openBusinessDetail} />
 
               {/* Business Directory */}
               <AnimatedSection direction="up" delay={600}>
@@ -1834,6 +1856,7 @@ export default function Hub() {
                 >
                   <BusinessDirectory
                     cityId={cityId}
+                    category={selectedBuySellCategory}
                     limit={12}
                     onBusinessClick={openBusinessDetail}
                   />

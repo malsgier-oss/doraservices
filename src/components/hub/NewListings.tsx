@@ -7,12 +7,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 interface NewListingsProps {
   cityId?: string | null;
+  category?: string | null;
   limit?: number;
   onDealClick?: (deal: Deal) => void;
 }
 
-export function NewListings({ cityId, limit = 8, onDealClick }: NewListingsProps) {
-  const { data: deals, isLoading } = useDeals({ cityId, limit: limit * 2 });
+export function NewListings({ cityId, category, limit = 8, onDealClick }: NewListingsProps) {
+  const { data: deals, isLoading } = useDeals({ cityId, category, limit: limit * 2 });
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
 

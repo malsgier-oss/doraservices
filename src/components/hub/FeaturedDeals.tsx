@@ -6,12 +6,13 @@ import { useLanguage } from "@/contexts/LanguageContext";
 
 interface FeaturedDealsProps {
   cityId?: string | null;
+  category?: string | null;
   limit?: number;
   onDealClick?: (deal: any) => void;
 }
 
-export function FeaturedDeals({ cityId, limit = 6, onDealClick }: FeaturedDealsProps) {
-  const { data: deals, isLoading } = useDeals({ cityId, featured: true, limit });
+export function FeaturedDeals({ cityId, category, limit = 6, onDealClick }: FeaturedDealsProps) {
+  const { data: deals, isLoading } = useDeals({ cityId, category, featured: true, limit });
   const { isRTL } = useLanguage();
 
   if (isLoading) {
