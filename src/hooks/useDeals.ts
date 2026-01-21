@@ -27,14 +27,15 @@ export interface UseDealsOptions {
   cityId?: string | null;
   category?: string | null;
   featured?: boolean;
+  businessId?: string | null;
   limit?: number;
 }
 
 export function useDeals(options: UseDealsOptions = {}) {
-  const { cityId, category, featured, limit = 20 } = options;
+  const { cityId, category, featured, businessId, limit = 20 } = options;
 
   return useQuery({
-    queryKey: ["deals", cityId, category, featured, limit],
+    queryKey: ["deals", cityId, category, featured, businessId, limit],
     queryFn: async (): Promise<Deal[]> => {
       let query = supabase
         .from("deals")
@@ -53,6 +54,10 @@ export function useDeals(options: UseDealsOptions = {}) {
 
       if (category) {
         query = query.eq("category", category);
+      }
+
+      if (businessId) {
+        query = query.eq("business_id", businessId);
       }
 
       // TODO: Filter by city if cityId is provided

@@ -34,11 +34,12 @@ import { BuySellCategories } from "@/components/hub/BuySellCategories";
 import { TrendingDeals } from "@/components/hub/TrendingDeals";
 import { NewListings } from "@/components/hub/NewListings";
 import { BusinessDirectory } from "@/components/hub/BusinessDirectory";
+import { BusinessDetailSheet } from "@/components/hub/BusinessDetailSheet";
 import { SearchFilters, type FilterState } from "@/components/hub/SearchFilters";
 import { AnimatedSection } from "@/components/hub/AnimatedSection";
 import { DealDetailSheet } from "@/components/hub/DealDetailSheet";
 import { useDeals, type Deal } from "@/hooks/useDeals";
-import { useBusinesses } from "@/hooks/useBusinesses";
+import { useBusinesses, type Business } from "@/hooks/useBusinesses";
 import { HUB_CARD_BASE } from "@/components/hub/hubStyles";
 
 import { useCategories } from "@/hooks/useCategories";
@@ -383,7 +384,7 @@ function BuySellDealsSection({ cityId, onDealClick }: { cityId?: string | null; 
   );
 }
 
-function BuySellBusinessesSection({ cityId }: { cityId?: string | null }) {
+function BuySellBusinessesSection({ cityId, onBusinessClick }: { cityId?: string | null; onBusinessClick: (business: Business) => void }) {
   const { data: businesses, isLoading } = useBusinesses({ cityId, featured: true, limit: 8 });
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
@@ -425,10 +426,7 @@ function BuySellBusinessesSection({ cityId }: { cityId?: string | null }) {
           <div key={business.id} className="shrink-0 w-[72vw] max-w-[320px] snap-center">
             <BusinessCard
               business={business}
-              onClick={() => {
-                // TODO: Open business detail
-                console.log("Business clicked:", business);
-              }}
+              onClick={() => onBusinessClick(business)}
               isRTL={isRTL}
             />
           </div>
@@ -450,6 +448,15 @@ export default function Hub() {
   const openDealDetail = (deal: Deal) => {
     setSelectedDeal(deal);
     setDealSheetOpen(true);
+  };
+
+  // Business detail state
+  const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
+  const [businessSheetOpen, setBusinessSheetOpen] = useState(false);
+
+  const openBusinessDetail = (business: Business) => {
+    setSelectedBusiness(business);
+    setBusinessSheetOpen(true);
   };
 
   const { data: notifications } = useNotifications();
@@ -1803,7 +1810,7 @@ export default function Hub() {
               </AnimatedSection>
 
               {/* Featured Businesses */}
-              <BuySellBusinessesSection cityId={cityId} />
+              <BuySellBusinessesSection cityId={cityId} onBusinessClick={openBusinessDetail} />
 
               {/* Business Directory */}
               <AnimatedSection direction="up" delay={600}>
@@ -1821,10 +1828,7 @@ export default function Hub() {
                   <BusinessDirectory
                     cityId={cityId}
                     limit={12}
-                    onBusinessClick={(business) => {
-                      // TODO: Open business detail
-                      console.log("Business clicked:", business);
-                    }}
+                    onBusinessClick={openBusinessDetail}
                   />
                 </HubSection>
               </AnimatedSection>
@@ -2267,6 +2271,19 @@ export default function Hub() {
           }
         }}
         deal={selectedDeal}
+      />
+
+      {/* Business Detail Sheet */}
+      <BusinessDetailSheet
+        open={businessSheetOpen}
+        onOpenChange={(open) => {
+          setBusinessSheetOpen(open);
+          if (!open) {
+            setSelectedBusiness(null);
+          }
+        }}
+        business={selectedBusiness}
+        onDealClick={openDealDetail}
       />
 
       {activeSheet === "browse" && (
