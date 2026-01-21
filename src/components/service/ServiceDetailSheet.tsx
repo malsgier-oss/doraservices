@@ -312,6 +312,21 @@ export function ServiceDetailSheet({
   const serviceIds = useMemo(() => providers.map((p) => p.id), [providers]);
   const { ratings } = useServiceRatings(serviceIds);
 
+  // Prevent the sheet from opening scrolled to the bottom (especially after a previous scroll).
+  useEffect(() => {
+    if (!open) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    // Ensure this runs after layout so the scroll container exists and has height.
+    requestAnimationFrame(() => {
+      try {
+        el.scrollTo({ top: 0, behavior: "auto" });
+      } catch {
+        el.scrollTop = 0;
+      }
+    });
+  }, [open, selectedProvider?.id]);
+
   const bumpProviderStat = (
     id: string,
     field: "views_count" | "call_clicks" | "whatsapp_clicks"
