@@ -56,16 +56,15 @@ export function MobileNav() {
   return (
     <nav
       className={cn(
-        "fixed inset-x-0 z-40",
-        // lift it up like YouTube + respect iOS safe area
-        "bottom-[calc(env(safe-area-inset-bottom)+12px)]",
+        "fixed inset-x-0 bottom-0 z-40",
+        // attached to bottom + respect iOS safe area
+        "pb-[env(safe-area-inset-bottom)]",
       )}
     >
       <div
         className={cn(
-          // floating “pill”
-          "mx-3 rounded-2xl border border-border shadow-xl",
-          "bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75",
+          // attached bottom bar
+          "border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75",
         )}
       >
         <div className="flex items-center justify-around h-16 px-2">
