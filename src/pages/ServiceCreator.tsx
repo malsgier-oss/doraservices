@@ -14,7 +14,7 @@ import { useCities } from "@/hooks/useCities";
 import { useSubCities } from "@/hooks/useSubCities";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { cn } from "@/lib/utils";
+import { cn, normalizeCategory } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 import { ImagePlus, Trash2 } from "lucide-react";
 import {
@@ -223,6 +223,7 @@ export default function ServiceCreator() {
       const categoryToUse = formData.subcategory
         ? subcategories?.find((s) => s.id === formData.subcategory)?.name
         : selectedCategory?.name;
+      const normalizedCategory = categoryToUse ? normalizeCategory(categoryToUse) : "";
 
       const providerName = (profile.full_name || "").trim() || (isRTL ? "مقدم الخدمة" : "Provider");
 
@@ -233,7 +234,7 @@ export default function ServiceCreator() {
         user_id: user.id,
         title: formData.serviceName.trim(),
         description: formData.bio?.trim() || null,
-        category: categoryToUse || "",
+        category: normalizedCategory,
         price: 0,
         city: cityValue,
         sub_city: formData.subCity || profile.sub_city || null,

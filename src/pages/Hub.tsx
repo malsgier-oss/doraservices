@@ -42,6 +42,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications, useUnreadCount, useNotificationMutations } from "@/hooks/useNotifications";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { normalizeCategory } from "@/lib/utils";
 
 /**
  * Safety net: prevent a whole-app white screen if ServiceDetailSheet crashes.
@@ -421,7 +422,7 @@ export default function Hub() {
       color: string | null;
     }>();
 
-    const keyOf = (v: string) => String(v || "").trim().toLowerCase();
+    const keyOf = (v: string) => normalizeCategory(String(v || "")).toLowerCase();
 
     for (const sc of (allSubcategories || []) as any[]) {
       const name = String(sc?.name || "").trim();
@@ -441,6 +442,32 @@ export default function Hub() {
       // Key by both EN + AR so services.category can be either.
       if (name) map.set(keyOf(name), value);
       if (nameAr) map.set(keyOf(nameAr), value);
+    }
+    return map;
+  }, [allSubcategories]);
+
+  const subcatById = useMemo(() => {
+    const map = new Map<string, {
+      id: string;
+      name: string;
+      name_ar?: string | null;
+      icon: LucideIcon;
+      color: string | null;
+    }>();
+    for (const sc of (allSubcategories || []) as any[]) {
+      if (!sc?.id) continue;
+      const name = String(sc?.name || "").trim();
+      const nameAr = String(sc?.name_ar || "").trim();
+      if (!name && !nameAr) continue;
+      const iconKey = String(sc?.icon || "");
+      const icon = ICON_MAP[iconKey] || Wrench;
+      map.set(String(sc.id), {
+        id: String(sc.id),
+        name: name || nameAr,
+        name_ar: sc?.name_ar ?? null,
+        icon,
+        color: (sc?.color ?? null) as string | null,
+      });
     }
     return map;
   }, [allSubcategories]);
@@ -643,8 +670,8 @@ export default function Hub() {
 
   const selectedSheetService = useMemo(() => {
     if (!selectedSubcategory) return null;
-    // Normalize category value: trim whitespace to match exactly what's stored in services.category
-    const normalizedCategory = (selectedSubcategory.name || "").trim();
+    // Normalize category value to match exactly what's stored in services.category
+    const normalizedCategory = normalizeCategory(selectedSubcategory.name || "");
     return {
       id: selectedSubcategory.id,
       titleKey: selectedSubcategory.name_ar || selectedSubcategory.name,
@@ -652,6 +679,7 @@ export default function Hub() {
       // IMPORTANT: ServiceDetailSheet filters services.category by this value.
       // Must match exactly what's saved in services.category (subcategory.name from ServiceCreator).
       category: normalizedCategory,
+      categoryId: selectedSubcategory.id,
       categoryName: selectedSubcategory.name,
       categoryNameAr: selectedSubcategory.name_ar || undefined,
       color: selectedSubcategory.color || "#888888",
@@ -676,7 +704,10 @@ export default function Hub() {
   }
 
   const openServiceFromRow = (service: ServiceRow) => {
-    const subcat = subcatByName.get(String(service.category || "").trim().toLowerCase());
+    const subcatKey = normalizeCategory(String(service.category || "")).toLowerCase();
+    const subcat =
+      subcatByName.get(subcatKey) ||
+      subcatById.get(String(service.category || ""));
     if (!subcat) {
       toast({
         title: t("تعذر فتح الخدمة", "Could not open"),

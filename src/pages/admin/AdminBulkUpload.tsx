@@ -26,6 +26,8 @@ import { Upload, Download, CheckCircle, XCircle, AlertCircle, Phone, Tag, Layers
 import { useCategories } from "@/hooks/useCategories";
 import { useSubcategories } from "@/hooks/useSubcategories";
 import { useCities } from "@/hooks/useCities";
+import { normalizeCategory } from "@/lib/utils";
+import { normalizeLibyaPhoneForStorage } from "@/hooks/useServices";
 
 interface ParsedService {
   row: number;
@@ -184,6 +186,7 @@ export default function AdminBulkUpload() {
     const categoryToUse = selectedSubcategory && selectedSubcategory !== "__all__" 
       ? selectedSubcategory 
       : selectedCategory;
+    const normalizedCategory = categoryToUse ? normalizeCategory(categoryToUse) : "";
 
     for (let i = 0; i < pendingItems.length; i++) {
       const item = pendingItems[i];
@@ -197,9 +200,9 @@ export default function AdminBulkUpload() {
         const { error } = await supabase.from("services").insert({
           title: item.title,
           description: item.description || null,
-          category: categoryToUse,
+          category: normalizedCategory,
           city: matchingCity?.name || item.city || null,
-          provider_phone: item.provider_phone,
+          provider_phone: normalizeLibyaPhoneForStorage(item.provider_phone),
           provider_name: item.provider_name || null,
           user_id: null, // Unclaimed - will be set when provider signs up
           price: null, // Provider sets price after claiming
