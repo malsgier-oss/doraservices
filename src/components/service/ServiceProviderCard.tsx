@@ -183,7 +183,7 @@ export function ServiceProviderCard({
       <div 
         onClick={onDetails}
         className={cn(
-          "group relative flex flex-col gap-3 rounded-2xl border bg-card p-3 shadow-sm transition-all hover:border-primary/20 active:scale-[0.99] cursor-pointer",
+          "group relative flex flex-col gap-3 rounded-2xl bg-card p-3 shadow-[0_6px_16px_rgba(15,23,42,0.08)] ring-1 ring-black/5 dark:ring-white/10 transition-shadow hover:shadow-[0_10px_24px_rgba(15,23,42,0.10)] active:scale-[0.99] cursor-pointer touch-manipulation",
           className
         )}
         dir="rtl"
@@ -191,11 +191,11 @@ export function ServiceProviderCard({
         <div className="flex items-start gap-3">
           {/* BIGGER Image (Left/Right) */}
           <div 
-            className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-muted border"
+            className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-muted ring-1 ring-black/5 dark:ring-white/10"
             onClick={(e) => { e.stopPropagation(); setImageOpen(true); }}
           >
             {coverImage ? (
-              <img src={coverImage} alt="" className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+              <img src={coverImage} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-muted">
                 <Avatar className="h-10 w-10"><AvatarFallback>{initials}</AvatarFallback></Avatar>
@@ -232,11 +232,11 @@ export function ServiceProviderCard({
         </div>
 
         {/* Bottom Actions Row (Inside the list item!) */}
-        <div className="flex items-center gap-2 mt-1">
+        <div className="flex items-center gap-3 mt-2">
            <Button 
              size="sm" 
              variant="outline" 
-             className={cn("h-8 flex-1 gap-2 text-xs rounded-lg", !canCall && "opacity-50")}
+             className={cn("h-10 flex-1 gap-2 text-sm rounded-xl", !canCall && "opacity-50")}
              onClick={handleCall}
              disabled={!canCall}
            >
@@ -248,7 +248,7 @@ export function ServiceProviderCard({
              size="sm" 
              variant="outline" 
              className={cn(
-               "h-8 flex-1 gap-2 text-xs rounded-lg border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800",
+               "h-10 flex-1 gap-2 text-sm rounded-xl border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800",
                !canWhatsApp && "opacity-50"
              )}
              onClick={handleWhatsapp}
@@ -261,7 +261,7 @@ export function ServiceProviderCard({
            <Button
              size="sm"
              variant="ghost"
-             className="h-8 w-8 rounded-lg p-0 text-muted-foreground hover:text-red-500 hover:bg-red-50"
+             className="h-10 w-10 rounded-xl p-0 text-muted-foreground hover:text-red-500 hover:bg-red-50"
              onClick={handleFav}
            >
              <Heart className={cn("h-4 w-4", isFavorite && "fill-red-500 text-red-500")} />
@@ -270,7 +270,7 @@ export function ServiceProviderCard({
            {onReport && (
              <button
                onClick={handleReport}
-               className="h-8 px-2 text-[11px] text-muted-foreground hover:text-destructive transition-colors"
+               className="h-10 px-3 text-xs text-muted-foreground hover:text-destructive transition-colors"
                aria-label="Report"
                title="إبلاغ"
              >
@@ -295,7 +295,7 @@ export function ServiceProviderCard({
   return (
     <div 
       onClick={() => onDetails?.()}
-      className={cn("group flex flex-col rounded-2xl border bg-card shadow-sm overflow-hidden transition-all hover:shadow-md cursor-pointer active:scale-[0.99]", className)} 
+      className={cn("group flex flex-col rounded-2xl bg-card shadow-[0_6px_16px_rgba(15,23,42,0.08)] ring-1 ring-black/5 dark:ring-white/10 overflow-hidden transition-shadow hover:shadow-[0_10px_24px_rgba(15,23,42,0.10)] cursor-pointer active:scale-[0.99] touch-manipulation", className)} 
       dir="rtl"
       style={{ touchAction: "manipulation" }}
     >
@@ -305,7 +305,7 @@ export function ServiceProviderCard({
           <img 
             src={coverImage} 
             alt={provider.provider_name || ""} 
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
@@ -334,7 +334,7 @@ export function ServiceProviderCard({
       </div>
 
       {/* Body */}
-      <div className="flex flex-col flex-1 p-3">
+      <div className="flex flex-col flex-1 p-4">
         <div className="flex justify-between items-start mb-1">
           <h3 
             className="font-bold text-lg leading-tight truncate hover:underline decoration-primary/50"
@@ -344,7 +344,7 @@ export function ServiceProviderCard({
           {/* Favorite Button (Top right of text area) */}
           <button 
              onClick={handleFav}
-             className="shrink-0 text-muted-foreground hover:text-red-500 transition-colors"
+             className="shrink-0 h-10 w-10 rounded-full text-muted-foreground hover:text-red-500 transition-colors flex items-center justify-center"
           >
             <Heart className={cn("h-5 w-5", isFavorite && "fill-red-500 text-red-500")} />
           </button>
@@ -365,11 +365,11 @@ export function ServiceProviderCard({
       </div>
 
       {/* Footer Actions */}
-      <div className="flex gap-2 p-3 pt-0" dir="rtl">
+      <div className="flex gap-2 p-4 pt-0" dir="rtl">
         <Button 
            size="sm" 
            variant="default" 
-           className={cn("rounded-xl w-full flex-1", !canCall && "opacity-50")}
+           className={cn("h-11 rounded-xl w-full flex-1 gap-2 text-sm", !canCall && "opacity-50")}
            onClick={handleCall}
            disabled={!canCall}
         >
@@ -380,7 +380,7 @@ export function ServiceProviderCard({
            size="sm" 
            variant="secondary" 
            className={cn(
-             "rounded-xl w-full flex-1 bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400",
+             "h-11 rounded-xl w-full flex-1 gap-2 text-sm bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400",
              !canWhatsApp && "opacity-50"
            )}
            onClick={handleWhatsapp}

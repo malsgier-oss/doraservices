@@ -1112,19 +1112,24 @@ export default function Hub() {
                 {t("لا توجد أقسام متاحة حالياً.", "No categories available right now.")}
               </div>
             ) : (
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-4 gap-4">
                 {gridCategories.map((c) => {
                   const Icon = ICON_MAP[c.icon] || Wrench;
                   return (
                     <button
                       key={c.id}
-                      className={`${HUB_CARD_BASE} bg-card min-h-[92px] p-3 flex flex-col items-center gap-2 transition-colors hover:bg-accent active:scale-[0.99]`}
+                      className={`${HUB_CARD_BASE} bg-card min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
                       onClick={() => openCategoryBrowse(c.id)}
                     >
-                      <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ backgroundColor: c.color + "22" }}>
-                        <Icon className="h-6 w-6" />
+                      <div
+                        className="h-14 w-14 rounded-full flex items-center justify-center shadow-sm"
+                        style={{ backgroundColor: (c.color || "#888") + "1f" }}
+                      >
+                        <Icon className="h-7 w-7 text-foreground" strokeWidth={2.2} />
                       </div>
-                      <div className="text-xs text-center leading-tight line-clamp-2">{c.name_ar || c.name}</div>
+                      <div className="text-xs font-medium text-muted-foreground leading-snug line-clamp-2">
+                        {c.name_ar || c.name}
+                      </div>
                     </button>
                   );
                 })}
@@ -1137,7 +1142,7 @@ export default function Hub() {
             <HubSection id="featured-providers" title={t("مزودين مميزين", "Featured providers")}>
               <div
                 dir={isRTL ? "rtl" : "ltr"}
-                className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
+                className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
                 style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
               >
                 {featuredServices.map((service) => {
@@ -1175,15 +1180,18 @@ export default function Hub() {
                   return (
                     <button
                       key={sc.id}
-                      className={`${HUB_CARD_BASE} bg-card shrink-0 w-[66vw] max-w-[300px] snap-center p-4 text-left transition-colors hover:bg-accent active:scale-[0.99]`}
+                      className={`${HUB_CARD_BASE} bg-card shrink-0 w-[66vw] max-w-[320px] snap-center p-4 text-left transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
                       onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
                     >
-                      <div className={`flex items-center gap-3 ${isRTL ? "text-right" : "text-left"}`} dir={isRTL ? "rtl" : "ltr"}>
-                        <div className="h-12 w-12 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: (sc.color || "#888") + "22" }}>
-                          <Icon className="h-6 w-6" />
+                      <div className={`flex items-center gap-4 ${isRTL ? "text-right" : "text-left"}`} dir={isRTL ? "rtl" : "ltr"}>
+                        <div
+                          className="h-14 w-14 rounded-full flex items-center justify-center shrink-0 shadow-sm"
+                          style={{ backgroundColor: (sc.color || "#888") + "1f" }}
+                        >
+                          <Icon className="h-7 w-7 text-foreground" strokeWidth={2.1} />
                         </div>
                         <div className="min-w-0">
-                          <div className="font-semibold text-sm line-clamp-1">{sc.name_ar || sc.name}</div>
+                          <div className="font-semibold text-[15px] line-clamp-1">{sc.name_ar || sc.name}</div>
                           <div className="text-xs text-muted-foreground line-clamp-1 mt-1">
                             {t("اضغط لعرض المزودين", "Tap to view providers")}
                           </div>
@@ -1200,7 +1208,7 @@ export default function Hub() {
           <HubSection id="most-demanded-services" title={t("الأكثر طلباً", "Most demanded")}>
             <div
               dir={isRTL ? "rtl" : "ltr"}
-              className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
+              className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
               style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
             >
               {mostDemandedLoading && mostDemandedRows.length === 0
@@ -1310,17 +1318,19 @@ export default function Hub() {
                         return (
                           <button
                             key={sc.id}
-                            className={`${HUB_CARD_BASE} bg-card shrink-0 w-[44%] md:w-[28%] p-3 flex flex-col items-center gap-2 text-center transition-colors hover:bg-accent active:scale-[0.99]`}
+                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[44%] md:w-[28%] min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
                             style={{ scrollSnapAlign: "start" }}
                             onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
                           >
                             <div
-                              className="h-12 w-12 rounded-full flex items-center justify-center"
-                              style={{ backgroundColor: (sc.color || "#888") + "22" }}
+                            className="h-14 w-14 rounded-full flex items-center justify-center shadow-sm"
+                            style={{ backgroundColor: (sc.color || "#888") + "1f" }}
                             >
-                              <Icon className="h-6 w-6" />
+                            <Icon className="h-7 w-7 text-foreground" strokeWidth={2.1} />
                             </div>
-                            <div className="text-xs leading-tight line-clamp-2">{sc.name_ar || sc.name}</div>
+                          <div className="text-xs font-medium text-muted-foreground leading-snug line-clamp-2">
+                            {sc.name_ar || sc.name}
+                          </div>
                           </button>
                         );
                       })}
@@ -1363,17 +1373,19 @@ export default function Hub() {
                       return (
                         <button
                           key={s.id}
-                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[34%] md:w-[22%] p-3 flex flex-col items-center gap-2 text-center transition-colors hover:bg-accent active:scale-[0.99]`}
+                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[34%] md:w-[22%] min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
                           style={{ scrollSnapAlign: "start" }}
                           onClick={() => openSubcategoryProviders({ id: s.id, name: s.name, name_ar: s.name_ar, icon: Icon, color: s.color })}
                         >
                           <div
-                            className="h-12 w-12 rounded-full flex items-center justify-center"
-                            style={{ backgroundColor: (s.color || "#888") + "22" }}
+                            className="h-14 w-14 rounded-full flex items-center justify-center shadow-sm"
+                            style={{ backgroundColor: (s.color || "#888") + "1f" }}
                           >
-                            <Icon className="h-6 w-6" />
+                            <Icon className="h-7 w-7 text-foreground" strokeWidth={2.1} />
                           </div>
-                          <div className="text-xs leading-tight line-clamp-2">{s.name_ar || s.name}</div>
+                          <div className="text-xs font-medium text-muted-foreground leading-snug line-clamp-2">
+                            {s.name_ar || s.name}
+                          </div>
                         </button>
                       );
                     })}
@@ -1383,17 +1395,19 @@ export default function Hub() {
                       return (
                         <button
                           key={c.id}
-                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[34%] md:w-[22%] p-3 flex flex-col items-center gap-2 text-center transition-colors hover:bg-accent active:scale-[0.99]`}
+                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[34%] md:w-[22%] min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
                           style={{ scrollSnapAlign: "start" }}
                           onClick={() => openCategoryBrowse(c.id)}
                         >
                           <div
-                            className="h-12 w-12 rounded-full flex items-center justify-center"
-                            style={{ backgroundColor: (c.color || "#888") + "22" }}
+                            className="h-14 w-14 rounded-full flex items-center justify-center shadow-sm"
+                            style={{ backgroundColor: (c.color || "#888") + "1f" }}
                           >
-                            <Icon className="h-6 w-6" />
+                            <Icon className="h-7 w-7 text-foreground" strokeWidth={2.1} />
                           </div>
-                          <div className="text-xs leading-tight line-clamp-2">{c.name_ar || c.name}</div>
+                          <div className="text-xs font-medium text-muted-foreground leading-snug line-clamp-2">
+                            {c.name_ar || c.name}
+                          </div>
                         </button>
                       );
                     })}
