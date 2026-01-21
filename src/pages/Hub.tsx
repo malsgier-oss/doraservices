@@ -1133,7 +1133,7 @@ export default function Hub() {
                   return (
                     <button
                       key={c.id}
-                      className={`${HUB_CARD_BASE} bg-card min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
+                      className={`${HUB_CARD_BASE} bg-card min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
                       onClick={() => openCategoryBrowse(c.id)}
                     >
                       <div
@@ -1195,7 +1195,7 @@ export default function Hub() {
                   return (
                     <button
                       key={sc.id}
-                      className={`${HUB_CARD_BASE} bg-card shrink-0 w-[66vw] max-w-[320px] snap-center p-4 text-left transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
+                      className={`${HUB_CARD_BASE} bg-card shrink-0 w-[66vw] max-w-[320px] snap-center p-4 text-left transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
                       onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
                     >
                       <div className={`flex items-center gap-4 ${isRTL ? "text-right" : "text-left"}`} dir={isRTL ? "rtl" : "ltr"}>
@@ -1333,7 +1333,7 @@ export default function Hub() {
                         return (
                           <button
                             key={sc.id}
-                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[44%] md:w-[28%] min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
+                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[44%] md:w-[28%] min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
                             style={{ scrollSnapAlign: "start" }}
                             onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
                           >
@@ -1388,7 +1388,7 @@ export default function Hub() {
                       return (
                         <button
                           key={s.id}
-                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[34%] md:w-[22%] min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
+                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[34%] md:w-[22%] min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
                           style={{ scrollSnapAlign: "start" }}
                           onClick={() => openSubcategoryProviders({ id: s.id, name: s.name, name_ar: s.name_ar, icon: Icon, color: s.color })}
                         >
@@ -1410,7 +1410,7 @@ export default function Hub() {
                       return (
                         <button
                           key={c.id}
-                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[34%] md:w-[22%] min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
+                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[34%] md:w-[22%] min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
                           style={{ scrollSnapAlign: "start" }}
                           onClick={() => openCategoryBrowse(c.id)}
                         >

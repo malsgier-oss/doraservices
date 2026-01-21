@@ -91,7 +91,7 @@ export function CategoryBrowseSheet({
                   return (
                     <button
                       key={s.id}
-                        className={`${HUB_CARD_BASE} bg-card min-h-[96px] p-4 flex items-center gap-4 transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
+                        className={`${HUB_CARD_BASE} bg-card min-h-[96px] p-4 flex items-center gap-4 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
                       onClick={() => onSelectSubcategory({ id: s.id, name: s.name, name_ar: s.name_ar, icon: Icon, color: s.color })}
                     >
                       <div
