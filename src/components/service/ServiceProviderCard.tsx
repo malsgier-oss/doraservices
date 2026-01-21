@@ -115,7 +115,11 @@ export function ServiceProviderCard({
     if (provider.image_urls?.length) return provider.image_urls[0];
     const raw = provider.image_url || "";
     if (raw.startsWith("[")) {
-      try { return JSON.parse(raw)[0]; } catch {}
+      try {
+        return JSON.parse(raw)[0];
+      } catch {
+        /* ignore invalid JSON */
+      }
     }
     return raw.split(",")[0]?.trim() || null;
   }, [provider]);
