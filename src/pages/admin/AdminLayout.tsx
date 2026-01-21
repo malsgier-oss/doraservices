@@ -4,6 +4,31 @@ import { LayoutDashboard, Users, Store, Tag, Flag, Settings, MessageSquare, Hist
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import doraLogo from "@/assets/dora-logo.png";
+
+const preloadAdminRoute = (to: string) => {
+  if (to === "/admin") void import("@/pages/admin/AdminDashboard");
+  if (to === "/admin/hub") void import("@/pages/admin/AdminHub");
+  if (to === "/admin/hub-suggestions") void import("@/pages/admin/AdminHubSuggestions");
+  if (to === "/admin/announcements") void import("@/pages/admin/AdminAnnouncements");
+  if (to === "/admin/pages") void import("@/pages/admin/AdminPages");
+  if (to === "/admin/guides") void import("@/pages/admin/AdminGuides");
+  if (to === "/admin/users") void import("@/pages/admin/AdminUsers");
+  if (to === "/admin/providers") void import("@/pages/admin/AdminProviders");
+  if (to === "/admin/services") void import("@/pages/admin/AdminServices");
+  if (to === "/admin/reviews") void import("@/pages/admin/AdminReviews");
+  if (to === "/admin/reports") void import("@/pages/admin/AdminReports");
+  if (to === "/admin/messages") void import("@/pages/admin/AdminMessages");
+  if (to === "/admin/categories") void import("@/pages/admin/AdminCategories");
+  if (to === "/admin/cities") void import("@/pages/admin/AdminCities");
+  if (to === "/admin/sub-cities") void import("@/pages/admin/AdminSubCities");
+  if (to === "/admin/analytics") void import("@/pages/admin/AdminAnalytics");
+  if (to === "/admin/media") void import("@/pages/admin/AdminMedia");
+  if (to === "/admin/bulk-upload") void import("@/pages/admin/AdminBulkUpload");
+  if (to === "/admin/password-resets") void import("@/pages/admin/AdminPasswordResets");
+  if (to === "/admin/settings") void import("@/pages/admin/AdminSettings");
+  if (to === "/admin/audit-log") void import("@/pages/admin/AdminAuditLog");
+};
+
 const navItems = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/admin/hub", label: "Hub", icon: LayoutDashboard },
@@ -56,6 +81,8 @@ export default function AdminLayout() {
                         key={item.to}
                         to={item.to}
                         end={item.end}
+                        onMouseEnter={() => preloadAdminRoute(item.to)}
+                        onTouchStart={() => preloadAdminRoute(item.to)}
                         className={({ isActive }) =>
                           cn(
                             "flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-colors",
@@ -92,6 +119,8 @@ export default function AdminLayout() {
                         key={item.to}
                         to={item.to}
                         end={item.end}
+                        onMouseEnter={() => preloadAdminRoute(item.to)}
+                        onTouchStart={() => preloadAdminRoute(item.to)}
                         className={({ isActive }) =>
                           cn(
                             "flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-colors",

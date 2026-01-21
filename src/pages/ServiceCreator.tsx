@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useProfile } from "@/hooks/useProfile";
@@ -49,6 +48,7 @@ import {
   LucideIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getDigitsOnly } from "@/lib/phoneUtils";
 
 // Icon mapping for dynamic icons from database
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -80,13 +80,9 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Sparkles,
 };
 
-function digitsOnly(v: string) {
-  return (v || "").replace(/\D/g, "");
-}
-
 // Dora P0: store phone in services row so anonymous users can call/WhatsApp
 function normalizeLibyaPhoneForStorage(raw: string | null | undefined) {
-  const d = digitsOnly(raw || "");
+  const d = getDigitsOnly(raw || "");
   if (!d) return "";
 
   // already has country code
@@ -120,8 +116,6 @@ export default function ServiceCreator() {
     bio: "",
     cityId: "",
     subCity: "",
-    price: "",
-    allowWhatsapp: true,
   });
 
   // Preview URLs (cleanup on change/unmount)
@@ -153,16 +147,7 @@ export default function ServiceCreator() {
       navigate("/profile", { replace: true });
       return;
     }
-  }, [profile, profileLoading, navigate, isRTL]);
-
-  // If city is already selected in the provider profile, initialize the form with it.
-  // This prevents validation from complaining "select a city" while the UI appears to have one.
-  useEffect(() => {
-    if (!profile) return;
-    if (formData.cityId) return;
-    if (!profile.city_id) return;
-    setFormData((prev) => ({ ...prev, cityId: profile.city_id }));
-  }, [profile, formData.cityId]);
+  }, [profile, profileLoading, navigate, isRTL, user]);
 
   if (profileLoading) {
     return (
@@ -189,13 +174,6 @@ export default function ServiceCreator() {
       return;
     }
 
-    const accountStatus = (profile.status || "").toLowerCase();
-    if (accountStatus === "suspended" || accountStatus === "deleted" || accountStatus === "inactive") {
-      toast.error(isRTL ? "لا يمكنك إضافة خدمات حالياً" : "You can't create services right now");
-      navigate("/profile");
-      return;
-    }
-
     if (!formData.serviceName.trim()) {
       toast.error(isRTL ? "يرجى إدخال اسم الخدمة" : "Please enter service name");
       return;
@@ -205,47 +183,18 @@ export default function ServiceCreator() {
       return;
     }
 
-    if (selectedCategory && subcategories && subcategories.length > 0 && !formData.subcategory) {
-      toast.error(isRTL ? "يرجى اختيار نوع الخدمة" : "Please select a service type");
-      return;
-    }
-
-    if (!formData.bio.trim()) {
-      toast.error(isRTL ? "يرجى كتابة وصف للخدمة" : "Please add a description");
-      return;
-    }
-
-    // Core fields: city, area (if applicable), and price are required.
-    // City can come from the profile default (Tripoli-only) if the form hasn't overridden it.
-    const effectiveCityId = formData.cityId || profile.city_id || "";
-    if (!effectiveCityId) {
-      toast.error(isRTL ? "يرجى اختيار المدينة" : "Please select your city");
-      return;
-    }
-
-    if (subCities && subCities.length > 0 && !formData.subCity) {
-      toast.error(isRTL ? "يرجى اختيار المنطقة" : "Please select your area");
-      return;
-    }
-
-    const nextPrice = formData.price.trim();
-    if (!nextPrice) {
-      toast.error(isRTL ? "يرجى إدخال السعر" : "Please enter a price");
-      return;
-    }
-    const numPrice = Number(nextPrice);
-    if (!Number.isFinite(numPrice) || numPrice < 0) {
-      toast.error(isRTL ? "السعر غير صالح" : "Invalid price");
-      return;
-    }
-
-    const selectedCity = cities?.find((c) => c.id === effectiveCityId) || null;
+    const selectedCity = cities?.find((c) => c.id === formData.cityId) || null;
     const cityValue =
       (selectedCity
         ? language === "ar"
           ? selectedCity.name_ar || selectedCity.name
           : selectedCity.name || selectedCity.name_ar
-        : null) || null;
+        : null) || profile?.city;
+
+    if (!cityValue) {
+      toast.error(isRTL ? "يرجى اختيار المدينة" : "Please select your city");
+      return;
+    }
 
     // IMPORTANT for P0: phone must exist to allow call/WhatsApp for guests
     const storedPhone = normalizeLibyaPhoneForStorage(profile.phone);
@@ -279,9 +228,6 @@ export default function ServiceCreator() {
 
       const providerName = (profile.full_name || "").trim() || (isRTL ? "مقدم الخدمة" : "Provider");
 
-      const providerStatus = (profile.provider_status || "").toLowerCase();
-      const isApprovedProvider = providerStatus === "approved";
-
       // ✅ Insert directly to ensure provider_phone/provider_name/city/sub_city are stored for anonymous browsing
       const { data: created, error } = await supabase
         .from("services")
@@ -290,16 +236,14 @@ export default function ServiceCreator() {
         title: formData.serviceName.trim(),
         description: formData.bio?.trim() || null,
         category: categoryToUse || "",
-        price: numPrice,
+        price: 0,
         city: cityValue,
-        sub_city: formData.subCity || null,
+        sub_city: formData.subCity || profile.sub_city || null,
         provider_name: providerName,
         provider_phone: storedPhone,
-        allow_whatsapp: !!formData.allowWhatsapp,
         is_active: true,
-        is_visible: isApprovedProvider,
+        is_visible: true,
         is_paused: false,
-        approval_status: isApprovedProvider ? "approved" : "pending",
       })
         .select("id")
         .single();
@@ -420,7 +364,9 @@ export default function ServiceCreator() {
 
           <div className={cn("rounded-xl border bg-card p-3", imageFiles.length ? "" : "border-dashed")}> 
             <div className="flex items-center justify-between gap-3">
-              <div />
+              <div className="text-sm text-muted-foreground">
+                {isRTL ? "الخطة المجانية: حتى 5 صور" : "Free plan: up to 5 photos"}
+              </div>
 
               <div>
                 <Button type="button" variant="outline" size="sm" disabled={remainingSlots <= 0 || isSubmitting} asChild>
@@ -607,38 +553,6 @@ export default function ServiceCreator() {
               placeholder={t.creator.serviceNamePlaceholder}
               className={cn("rounded-xl h-12", isRTL ? "text-right" : "text-left")}
               dir={isRTL ? "rtl" : "ltr"}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>
-              {isRTL ? "السعر" : "Price"} <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              inputMode="decimal"
-              value={formData.price}
-              onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-              placeholder={isRTL ? "مثال: 50" : "e.g. 50"}
-              className={cn("rounded-xl h-12", isRTL ? "text-right" : "text-left")}
-              dir={isRTL ? "rtl" : "ltr"}
-            />
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-muted rounded-xl">
-            <div className="space-y-0.5">
-              <Label className="text-sm font-medium">
-                {isRTL ? "السماح بالتواصل عبر واتساب" : "Allow WhatsApp"}
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                {isRTL
-                  ? "إذا أغلقتها، زر واتساب سيختفي للزبائن"
-                  : "When off, the WhatsApp button will be hidden for customers"}
-              </p>
-            </div>
-            <Switch
-              checked={!!formData.allowWhatsapp}
-              onCheckedChange={(checked) => setFormData({ ...formData, allowWhatsapp: checked })}
-              disabled={isSubmitting}
             />
           </div>
 

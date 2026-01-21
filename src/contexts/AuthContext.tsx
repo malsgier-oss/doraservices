@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { TablesInsert } from "@/integrations/supabase/types";
@@ -49,6 +49,7 @@ interface AuthContextType {
     fullName: string,
     cityId: string,
     cityName: string,
+    intent?: "user" | "provider",
   ) => Promise<{ error: Error | null }>;
 
   signIn: (phone: string, password: string) => Promise<{ error: Error | null }>;
@@ -71,6 +72,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
+  // Used to suppress app-level auth redirects during controlled auth flows (e.g., signup that we immediately sign out).
+  const ignoreAuthEventsRef = useRef(0);
 
   const ensureProfile = async (authUser: User, overrides?: EnsureOverrides): Promise<Profile | null> => {
     const { data: existing, error: fetchExistingError } = await supabase
@@ -193,6 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_, sess) => {
       if (!mounted) return;
+      if (ignoreAuthEventsRef.current > 0) return;
 
       setSession(sess ?? null);
       setUser(sess?.user ?? null);
@@ -210,7 +214,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signUp = async (phone: string, password: string, fullName: string, cityId: string, cityName: string) => {
+  const signUp = async (
+    phone: string,
+    password: string,
+    fullName: string,
+    cityId: string,
+    cityName: string,
+    intent: "user" | "provider" = "user",
+  ) => {
     const cleanedPhone = cleanPhoneForStorage(phone);
 
     if (!isValidLibyanPhone(cleanedPhone)) {
@@ -219,70 +230,104 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const internalEmail = phoneToInternalEmail(cleanedPhone);
 
-    const { data, error } = await supabase.auth.signUp({
-      email: internalEmail,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-          phone: cleanedPhone,
-          city_id: cityId,
-          city: cityName,
-        },
-      },
-    });
+    const targetRole = intent === "provider" ? "provider" : "user";
+    const targetProviderStatus = intent === "provider" ? "pending" : null;
 
-    if (error) {
-      console.error("[signUp] error:", error);
-      return { error: new Error(error.message) };
-    }
-
-    if (!data.user) {
-      return { error: new Error("Signup failed: No user returned") };
-    }
-
-    if (!data.session) {
-      const { error: signInErr } = await supabase.auth.signInWithPassword({
+    // Signup creates a session by default. We suppress auth state updates during this flow,
+    // then explicitly sign out so the user is not auto-logged-in after registration.
+    ignoreAuthEventsRef.current += 1;
+    let shouldSignOut = false;
+    try {
+      const { data, error } = await supabase.auth.signUp({
         email: internalEmail,
         password,
+        options: {
+          data: {
+            full_name: fullName,
+            phone: cleanedPhone,
+            city_id: cityId,
+            city: cityName,
+          },
+        },
       });
 
-      if (signInErr) {
-        console.error("[signUp] auto-login failed:", signInErr);
-
-        const msg = String(signInErr.message || "").toLowerCase();
-        if (msg.includes("email not confirmed")) {
-          return {
-            error: new Error(
-              "Email confirmation is ON in Supabase. Turn it OFF (Auth → Providers → Email → Confirm email = OFF), then signup again.",
-            ),
-          };
-        }
-        return { error: new Error(signInErr.message) };
+      if (error) {
+        console.error("[signUp] error:", error);
+        return { error: new Error(error.message) };
       }
-    }
 
-    // Ensure profile exists and fill with overrides
-    await ensureProfile(data.user, {
-      fullName,
-      phone: cleanedPhone,
-      cityId,
-      cityName,
-    });
+      if (!data.user) {
+        return { error: new Error("Signup failed: No user returned") };
+      }
 
-    // Safety: some deployments may default provider_status="pending" on new profiles.
-    // Regular users should not carry any provider state.
-    try {
-      await supabase
+      // Some projects disable session return on signUp; we temporarily sign in so we can create/update the profile.
+      if (!data.session) {
+        const { error: signInErr } = await supabase.auth.signInWithPassword({
+          email: internalEmail,
+          password,
+        });
+
+        if (signInErr) {
+          console.error("[signUp] auto-login failed:", signInErr);
+
+          const msg = String(signInErr.message || "").toLowerCase();
+          if (msg.includes("email not confirmed")) {
+            return {
+              error: new Error(
+                "Email confirmation is ON in Supabase. Turn it OFF (Auth → Providers → Email → Confirm email = OFF), then signup again.",
+              ),
+            };
+          }
+          return { error: new Error(signInErr.message) };
+        }
+        shouldSignOut = true;
+      } else {
+        shouldSignOut = true;
+      }
+
+      // Ensure profile exists and fill with overrides
+      await ensureProfile(data.user, {
+        fullName,
+        phone: cleanedPhone,
+        cityId,
+        cityName,
+      });
+
+      // Apply role intent
+      const { error: roleErr } = await supabase
         .from("profiles")
-        .update({ provider_status: null } as any)
-        .eq("user_id", data.user.id)
-        .eq("role", "user");
-    } catch {
-      // ignore
-    }
+        .update({ role: targetRole as any, provider_status: targetProviderStatus as any } as any)
+        .eq("user_id", data.user.id);
+      if (roleErr) {
+        console.error("[signUp] failed to set role/provider_status:", roleErr);
+        return { error: new Error(roleErr.message) };
+      }
 
-    return { error: null };
+      // Always sign out after signup (no auto login).
+      await supabase.auth.signOut();
+      setUser(null);
+      setSession(null);
+      setProfile(null);
+      shouldSignOut = false;
+
+      return { error: null };
+    } catch (e) {
+      console.error("[signUp] exception:", e);
+      return { error: new Error("Signup failed") };
+    } finally {
+      // Best-effort: if something went wrong after auth created a session, do not leave the client signed in.
+      if (shouldSignOut) {
+        try {
+          await supabase.auth.signOut();
+        } catch {
+          // ignore
+        }
+        setUser(null);
+        setSession(null);
+        setProfile(null);
+      }
+      ignoreAuthEventsRef.current = Math.max(0, ignoreAuthEventsRef.current - 1);
+    }
   };
 
   const signIn = async (phone: string, password: string) => {

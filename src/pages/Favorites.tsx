@@ -30,6 +30,7 @@ interface FavoriteService {
 }
 
 type SheetService = {
+  id: string;
   titleKey: string;
   descKey: string;
   category: string;
@@ -358,6 +359,8 @@ export default function Favorites() {
           }}
           service={sheetService}
           initialProviderServiceId={initialProviderServiceId || undefined}
+          startInProviderView={true}
+          isRTL={isRTL}
         />
       )}
     </Layout>

@@ -200,7 +200,7 @@ export default function AdminSettings() {
               id="hub-suggestions-json"
               value={localSettings.hub_suggestions_json || ""}
               onChange={(e) => setLocalSettings((prev) => ({ ...prev, hub_suggestions_json: e.target.value }))}
-              placeholder={`[\n  {\n    \"title_en\": \"Fix AC\",\n    \"title_ar\": \"تصليح مكيف\",\n    \"subcategory_match\": [\"ac\", \"تكييف\"],\n    \"icon_name\": \"Wind\"\n  }\n]`}
+              placeholder={`[\n  {\n    "title_en": "Fix AC",\n    "title_ar": "تصليح مكيف",\n    "subcategory_match": ["ac", "تكييف"],\n    "icon_name": "Wind"\n  }\n]`}
               className="min-h-[140px]"
             />
             <div className="flex justify-end">

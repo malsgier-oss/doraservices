@@ -9,13 +9,13 @@ import {
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 
-export function LanguageToggle() {
+export function LanguageToggle({ className }: { className?: string }) {
   const { language, setLanguage, t } = useLanguage();
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+        <Button variant="ghost" size="icon" className={cn("h-9 w-9 rounded-full", className)}>
           <Globe className="h-5 w-5" />
           <span className="sr-only">{t.language.title}</span>
         </Button>

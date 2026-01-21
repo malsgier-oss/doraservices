@@ -58,9 +58,6 @@ export function useServices() {
       .select("*")
       .is("deleted_at", null)
       .eq("is_active", true)
-      .eq("is_visible", true)
-      .eq("is_paused", false)
-      .eq("approval_status", "approved")
       .order("created_at", { ascending: false });
 
     if (servicesError) {
@@ -70,7 +67,16 @@ export function useServices() {
       return;
     }
 
-    const rows = (servicesData || []) as any[];
+    // IMPORTANT:
+    // Treat NULL as the legacy/default value for older rows.
+    // Some rows may have NULL for is_visible / is_paused / approval_status.
+    // If we filter strictly at the query level, the Hub can appear empty.
+    const rows = ((servicesData || []) as any[]).filter((s) => {
+      const isVisible = s.is_visible ?? true;
+      const isPaused = s.is_paused ?? false;
+      const approval = (s.approval_status ?? "approved").toString().toLowerCase();
+      return !!isVisible && !isPaused && approval === "approved";
+    });
 
     // Optional enrichment from profiles (may fail for guests due to RLS).
     // IMPORTANT: never overwrite service-level provider_phone/name with empty values.
