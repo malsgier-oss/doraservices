@@ -95,6 +95,12 @@ export default function Auth() {
     if (profileLoading) return;
     if (!profile) return;
 
+    const fromPath = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
+    if (fromPath && fromPath !== "/auth") {
+      navigate(fromPath, { replace: true });
+      return;
+    }
+
     // App-first routing:
     // - After signup: go to Profile (welcome mode)
     // - If onboarding intent was provider: also go to Profile
@@ -127,7 +133,7 @@ export default function Auth() {
     navigate("/", {
       replace: true
     });
-  }, [user, profile, profileLoading, navigate]);
+  }, [user, profile, profileLoading, navigate, location.state]);
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanedPhone = cleanPhoneForStorage(loginData.phone);
