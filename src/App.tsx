@@ -11,6 +11,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AdminRoute } from "@/components/auth/AdminRoute";
 import { ProviderRoute } from "@/components/auth/ProviderRoute";
 import { AppErrorBoundary } from "@/components/layout/AppErrorBoundary";
+import { FullScreenFallback } from "@/components/layout/FullScreenFallback";
 import { RouteAnalytics } from "@/observability/RouteAnalytics";
 
 import { ONBOARDING_DONE_KEY } from "./pages/onboardingKeys";
@@ -72,11 +73,7 @@ const queryClient = new QueryClient({
 });
 
 function RouteFallback() {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-    </div>
-  );
+  return <FullScreenFallback variant="page" />;
 }
 
 /**
@@ -86,11 +83,7 @@ function AuthenticatedRedirect({ children }: { children: React.ReactNode }) {
   const { user, profile, loading, profileLoading } = useAuth();
 
   if (loading || profileLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
+    return <FullScreenFallback variant="auth" />;
   }
 
   if (user) {

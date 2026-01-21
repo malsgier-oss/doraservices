@@ -1,7 +1,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Loader2 } from "lucide-react";
+import { FullScreenFallback } from "@/components/layout/FullScreenFallback";
 
 interface AdminRouteProps {
   children: React.ReactNode;
@@ -13,11 +13,7 @@ export function AdminRoute({ children }: AdminRouteProps) {
   const location = useLocation();
 
   if (authLoading || profileLoading || roleLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return <FullScreenFallback variant="app" />;
   }
 
   if (!user) {

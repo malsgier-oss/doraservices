@@ -31,10 +31,149 @@
     <meta name="twitter:site" content="@DoraApp" />
     <meta name="twitter:image" content="/lovable-uploads/233227f3-d354-4dc4-992f-9958935db848.png" />
 
+    <!-- App shell to avoid a blank screen before React loads -->
+    <style>
+      :root {
+        --shell-bg: #ffffff;
+        --shell-card: #eef2f7;
+        --shell-card-2: #e7ecf3;
+        --shell-text: rgba(15, 23, 42, 0.75);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --shell-bg: #0b1220;
+          --shell-card: rgba(148, 163, 184, 0.14);
+          --shell-card-2: rgba(148, 163, 184, 0.22);
+          --shell-text: rgba(226, 232, 240, 0.78);
+        }
+      }
+      body {
+        margin: 0;
+        background: var(--shell-bg);
+      }
+      .shell {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        color: var(--shell-text);
+      }
+      .shell-inner {
+        width: min(1080px, 100%);
+      }
+      .shimmer {
+        background: linear-gradient(90deg, var(--shell-card) 0%, var(--shell-card-2) 40%, var(--shell-card) 100%);
+        background-size: 200% 100%;
+        animation: shimmer 1.25s ease-in-out infinite;
+        border-radius: 16px;
+      }
+      @keyframes shimmer {
+        0% {
+          background-position: 200% 0;
+        }
+        100% {
+          background-position: -200% 0;
+        }
+      }
+      .shell-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .shell-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .shell-logo {
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+      }
+      .shell-lines {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .shell-line {
+        height: 10px;
+        border-radius: 999px;
+      }
+      .w-120 {
+        width: 120px;
+      }
+      .w-80 {
+        width: 80px;
+      }
+      .shell-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .pill {
+        height: 36px;
+        width: 86px;
+        border-radius: 999px;
+      }
+      .circle {
+        height: 36px;
+        width: 36px;
+        border-radius: 999px;
+      }
+      .shell-grid {
+        margin-top: 28px;
+        display: grid;
+        grid-template-columns: repeat(1, minmax(0, 1fr));
+        gap: 14px;
+      }
+      @media (min-width: 640px) {
+        .shell-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+      @media (min-width: 1024px) {
+        .shell-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+      .shell-card {
+        height: 112px;
+        border-radius: 18px;
+      }
+    </style>
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="app-shell" class="shell" aria-label="Loading">
+        <div class="shell-inner">
+          <div class="shell-top">
+            <div class="shell-left">
+              <div class="shell-logo shimmer"></div>
+              <div class="shell-lines">
+                <div class="shell-line w-120 shimmer"></div>
+                <div class="shell-line w-80 shimmer"></div>
+              </div>
+            </div>
+            <div class="shell-actions">
+              <div class="circle shimmer"></div>
+              <div class="pill shimmer"></div>
+            </div>
+          </div>
+          <div class="shell-grid" aria-hidden="true">
+            <div class="shell-card shimmer"></div>
+            <div class="shell-card shimmer"></div>
+            <div class="shell-card shimmer"></div>
+            <div class="shell-card shimmer"></div>
+            <div class="shell-card shimmer"></div>
+            <div class="shell-card shimmer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

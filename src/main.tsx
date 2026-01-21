@@ -5,6 +5,38 @@ import { initAnalytics } from "@/observability/analytics";
 
 const rootEl = document.getElementById("root");
 
+const prefetchInitialRoute = () => {
+  try {
+    const path = window.location?.pathname || "/";
+    // Prefetch only the initial screen chunk to reduce Suspense time.
+    if (path === "/") void import("./pages/Hub");
+    else if (path === "/auth") void import("./pages/Auth");
+    else if (path === "/favorites") void import("./pages/Favorites");
+    else if (path === "/profile") void import("./pages/Profile");
+    else if (path === "/provider-dashboard") void import("./pages/ProviderDashboard");
+    else if (path === "/onboarding") void import("./pages/Onboarding");
+    else if (path === "/forgot-password") void import("./pages/ForgotPassword");
+    else if (path === "/change-password") void import("./pages/ChangePassword");
+    else if (path === "/pending-confirmation") void import("./pages/PendingConfirmation");
+    else if (path === "/pending-verification") void import("./pages/PendingVerification");
+    else if (path.startsWith("/admin")) void import("./pages/admin/AdminLayout");
+    else if (
+      /^\/(about|contact|help|become-provider|terms|privacy)$/.test(path)
+    )
+      void import("./pages/SitePage");
+  } catch {
+    // ignore
+  }
+};
+
+const removeAppShell = () => {
+  try {
+    document.getElementById("app-shell")?.remove();
+  } catch {
+    // ignore
+  }
+};
+
 const showFatal = (message: string) => {
   const safeMessage = message || "Unexpected error";
   const html = `
@@ -59,6 +91,12 @@ If you're on Cloudflare Pages, add these as build-time environment variables for
   });
 
   try {
+    // Start fetching the initial route chunk while we import the app.
+    prefetchInitialRoute();
+
+    // Remove the HTML app shell right before mounting React.
+    removeAppShell();
+
     // Import App lazily so startup can show a useful fatal screen if config is missing.
     void import("./App.tsx")
       .then(({ default: App }) => {
