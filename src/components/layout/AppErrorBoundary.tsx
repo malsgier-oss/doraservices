@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Component } from "react";
 
 import { Button } from "@/components/ui/button";
+import { captureException } from "@/observability/sentry";
 
 type Props = {
   children: ReactNode;
@@ -21,6 +22,7 @@ export class AppErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: { componentStack: string }) {
     console.error("[AppErrorBoundary]", error, info);
+    captureException(error);
   }
 
   handleReload = () => {

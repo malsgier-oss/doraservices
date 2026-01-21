@@ -4,24 +4,10 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL = import.meta.env.VITE_DORA_SUPABASE_URL as string | undefined;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_DORA_SUPABASE_ANON_KEY as string | undefined;
 
-// ✅ Mobile-friendly: expose tiny diagnostics without console
-declare global {
-  interface Window {
-    __DORA_SUPABASE__?: { url: string | null; hasAnonKey: boolean };
-  }
-}
-
-if (typeof window !== "undefined") {
-  window.__DORA_SUPABASE__ = {
-    url: SUPABASE_URL ?? null,
-    hasAnonKey: Boolean(SUPABASE_ANON_KEY),
-  };
-}
-
 // ✅ Hard fail early if env missing (prevents silent “nothing shows” bugs)
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   throw new Error(
-    `Missing Supabase env. Check Lovable secrets:
+    `Missing Supabase env variables:
 VITE_DORA_SUPABASE_URL set? ${Boolean(SUPABASE_URL)}
 VITE_DORA_SUPABASE_ANON_KEY set? ${Boolean(SUPABASE_ANON_KEY)}`,
   );

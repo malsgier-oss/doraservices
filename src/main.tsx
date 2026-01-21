@@ -1,6 +1,8 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import { initSentry, captureException } from "@/observability/sentry";
+import { initAnalytics } from "@/observability/analytics";
 
 const rootEl = document.getElementById("root");
 
@@ -25,12 +27,18 @@ const showFatal = (message: string) => {
 if (!rootEl) {
   showFatal("Root element not found");
 } else {
+  // Observability should be initialized as early as possible.
+  initSentry();
+  initAnalytics();
+
   window.addEventListener("error", (event) => {
+    captureException(event.error || event.message);
     showFatal(event.error?.message || event.message || "Unexpected error");
   });
 
   window.addEventListener("unhandledrejection", (event) => {
     const reason = (event as PromiseRejectionEvent).reason;
+    captureException(reason);
     const message = reason instanceof Error ? reason.message : "Unexpected error";
     showFatal(message);
   });
@@ -38,6 +46,7 @@ if (!rootEl) {
   try {
     createRoot(rootEl).render(<App />);
   } catch (error) {
+    captureException(error);
     const message = error instanceof Error ? error.message : "Unexpected error";
     showFatal(message);
   }
