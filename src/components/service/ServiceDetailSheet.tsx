@@ -23,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useServiceRatings } from "@/hooks/useReviews";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ServiceProviderCard, ProviderData } from "./ServiceProviderCard";
+import { trackProviderEvent } from "@/lib/providerTelemetry";
 
 // --- Types ---
 export type SheetService = {
@@ -221,6 +222,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           price: r.price,
           is_active: r.is_active ?? null,
           approval_status: r.approval_status ?? null,
+          views_count: r.views_count ?? null,
           reviews: undefined,
         }));
 
@@ -298,6 +300,20 @@ export function ServiceDetailSheet({
 
   const serviceIds = useMemo(() => providers.map((p) => p.id), [providers]);
   const { ratings } = useServiceRatings(serviceIds);
+
+  const bumpProviderStat = (
+    id: string,
+    field: "views_count" | "call_clicks" | "whatsapp_clicks"
+  ) => {
+    setProviders((prev) =>
+      prev.map((p) =>
+        p.id === id ? { ...p, [field]: Number((p as any)[field] || 0) + 1 } : p
+      )
+    );
+    setSelectedProvider((prev) =>
+      prev?.id === id ? { ...prev, [field]: Number((prev as any)[field] || 0) + 1 } : prev
+    );
+  };
 
   useEffect(() => {
     let alive = true;
@@ -425,16 +441,27 @@ export function ServiceDetailSheet({
     if (!open) return;
     const id = selectedProvider?.id;
     if (!id) return;
-    if (viewedServiceIdsRef.current.has(id)) return;
-    viewedServiceIdsRef.current.add(id);
-    // Best-effort telemetry. In some builds supabase.rpc() is not a real Promise (no .catch).
-    void (async () => {
+    const shouldTrackView = () => {
+      const key = `viewed_provider_${id}`;
+      const now = Date.now();
+      const ttlMs = 30 * 60 * 1000;
       try {
-        await supabase.rpc("record_service_event", { p_service_id: id, p_event_type: "view" } as any);
+        const raw = sessionStorage.getItem(key);
+        const last = raw ? Number(raw) : null;
+        if (last && !Number.isNaN(last) && now - last < ttlMs) return false;
+        sessionStorage.setItem(key, String(now));
+        return true;
       } catch {
-        // ignore
+        if (viewedServiceIdsRef.current.has(id)) return false;
+        viewedServiceIdsRef.current.add(id);
+        return true;
       }
-    })();
+    };
+
+    if (!shouldTrackView()) return;
+
+    void trackProviderEvent(id, "view");
+    bumpProviderStat(id, "views_count");
   }, [open, selectedProvider?.id]);
 
   const getProviderWithRating = (p: ProviderData) => {
@@ -570,6 +597,7 @@ export function ServiceDetailSheet({
             provider={activeProvider}
             userId={userId}
             onRequireAuth={() => toast.info("سجل دخولك للإبلاغ")}
+            onTrack={(eventType) => bumpProviderStat(activeProvider.id, eventType)}
             onReport={(reason) => {
               if (!activeProvider?.id) return;
               return reportService(activeProvider.id, userId, reason);
@@ -585,11 +613,13 @@ function ProviderActionBar({
   provider,
   userId,
   onRequireAuth,
+  onTrack,
   onReport,
 }: {
   provider: ProviderData;
   userId: string | null;
   onRequireAuth: () => void;
+  onTrack?: (eventType: "call_clicks" | "whatsapp_clicks") => void;
   onReport: (reason: string) => Promise<void> | void;
 }) {
   const [reportOpen, setReportOpen] = useState(false);
@@ -599,13 +629,8 @@ function ProviderActionBar({
   const handleCall = () => {
     if (!provider.provider_phone) return toast.error("لا يوجد رقم هاتف");
     if (provider?.id) {
-      void (async () => {
-        try {
-          await supabase.rpc("record_service_event", { p_service_id: provider.id, p_event_type: "call" } as any);
-        } catch {
-          // ignore
-        }
-      })();
+      void trackProviderEvent(provider.id, "call");
+      onTrack?.("call_clicks");
     }
     window.open(`tel:${provider.provider_phone.replace(/\s+/g, "")}`, "_self");
   };
@@ -615,13 +640,8 @@ function ProviderActionBar({
     if (!provider.provider_phone) return toast.error("لا يوجد رقم هاتف");
     const digits = provider.provider_phone.replace(/[^\d]/g, "");
     if (provider?.id) {
-      void (async () => {
-        try {
-          await supabase.rpc("record_service_event", { p_service_id: provider.id, p_event_type: "whatsapp" } as any);
-        } catch {
-          // ignore
-        }
-      })();
+      void trackProviderEvent(provider.id, "whatsapp");
+      onTrack?.("whatsapp_clicks");
     }
     if (digits) window.open(`https://wa.me/${digits}`, "_blank");
   };
