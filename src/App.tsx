@@ -24,6 +24,7 @@ const NotFound = React.lazy(() => import("./pages/NotFound"));
 const ProviderDashboard = React.lazy(() => import("./pages/ProviderDashboard"));
 const ServiceEditor = React.lazy(() => import("./pages/ServiceEditor"));
 const PendingVerification = React.lazy(() => import("./pages/PendingVerification"));
+const PendingConfirmation = React.lazy(() => import("./pages/PendingConfirmation"));
 const ChangePassword = React.lazy(() => import("./pages/ChangePassword"));
 const ForgotPassword = React.lazy(() => import("./pages/ForgotPassword"));
 const Onboarding = React.lazy(() => import("./pages/Onboarding"));
@@ -121,6 +122,7 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
       path === "/auth" ||
       path === "/forgot-password" ||
       path === "/change-password" ||
+      path === "/pending-confirmation" ||
       path === "/pending-verification" ||
       path.startsWith("/admin");
 
@@ -163,6 +165,8 @@ const AppRoutes = () => {
             </AuthenticatedRedirect>
           }
         />
+
+        <Route path="/pending-confirmation" element={<PendingConfirmation />} />
 
         <Route path="/forgot-password" element={<ForgotPassword />} />
 

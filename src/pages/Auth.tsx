@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
 import { Lock, User, Loader2, AlertCircle, Phone, MapPin } from "lucide-react";
 import { LanguageToggle } from "@/components/LanguageToggle";
@@ -20,8 +22,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { isValidLibyanPhone, cleanPhoneForStorage } from "@/lib/phoneUtils";
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
 const nameSchema = z.string().min(2, "Name must be at least 2 characters");
-const POST_SIGNUP_REDIRECT_KEY = "dora_post_signup_redirect";
-const ONBOARDING_INTENT_KEY = "dora_onboarding_intent";
 export default function Auth() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -50,11 +50,20 @@ export default function Auth() {
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const initialTab = (query.get("tab") || "login").toLowerCase();
   const [tab, setTab] = useState<"login" | "signup">(initialTab === "signup" ? "signup" : "login");
+  const initialIntent = (query.get("intent") || "").toLowerCase();
+  const [isProviderSignup, setIsProviderSignup] = useState(initialIntent === "provider");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   // Keep tab in sync with URL changes (e.g., onboarding intent opens signup)
   useEffect(() => {
     const t = (query.get("tab") || "login").toLowerCase();
     setTab(t === "signup" ? "signup" : "login");
+  }, [query]);
+  // Keep provider toggle in sync with URL intent changes.
+  useEffect(() => {
+    const intent = (query.get("intent") || "").toLowerCase();
+    setIsProviderSignup(intent === "provider");
+    setAgreedToTerms(false);
   }, [query]);
   const [loginData, setLoginData] = useState({
     phone: "",
@@ -95,35 +104,6 @@ export default function Auth() {
     if (profileLoading) return;
     if (!profile) return;
 
-    // App-first routing:
-    // - After signup: go to Profile (welcome mode)
-    // - If onboarding intent was provider: also go to Profile
-    // - Otherwise: go to Hub
-    let postSignup = false;
-    let intent: string | null = null;
-    try {
-      postSignup = localStorage.getItem(POST_SIGNUP_REDIRECT_KEY) === "1";
-      intent = localStorage.getItem(ONBOARDING_INTENT_KEY);
-    } catch {
-      // ignore
-    }
-    if (postSignup) {
-      try {
-        localStorage.removeItem(POST_SIGNUP_REDIRECT_KEY);
-      } catch {
-        // ignore
-      }
-      navigate("/profile?welcome=1", {
-        replace: true
-      });
-      return;
-    }
-    if ((intent || "").toLowerCase() === "provider") {
-      navigate("/profile?welcome=1", {
-        replace: true
-      });
-      return;
-    }
     navigate("/", {
       replace: true
     });
@@ -229,12 +209,20 @@ export default function Auth() {
       });
       return;
     }
+    if (isProviderSignup && !agreedToTerms) {
+      toast({
+        title: isRTL ? "موافقة مطلوبة" : "Agreement required",
+        description: isRTL ? "يرجى الموافقة على شروط الاستخدام للمتابعة." : "Please agree to the Terms of Use to continue.",
+        variant: "destructive"
+      });
+      return;
+    }
     const selectedCity = cities?.find(c => c.id === signupData.cityId);
     const cityName = language === "ar" ? selectedCity?.name_ar || selectedCity?.name || "" : selectedCity?.name || selectedCity?.name_ar || "";
     setIsLoading(true);
     const {
       error
-    } = await signUp(cleanedPhone, signupData.password, signupData.fullName, signupData.cityId, cityName);
+    } = await signUp(cleanedPhone, signupData.password, signupData.fullName, signupData.cityId, cityName, isProviderSignup ? "provider" : "user");
     setIsLoading(false);
     if (error) {
       const lower = error.message.toLowerCase();
@@ -251,24 +239,9 @@ export default function Auth() {
     }
     toast({
       title: isRTL ? "تم إنشاء الحساب!" : "Account created!",
-      description: isRTL ? "تم إنشاء حسابك بنجاح." : "Your account is created successfully."
+      description: isRTL ? "سنتواصل معك قريباً لتأكيد الحساب." : "We will contact you soon to confirm."
     });
-
-    // Mark for one-time post-signup redirect (useEffect handles the final route once profile loads).
-    try {
-      localStorage.setItem(POST_SIGNUP_REDIRECT_KEY, "1");
-      const intent = (query.get("intent") || "").toLowerCase();
-      if (intent === "provider") {
-        localStorage.setItem(ONBOARDING_INTENT_KEY, "provider");
-      }
-    } catch {
-      // ignore
-    }
-
-    // Immediate UX: push to profile (welcome). If profile isn't ready yet, the effect will handle it.
-    navigate("/profile?welcome=1", {
-      replace: true
-    });
+    navigate("/pending-confirmation", { replace: true });
   };
   if (authLoading || profileLoading || settingsLoading || citiesLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-background">
@@ -352,6 +325,22 @@ export default function Auth() {
                 </Alert>}
 
               <form onSubmit={handleSignup} className="space-y-4">
+                <div className="flex items-center justify-between rounded-2xl border border-border bg-muted/30 px-4 py-3">
+                  <div className={cn("space-y-0.5", isRTL ? "text-right" : "text-left")}>
+                    <div className="font-medium">{isRTL ? "حساب مزود خدمة" : "Provider account"}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {isRTL ? "فعّل هذا إذا كنت تقدم خدمات" : "Enable this if you provide services"}
+                    </div>
+                  </div>
+                  <Switch
+                    checked={isProviderSignup}
+                    onCheckedChange={(v) => {
+                      setIsProviderSignup(v);
+                      if (!v) setAgreedToTerms(false);
+                    }}
+                    aria-label={isRTL ? "تفعيل حساب مزود خدمة" : "Enable provider account"}
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-name">{t.auth.fullName}</Label>
                   <div className="relative">
@@ -413,6 +402,36 @@ export default function Auth() {
                     {isRTL ? "عذراً، نحن نعمل في طرابلس فقط حالياً." : "Sorry, we are operating in Tripoli only at the moment."}
                   </p>
                 </div>
+
+                {isProviderSignup && (
+                  <div className="flex items-start gap-3 rounded-2xl border border-border bg-background px-4 py-3">
+                    <Checkbox
+                      id="provider-terms"
+                      checked={agreedToTerms}
+                      onCheckedChange={(v) => setAgreedToTerms(Boolean(v))}
+                      className="mt-1"
+                    />
+                    <Label htmlFor="provider-terms" className={cn("text-sm leading-5", isRTL ? "text-right" : "text-left")}>
+                      {isRTL ? (
+                        <>
+                          أوافق على{" "}
+                          <Link to="/terms" className="text-primary hover:underline">
+                            شروط الاستخدام
+                          </Link>
+                          .
+                        </>
+                      ) : (
+                        <>
+                          I agree to the{" "}
+                          <Link to="/terms" className="text-primary hover:underline">
+                            Terms of Use
+                          </Link>
+                          .
+                        </>
+                      )}
+                    </Label>
+                  </div>
+                )}
 
                 <Button type="submit" className="w-full rounded-full" disabled={isLoading || !registrationEnabled}>
                   {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t.auth.signup}
