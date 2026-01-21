@@ -31,6 +31,9 @@ import { FeaturedDeals } from "@/components/hub/FeaturedDeals";
 import { DealCard } from "@/components/hub/DealCard";
 import { BusinessCard } from "@/components/hub/BusinessCard";
 import { BuySellCategories } from "@/components/hub/BuySellCategories";
+import { TrendingDeals } from "@/components/hub/TrendingDeals";
+import { NewListings } from "@/components/hub/NewListings";
+import { BusinessDirectory } from "@/components/hub/BusinessDirectory";
 import { SearchFilters, type FilterState } from "@/components/hub/SearchFilters";
 import { AnimatedSection } from "@/components/hub/AnimatedSection";
 import { DealDetailSheet } from "@/components/hub/DealDetailSheet";
@@ -1427,7 +1430,17 @@ export default function Hub() {
 
           {/* Trending Services */}
           <AnimatedSection direction="up" delay={400}>
-            <HubSection id="trending-services" title={t("ترند الآن", "Trending Now")} icon={TrendingUp}>
+            <HubSection 
+              id="trending-services" 
+              title={t("ترند الآن", "Trending Now")} 
+              icon={TrendingUp}
+              actionLabel={t("عرض الكل", "View All")}
+              onAction={() => {
+                // TODO: Navigate to trending services page or filter
+                const el = document.getElementById("trending-services");
+                el?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+            >
             <TrendingSection
               cityId={cityId}
               cityName={selectedCityName}
@@ -1506,7 +1519,13 @@ export default function Hub() {
 
           {/* Personalized Recommendations */}
           <AnimatedSection direction="up" delay={700}>
-            <HubSection 
+            <HubSection
+              actionLabel={t("عرض الكل", "View All")}
+              onAction={() => {
+                // TODO: Navigate to recommendations page
+                const el = document.getElementById("recommendations");
+                el?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }} 
             id="recommendations" 
             title={user 
               ? t("مقترح لك", "For You") 
@@ -1718,19 +1737,97 @@ export default function Hub() {
               </HubSection>
 
               {/* Featured Deals */}
-              <HubSection id="featured-deals" title={t("عروض مميزة", "Featured Deals")} icon={Tag}>
-                <FeaturedDeals
-                  cityId={cityId}
-                  limit={6}
-                  onDealClick={(deal) => openDealDetail(deal)}
-                />
-              </HubSection>
+              <AnimatedSection direction="up" delay={200}>
+                <HubSection 
+                  id="featured-deals" 
+                  title={t("عروض مميزة", "Featured Deals")} 
+                  icon={Tag}
+                  actionLabel={t("عرض الكل", "View All")}
+                  onAction={() => {
+                    // TODO: Navigate to all featured deals
+                    const el = document.getElementById("featured-deals");
+                    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                >
+                  <FeaturedDeals
+                    cityId={cityId}
+                    limit={6}
+                    onDealClick={(deal) => openDealDetail(deal)}
+                  />
+                </HubSection>
+              </AnimatedSection>
 
               {/* Active Deals Grid */}
               <BuySellDealsSection cityId={cityId} onDealClick={openDealDetail} />
 
+              {/* Trending Deals */}
+              <AnimatedSection direction="up" delay={400}>
+                <HubSection 
+                  id="trending-deals" 
+                  title={t("عروض ترند", "Trending Deals")} 
+                  icon={TrendingUp}
+                  actionLabel={t("عرض الكل", "View All")}
+                  onAction={() => {
+                    // TODO: Navigate to all trending deals
+                    const el = document.getElementById("trending-deals");
+                    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                >
+                  <TrendingDeals
+                    cityId={cityId}
+                    limit={8}
+                    onDealClick={openDealDetail}
+                  />
+                </HubSection>
+              </AnimatedSection>
+
+              {/* New Listings */}
+              <AnimatedSection direction="up" delay={500}>
+                <HubSection 
+                  id="new-listings" 
+                  title={t("عروض جديدة", "New Listings")} 
+                  icon={Sparkles}
+                  actionLabel={t("عرض الكل", "View All")}
+                  onAction={() => {
+                    // TODO: Navigate to all new listings
+                    const el = document.getElementById("new-listings");
+                    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                >
+                  <NewListings
+                    cityId={cityId}
+                    limit={8}
+                    onDealClick={openDealDetail}
+                  />
+                </HubSection>
+              </AnimatedSection>
+
               {/* Featured Businesses */}
               <BuySellBusinessesSection cityId={cityId} />
+
+              {/* Business Directory */}
+              <AnimatedSection direction="up" delay={600}>
+                <HubSection 
+                  id="business-directory" 
+                  title={t("دليل المتاجر", "Business Directory")} 
+                  icon={Store}
+                  actionLabel={t("عرض الكل", "View All")}
+                  onAction={() => {
+                    // TODO: Navigate to full business directory
+                    const el = document.getElementById("business-directory");
+                    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                >
+                  <BusinessDirectory
+                    cityId={cityId}
+                    limit={12}
+                    onBusinessClick={(business) => {
+                      // TODO: Open business detail
+                      console.log("Business clicked:", business);
+                    }}
+                  />
+                </HubSection>
+              </AnimatedSection>
 
               {/* Footer links */}
               <div className="pt-4 pb-2 border-t text-sm text-muted-foreground space-y-3">
@@ -2034,7 +2131,7 @@ export default function Hub() {
                       key={shelf.id}
                       id={`shelf-${shelf.id}`}
                       title={shelf.title_ar}
-                      actionLabel={t("عرض الكل", "See all")}
+                      actionLabel={t("عرض الكل", "View All")}
                       onAction={() => openCategoryBrowse(cat.id)}
                     >
                       <div
