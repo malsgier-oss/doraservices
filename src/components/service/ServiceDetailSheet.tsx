@@ -24,6 +24,7 @@ import { useServiceRatings } from "@/hooks/useReviews";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ServiceProviderCard, ProviderData } from "./ServiceProviderCard";
 import { trackProviderEvent } from "@/lib/providerTelemetry";
+import { getTelLink, getWhatsAppLink } from "@/lib/phoneUtils";
 
 // --- Types ---
 export type SheetService = {
@@ -82,7 +83,16 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
 
         // Normalize category value for exact matching with stored services.category
         const categoryVal = service?.category ? normalizeCategory(service.category) : "";
-        const categoryOr = categoryVal ? `category.eq.${escOrValue(categoryVal)}` : "";
+        const categoryNames = new Set<string>();
+        if (categoryVal) categoryNames.add(categoryVal);
+        if (service?.categoryName) categoryNames.add(String(service.categoryName));
+        if (service?.categoryNameAr) categoryNames.add(String(service.categoryNameAr));
+
+        const categoryOr = Array.from(categoryNames)
+          .map((n) => String(n || "").trim())
+          .filter(Boolean)
+          .map((n) => `category.eq.${escOrValue(n)}`)
+          .join(",");
 
         // DEV: Log filter values for debugging (console only, no UI)
         if (import.meta.env?.DEV || import.meta.env?.MODE === "development") {
@@ -121,7 +131,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
         const baseWithCity = supabase
           .from("services")
           .select(
-            "id,user_id,title,description,category,city,sub_city,provider_name,provider_phone,allow_whatsapp,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count"
+            "id,user_id,title,description,category,city,sub_city,provider_name,provider_phone,allow_whatsapp,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count,call_clicks,whatsapp_clicks"
           )
           .order("is_featured", { ascending: false })
           .order("views_count", { ascending: false });
@@ -129,7 +139,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
         const baseNoCity = supabase
           .from("services")
           .select(
-            "id,user_id,title,description,category,provider_name,provider_phone,allow_whatsapp,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count"
+            "id,user_id,title,description,category,provider_name,provider_phone,allow_whatsapp,image_url,price,is_active,is_visible,is_paused,is_featured,approval_status,views_count,call_clicks,whatsapp_clicks"
           )
           .order("is_featured", { ascending: false })
           .order("views_count", { ascending: false });
@@ -627,23 +637,24 @@ function ProviderActionBar({
   const [submitting, setSubmitting] = useState(false);
 
   const handleCall = () => {
-    if (!provider.provider_phone) return toast.error("لا يوجد رقم هاتف");
+    const telLink = getTelLink(String(provider.provider_phone || ""));
+    if (telLink === "tel:") return toast.error("لا يوجد رقم هاتف");
     if (provider?.id) {
       void trackProviderEvent(provider.id, "call");
       onTrack?.("call_clicks");
     }
-    window.open(`tel:${provider.provider_phone.replace(/\s+/g, "")}`, "_self");
+    window.open(telLink, "_self");
   };
 
   const handleWhatsapp = () => {
     if (provider.allow_whatsapp === false) return;
-    if (!provider.provider_phone) return toast.error("لا يوجد رقم هاتف");
-    const digits = provider.provider_phone.replace(/[^\d]/g, "");
+    const waLink = getWhatsAppLink(String(provider.provider_phone || ""));
+    if (waLink === "https://wa.me/") return toast.error("لا يوجد رقم هاتف");
     if (provider?.id) {
       void trackProviderEvent(provider.id, "whatsapp");
       onTrack?.("whatsapp_clicks");
     }
-    if (digits) window.open(`https://wa.me/${digits}`, "_blank");
+    window.open(waLink, "_blank");
   };
 
   const submitReport = async () => {
@@ -672,6 +683,21 @@ function ProviderActionBar({
       dir="rtl"
       style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
     >
+      {/* Lightweight stats row (visible + kept in sync with optimistic bumps) */}
+      <div className="mb-2 flex items-center gap-3 text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1">
+          <Star className="h-3 w-3 opacity-70" />
+          {Number(provider.views_count || 0)} مشاهدة
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <Phone className="h-3 w-3 opacity-70" />
+          {Number(provider.call_clicks || 0)} اتصال
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <MessageCircle className="h-3 w-3 opacity-70" />
+          {Number(provider.whatsapp_clicks || 0)} واتساب
+        </span>
+      </div>
       <div className="flex gap-3 items-center">
         <Button
           className={cn(
