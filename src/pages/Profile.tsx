@@ -26,6 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -41,8 +42,12 @@ import {
   Trash2,
   User2,
   X,
+  LayoutDashboard,
+  ShoppingBag,
+  Briefcase,
 } from "lucide-react";
 import { MobileNav } from "@/components/layout/MobileNav";
+import { useMyBusiness } from "@/hooks/useMyBusiness";
 
 function statusBadgeVariant(status?: string | null) {
   const s = (status || "").toLowerCase();
@@ -76,6 +81,7 @@ export default function Profile() {
   const { user, profile, loading, profileLoading, signOut, refreshProfile } = useAuth();
   const { isRTL, language } = useLanguage();
   const { data: cities, isLoading: citiesLoading } = useCities();
+  const { data: myBusiness } = useMyBusiness();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const [saving, setSaving] = useState(false);
@@ -94,6 +100,7 @@ export default function Profile() {
   const [deleting, setDeleting] = useState(false);
 
   const [becomingProvider, setBecomingProvider] = useState(false);
+  const [marketplaceEnabled, setMarketplaceEnabled] = useState(false);
 
   // Route guard
   useEffect(() => {
@@ -120,6 +127,7 @@ export default function Profile() {
     setCityId(profile.city_id || "");
     setSubCity(profile.sub_city || "");
     setPhone((profile.phone || (typeof (user as any)?.user_metadata?.phone === "string" ? (user as any).user_metadata.phone : "")) as string); // fallback to auth metadata
+    setMarketplaceEnabled(Boolean((profile as any).marketplace_enabled));
   }, [profile, user]);
 
   // If city changes and the selected sub-city doesn't belong to the city, clear it.
@@ -144,10 +152,12 @@ export default function Profile() {
   const currentRole = (profile?.role || "user").toString().toLowerCase();
   const isProvider = isProviderLike(currentRole);
   const isAdmin = currentRole === "admin";
+  const isBusiness = currentRole === "business";
+  const hasBusinessProfile = !!myBusiness;
 
   // Dora principle: Profile pages stay focused on account/security/personal data.
   // "Become provider" is available only for non-remixed users.
-  const showProviderTab = !isAdmin && !isProvider;
+  const showProviderTab = !isAdmin && !isProvider && !isBusiness;
 
   const accountLocked = useMemo(() => {
     const st = (profile?.status || "").toLowerCase();
@@ -160,9 +170,9 @@ export default function Profile() {
   }, [location.search]);
 
   const defaultTab = useMemo(() => {
-    if (showWelcome) return showProviderTab ? "provider" : "account";
+    if (showWelcome) return "role";
     return "account";
-  }, [showWelcome, showProviderTab]);
+  }, [showWelcome]);
 
   const canEditPhone = useMemo(() => {
     // Editing phone freely can break login (phone->internal email mapping).
@@ -212,6 +222,7 @@ export default function Profile() {
       city_id: cityId || null,
       city: cityName,
       sub_city: subCity?.trim() || null,
+      marketplace_enabled: marketplaceEnabled,
     };
 
     if (canEditPhone) payload.phone = cleanedPhone;
@@ -387,6 +398,14 @@ export default function Profile() {
 
   const handleBecomeProvider = async () => {
     if (!user) return;
+    if (isBusiness || hasBusinessProfile) {
+      toast({
+        title: isRTL ? "غير متاح" : "Not available",
+        description: isRTL ? "لا يمكن الجمع بين متجر ومزود خدمة" : "You can't be both business and provider",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setBecomingProvider(true);
     try {
@@ -420,6 +439,26 @@ export default function Profile() {
     } finally {
       setBecomingProvider(false);
     }
+  };
+
+  const handleBecomeBusiness = async () => {
+    if (!user) return;
+    if (isProvider) {
+      toast({
+        title: isRTL ? "غير متاح" : "Not available",
+        description: isRTL ? "لا يمكن الجمع بين مزود ومتجر" : "You can't be both provider and business",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { error } = await supabase.from("profiles").update({ role: "business" } as any).eq("user_id", user.id);
+    if (error) {
+      toast({ title: isRTL ? "فشل" : "Failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    await refreshProfile?.();
+    navigate("/business-dashboard");
   };
 
   const handleSoftDelete = async () => {
@@ -615,11 +654,14 @@ export default function Profile() {
           <TabsList
             className={cn(
               "grid w-full rounded-2xl h-12",
-              showProviderTab ? "grid-cols-3" : "grid-cols-2",
+              showProviderTab ? "grid-cols-4" : "grid-cols-3",
             )}
           >
             <TabsTrigger value="account" className="rounded-xl">
               {isRTL ? "الحساب" : "Account"}
+            </TabsTrigger>
+            <TabsTrigger value="role" className="rounded-xl">
+              {isRTL ? "الدور" : "Role"}
             </TabsTrigger>
             {showProviderTab && (
               <TabsTrigger value="provider" className="rounded-xl">
@@ -739,6 +781,106 @@ export default function Profile() {
                   <Button variant="outline" asChild className="h-12 rounded-xl sm:ms-auto">
                     <Link to="/">{isRTL ? "العودة" : "Back"}</Link>
                   </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Role */}
+          <TabsContent value="role" className="mt-4 space-y-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <LayoutDashboard className="h-4 w-4" />
+                  {isRTL ? "اختيار الدور" : "Choose your role"}
+                </CardTitle>
+                <CardDescription>
+                  {isRTL ? "يمكنك تفعيل البيع كـ مستخدم، أو التحول إلى مزود/متجر." : "Enable selling as a user, or switch to provider/business."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* User marketplace */}
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
+                  <div className="min-w-0">
+                    <div className="font-medium">{isRTL ? "تفعيل البيع (إعلانات)" : "Enable selling (Listings)"}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {isRTL ? "يعرض لوحة المستخدم وأدوات الإعلانات." : "Unlocks user dashboard and listing tools."}
+                    </div>
+                  </div>
+                  <Switch
+                    checked={marketplaceEnabled}
+                    onCheckedChange={(v) => setMarketplaceEnabled(Boolean(v))}
+                    disabled={!(!isProvider && !isBusiness)}
+                    aria-label="marketplace"
+                  />
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-12 rounded-xl justify-start gap-2"
+                    onClick={() => navigate("/dashboard")}
+                  >
+                    <ShoppingBag className="h-4 w-4" />
+                    {isRTL ? "لوحة المستخدم" : "User Dashboard"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-12 rounded-xl justify-start gap-2"
+                    onClick={() => navigate("/buy-sell/my-listings")}
+                    disabled={!marketplaceEnabled}
+                  >
+                    <ShoppingBag className="h-4 w-4" />
+                    {isRTL ? "إعلاناتي" : "My Listings"}
+                  </Button>
+                </div>
+
+                <Separator />
+
+                {/* Provider */}
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
+                  <div className="min-w-0">
+                    <div className="font-medium">{isRTL ? "مزود خدمة" : "Provider"}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {isRTL ? "يتطلب موافقة الإدارة." : "Requires admin approval."}
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleBecomeProvider}
+                    disabled={becomingProvider || isBusiness || hasBusinessProfile || isProvider}
+                  >
+                    {becomingProvider ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
+                    <span className="ms-2">{isRTL ? "تفعيل" : "Enable"}</span>
+                  </Button>
+                </div>
+
+                {/* Business */}
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
+                  <div className="min-w-0">
+                    <div className="font-medium">{isRTL ? "متجر" : "Business"}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {isRTL ? "أنشئ ملف متجر ثم أضف عروضك." : "Create a business profile and add deals."}
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleBecomeBusiness}
+                    disabled={isProvider}
+                  >
+                    <Briefcase className="h-4 w-4" />
+                    <span className="ms-2">{isRTL ? "فتح" : "Open"}</span>
+                  </Button>
+                </div>
+
+                <div className="text-xs text-muted-foreground">
+                  {isRTL
+                    ? "ملاحظة: لا يمكن الجمع بين مزود خدمة ومتجر."
+                    : "Note: you cannot be both provider and business."}
                 </div>
               </CardContent>
             </Card>

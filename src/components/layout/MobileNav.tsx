@@ -29,6 +29,7 @@ export function MobileNav() {
   const admin = isAdmin(role);
   const providerApproved = (role || "").toLowerCase() === "provider" && (profile?.provider_status || "").toLowerCase() === "approved";
   const hasBusiness = !!myBusiness;
+  const marketplaceEnabled = !!(profile as any)?.marketplace_enabled;
 
   const dashboardTo = providerApproved ? "/provider-dashboard" : hasBusiness ? "/business-dashboard" : "/dashboard";
   const dashboardIcon = providerApproved ? LayoutDashboard : hasBusiness ? Briefcase : LayoutDashboard;
@@ -40,7 +41,9 @@ export function MobileNav() {
 
   const navItems = [
     { to: "/", icon: Home, label: t.nav.home },
-    { to: dashboardTo, icon: dashboardIcon, label: dashboardLabel },
+    ...(providerApproved || hasBusiness || marketplaceEnabled
+      ? [{ to: dashboardTo, icon: dashboardIcon, label: dashboardLabel }]
+      : []),
     ...(admin
       ? [{ to: "/admin", icon: Shield, label: isRTL ? "لوحة التحكم" : "Admin" }]
       : [{ to: "/favorites", icon: Heart, label: t.favorites?.title || (isRTL ? "المفضلة" : "Favorites") }]),
