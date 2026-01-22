@@ -49,6 +49,7 @@ export default function Auth() {
   } = useRegistrationEnabled();
   const [isLoading, setIsLoading] = useState(false);
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const returnTo = (query.get("returnTo") || "").trim();
   const initialTab = (query.get("tab") || "login").toLowerCase();
   const [tab, setTab] = useState<"login" | "signup">(initialTab === "signup" ? "signup" : "login");
   const initialIntent = (query.get("intent") || "").toLowerCase();
@@ -105,10 +106,10 @@ export default function Auth() {
     if (profileLoading) return;
     if (!profile) return;
 
-    navigate("/", {
-      replace: true
-    });
-  }, [user, profile, profileLoading, navigate]);
+    // Optional post-auth redirect. Only allow internal paths.
+    const safeReturnTo = returnTo.startsWith("/") ? returnTo : "/";
+    navigate(safeReturnTo || "/", { replace: true });
+  }, [user, profile, profileLoading, navigate, returnTo]);
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanedPhone = cleanPhoneForStorage(loginData.phone);
