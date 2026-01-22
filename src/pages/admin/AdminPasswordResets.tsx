@@ -179,78 +179,147 @@ const AdminPasswordResets = () => {
           ) : requests?.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">No password reset requests</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>City</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Requested</TableHead>
-                  <TableHead>Notes</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              {/* Mobile cards */}
+              <div className="space-y-3 sm:hidden">
                 {requests?.map((request) => (
-                  <TableRow key={request.id}>
-                    <TableCell className="font-mono">
-                      <div className="flex items-center gap-2">
-                        <Phone className="w-4 h-4" />
-                        {request.phone}
+                  <div key={request.id} className="rounded-xl border p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-mono text-sm flex items-center gap-2">
+                          <Phone className="w-4 h-4" />
+                          <span className="truncate">{request.phone}</span>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {request.city?.name || "-"} • {format(new Date(request.created_at), "MMM d, yyyy HH:mm")}
+                        </div>
                       </div>
-                    </TableCell>
-                    <TableCell>{request.city?.name || "-"}</TableCell>
-                    <TableCell>{getStatusBadge(request.status)}</TableCell>
-                    <TableCell>{format(new Date(request.created_at), "MMM d, yyyy HH:mm")}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">{request.notes || "-"}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        {request.status === "pending" && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setSelectedRequest(request);
-                                setDialogType("notes");
-                                setNotes(request.notes || "");
-                              }}
-                            >
-                              <MessageSquare className="w-4 h-4 mr-1" />
-                              Contact
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => {
-                                setSelectedRequest(request);
-                                setDialogType("password");
-                                setTempPassword("");
-                              }}
-                            >
-                              <Key className="w-4 h-4 mr-1" />
-                              Set Password
-                            </Button>
-                          </>
-                        )}
-                        {request.status === "contacted" && (
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              setSelectedRequest(request);
-                              setDialogType("password");
-                              setTempPassword("");
-                            }}
-                          >
-                            <Key className="w-4 h-4 mr-1" />
-                            Set Password
-                          </Button>
-                        )}
+                      <div className="shrink-0">{getStatusBadge(request.status)}</div>
+                    </div>
+
+                    <div className="text-sm text-muted-foreground whitespace-pre-wrap">
+                      {request.notes || "-"}
+                    </div>
+
+                    {request.status === "pending" ? (
+                      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
+                        <Button
+                          variant="outline"
+                          className="h-11"
+                          onClick={() => {
+                            setSelectedRequest(request);
+                            setDialogType("notes");
+                            setNotes(request.notes || "");
+                          }}
+                        >
+                          <MessageSquare className="w-4 h-4 mr-2" />
+                          Contact
+                        </Button>
+                        <Button
+                          className="h-11"
+                          onClick={() => {
+                            setSelectedRequest(request);
+                            setDialogType("password");
+                            setTempPassword("");
+                          }}
+                        >
+                          <Key className="w-4 h-4 mr-2" />
+                          Set password
+                        </Button>
                       </div>
-                    </TableCell>
-                  </TableRow>
+                    ) : request.status === "contacted" ? (
+                      <Button
+                        className="h-11 w-full"
+                        onClick={() => {
+                          setSelectedRequest(request);
+                          setDialogType("password");
+                          setTempPassword("");
+                        }}
+                      >
+                        <Key className="w-4 h-4 mr-2" />
+                        Set password
+                      </Button>
+                    ) : null}
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden sm:block">
+                <Table className="min-w-[900px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>City</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Requested</TableHead>
+                      <TableHead>Notes</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {requests?.map((request) => (
+                      <TableRow key={request.id}>
+                        <TableCell className="font-mono">
+                          <div className="flex items-center gap-2">
+                            <Phone className="w-4 h-4" />
+                            {request.phone}
+                          </div>
+                        </TableCell>
+                        <TableCell>{request.city?.name || "-"}</TableCell>
+                        <TableCell>{getStatusBadge(request.status)}</TableCell>
+                        <TableCell>{format(new Date(request.created_at), "MMM d, yyyy HH:mm")}</TableCell>
+                        <TableCell className="max-w-[200px] truncate">{request.notes || "-"}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            {request.status === "pending" && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setSelectedRequest(request);
+                                    setDialogType("notes");
+                                    setNotes(request.notes || "");
+                                  }}
+                                >
+                                  <MessageSquare className="w-4 h-4 mr-1" />
+                                  Contact
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedRequest(request);
+                                    setDialogType("password");
+                                    setTempPassword("");
+                                  }}
+                                >
+                                  <Key className="w-4 h-4 mr-1" />
+                                  Set Password
+                                </Button>
+                              </>
+                            )}
+                            {request.status === "contacted" && (
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedRequest(request);
+                                  setDialogType("password");
+                                  setTempPassword("");
+                                }}
+                              >
+                                <Key className="w-4 h-4 mr-1" />
+                                Set Password
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

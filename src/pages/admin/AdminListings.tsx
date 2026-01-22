@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Search, Trash2, Archive, CheckCircle } from "lucide-react";
+import { Search, Trash2, Archive, CheckCircle, Eye, Copy } from "lucide-react";
 import { format } from "date-fns";
+import { useCities } from "@/hooks/useCities";
 
 type ListingStatus = "draft" | "active" | "sold" | "archived";
 
@@ -18,10 +20,12 @@ type ListingRow = {
   id: string;
   user_id: string;
   title: string;
+  description?: string | null;
   category: string;
   price: number | null;
   currency: string;
   city_id: string | null;
+  location?: string | null;
   status: ListingStatus;
   archived_at: string | null;
   created_at: string;
@@ -31,11 +35,23 @@ export default function AdminListings() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [selected, setSelected] = useState<ListingRow | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  const { data: cities } = useCities();
+
+  const cityNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    (cities || []).forEach((c) => map.set(c.id, c.name_ar || c.name));
+    return map;
+  }, [cities]);
 
   const { data: listings, isLoading } = useQuery({
     queryKey: ["admin-listings", statusFilter, search],
     queryFn: async () => {
-      let query = supabase.from("listings").select("id,user_id,title,category,price,currency,city_id,status,archived_at,created_at");
+      let query = supabase
+        .from("listings")
+        .select("id,user_id,title,description,category,price,currency,city_id,location,status,archived_at,created_at");
 
       if (statusFilter !== "all") query = query.eq("status", statusFilter);
 
@@ -65,8 +81,33 @@ export default function AdminListings() {
 
   const deleteListing = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("listings").delete().eq("id", id);
-      if (error) throw error;
+      // Admin hard delete: requires either (a) DB RLS policy for admin delete or (b) Edge Function service role.
+      // We prefer the Edge Function because it bypasses RLS and is consistent with other admin operations.
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+
+      // Try Edge Function first
+      try {
+        const { data, error } = await supabase.functions.invoke("admin", {
+          body: { action: "deleteListing", listingId: id },
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (error) throw error;
+        if (data && typeof data === "object" && "error" in (data as Record<string, unknown>)) {
+          throw new Error(String((data as Record<string, unknown>).error));
+        }
+        return;
+      } catch (e) {
+        // Fallback: attempt direct delete (works if admin delete policy exists)
+        const { error } = await supabase.from("listings").delete().eq("id", id);
+        if (!error) return;
+
+        // Final fallback: archive (always allowed for admins via UPDATE policy)
+        await supabase.from("listings").update({ status: "archived", archived_at: new Date().toISOString() }).eq("id", id);
+        throw new Error(
+          "Hard delete was blocked by permissions. The listing was archived instead.",
+        );
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-listings"] });
@@ -80,6 +121,11 @@ export default function AdminListings() {
     if (s === "sold") return <Badge variant="secondary">Sold</Badge>;
     if (s === "archived") return <Badge variant="outline">Archived</Badge>;
     return <Badge variant="secondary">{s}</Badge>;
+  };
+
+  const cityLabel = (cityId: string | null) => {
+    if (!cityId) return "—";
+    return cityNameById.get(cityId) || cityId;
   };
 
   return (
@@ -134,41 +180,92 @@ export default function AdminListings() {
               <div className="space-y-3 sm:hidden">
                 {listings.map((l) => (
                   <div key={l.id} className="rounded-xl border p-4 space-y-3">
-                    <div className="min-w-0">
-                      <div className="font-medium truncate">{l.title}</div>
-                      <div className="text-sm text-muted-foreground truncate">
-                        {l.category} • {l.city_id || "—"} • {format(new Date(l.created_at), "MMM d, yyyy")}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{l.title}</div>
+                        <div className="text-sm text-muted-foreground truncate">
+                          {l.category} • {cityLabel(l.city_id)} • {format(new Date(l.created_at), "MMM d, yyyy")}
+                        </div>
                       </div>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="shrink-0 h-10"
+                        onClick={() => {
+                          setSelected(l);
+                          setDetailsOpen(true);
+                        }}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        Details
+                      </Button>
                     </div>
+
+                    {l.description ? (
+                      <div className="text-sm text-muted-foreground line-clamp-2 whitespace-pre-wrap">
+                        {l.description}
+                      </div>
+                    ) : null}
 
                     <div className="flex flex-wrap items-center gap-2">
                       {statusBadge(l.status)}
                       <Badge variant="outline">
                         {l.price == null ? "—" : `${l.price} ${l.currency || ""}`.trim()}
                       </Badge>
-                      <Badge variant="secondary" className="truncate max-w-[220px]">
-                        user: {l.user_id}
-                      </Badge>
+                      {l.location ? (
+                        <Badge variant="secondary" className="truncate max-w-[240px]">
+                          {l.location}
+                        </Badge>
+                      ) : null}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                      <div className="text-xs text-muted-foreground">User ID</div>
+                      <div className="mt-1 flex items-center justify-between gap-2">
+                        <div className="font-mono text-xs text-muted-foreground truncate" title={l.user_id}>
+                          {l.user_id}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 shrink-0"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(l.user_id);
+                              toast.success("Copied");
+                            } catch {
+                              toast.error("Copy failed");
+                            }
+                          }}
+                          aria-label="Copy user id"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
                       <Button
                         variant="outline"
+                        className="h-11"
                         onClick={() => updateStatus.mutate({ id: l.id, status: "active" })}
                         disabled={updateStatus.isPending || l.status === "active"}
                       >
                         <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
-                        Active
+                        Mark Active
                       </Button>
                       <Button
                         variant="outline"
+                        className="h-11"
                         onClick={() => updateStatus.mutate({ id: l.id, status: "sold" })}
                         disabled={updateStatus.isPending || l.status === "sold"}
                       >
-                        Sold
+                        Mark Sold
                       </Button>
                       <Button
                         variant="secondary"
+                        className="h-11"
                         onClick={() => updateStatus.mutate({ id: l.id, status: "archived" })}
                         disabled={updateStatus.isPending || l.status === "archived"}
                       >
@@ -177,6 +274,7 @@ export default function AdminListings() {
                       </Button>
                       <Button
                         variant="destructive"
+                        className="h-11"
                         onClick={() => {
                           if (confirm("Delete this listing?")) deleteListing.mutate(l.id);
                         }}
@@ -209,7 +307,7 @@ export default function AdminListings() {
                       <TableRow key={l.id}>
                         <TableCell className="font-medium max-w-[320px] truncate">{l.title}</TableCell>
                         <TableCell className="text-muted-foreground">{l.category}</TableCell>
-                        <TableCell className="text-muted-foreground">{l.city_id || "—"}</TableCell>
+                        <TableCell className="text-muted-foreground">{cityLabel(l.city_id)}</TableCell>
                         <TableCell className="text-muted-foreground">{l.price == null ? "—" : `${l.price} ${l.currency || ""}`.trim()}</TableCell>
                         <TableCell>{statusBadge(l.status)}</TableCell>
                         <TableCell className="text-muted-foreground">{format(new Date(l.created_at), "MMM d, yyyy")}</TableCell>
@@ -238,6 +336,86 @@ export default function AdminListings() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={detailsOpen}
+        onOpenChange={(open) => {
+          setDetailsOpen(open);
+          if (!open) setSelected(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Listing details</DialogTitle>
+          </DialogHeader>
+          {selected ? (
+            <div className="space-y-4">
+              <div>
+                <div className="text-xs text-muted-foreground">Title</div>
+                <div className="font-medium">{selected.title}</div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-xs text-muted-foreground">Status</div>
+                  <div>{statusBadge(selected.status)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Price</div>
+                  <div className="text-sm">
+                    {selected.price == null ? "—" : `${selected.price} ${selected.currency || ""}`.trim()}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">City</div>
+                  <div className="text-sm">{cityLabel(selected.city_id)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Category</div>
+                  <div className="text-sm">{selected.category}</div>
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Location</div>
+                <div className="text-sm text-muted-foreground whitespace-pre-wrap">{selected.location || "—"}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Description</div>
+                <div className="text-sm text-muted-foreground whitespace-pre-wrap">{selected.description || "—"}</div>
+              </div>
+              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                <div className="text-xs text-muted-foreground">Listing ID</div>
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <div className="font-mono text-xs text-muted-foreground truncate" title={selected.id}>
+                    {selected.id}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 shrink-0"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(selected.id);
+                        toast.success("Copied");
+                      } catch {
+                        toast.error("Copy failed");
+                      }
+                    }}
+                    aria-label="Copy listing id"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailsOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
