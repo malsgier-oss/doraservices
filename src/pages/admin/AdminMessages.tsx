@@ -121,8 +121,46 @@ export default function AdminMessages() {
           <CardTitle>Message History</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
+          {/* Mobile cards */}
+          <div className="space-y-3 sm:hidden">
+            {isLoading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="rounded-xl border p-4 space-y-2">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-4 w-64" />
+                  <Skeleton className="h-4 w-28" />
+                </div>
+              ))
+            ) : messages?.length === 0 ? (
+              <div className="rounded-xl border p-6 text-center text-muted-foreground">
+                No messages sent yet
+              </div>
+            ) : (
+              messages?.map((message) => (
+                <div key={message.id} className="rounded-xl border p-4 space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{message.title}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {format(new Date(message.created_at), "MMM d, yyyy HH:mm")}
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="gap-1 shrink-0">
+                      {getAudienceIcon(message.target_audience)}
+                      {message.target_audience}
+                    </Badge>
+                  </div>
+                  <div className="text-sm text-muted-foreground whitespace-pre-wrap">
+                    {message.content}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden sm:block rounded-md border">
+            <Table className="min-w-[700px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Title</TableHead>

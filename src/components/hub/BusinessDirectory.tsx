@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 interface BusinessDirectoryProps {
   cityId?: string | null;
   category?: string | null;
+  search?: string | null;
   limit?: number;
   onBusinessClick?: (business: Business) => void;
 }
@@ -15,12 +16,21 @@ interface BusinessDirectoryProps {
 export function BusinessDirectory({
   cityId,
   category,
+  search,
   limit = 12,
   onBusinessClick,
 }: BusinessDirectoryProps) {
   const { data: businesses, isLoading } = useBusinesses({ cityId, category, limit });
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
+
+  const q = (search || "").trim().toLowerCase();
+  const filtered = q
+    ? (businesses || []).filter((b) => {
+        const hay = `${b.name} ${b.description || ""} ${b.location || ""}`.toLowerCase();
+        return hay.includes(q);
+      })
+    : (businesses || []);
 
   if (isLoading) {
     return (
@@ -41,7 +51,7 @@ export function BusinessDirectory({
     );
   }
 
-  if (!businesses || businesses.length === 0) {
+  if (filtered.length === 0) {
     if (import.meta.env.DEV) {
       console.log("[BusinessDirectory] No businesses found", { cityId, category, limit });
     }
@@ -61,7 +71,7 @@ export function BusinessDirectory({
       dir={isRTL ? "rtl" : "ltr"}
       className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
     >
-      {businesses.map((business) => (
+      {filtered.map((business) => (
         <BusinessCard
           key={business.id}
           business={business}

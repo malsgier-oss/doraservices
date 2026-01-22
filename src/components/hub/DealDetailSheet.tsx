@@ -13,9 +13,10 @@ import {
   X,
   Store,
   Star,
+  ChevronRight,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useBusiness } from "@/hooks/useBusiness";
+import { useBusiness, type Business } from "@/hooks/useBusiness";
 import { useLanguage } from "@/contexts/LanguageContext";
 import type { Deal } from "@/hooks/useDeals";
 
@@ -23,12 +24,14 @@ interface DealDetailSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   deal: Deal | null;
+  onViewBusiness?: (business: Business) => void;
 }
 
 export function DealDetailSheet({
   open,
   onOpenChange,
   deal,
+  onViewBusiness,
 }: DealDetailSheetProps) {
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
@@ -275,9 +278,26 @@ export function DealDetailSheet({
             {/* Business Information */}
             {business && (
               <div className="bg-muted/30 rounded-xl p-4 space-y-3 border border-border/50">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <Store className="h-4 w-4" />
-                  <span>{t("المتجر", "Business")}</span>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Store className="h-4 w-4" />
+                    <span>{t("المتجر", "Business")}</span>
+                  </div>
+                  {onViewBusiness ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 shrink-0"
+                      onClick={() => {
+                        onViewBusiness(business);
+                        onOpenChange(false);
+                      }}
+                    >
+                      {t("عرض المتجر", "View business")}
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  ) : null}
                 </div>
                 <div className="space-y-2">
                   <h4 className="font-semibold">{business.name}</h4>

@@ -17,12 +17,22 @@ import { RouteAnalytics } from "@/observability/RouteAnalytics";
 import { ONBOARDING_DONE_KEY } from "./pages/onboardingKeys";
 
 const Hub = React.lazy(() => import("./pages/Hub"));
+const DealsBrowse = React.lazy(() => import("./pages/buy-sell/DealsBrowse"));
+const BusinessesBrowse = React.lazy(() => import("./pages/buy-sell/BusinessesBrowse"));
+const CreateListing = React.lazy(() => import("./pages/buy-sell/CreateListing"));
+const ListingsBrowse = React.lazy(() => import("./pages/buy-sell/ListingsBrowse"));
+const MyListings = React.lazy(() => import("./pages/buy-sell/MyListings"));
+const EditListing = React.lazy(() => import("./pages/buy-sell/EditListing"));
+const TrendingServicesPage = React.lazy(() => import("./pages/services/TrendingServicesPage"));
+const RecommendationsPage = React.lazy(() => import("./pages/services/RecommendationsPage"));
 const Favorites = React.lazy(() => import("./pages/Favorites"));
 const ServiceCreator = React.lazy(() => import("./pages/ServiceCreator"));
 const Profile = React.lazy(() => import("./pages/Profile"));
 const Auth = React.lazy(() => import("./pages/Auth"));
 const NotFound = React.lazy(() => import("./pages/NotFound"));
 const ProviderDashboard = React.lazy(() => import("./pages/ProviderDashboard"));
+const Dashboard = React.lazy(() => import("./pages/Dashboard"));
+const BusinessDashboard = React.lazy(() => import("./pages/BusinessDashboard"));
 const ServiceEditor = React.lazy(() => import("./pages/ServiceEditor"));
 const PendingVerification = React.lazy(() => import("./pages/PendingVerification"));
 const PendingConfirmation = React.lazy(() => import("./pages/PendingConfirmation"));
@@ -39,6 +49,9 @@ const AdminMessages = React.lazy(() => import("./pages/admin/AdminMessages"));
 const AdminAuditLog = React.lazy(() => import("./pages/admin/AdminAuditLog"));
 const AdminProviders = React.lazy(() => import("./pages/admin/AdminProviders"));
 const AdminServices = React.lazy(() => import("./pages/admin/AdminServices"));
+const AdminBusinesses = React.lazy(() => import("./pages/admin/AdminBusinesses"));
+const AdminDeals = React.lazy(() => import("./pages/admin/AdminDeals"));
+const AdminListings = React.lazy(() => import("./pages/admin/AdminListings"));
 const AdminCategories = React.lazy(() => import("./pages/admin/AdminCategories"));
 const AdminCities = React.lazy(() => import("./pages/admin/AdminCities"));
 const AdminAnalytics = React.lazy(() => import("./pages/admin/AdminAnalytics"));
@@ -145,6 +158,44 @@ const AppRoutes = () => {
         <Route path="/onboarding" element={<Onboarding />} />
         {/* Hub is public */}
         <Route path="/" element={<Hub />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/business-dashboard"
+          element={
+            <ProtectedRoute>
+              <BusinessDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/buy-sell/deals/:type" element={<DealsBrowse />} />
+        <Route path="/buy-sell/businesses" element={<BusinessesBrowse />} />
+        <Route path="/buy-sell/listings" element={<ListingsBrowse />} />
+        <Route path="/buy-sell/create-listing" element={<CreateListing />} />
+        <Route
+          path="/buy-sell/my-listings"
+          element={
+            <ProtectedRoute>
+              <MyListings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/buy-sell/edit-listing/:id"
+          element={
+            <ProtectedRoute>
+              <EditListing />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/services/trending" element={<TrendingServicesPage />} />
+        <Route path="/services/recommendations" element={<RecommendationsPage />} />
 
         {/* Public site pages */}
         <Route path="/:slug(about|contact|help|become-provider|terms|privacy)" element={<SitePage />} />
@@ -242,6 +293,9 @@ const AppRoutes = () => {
           <Route path="users" element={<AdminUsers />} />
           <Route path="providers" element={<AdminProviders />} />
           <Route path="services" element={<AdminServices />} />
+          <Route path="businesses" element={<AdminBusinesses />} />
+          <Route path="deals" element={<AdminDeals />} />
+          <Route path="listings" element={<AdminListings />} />
           <Route path="hub" element={<AdminHub />} />
           <Route path="hub-suggestions" element={<AdminHubSuggestions />} />
           <Route path="guides" element={<AdminGuides />} />

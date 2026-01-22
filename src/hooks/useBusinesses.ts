@@ -47,8 +47,21 @@ export function useBusinesses(options: UseBusinessesOptions = {}) {
         query = query.eq("category", category);
       }
 
-      // TODO: Filter by city if cityId is provided
-      // This would require joining or filtering by location field
+      // Filter by city if cityId is provided (best-effort: match on free-text `location`)
+      if (cityId) {
+        const { data: cityData } = await supabase
+          .from("cities")
+          .select("name,name_ar")
+          .eq("id", cityId)
+          .maybeSingle();
+
+        const cityNames = [cityData?.name, cityData?.name_ar].filter(Boolean).map(String);
+        if (cityNames.length > 0) {
+          // PostgREST OR across multiple ILIKE patterns
+          const or = cityNames.map((n) => `location.ilike.%${n}%`).join(",");
+          query = query.or(or);
+        }
+      }
 
       const { data, error } = await query;
 

@@ -210,78 +210,147 @@ export default function AdminCities() {
           ) : cities?.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">No cities found</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12">Order</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Arabic Name</TableHead>
-                  <TableHead>Region</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              {/* Mobile cards */}
+              <div className="space-y-3 sm:hidden">
                 {[...(cities || [])]
                   .sort((a, b) => a.display_order - b.display_order)
-                  .map((city, index) => (
-                    <TableRow key={city.id}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell className="font-medium">{city.name}</TableCell>
-                      <TableCell dir="rtl">{city.name_ar || "-"}</TableCell>
-                      <TableCell>
-                        {city.region ? (
-                          <Badge variant="outline">{city.region}</Badge>
-                        ) : (
-                          "-"
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {city.is_active ? (
-                          <Badge className="bg-green-500">Active</Badge>
-                        ) : (
-                          <Badge variant="secondary">Inactive</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => reorderCity.mutate({ id: city.id, direction: "up" })}
-                            disabled={index === 0}
-                          >
-                            <ArrowUp className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => reorderCity.mutate({ id: city.id, direction: "down" })}
-                            disabled={index === (cities?.length || 0) - 1}
-                          >
-                            <ArrowDown className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => openEditDialog(city)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-red-500"
-                            onClick={() => {
-                              if (confirm("Are you sure you want to delete this city?")) {
-                                deleteCity.mutate(city.id);
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                  .map((city, index, arr) => (
+                    <div key={city.id} className="rounded-xl border p-4 space-y-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">
+                            {index + 1}. {city.name}
+                          </div>
+                          {city.name_ar ? (
+                            <div className="text-sm text-muted-foreground truncate" dir="rtl">
+                              {city.name_ar}
+                            </div>
+                          ) : null}
+                          <div className="mt-1 flex flex-wrap gap-2">
+                            {city.region ? <Badge variant="outline">{city.region}</Badge> : <Badge variant="secondary">No region</Badge>}
+                            {city.is_active ? <Badge className="bg-green-500">Active</Badge> : <Badge variant="secondary">Inactive</Badge>}
+                          </div>
                         </div>
-                      </TableCell>
-                    </TableRow>
+                      </div>
+
+                      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
+                        <Button
+                          variant="outline"
+                          className="h-11"
+                          onClick={() => reorderCity.mutate({ id: city.id, direction: "up" })}
+                          disabled={index === 0}
+                        >
+                          <ArrowUp className="h-4 w-4 mr-2" />
+                          Move up
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="h-11"
+                          onClick={() => reorderCity.mutate({ id: city.id, direction: "down" })}
+                          disabled={index === arr.length - 1}
+                        >
+                          <ArrowDown className="h-4 w-4 mr-2" />
+                          Move down
+                        </Button>
+                        <Button variant="secondary" className="h-11" onClick={() => openEditDialog(city)}>
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          className="h-11"
+                          onClick={() => {
+                            if (confirm("Are you sure you want to delete this city?")) {
+                              deleteCity.mutate(city.id);
+                            }
+                          }}
+                          disabled={deleteCity.isPending}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
                   ))}
-              </TableBody>
-            </Table>
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden sm:block">
+                <Table className="min-w-[900px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">Order</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Arabic Name</TableHead>
+                      <TableHead>Region</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[...(cities || [])]
+                      .sort((a, b) => a.display_order - b.display_order)
+                      .map((city, index) => (
+                        <TableRow key={city.id}>
+                          <TableCell>{index + 1}</TableCell>
+                          <TableCell className="font-medium">{city.name}</TableCell>
+                          <TableCell dir="rtl">{city.name_ar || "-"}</TableCell>
+                          <TableCell>
+                            {city.region ? (
+                              <Badge variant="outline">{city.region}</Badge>
+                            ) : (
+                              "-"
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {city.is_active ? (
+                              <Badge className="bg-green-500">Active</Badge>
+                            ) : (
+                              <Badge variant="secondary">Inactive</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => reorderCity.mutate({ id: city.id, direction: "up" })}
+                                disabled={index === 0}
+                              >
+                                <ArrowUp className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => reorderCity.mutate({ id: city.id, direction: "down" })}
+                                disabled={index === (cities?.length || 0) - 1}
+                              >
+                                <ArrowDown className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => openEditDialog(city)}>
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-red-500"
+                                onClick={() => {
+                                  if (confirm("Are you sure you want to delete this city?")) {
+                                    deleteCity.mutate(city.id);
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

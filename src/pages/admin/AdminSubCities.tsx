@@ -261,8 +261,8 @@ export default function AdminSubCities() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search sub-cities..."
@@ -272,7 +272,7 @@ export default function AdminSubCities() {
           />
         </div>
         <Select value={filterCity} onValueChange={setFilterCity}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-full sm:w-48">
             <SelectValue placeholder="Filter by city" />
           </SelectTrigger>
           <SelectContent>
@@ -311,55 +311,98 @@ export default function AdminSubCities() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Name (Arabic)</TableHead>
-                    <TableHead>Order</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {citySubCities
-                    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-                    .map((subCity) => (
-                      <TableRow key={subCity.id}>
-                        <TableCell className="font-medium">{subCity.name}</TableCell>
-                        <TableCell dir="rtl">{subCity.name_ar || "-"}</TableCell>
-                        <TableCell>{subCity.display_order || 0}</TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={subCity.is_active ? "default" : "secondary"}
-                            className="cursor-pointer"
-                            onClick={() => handleToggleActive(subCity)}
-                          >
-                            {subCity.is_active ? "Active" : "Inactive"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleOpenDialog(subCity)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDelete(subCity.id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+              {/* Mobile cards */}
+              <div className="space-y-3 sm:hidden">
+                {citySubCities
+                  .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+                  .map((subCity) => (
+                    <div key={subCity.id} className="rounded-xl border p-4 space-y-2">
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{subCity.name}</div>
+                        {subCity.name_ar ? (
+                          <div className="text-sm text-muted-foreground truncate" dir="rtl">
+                            {subCity.name_ar}
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
+                        ) : null}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline">Order: {subCity.display_order || 0}</Badge>
+                        <Badge
+                          variant={subCity.is_active ? "default" : "secondary"}
+                          className="cursor-pointer"
+                          onClick={() => handleToggleActive(subCity)}
+                        >
+                          {subCity.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
+                        <Button variant="secondary" className="h-11" onClick={() => handleOpenDialog(subCity)}>
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Edit
+                        </Button>
+                        <Button variant="destructive" className="h-11" onClick={() => handleDelete(subCity.id)}>
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden sm:block">
+                <Table className="min-w-[800px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Name (Arabic)</TableHead>
+                      <TableHead>Order</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {citySubCities
+                      .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+                      .map((subCity) => (
+                        <TableRow key={subCity.id}>
+                          <TableCell className="font-medium">{subCity.name}</TableCell>
+                          <TableCell dir="rtl">{subCity.name_ar || "-"}</TableCell>
+                          <TableCell>{subCity.display_order || 0}</TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={subCity.is_active ? "default" : "secondary"}
+                              className="cursor-pointer"
+                              onClick={() => handleToggleActive(subCity)}
+                            >
+                              {subCity.is_active ? "Active" : "Inactive"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleOpenDialog(subCity)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDelete(subCity.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         ))

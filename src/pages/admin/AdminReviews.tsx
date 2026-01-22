@@ -195,11 +195,11 @@ export default function AdminReviews() {
                   placeholder="Search reviews..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 w-64"
+                  className="pl-9 w-full sm:w-64"
                 />
               </div>
               <Select value={ratingFilter} onValueChange={setRatingFilter}>
-                <SelectTrigger className="w-32">
+                <SelectTrigger className="w-full sm:w-32">
                   <SelectValue placeholder="Rating" />
                 </SelectTrigger>
                 <SelectContent>
@@ -212,7 +212,7 @@ export default function AdminReviews() {
                 </SelectContent>
               </Select>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-32">
+                <SelectTrigger className="w-full sm:w-32">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -234,94 +234,165 @@ export default function AdminReviews() {
           ) : reviews?.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">No reviews found</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Service</TableHead>
-                  <TableHead>Reviewer</TableHead>
-                  <TableHead>Rating</TableHead>
-                  <TableHead>Content</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              {/* Mobile cards */}
+              <div className="space-y-3 sm:hidden">
                 {reviews?.map((review) => (
-                  <TableRow key={review.id}>
-                    <TableCell className="font-medium max-w-32 truncate">
-                      {review.service?.title || "N/A"}
-                    </TableCell>
-                    <TableCell>{review.reviewer?.full_name || "Anonymous"}</TableCell>
-                    <TableCell>{renderStars(review.rating)}</TableCell>
-                    <TableCell className="max-w-48 truncate">
+                  <div key={review.id} className="rounded-xl border p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{review.service?.title || "N/A"}</div>
+                        <div className="text-sm text-muted-foreground truncate">
+                          {review.reviewer?.full_name || "Anonymous"} • {format(new Date(review.created_at), "MMM d, yyyy")}
+                        </div>
+                      </div>
+                      <div className="shrink-0">{renderStars(review.rating)}</div>
+                    </div>
+
+                    <div className="text-sm">
                       {review.content || <span className="text-muted-foreground">No content</span>}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        {review.is_flagged && <Badge variant="destructive">Flagged</Badge>}
-                        {review.admin_hidden && <Badge variant="secondary">Hidden</Badge>}
-                        {!review.is_flagged && !review.admin_hidden && (
-                          <Badge className="bg-green-500">Visible</Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(review.created_at), "MMM d, yyyy")}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setSelectedReview(review);
-                            setDetailsOpen(true);
-                          }}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className={review.is_flagged ? "text-orange-500" : ""}
-                          onClick={() =>
-                            toggleFlag.mutate({ id: review.id, isFlagged: !review.is_flagged })
+                    </div>
+
+                    <div className="flex flex-wrap gap-1">
+                      {review.is_flagged && <Badge variant="destructive">Flagged</Badge>}
+                      {review.admin_hidden && <Badge variant="secondary">Hidden</Badge>}
+                      {!review.is_flagged && !review.admin_hidden && <Badge className="bg-green-500">Visible</Badge>}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setSelectedReview(review);
+                          setDetailsOpen(true);
+                        }}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        View
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        className={review.is_flagged ? "text-orange-500" : ""}
+                        onClick={() => toggleFlag.mutate({ id: review.id, isFlagged: !review.is_flagged })}
+                      >
+                        <Flag className="h-4 w-4 mr-2" />
+                        {review.is_flagged ? "Unflag" : "Flag"}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => toggleHidden.mutate({ id: review.id, isHidden: !review.admin_hidden })}
+                      >
+                        {review.admin_hidden ? <Eye className="h-4 w-4 mr-2" /> : <EyeOff className="h-4 w-4 mr-2" />}
+                        {review.admin_hidden ? "Show" : "Hide"}
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={() => {
+                          if (confirm("Are you sure you want to delete this review?")) {
+                            deleteReview.mutate(review.id);
                           }
-                        >
-                          <Flag className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() =>
-                            toggleHidden.mutate({ id: review.id, isHidden: !review.admin_hidden })
-                          }
-                        >
-                          {review.admin_hidden ? (
-                            <Eye className="h-4 w-4" />
-                          ) : (
-                            <EyeOff className="h-4 w-4" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-red-500"
-                          onClick={() => {
-                            if (confirm("Are you sure you want to delete this review?")) {
-                              deleteReview.mutate(review.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden sm:block">
+                <Table className="min-w-[900px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Service</TableHead>
+                      <TableHead>Reviewer</TableHead>
+                      <TableHead>Rating</TableHead>
+                      <TableHead>Content</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {reviews?.map((review) => (
+                      <TableRow key={review.id}>
+                        <TableCell className="font-medium max-w-32 truncate">
+                          {review.service?.title || "N/A"}
+                        </TableCell>
+                        <TableCell>{review.reviewer?.full_name || "Anonymous"}</TableCell>
+                        <TableCell>{renderStars(review.rating)}</TableCell>
+                        <TableCell className="max-w-48 truncate">
+                          {review.content || <span className="text-muted-foreground">No content</span>}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            {review.is_flagged && <Badge variant="destructive">Flagged</Badge>}
+                            {review.admin_hidden && <Badge variant="secondary">Hidden</Badge>}
+                            {!review.is_flagged && !review.admin_hidden && (
+                              <Badge className="bg-green-500">Visible</Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {format(new Date(review.created_at), "MMM d, yyyy")}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setSelectedReview(review);
+                                setDetailsOpen(true);
+                              }}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className={review.is_flagged ? "text-orange-500" : ""}
+                              onClick={() =>
+                                toggleFlag.mutate({ id: review.id, isFlagged: !review.is_flagged })
+                              }
+                            >
+                              <Flag className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() =>
+                                toggleHidden.mutate({ id: review.id, isHidden: !review.admin_hidden })
+                              }
+                            >
+                              {review.admin_hidden ? (
+                                <Eye className="h-4 w-4" />
+                              ) : (
+                                <EyeOff className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-red-500"
+                              onClick={() => {
+                                if (confirm("Are you sure you want to delete this review?")) {
+                                  deleteReview.mutate(review.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
