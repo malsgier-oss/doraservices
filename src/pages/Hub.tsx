@@ -36,11 +36,14 @@ import { TrendingDeals } from "@/components/hub/TrendingDeals";
 import { NewListings } from "@/components/hub/NewListings";
 import { BusinessDirectory } from "@/components/hub/BusinessDirectory";
 import { BusinessDetailSheet } from "@/components/hub/BusinessDetailSheet";
+import { ListingCard } from "@/components/hub/ListingCard";
+import { ListingDetailSheet } from "@/components/hub/ListingDetailSheet";
 import { SearchFilters, type FilterState } from "@/components/hub/SearchFilters";
 import { AnimatedSection } from "@/components/hub/AnimatedSection";
 import { DealDetailSheet } from "@/components/hub/DealDetailSheet";
 import { useDeals, type Deal } from "@/hooks/useDeals";
 import { useBusinesses, type Business } from "@/hooks/useBusinesses";
+import { useListings, type Listing } from "@/hooks/useListings";
 import { HUB_CARD_BASE } from "@/components/hub/hubStyles";
 
 import { useCategories } from "@/hooks/useCategories";
@@ -477,6 +480,70 @@ function BuySellBusinessesSection({
   );
 }
 
+function BuySellListingsSection({
+  cityId,
+  category,
+  search,
+  onListingClick,
+}: {
+  cityId?: string | null;
+  category?: string | null;
+  search?: string | null;
+  onListingClick: (listing: Listing) => void;
+}) {
+  const { data: listings, isLoading } = useListings({ cityId, category, search, limit: 12 });
+  const { language, isRTL } = useLanguage();
+  const t = (ar: string, en: string) => (language === "ar" ? ar : en);
+
+  if (isLoading) {
+    return (
+      <HubSection title={t("إعلانات للبيع", "Listings")} icon={Tag}>
+        <div
+          dir={isRTL ? "rtl" : "ltr"}
+          className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
+          style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+        >
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={`listing-loading-${i}`} className={`${HUB_CARD_BASE} bg-card shrink-0 w-[72vw] max-w-[320px] snap-center overflow-hidden`}>
+              <Skeleton className="aspect-[4/3] w-full" />
+              <div className="p-4">
+                <Skeleton className="h-4 w-24 mb-2" />
+                <Skeleton className="h-4 w-36" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </HubSection>
+    );
+  }
+
+  if (!listings || listings.length === 0) {
+    return (
+      <HubSection title={t("إعلانات للبيع", "Listings")} icon={Tag}>
+        <div className={`${HUB_CARD_BASE} bg-card p-4 text-sm text-muted-foreground text-center`}>
+          {t("لا توجد إعلانات حالياً", "No listings right now")}
+        </div>
+      </HubSection>
+    );
+  }
+
+  return (
+    <HubSection title={t("إعلانات للبيع", "Listings")} icon={Tag}>
+      <div
+        dir={isRTL ? "rtl" : "ltr"}
+        className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
+        style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+      >
+        {listings.map((listing) => (
+          <div key={listing.id} className="shrink-0 w-[72vw] max-w-[320px] snap-center">
+            <ListingCard listing={listing} isRTL={isRTL} onClick={() => onListingClick(listing)} />
+          </div>
+        ))}
+      </div>
+    </HubSection>
+  );
+}
+
 export default function Hub() {
   const navigate = useNavigate();
   const { language, isRTL } = useLanguage();
@@ -488,6 +555,9 @@ export default function Hub() {
   const [dealSheetOpen, setDealSheetOpen] = useState(false);
 
   const openDealDetail = (deal: Deal) => {
+    // Ensure we never have two Drawers open at once
+    setListingSheetOpen(false);
+    setSelectedListing(null);
     setSelectedDeal(deal);
     setDealSheetOpen(true);
   };
@@ -497,6 +567,9 @@ export default function Hub() {
   const [businessSheetOpen, setBusinessSheetOpen] = useState(false);
 
   const openBusinessDetail = (business: Business) => {
+    // Ensure we never have two Drawers open at once
+    setListingSheetOpen(false);
+    setSelectedListing(null);
     setSelectedBusiness(business);
     setBusinessSheetOpen(true);
   };
@@ -504,6 +577,21 @@ export default function Hub() {
   // Buy/Sell category filter state
   const [selectedBuySellCategory, setSelectedBuySellCategory] = useState<string | null>(null);
   const [buySellSearchQuery, setBuySellSearchQuery] = useState<string>("");
+  const [buySellMode, setBuySellMode] = useState<"listings" | "business">("listings");
+
+  // Listing detail state
+  const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
+  const [listingSheetOpen, setListingSheetOpen] = useState(false);
+
+  const openListingDetail = (listing: Listing) => {
+    // Ensure we never have two Drawers open at once
+    setDealSheetOpen(false);
+    setSelectedDeal(null);
+    setBusinessSheetOpen(false);
+    setSelectedBusiness(null);
+    setSelectedListing(listing);
+    setListingSheetOpen(true);
+  };
 
   const { data: notifications } = useNotifications();
   const { data: unreadCount } = useUnreadCount();
@@ -1802,6 +1890,43 @@ export default function Hub() {
           {/* BUY & SELL Tab */}
           <TabsContent value="buy-sell" className="mt-0 space-y-6">
             <div className="px-4 space-y-6">
+              {/* Mode toggle + primary action */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant={buySellMode === "listings" ? "default" : "outline"}
+                    size="sm"
+                    className="h-10"
+                    onClick={() => setBuySellMode("listings")}
+                  >
+                    {t("إعلانات", "Listings")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={buySellMode === "business" ? "default" : "outline"}
+                    size="sm"
+                    className="h-10"
+                    onClick={() => setBuySellMode("business")}
+                  >
+                    {t("متاجر", "Businesses")}
+                  </Button>
+                </div>
+
+                {buySellMode === "listings" ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-10"
+                    onClick={() => {
+                      navigate("/buy-sell/create-listing");
+                    }}
+                  >
+                    {t("بيع الآن", "Sell")}
+                  </Button>
+                ) : null}
+              </div>
+
               {/* Categories Grid */}
               <HubSection title={t("التصنيفات", "Categories")} icon={LayoutGrid}>
                 <BuySellCategories onCategoryClick={(catId) => {
@@ -1826,99 +1951,126 @@ export default function Hub() {
                 )}
               </HubSection>
 
-              {/* Featured Deals */}
-              <AnimatedSection direction="up" delay={200}>
-                <HubSection 
-                  id="featured-deals" 
-                  title={t("عروض مميزة", "Featured Deals")} 
-                  icon={Tag}
-                  actionLabel={t("عرض الكل", "View All")}
-                  onAction={() => {
-                    const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
-                    navigate(`/buy-sell/deals/featured${qs}`);
-                  }}
-                >
-                  <FeaturedDeals
-                    cityId={cityId}
-                    category={selectedBuySellCategory}
-                    search={buySellSearchQuery}
-                    limit={6}
-                    onDealClick={(deal) => openDealDetail(deal)}
-                  />
-                </HubSection>
-              </AnimatedSection>
+              {buySellMode === "listings" ? (
+                <>
+                  <AnimatedSection direction="up" delay={200}>
+                    <HubSection
+                      id="listings"
+                      title={t("إعلانات للبيع", "Listings")}
+                      icon={Tag}
+                      actionLabel={t("عرض الكل", "View All")}
+                      onAction={() => {
+                        const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
+                        const q = buySellSearchQuery.trim() ? (qs ? `${qs}&q=${encodeURIComponent(buySellSearchQuery.trim())}` : `?q=${encodeURIComponent(buySellSearchQuery.trim())}`) : qs;
+                        navigate(`/buy-sell/listings${q}`);
+                      }}
+                    >
+                      <BuySellListingsSection
+                        cityId={cityId}
+                        category={selectedBuySellCategory}
+                        search={buySellSearchQuery}
+                        onListingClick={openListingDetail}
+                      />
+                    </HubSection>
+                  </AnimatedSection>
+                </>
+              ) : (
+                <>
+                  {/* Featured Deals */}
+                  <AnimatedSection direction="up" delay={200}>
+                    <HubSection 
+                      id="featured-deals" 
+                      title={t("عروض مميزة", "Featured Deals")} 
+                      icon={Tag}
+                      actionLabel={t("عرض الكل", "View All")}
+                      onAction={() => {
+                        const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
+                        navigate(`/buy-sell/deals/featured${qs}`);
+                      }}
+                    >
+                      <FeaturedDeals
+                        cityId={cityId}
+                        category={selectedBuySellCategory}
+                        search={buySellSearchQuery}
+                        limit={6}
+                        onDealClick={(deal) => openDealDetail(deal)}
+                      />
+                    </HubSection>
+                  </AnimatedSection>
 
-              {/* Active Deals Grid */}
-              <BuySellDealsSection cityId={cityId} category={selectedBuySellCategory} search={buySellSearchQuery} onDealClick={openDealDetail} />
+                  {/* Active Deals Grid */}
+                  <BuySellDealsSection cityId={cityId} category={selectedBuySellCategory} search={buySellSearchQuery} onDealClick={openDealDetail} />
 
-              {/* Trending Deals */}
-              <AnimatedSection direction="up" delay={400}>
-                <HubSection 
-                  id="trending-deals" 
-                  title={t("عروض ترند", "Trending Deals")} 
-                  icon={TrendingUp}
-                  actionLabel={t("عرض الكل", "View All")}
-                  onAction={() => {
-                    const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
-                    navigate(`/buy-sell/deals/trending${qs}`);
-                  }}
-                >
-                  <TrendingDeals
-                    cityId={cityId}
-                    category={selectedBuySellCategory}
-                    search={buySellSearchQuery}
-                    limit={8}
-                    onDealClick={openDealDetail}
-                  />
-                </HubSection>
-              </AnimatedSection>
+                  {/* Trending Deals */}
+                  <AnimatedSection direction="up" delay={400}>
+                    <HubSection 
+                      id="trending-deals" 
+                      title={t("عروض ترند", "Trending Deals")} 
+                      icon={TrendingUp}
+                      actionLabel={t("عرض الكل", "View All")}
+                      onAction={() => {
+                        const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
+                        navigate(`/buy-sell/deals/trending${qs}`);
+                      }}
+                    >
+                      <TrendingDeals
+                        cityId={cityId}
+                        category={selectedBuySellCategory}
+                        search={buySellSearchQuery}
+                        limit={8}
+                        onDealClick={openDealDetail}
+                      />
+                    </HubSection>
+                  </AnimatedSection>
 
-              {/* New Listings */}
-              <AnimatedSection direction="up" delay={500}>
-                <HubSection 
-                  id="new-listings" 
-                  title={t("عروض جديدة", "New Listings")} 
-                  icon={Sparkles}
-                  actionLabel={t("عرض الكل", "View All")}
-                  onAction={() => {
-                    const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
-                    navigate(`/buy-sell/deals/new${qs}`);
-                  }}
-                >
-                  <NewListings
-                    cityId={cityId}
-                    category={selectedBuySellCategory}
-                    search={buySellSearchQuery}
-                    limit={8}
-                    onDealClick={openDealDetail}
-                  />
-                </HubSection>
-              </AnimatedSection>
+                  {/* New Deals */}
+                  <AnimatedSection direction="up" delay={500}>
+                    <HubSection 
+                      id="new-listings" 
+                      title={t("عروض جديدة", "New Listings")} 
+                      icon={Sparkles}
+                      actionLabel={t("عرض الكل", "View All")}
+                      onAction={() => {
+                        const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
+                        navigate(`/buy-sell/deals/new${qs}`);
+                      }}
+                    >
+                      <NewListings
+                        cityId={cityId}
+                        category={selectedBuySellCategory}
+                        search={buySellSearchQuery}
+                        limit={8}
+                        onDealClick={openDealDetail}
+                      />
+                    </HubSection>
+                  </AnimatedSection>
 
-              {/* Featured Businesses */}
-              <BuySellBusinessesSection cityId={cityId} category={selectedBuySellCategory} search={buySellSearchQuery} onBusinessClick={openBusinessDetail} />
+                  {/* Featured Businesses */}
+                  <BuySellBusinessesSection cityId={cityId} category={selectedBuySellCategory} search={buySellSearchQuery} onBusinessClick={openBusinessDetail} />
 
-              {/* Business Directory */}
-              <AnimatedSection direction="up" delay={600}>
-                <HubSection 
-                  id="business-directory" 
-                  title={t("دليل المتاجر", "Business Directory")} 
-                  icon={Store}
-                  actionLabel={t("عرض الكل", "View All")}
-                  onAction={() => {
-                    const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
-                    navigate(`/buy-sell/businesses${qs}`);
-                  }}
-                >
-                  <BusinessDirectory
-                    cityId={cityId}
-                    category={selectedBuySellCategory}
-                    search={buySellSearchQuery}
-                    limit={12}
-                    onBusinessClick={openBusinessDetail}
-                  />
-                </HubSection>
-              </AnimatedSection>
+                  {/* Business Directory */}
+                  <AnimatedSection direction="up" delay={600}>
+                    <HubSection 
+                      id="business-directory" 
+                      title={t("دليل المتاجر", "Business Directory")} 
+                      icon={Store}
+                      actionLabel={t("عرض الكل", "View All")}
+                      onAction={() => {
+                        const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
+                        navigate(`/buy-sell/businesses${qs}`);
+                      }}
+                    >
+                      <BusinessDirectory
+                        cityId={cityId}
+                        category={selectedBuySellCategory}
+                        search={buySellSearchQuery}
+                        limit={12}
+                        onBusinessClick={openBusinessDetail}
+                      />
+                    </HubSection>
+                  </AnimatedSection>
+                </>
+              )}
 
               {/* Footer links */}
               <div className="pt-4 pb-2 border-t text-sm text-muted-foreground space-y-3">
@@ -2347,6 +2499,15 @@ export default function Hub() {
           </div>
         </div>
       )}
+
+      <ListingDetailSheet
+        open={listingSheetOpen}
+        listing={selectedListing}
+        onOpenChange={(open) => {
+          setListingSheetOpen(open);
+          if (!open) setSelectedListing(null);
+        }}
+      />
 
       {/* Deal Detail Sheet */}
       <DealDetailSheet
