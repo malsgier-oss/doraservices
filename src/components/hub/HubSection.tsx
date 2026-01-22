@@ -28,14 +28,20 @@ export function HubSection({
   children,
 }: HubSectionProps) {
   return (
-    <section id={id} className={cn("space-y-4", className)}>
+    <section id={id} className={cn("space-y-5", className)}>
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          {Icon && <Icon className="h-4 w-4 text-muted-foreground" aria-hidden />}
-          <h2 className="text-base font-semibold text-foreground">{title}</h2>
-          {typeof count === "number" ? (
-            <span className="text-xs text-muted-foreground">({count})</span>
-          ) : null}
+        <div className="flex items-center gap-3">
+          {Icon && (
+            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10">
+              <Icon className="h-4 w-4 text-primary" aria-hidden />
+            </div>
+          )}
+          <div>
+            <h2 className="text-lg font-bold text-foreground leading-tight">{title}</h2>
+            {typeof count === "number" && count > 0 && (
+              <span className="text-sm text-muted-foreground font-medium">({count})</span>
+            )}
+          </div>
         </div>
         {action
           ? action
@@ -45,10 +51,13 @@ export function HubSection({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-11 px-3 text-xs"
+                className="h-11 px-4 text-sm font-medium hover:bg-primary/10 hover:text-primary transition-colors"
                 onClick={onAction}
               >
                 {actionLabel}
+                <svg className="ml-1 h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
               </Button>
             )
             : null}
