@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, PlusCircle } from "lucide-react";
+import { ArrowLeft, ImagePlus, PlusCircle, Trash2 } from "lucide-react";
 
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ function getStoredCityId(): string | null {
 }
 
 const CATEGORIES = ["electronics", "vehicles", "home", "fashion", "sports", "games", "books", "other"] as const;
+const MAX_PHOTOS = 5;
 
 export default function CreateListing() {
   const navigate = useNavigate();
@@ -34,6 +35,7 @@ export default function CreateListing() {
   const { data: cities } = useCities();
 
   const defaultCityId = getStoredCityId();
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -41,11 +43,42 @@ export default function CreateListing() {
   const [price, setPrice] = useState<string>("");
   const [cityId, setCityId] = useState<string>(defaultCityId || "");
   const [location, setLocation] = useState<string>("");
+  const [photos, setPhotos] = useState<{ file: File; previewUrl: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   const canSubmit = useMemo(() => {
     return title.trim().length >= 3 && !!category && !!cityId && !submitting;
   }, [title, category, cityId, submitting]);
+
+  const onPickPhotos = (fileList: FileList | null) => {
+    if (!fileList) return;
+    const files = Array.from(fileList).filter(Boolean);
+    if (files.length === 0) return;
+
+    const remaining = Math.max(0, MAX_PHOTOS - photos.length);
+    if (remaining <= 0) {
+      toast.error(t("الحد الأقصى 5 صور", "Max 5 photos"));
+      return;
+    }
+
+    const picked = files.slice(0, remaining).map((file) => ({
+      file,
+      previewUrl: URL.createObjectURL(file),
+    }));
+
+    setPhotos((prev) => [...prev, ...picked]);
+    // reset input so user can re-pick same file if needed
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const removePhotoAt = (idx: number) => {
+    setPhotos((prev) => {
+      const next = prev.slice();
+      const removed = next.splice(idx, 1)[0];
+      if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl);
+      return next;
+    });
+  };
 
   const handleSubmit = async () => {
     if (!user) {
@@ -65,7 +98,11 @@ export default function CreateListing() {
         return;
       }
 
-      const { error } = await supabase.from("listings").insert({
+      const listingId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+
+      const { error: insertError } = await supabase.from("listings").insert({
+        id: listingId,
         user_id: user.id,
         title: title.trim(),
         description: description.trim() ? description.trim() : null,
@@ -74,10 +111,48 @@ export default function CreateListing() {
         currency: "LYD",
         city_id: cityId,
         location: location.trim() ? location.trim() : null,
+        image_urls: null,
         status: "active",
       });
 
-      if (error) throw error;
+      if (insertError) {
+        const msg = typeof insertError === "object" && insertError && "message" in insertError ? String((insertError as any).message) : "";
+        if (msg.includes("Could not find the table") || msg.toLowerCase().includes("schema cache")) {
+          toast.error(t("ميزة الإعلانات غير مفعلة بعد (قاعدة البيانات لم تُحدّث). جرّب لاحقاً.", "Listings isn't enabled yet (database not updated). Please try again later."));
+          return;
+        }
+        throw insertError;
+      }
+
+      // Upload photos (optional) and update listing.image_urls
+      if (photos.length > 0) {
+        const urls: string[] = [];
+        for (let i = 0; i < photos.length; i++) {
+          const file = photos[i].file;
+          const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+          const imageId = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${i}`;
+          const path = `listings/${user.id}/${listingId}/${imageId}.${ext}`;
+
+          const { error: uploadError } = await supabase.storage.from("service-images").upload(path, file, {
+            cacheControl: "3600",
+            upsert: false,
+            contentType: file.type || undefined,
+          });
+          if (uploadError) throw uploadError;
+
+          const { data: publicData } = supabase.storage.from("service-images").getPublicUrl(path);
+          const publicUrl = publicData?.publicUrl || null;
+          if (publicUrl) urls.push(publicUrl);
+        }
+
+        if (urls.length > 0) {
+          const { error: updateError } = await supabase.from("listings").update({ image_urls: urls }).eq("id", listingId);
+          if (updateError) {
+            // best-effort
+            console.error(updateError);
+          }
+        }
+      }
 
       toast.success(t("تم نشر الإعلان", "Listing published"));
       navigate("/#buy-sell", { replace: true });
@@ -110,13 +185,13 @@ export default function CreateListing() {
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>{t("العنوان", "Title")}</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("مثال: آيفون 13", "e.g. iPhone 13")} />
+            <Input className="text-base" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("مثال: آيفون 13", "e.g. iPhone 13")} />
           </div>
 
           <div className="space-y-2">
             <Label>{t("التصنيف", "Category")}</Label>
             <Select value={category} onValueChange={(v) => setCategory(v as any)}>
-              <SelectTrigger>
+              <SelectTrigger className="text-base">
                 <SelectValue placeholder={t("اختر تصنيف", "Select category")} />
               </SelectTrigger>
               <SelectContent>
@@ -129,15 +204,55 @@ export default function CreateListing() {
             </Select>
           </div>
 
+          {/* Photos */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <Label>{t("الصور (حتى 5)", "Photos (up to 5)")}</Label>
+              <Button type="button" variant="outline" size="sm" className="h-9" onClick={() => fileRef.current?.click()}>
+                <ImagePlus className="h-4 w-4 mr-1" />
+                {t("إضافة صور", "Add photos")}
+              </Button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => onPickPhotos(e.target.files)}
+              />
+            </div>
+            {photos.length > 0 ? (
+              <div className="grid grid-cols-5 gap-2">
+                {photos.map((p, idx) => (
+                  <div key={`${p.previewUrl}-${idx}`} className="relative aspect-square rounded-lg overflow-hidden bg-muted">
+                    <img src={p.previewUrl} alt="" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      className="absolute top-1 right-1 h-8 w-8 rounded-full bg-black/60 text-white flex items-center justify-center"
+                      onClick={() => removePhotoAt(idx)}
+                      aria-label={t("حذف الصورة", "Remove photo")}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">
+                {t("أضف حتى 5 صور لزيادة فرص البيع.", "Add up to 5 photos to sell faster.")}
+              </div>
+            )}
+          </div>
+
           <div className="space-y-2">
             <Label>{t("السعر (اختياري)", "Price (optional)")}</Label>
-            <Input value={price} onChange={(e) => setPrice(e.target.value)} placeholder={t("مثال: 1200", "e.g. 1200")} inputMode="decimal" />
+            <Input className="text-base" value={price} onChange={(e) => setPrice(e.target.value)} placeholder={t("مثال: 1200", "e.g. 1200")} inputMode="decimal" />
           </div>
 
           <div className="space-y-2">
             <Label>{t("المدينة", "City")}</Label>
             <Select value={cityId} onValueChange={(v) => setCityId(v)}>
-              <SelectTrigger>
+              <SelectTrigger className="text-base">
                 <SelectValue placeholder={t("اختر مدينة", "Select city")} />
               </SelectTrigger>
               <SelectContent>
@@ -155,12 +270,13 @@ export default function CreateListing() {
 
           <div className="space-y-2">
             <Label>{t("الموقع (اختياري)", "Location (optional)")}</Label>
-            <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder={t("مثال: سوق الجمعة", "e.g. Souq Al-Jumaa")} />
+            <Input className="text-base" value={location} onChange={(e) => setLocation(e.target.value)} placeholder={t("مثال: سوق الجمعة", "e.g. Souq Al-Jumaa")} />
           </div>
 
           <div className="space-y-2">
             <Label>{t("الوصف (اختياري)", "Description (optional)")}</Label>
             <Textarea
+              className="text-base"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder={t("اكتب تفاصيل أكثر عن المنتج...", "Add more details about the item...")}

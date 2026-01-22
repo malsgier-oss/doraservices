@@ -577,7 +577,7 @@ export default function Hub() {
   // Buy/Sell category filter state
   const [selectedBuySellCategory, setSelectedBuySellCategory] = useState<string | null>(null);
   const [buySellSearchQuery, setBuySellSearchQuery] = useState<string>("");
-  const [buySellMode, setBuySellMode] = useState<"listings" | "business">("listings");
+  const [buySellMode, setBuySellMode] = useState<"all" | "listings" | "business">("all");
 
   // Listing detail state
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
@@ -897,8 +897,8 @@ export default function Hub() {
   useEffect(() => {
     if (buySellEnabled && activeTab) {
       window.location.hash = activeTab;
-      // Smooth scroll to top of content
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      // Avoid animated scroll (can feel like zoom on mobile)
+      window.scrollTo({ top: 0, behavior: "auto" });
     }
   }, [activeTab, buySellEnabled]);
 
@@ -1182,8 +1182,14 @@ export default function Hub() {
           {/* Header */}
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <div className={`text-xl font-semibold leading-tight ${isRTL ? "text-right" : "text-left"}`}>{t("شن تحتاج اليوم؟", "What do you need today?")}</div>
-              <div className={`text-sm text-muted-foreground ${isRTL ? "text-right" : "text-left"}`}>{t("ابحث وتواصل مباشرة", "Search and contact directly")}</div>
+              <div className={`text-xl font-semibold leading-tight ${isRTL ? "text-right" : "text-left"}`}>
+                {activeTab === "buy-sell" ? t("بيع وشراء", "Buy & Sell") : t("شن تحتاج اليوم؟", "What do you need today?")}
+              </div>
+              <div className={`text-sm text-muted-foreground ${isRTL ? "text-right" : "text-left"}`}>
+                {activeTab === "buy-sell"
+                  ? t("تصفح الإعلانات والعروض", "Browse listings and deals")
+                  : t("ابحث وتواصل مباشرة", "Search and contact directly")}
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <LanguageToggle className="h-11 w-11" />
@@ -1328,7 +1334,7 @@ export default function Hub() {
                     if (activeTab === "buy-sell") setBuySellSearchQuery(v);
                     else setQuery(v);
                   }}
-                  className="h-11 rounded-xl pl-9 pr-9"
+                  className="h-11 rounded-xl pl-9 pr-9 text-base"
                   placeholder={
                     activeTab === "buy-sell"
                       ? t("ابحث عن عرض أو متجر...", "Search deals or businesses...")
@@ -1355,7 +1361,7 @@ export default function Hub() {
               </div>
             </div>
 
-            {activeAnnouncement && (
+            {activeTab === "services" && activeAnnouncement && (
               <div className={`${HUB_CARD_BASE} bg-muted/30 px-4 py-3`}>
                 <div className="text-sm text-muted-foreground">📢 📢 {activeAnnouncement.message}</div>
               </div>
@@ -1405,8 +1411,8 @@ export default function Hub() {
             )}
           </div>
 
-          {/* Chips (admin-controlled, subcategories) */}
-          {chips.length > 0 && (
+          {/* Chips (admin-controlled, subcategories) - Services only */}
+          {activeTab === "services" && chips.length > 0 && (
             <ScrollArea className="w-full">
               <div className="flex gap-4 pb-3 px-2">
                 {chips.map((chip) => {
@@ -1890,41 +1896,35 @@ export default function Hub() {
           {/* BUY & SELL Tab */}
           <TabsContent value="buy-sell" className="mt-0 space-y-6">
             <div className="px-4 space-y-6">
-              {/* Mode toggle + primary action */}
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant={buySellMode === "listings" ? "default" : "outline"}
-                    size="sm"
-                    className="h-10"
-                    onClick={() => setBuySellMode("listings")}
-                  >
-                    {t("إعلانات", "Listings")}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={buySellMode === "business" ? "default" : "outline"}
-                    size="sm"
-                    className="h-10"
-                    onClick={() => setBuySellMode("business")}
-                  >
-                    {t("متاجر", "Businesses")}
-                  </Button>
-                </div>
-
-                {buySellMode === "listings" ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="h-10"
-                    onClick={() => {
-                      navigate("/buy-sell/create-listing");
-                    }}
-                  >
-                    {t("بيع الآن", "Sell")}
-                  </Button>
-                ) : null}
+              {/* Mode toggle */}
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant={buySellMode === "all" ? "default" : "outline"}
+                  size="sm"
+                  className="h-10"
+                  onClick={() => setBuySellMode("all")}
+                >
+                  {t("الكل", "All")}
+                </Button>
+                <Button
+                  type="button"
+                  variant={buySellMode === "listings" ? "default" : "outline"}
+                  size="sm"
+                  className="h-10"
+                  onClick={() => setBuySellMode("listings")}
+                >
+                  {t("إعلانات", "Listings")}
+                </Button>
+                <Button
+                  type="button"
+                  variant={buySellMode === "business" ? "default" : "outline"}
+                  size="sm"
+                  className="h-10"
+                  onClick={() => setBuySellMode("business")}
+                >
+                  {t("متاجر", "Businesses")}
+                </Button>
               </div>
 
               {/* Categories Grid */}
@@ -1951,7 +1951,7 @@ export default function Hub() {
                 )}
               </HubSection>
 
-              {buySellMode === "listings" ? (
+              {buySellMode === "listings" || buySellMode === "all" ? (
                 <>
                   <AnimatedSection direction="up" delay={200}>
                     <HubSection
@@ -1974,7 +1974,9 @@ export default function Hub() {
                     </HubSection>
                   </AnimatedSection>
                 </>
-              ) : (
+              ) : null}
+
+              {buySellMode === "business" || buySellMode === "all" ? (
                 <>
                   {/* Featured Deals */}
                   <AnimatedSection direction="up" delay={200}>
@@ -2070,7 +2072,7 @@ export default function Hub() {
                     </HubSection>
                   </AnimatedSection>
                 </>
-              )}
+              ) : null}
 
               {/* Footer links */}
               <div className="pt-4 pb-2 border-t text-sm text-muted-foreground space-y-3">
@@ -2508,6 +2510,22 @@ export default function Hub() {
           if (!open) setSelectedListing(null);
         }}
       />
+
+      {/* Floating CTA (Buy/Sell listings) */}
+      {activeTab === "buy-sell" && (buySellMode === "all" || buySellMode === "listings") ? (
+        <button
+          type="button"
+          onClick={() => navigate("/buy-sell/create-listing")}
+          className={cn(
+            "fixed z-50 rounded-full shadow-lg bg-primary text-primary-foreground h-14 px-5 flex items-center gap-2 font-semibold",
+            "bottom-[calc(5.25rem+env(safe-area-inset-bottom))]",
+            isRTL ? "left-4" : "right-4",
+          )}
+        >
+          <Tag className="h-5 w-5" />
+          {t("بيع الآن", "Sell")}
+        </button>
+      ) : null}
 
       {/* Deal Detail Sheet */}
       <DealDetailSheet
