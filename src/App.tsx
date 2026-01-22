@@ -17,6 +17,10 @@ import { RouteAnalytics } from "@/observability/RouteAnalytics";
 import { ONBOARDING_DONE_KEY } from "./pages/onboardingKeys";
 
 const Hub = React.lazy(() => import("./pages/Hub"));
+const DealsBrowse = React.lazy(() => import("./pages/buy-sell/DealsBrowse"));
+const BusinessesBrowse = React.lazy(() => import("./pages/buy-sell/BusinessesBrowse"));
+const TrendingServicesPage = React.lazy(() => import("./pages/services/TrendingServicesPage"));
+const RecommendationsPage = React.lazy(() => import("./pages/services/RecommendationsPage"));
 const Favorites = React.lazy(() => import("./pages/Favorites"));
 const ServiceCreator = React.lazy(() => import("./pages/ServiceCreator"));
 const Profile = React.lazy(() => import("./pages/Profile"));
@@ -145,6 +149,10 @@ const AppRoutes = () => {
         <Route path="/onboarding" element={<Onboarding />} />
         {/* Hub is public */}
         <Route path="/" element={<Hub />} />
+        <Route path="/buy-sell/deals/:type" element={<DealsBrowse />} />
+        <Route path="/buy-sell/businesses" element={<BusinessesBrowse />} />
+        <Route path="/services/trending" element={<TrendingServicesPage />} />
+        <Route path="/services/recommendations" element={<RecommendationsPage />} />
 
         {/* Public site pages */}
         <Route path="/:slug(about|contact|help|become-provider|terms|privacy)" element={<SitePage />} />

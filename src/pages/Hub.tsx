@@ -3,6 +3,7 @@ import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState } from
 import type { ReactNode } from "react";
 import { Bell, CheckCheck, ChevronDown, Search, Wrench, Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper, Droplets, Wind, Fuel, ClipboardCheck, X, LayoutGrid, Star, TrendingUp, BookOpen, Sparkles, Store, Tag } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -444,6 +445,7 @@ function BuySellBusinessesSection({ cityId, category, onBusinessClick }: { cityI
 }
 
 export default function Hub() {
+  const navigate = useNavigate();
   const { language, isRTL } = useLanguage();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -1453,9 +1455,7 @@ export default function Hub() {
               icon={TrendingUp}
               actionLabel={t("عرض الكل", "View All")}
               onAction={() => {
-                // TODO: Navigate to trending services page or filter
-                const el = document.getElementById("trending-services");
-                el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                navigate("/services/trending");
               }}
             >
             <TrendingSection
@@ -1539,9 +1539,7 @@ export default function Hub() {
             <HubSection
               actionLabel={t("عرض الكل", "View All")}
               onAction={() => {
-                // TODO: Navigate to recommendations page
-                const el = document.getElementById("recommendations");
-                el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                navigate("/services/recommendations");
               }} 
             id="recommendations" 
             title={user 
@@ -1777,9 +1775,8 @@ export default function Hub() {
                   icon={Tag}
                   actionLabel={t("عرض الكل", "View All")}
                   onAction={() => {
-                    // TODO: Navigate to all featured deals
-                    const el = document.getElementById("featured-deals");
-                    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
+                    navigate(`/buy-sell/deals/featured${qs}`);
                   }}
                 >
                   <FeaturedDeals
@@ -1802,9 +1799,8 @@ export default function Hub() {
                   icon={TrendingUp}
                   actionLabel={t("عرض الكل", "View All")}
                   onAction={() => {
-                    // TODO: Navigate to all trending deals
-                    const el = document.getElementById("trending-deals");
-                    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
+                    navigate(`/buy-sell/deals/trending${qs}`);
                   }}
                 >
                   <TrendingDeals
@@ -1824,9 +1820,8 @@ export default function Hub() {
                   icon={Sparkles}
                   actionLabel={t("عرض الكل", "View All")}
                   onAction={() => {
-                    // TODO: Navigate to all new listings
-                    const el = document.getElementById("new-listings");
-                    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
+                    navigate(`/buy-sell/deals/new${qs}`);
                   }}
                 >
                   <NewListings
@@ -1849,9 +1844,8 @@ export default function Hub() {
                   icon={Store}
                   actionLabel={t("عرض الكل", "View All")}
                   onAction={() => {
-                    // TODO: Navigate to full business directory
-                    const el = document.getElementById("business-directory");
-                    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
+                    navigate(`/buy-sell/businesses${qs}`);
                   }}
                 >
                   <BusinessDirectory
