@@ -1234,11 +1234,36 @@ export default function Hub() {
                   className={`absolute top-3.5 h-4 w-4 text-muted-foreground ${isRTL ? "right-3" : "left-3"}`}
                 />
                 <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  className={`${isRTL ? "pr-9" : "pl-9"} h-11 rounded-xl`}
-                  placeholder={t("ابحث عن خدمة… كهرباء، سباكة، تكييف", "Search services… electricity, plumbing, AC")}
+                  value={activeTab === "buy-sell" ? buySellSearchQuery : query}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (activeTab === "buy-sell") setBuySellSearchQuery(v);
+                    else setQuery(v);
+                  }}
+                  className="h-11 rounded-xl pl-9 pr-9"
+                  placeholder={
+                    activeTab === "buy-sell"
+                      ? t("ابحث عن عرض أو متجر...", "Search deals or businesses...")
+                      : t("ابحث عن خدمة… كهرباء، سباكة، تكييف", "Search services… electricity, plumbing, AC")
+                  }
                 />
+
+                {(activeTab === "buy-sell" ? buySellSearchQuery : query).trim() ? (
+                  <button
+                    type="button"
+                    className={cn(
+                      "absolute top-1/2 -translate-y-1/2 h-9 w-9 rounded-full hover:bg-muted flex items-center justify-center",
+                      isRTL ? "left-1" : "right-1",
+                    )}
+                    onClick={() => {
+                      if (activeTab === "buy-sell") setBuySellSearchQuery("");
+                      else setQuery("");
+                    }}
+                    aria-label={t("مسح البحث", "Clear search")}
+                  >
+                    <X className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                ) : null}
               </div>
             </div>
 
@@ -1248,8 +1273,8 @@ export default function Hub() {
               </div>
             )}
 
-            {/* Search Filters - shown when there's a search query */}
-            {queryTrim && filteredCategories.length > 0 && (
+            {/* Search Filters - shown when there's a search query (Services only) */}
+            {activeTab === "services" && queryTrim && filteredCategories.length > 0 && (
               <div className="flex items-center justify-between gap-2">
                 <SearchFilters
                   filters={searchFilters}
@@ -1267,7 +1292,7 @@ export default function Hub() {
             )}
 
             {/* Search results (category matches) */}
-            {queryTrim && (
+            {activeTab === "services" && queryTrim && (
               <Card className="rounded-2xl border-border/60">
                 <CardContent className="p-2 space-y-1">
                 {filteredCategories.length === 0 ? (
@@ -1777,30 +1802,6 @@ export default function Hub() {
           {/* BUY & SELL Tab */}
           <TabsContent value="buy-sell" className="mt-0 space-y-6">
             <div className="px-4 space-y-6">
-              {/* Search */}
-              <HubSection title={t("بحث", "Search")} icon={Search}>
-                <div className="flex items-center gap-2" dir={isRTL ? "rtl" : "ltr"}>
-                  <Input
-                    value={buySellSearchQuery}
-                    onChange={(e) => setBuySellSearchQuery(e.target.value)}
-                    placeholder={t("ابحث عن عرض أو متجر...", "Search deals or businesses...")}
-                    className="h-11"
-                  />
-                  {buySellSearchQuery.trim() ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="h-11 w-11"
-                      onClick={() => setBuySellSearchQuery("")}
-                      aria-label={t("مسح البحث", "Clear search")}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  ) : null}
-                </div>
-              </HubSection>
-
               {/* Categories Grid */}
               <HubSection title={t("التصنيفات", "Categories")} icon={LayoutGrid}>
                 <BuySellCategories onCategoryClick={(catId) => {
