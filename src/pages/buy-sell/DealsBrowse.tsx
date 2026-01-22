@@ -50,9 +50,10 @@ export default function DealsBrowse() {
   });
 
   const title = useMemo(() => {
-    if (browseType === "featured") return t("عروض مميزة", "Featured Deals");
-    if (browseType === "trending") return t("عروض ترند", "Trending Deals");
-    return t("عروض جديدة", "New Listings");
+    const ar = language === "ar";
+    if (browseType === "featured") return ar ? "عروض مميزة" : "Featured Deals";
+    if (browseType === "trending") return ar ? "عروض ترند" : "Trending Deals";
+    return ar ? "عروض جديدة" : "New Listings";
   }, [browseType, language]);
 
   const Icon = useMemo(() => {
