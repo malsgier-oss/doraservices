@@ -3,7 +3,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Copy, Share2, MapPin, Tag, X, Phone, MessageCircle } from "lucide-react";
+import { Copy, Share2, MapPin, Tag, X, Phone, MessageCircle, PencilLine, Archive, Trash2, CheckCircle2 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import type { Listing } from "@/hooks/useListings";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,6 +11,8 @@ import { usePublicProfileByUserId } from "@/hooks/usePublicProfileByUserId";
 import { getTelLink, getWhatsAppLink } from "@/lib/phoneUtils";
 import { useListings } from "@/hooks/useListings";
 import { ListingCard } from "@/components/hub/ListingCard";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
 interface ListingDetailSheetProps {
   open: boolean;
@@ -20,6 +22,7 @@ interface ListingDetailSheetProps {
 }
 
 export function ListingDetailSheet({ open, onOpenChange, listing, onSelectListing }: ListingDetailSheetProps) {
+  const navigate = useNavigate();
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
   const [copied, setCopied] = useState(false);
@@ -101,6 +104,7 @@ export function ListingDetailSheet({ open, onOpenChange, listing, onSelectListin
   const telLink = canContact ? getTelLink(String(seller?.phone)) : null;
   const waLink = canContact ? getWhatsAppLink(String(seller?.phone)) : null;
   const canWhatsApp = !!waLink && waLink !== "https://wa.me/";
+  const isOwner = !!user && listing.user_id === user.id;
 
   const youMayAlsoLike = (maybeLike || []).slice(0, 8);
   const more = (moreListings || []).filter((x) => !(new Set(youMayAlsoLike.map((y) => y.id)).has(x.id))).slice(0, 8);
@@ -178,6 +182,74 @@ export function ListingDetailSheet({ open, onOpenChange, listing, onSelectListin
             </div>
 
             <h1 className="text-2xl font-bold text-foreground leading-tight">{listing.title}</h1>
+
+            {isOwner ? (
+              <div className="bg-muted/30 rounded-xl p-3 border border-border/50 space-y-2">
+                <div className="text-sm font-semibold">{t("إدارة الإعلان", "Manage")}</div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10"
+                    onClick={() => navigate(`/buy-sell/edit-listing/${listing.id}`)}
+                  >
+                    <PencilLine className="h-4 w-4 mr-1" />
+                    {t("تعديل", "Edit")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10"
+                    onClick={async () => {
+                      const ok = window.confirm(t("تأكيد: تم البيع؟", "Mark as sold?"));
+                      if (!ok) return;
+                      const { error } = await supabase.from("listings").update({ status: "sold" }).eq("id", listing.id);
+                      if (error) toast.error(t("فشل التحديث", "Failed to update"));
+                      else toast.success(t("تم وضعه كمباع", "Marked as sold"));
+                    }}
+                  >
+                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                    {t("تم البيع", "Sold")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10"
+                    onClick={async () => {
+                      const nextStatus = listing.status === "archived" ? "active" : "archived";
+                      const ok = window.confirm(
+                        nextStatus === "archived" ? t("تأكيد: أرشفة الإعلان؟", "Archive this listing?") : t("تأكيد: إلغاء الأرشفة؟", "Unarchive this listing?"),
+                      );
+                      if (!ok) return;
+                      const { error } = await supabase.from("listings").update({ status: nextStatus }).eq("id", listing.id);
+                      if (error) toast.error(t("فشل التحديث", "Failed to update"));
+                      else toast.success(nextStatus === "archived" ? t("تمت الأرشفة", "Archived") : t("تم إلغاء الأرشفة", "Unarchived"));
+                    }}
+                  >
+                    <Archive className="h-4 w-4 mr-1" />
+                    {listing.status === "archived" ? t("إلغاء الأرشفة", "Unarchive") : t("أرشفة", "Archive")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="h-10"
+                    onClick={async () => {
+                      const ok = window.confirm(t("تأكيد: حذف الإعلان نهائياً؟", "Delete this listing permanently?"));
+                      if (!ok) return;
+                      const { error } = await supabase.from("listings").delete().eq("id", listing.id);
+                      if (error) toast.error(t("فشل الحذف", "Failed to delete"));
+                      else {
+                        toast.success(t("تم الحذف", "Deleted"));
+                        onOpenChange(false);
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    {t("حذف", "Delete")}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
 
             {listing.description ? (
               <div className="space-y-2">
