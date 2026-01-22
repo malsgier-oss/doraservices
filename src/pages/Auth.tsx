@@ -59,12 +59,10 @@ export default function Auth() {
     const t = (query.get("tab") || "login").toLowerCase();
     setTab(t === "signup" ? "signup" : "login");
   }, [query]);
-  // Keep provider toggle in sync with URL intent changes.
+  // If tab changes, reset agreement checkbox
   useEffect(() => {
-    const intent = (query.get("intent") || "").toLowerCase();
-    setIsProviderSignup(intent === "provider");
     setAgreedToTerms(false);
-  }, [query]);
+  }, [tab]);
   const [loginData, setLoginData] = useState({
     phone: "",
     password: ""
