@@ -1,13 +1,9 @@
-import { Home, Heart, User, Shield, LayoutDashboard } from "lucide-react";
+import { Home, Heart, User, Shield, LayoutDashboard, Briefcase } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useMyBusiness } from "@/hooks/useMyBusiness";
 import { cn } from "@/lib/utils";
-
-function isProviderLike(role: string | null | undefined) {
-  const r = (role || "").toLowerCase();
-  return r === "provider" || r === "business";
-}
 
 function isAdmin(role: string | null | undefined) {
   return (role || "").toLowerCase() === "admin";
@@ -16,6 +12,7 @@ function isAdmin(role: string | null | undefined) {
 export function MobileNav() {
   const { t, isRTL } = useLanguage();
   const { profile } = useAuth();
+  const { data: myBusiness } = useMyBusiness();
   const location = useLocation();
 
   const preloadRoute = (to: string) => {
@@ -23,34 +20,31 @@ export function MobileNav() {
     if (to === "/favorites") void import("@/pages/Favorites");
     if (to === "/profile") void import("@/pages/Profile");
     if (to === "/provider-dashboard") void import("@/pages/ProviderDashboard");
+    if (to === "/dashboard") void import("@/pages/Dashboard");
+    if (to === "/business-dashboard") void import("@/pages/BusinessDashboard");
     if (to.startsWith("/admin")) void import("@/pages/admin/AdminLayout");
   };
 
   const role = (profile?.role || "user").toString();
-  const providerLike = isProviderLike(role);
   const admin = isAdmin(role);
+  const providerApproved = (role || "").toLowerCase() === "provider" && (profile?.provider_status || "").toLowerCase() === "approved";
+  const hasBusiness = !!myBusiness;
+
+  const dashboardTo = providerApproved ? "/provider-dashboard" : hasBusiness ? "/business-dashboard" : "/dashboard";
+  const dashboardIcon = providerApproved ? LayoutDashboard : hasBusiness ? Briefcase : LayoutDashboard;
+  const dashboardLabel = providerApproved
+    ? (isRTL ? "لوحة المزود" : "Provider")
+    : hasBusiness
+      ? (isRTL ? "لوحة المتجر" : "Business")
+      : (isRTL ? "لوحة التحكم" : "Dashboard");
 
   const navItems = [
     { to: "/", icon: Home, label: t.nav.home },
-    ...(providerLike
-      ? [
-          {
-            to: "/provider-dashboard",
-            icon: LayoutDashboard,
-            label: isRTL ? "لوحة مقدم الخدمة" : "Dashboard",
-          },
-        ]
-      : [
-          {
-            to: "/favorites",
-            icon: Heart,
-            label: t.favorites?.title || (isRTL ? "المفضلة" : "Favorites"),
-          },
-        ]),
-    { to: "/profile", icon: User, label: t.nav.profile },
+    { to: dashboardTo, icon: dashboardIcon, label: dashboardLabel },
     ...(admin
       ? [{ to: "/admin", icon: Shield, label: isRTL ? "لوحة التحكم" : "Admin" }]
-      : []),
+      : [{ to: "/favorites", icon: Heart, label: t.favorites?.title || (isRTL ? "المفضلة" : "Favorites") }]),
+    { to: "/profile", icon: User, label: t.nav.profile },
   ];
 
   return (

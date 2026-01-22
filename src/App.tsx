@@ -31,6 +31,8 @@ const Profile = React.lazy(() => import("./pages/Profile"));
 const Auth = React.lazy(() => import("./pages/Auth"));
 const NotFound = React.lazy(() => import("./pages/NotFound"));
 const ProviderDashboard = React.lazy(() => import("./pages/ProviderDashboard"));
+const Dashboard = React.lazy(() => import("./pages/Dashboard"));
+const BusinessDashboard = React.lazy(() => import("./pages/BusinessDashboard"));
 const ServiceEditor = React.lazy(() => import("./pages/ServiceEditor"));
 const PendingVerification = React.lazy(() => import("./pages/PendingVerification"));
 const PendingConfirmation = React.lazy(() => import("./pages/PendingConfirmation"));
@@ -153,6 +155,22 @@ const AppRoutes = () => {
         <Route path="/onboarding" element={<Onboarding />} />
         {/* Hub is public */}
         <Route path="/" element={<Hub />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/business-dashboard"
+          element={
+            <ProtectedRoute>
+              <BusinessDashboard />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/buy-sell/deals/:type" element={<DealsBrowse />} />
         <Route path="/buy-sell/businesses" element={<BusinessesBrowse />} />
         <Route path="/buy-sell/listings" element={<ListingsBrowse />} />

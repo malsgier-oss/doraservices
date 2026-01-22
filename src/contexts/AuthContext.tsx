@@ -49,7 +49,6 @@ interface AuthContextType {
     fullName: string,
     cityId: string,
     cityName: string,
-    intent?: "user" | "provider",
   ) => Promise<{ error: Error | null }>;
 
   signIn: (phone: string, password: string) => Promise<{ error: Error | null }>;
@@ -220,7 +219,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fullName: string,
     cityId: string,
     cityName: string,
-    intent: "user" | "provider" = "user",
   ) => {
     const cleanedPhone = cleanPhoneForStorage(phone);
 
@@ -229,9 +227,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const internalEmail = phoneToInternalEmail(cleanedPhone);
-
-    const targetRole = intent === "provider" ? "provider" : "user";
-    const targetProviderStatus = intent === "provider" ? "pending" : null;
 
     // Signup creates a session by default. We suppress auth state updates during this flow,
     // then explicitly sign out so the user is not auto-logged-in after registration.
@@ -292,16 +287,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         cityId,
         cityName,
       });
-
-      // Apply role intent
-      const { error: roleErr } = await supabase
-        .from("profiles")
-        .update({ role: targetRole as any, provider_status: targetProviderStatus as any } as any)
-        .eq("user_id", data.user.id);
-      if (roleErr) {
-        console.error("[signUp] failed to set role/provider_status:", roleErr);
-        return { error: new Error(roleErr.message) };
-      }
 
       // Always sign out after signup (no auto login).
       await supabase.auth.signOut();

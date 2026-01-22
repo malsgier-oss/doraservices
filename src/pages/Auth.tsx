@@ -52,8 +52,6 @@ export default function Auth() {
   const returnTo = (query.get("returnTo") || "").trim();
   const initialTab = (query.get("tab") || "login").toLowerCase();
   const [tab, setTab] = useState<"login" | "signup">(initialTab === "signup" ? "signup" : "login");
-  const initialIntent = (query.get("intent") || "").toLowerCase();
-  const [isProviderSignup, setIsProviderSignup] = useState(initialIntent === "provider");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   // Keep tab in sync with URL changes (e.g., onboarding intent opens signup)
@@ -211,7 +209,7 @@ export default function Auth() {
       });
       return;
     }
-    if (isProviderSignup && !agreedToTerms) {
+    if (!agreedToTerms) {
       toast({
         title: isRTL ? "موافقة مطلوبة" : "Agreement required",
         description: isRTL ? "يرجى الموافقة على شروط الاستخدام للمتابعة." : "Please agree to the Terms of Use to continue.",
@@ -224,7 +222,7 @@ export default function Auth() {
     setIsLoading(true);
     const {
       error
-    } = await signUp(cleanedPhone, signupData.password, signupData.fullName, signupData.cityId, cityName, isProviderSignup ? "provider" : "user");
+    } = await signUp(cleanedPhone, signupData.password, signupData.fullName, signupData.cityId, cityName);
     setIsLoading(false);
     if (error) {
       const lower = error.message.toLowerCase();
@@ -327,22 +325,6 @@ export default function Auth() {
                 </Alert>}
 
               <form onSubmit={handleSignup} className="space-y-4">
-                <div className="flex items-center justify-between rounded-2xl border border-border bg-muted/30 px-4 py-3">
-                  <div className={cn("space-y-0.5", isRTL ? "text-right" : "text-left")}>
-                    <div className="font-medium">{isRTL ? "حساب مزود خدمة" : "Provider account"}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {isRTL ? "فعّل هذا إذا كنت تقدم خدمات" : "Enable this if you provide services"}
-                    </div>
-                  </div>
-                  <Switch
-                    checked={isProviderSignup}
-                    onCheckedChange={(v) => {
-                      setIsProviderSignup(v);
-                      if (!v) setAgreedToTerms(false);
-                    }}
-                    aria-label={isRTL ? "تفعيل حساب مزود خدمة" : "Enable provider account"}
-                  />
-                </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-name">{t.auth.fullName}</Label>
                   <div className="relative">
@@ -405,35 +387,33 @@ export default function Auth() {
                   </p>
                 </div>
 
-                {isProviderSignup && (
-                  <div className="flex items-start gap-3 rounded-2xl border border-border bg-background px-4 py-3">
-                    <Checkbox
-                      id="provider-terms"
-                      checked={agreedToTerms}
-                      onCheckedChange={(v) => setAgreedToTerms(Boolean(v))}
-                      className="mt-1"
-                    />
-                    <Label htmlFor="provider-terms" className={cn("text-sm leading-5", isRTL ? "text-right" : "text-left")}>
-                      {isRTL ? (
-                        <>
-                          أوافق على{" "}
-                          <Link to="/terms" className="text-primary hover:underline">
-                            شروط الاستخدام
-                          </Link>
-                          .
-                        </>
-                      ) : (
-                        <>
-                          I agree to the{" "}
-                          <Link to="/terms" className="text-primary hover:underline">
-                            Terms of Use
-                          </Link>
-                          .
-                        </>
-                      )}
-                    </Label>
-                  </div>
-                )}
+                <div className="flex items-start gap-3 rounded-2xl border border-border bg-background px-4 py-3">
+                  <Checkbox
+                    id="terms"
+                    checked={agreedToTerms}
+                    onCheckedChange={(v) => setAgreedToTerms(Boolean(v))}
+                    className="mt-1"
+                  />
+                  <Label htmlFor="terms" className={cn("text-sm leading-5", isRTL ? "text-right" : "text-left")}>
+                    {isRTL ? (
+                      <>
+                        أوافق على{" "}
+                        <Link to="/terms" className="text-primary hover:underline">
+                          شروط الاستخدام
+                        </Link>
+                        .
+                      </>
+                    ) : (
+                      <>
+                        I agree to the{" "}
+                        <Link to="/terms" className="text-primary hover:underline">
+                          Terms of Use
+                        </Link>
+                        .
+                      </>
+                    )}
+                  </Label>
+                </div>
 
                 <Button type="submit" className="w-full rounded-full" disabled={isLoading || !registrationEnabled}>
                   {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t.auth.signup}
