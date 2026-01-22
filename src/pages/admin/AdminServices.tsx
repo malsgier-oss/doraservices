@@ -414,12 +414,12 @@ export default function AdminServices() {
                   placeholder="Search services..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 w-64"
+                  className="pl-9 w-full sm:w-64"
                 />
               </div>
 
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="w-full sm:w-40">
                   <SelectValue placeholder="Category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -433,7 +433,7 @@ export default function AdminServices() {
               </Select>
 
               <Select value={visibilityFilter} onValueChange={setVisibilityFilter}>
-                <SelectTrigger className="w-36">
+                <SelectTrigger className="w-full sm:w-36">
                   <SelectValue placeholder="Visibility" />
                 </SelectTrigger>
                 <SelectContent>
@@ -444,7 +444,7 @@ export default function AdminServices() {
               </Select>
 
               <Select value={approvalFilter} onValueChange={setApprovalFilter}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="w-full sm:w-40">
                   <SelectValue placeholder="Approval" />
                 </SelectTrigger>
                 <SelectContent>
@@ -456,7 +456,7 @@ export default function AdminServices() {
               </Select>
 
               <Select value={featuredFilter} onValueChange={setFeaturedFilter}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="w-full sm:w-40">
                   <SelectValue placeholder="Featured" />
                 </SelectTrigger>
                 <SelectContent>
@@ -485,155 +485,285 @@ export default function AdminServices() {
           ) : services?.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">No services found</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>City</TableHead>
-                  <TableHead>Provider</TableHead>
-                  <TableHead>Featured</TableHead>
-                  <TableHead>Order</TableHead>
-                  <TableHead>Views</TableHead>
-                  <TableHead>Approval</TableHead>
-                  <TableHead>Visibility</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-
-              <TableBody>
+            <>
+              {/* Mobile cards */}
+              <div className="space-y-3 sm:hidden">
                 {services?.map((service) => {
                   const isFeatured = service.is_featured === true;
-
                   const mappedCity = service.city ? cityMap.get(service.city) : null;
                   const displayCity = mappedCity ? cityLabel(mappedCity) : service.city || "—";
+                  const approval = ((service.approval_status || "pending") as string).toLowerCase();
 
                   return (
-                    <TableRow key={service.id}>
-                      <TableCell className="font-medium max-w-48 truncate">
-                        {service.title}
-                        {service.admin_note && <StickyNote className="inline ml-2 h-3 w-3 text-yellow-500" />}
-                      </TableCell>
+                    <div key={service.id} className="rounded-xl border p-4 space-y-3">
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">
+                          {service.title}
+                          {service.admin_note && <StickyNote className="inline ml-2 h-3 w-3 text-yellow-500" />}
+                        </div>
+                        <div className="text-sm text-muted-foreground truncate">
+                          {service.category} • {displayCity} • {format(new Date(service.created_at), "MMM d, yyyy")}
+                        </div>
+                        <div className="text-sm text-muted-foreground truncate">
+                          Provider: {service.user_id ? (service.provider?.full_name || "—") : "—"}
+                        </div>
+                      </div>
 
-                      <TableCell>{service.category}</TableCell>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {approval === "approved" ? <Badge className="bg-green-500">Approved</Badge> : <Badge variant="secondary">Pending</Badge>}
+                        {service.is_visible ? <Badge className="bg-green-500">Visible</Badge> : <Badge variant="secondary">Hidden</Badge>}
+                        {!service.is_active ? <Badge variant="destructive">Inactive</Badge> : null}
+                        <Badge variant="outline">{service.views_count} views</Badge>
+                        <Badge variant={isFeatured ? "default" : "outline"} className={isFeatured ? "bg-yellow-500 text-black" : ""}>
+                          <Star className={isFeatured ? "h-3 w-3 fill-black text-black" : "h-3 w-3"} />
+                          <span className="ml-1">{isFeatured ? "Featured" : "Not featured"}</span>
+                        </Badge>
+                      </div>
 
-                      <TableCell className="max-w-40 truncate">{displayCity}</TableCell>
+                      {isFeatured ? (
+                        <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
+                          <Input
+                            value={featuredOrderDraft[service.id] ?? ""}
+                            onChange={(e) =>
+                              setFeaturedOrderDraft((prev) => ({
+                                ...prev,
+                                [service.id]: e.target.value,
+                              }))
+                            }
+                            placeholder="Featured order"
+                            className="h-11"
+                            inputMode="numeric"
+                          />
+                          <Button
+                            variant="outline"
+                            onClick={() => handleSaveFeaturedOrder(service)}
+                            disabled={updateFeatured.isPending}
+                          >
+                            Save
+                          </Button>
+                        </div>
+                      ) : null}
 
-                      <TableCell>
-                        {service.user_id ? (
-                          service.provider?.full_name || "—"
+                      <div className="grid grid-cols-2 gap-2">
+                        {approval !== "approved" ? (
+                          <Button
+                            variant="outline"
+                            onClick={() => approveService.mutate(service.id)}
+                            disabled={approveService.isPending}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
+                            Approve
+                          </Button>
                         ) : (
-                          <span className="text-muted-foreground text-sm">—</span>
+                          <Button variant="outline" disabled>
+                            Approved
+                          </Button>
                         )}
-                      </TableCell>
 
-                      <TableCell>
                         <Button
-                          variant="ghost"
-                          size="sm"
-                          className={isFeatured ? "text-yellow-600" : "text-muted-foreground"}
+                          variant="outline"
+                          onClick={() =>
+                            toggleVisibility.mutate({
+                              id: service.id,
+                              isVisible: !service.is_visible,
+                            })
+                          }
+                          disabled={toggleVisibility.isPending}
+                        >
+                          {service.is_visible ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
+                          {service.is_visible ? "Hide" : "Show"}
+                        </Button>
+
+                        <Button
+                          variant="secondary"
                           onClick={() => handleToggleFeatured(service)}
                           disabled={updateFeatured.isPending}
                         >
-                          <Star className={isFeatured ? "h-4 w-4 fill-yellow-400 text-yellow-400" : "h-4 w-4"} />
-                          <span className="ml-2">{isFeatured ? "Yes" : "No"}</span>
+                          <Star className={isFeatured ? "h-4 w-4 mr-2 fill-yellow-400 text-yellow-400" : "h-4 w-4 mr-2"} />
+                          {isFeatured ? "Unfeature" : "Feature"}
                         </Button>
-                      </TableCell>
 
-                      <TableCell className="w-32">
-                        <Input
-                          value={featuredOrderDraft[service.id] ?? ""}
-                          onChange={(e) =>
-                            setFeaturedOrderDraft((prev) => ({
-                              ...prev,
-                              [service.id]: e.target.value,
-                            }))
-                          }
-                          onBlur={() => handleSaveFeaturedOrder(service)}
-                          placeholder="e.g. 1"
-                          className="h-9"
-                          inputMode="numeric"
-                        />
-                      </TableCell>
+                        <Button variant="secondary" onClick={() => openEditDialog(service)}>
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit
+                        </Button>
 
-                      <TableCell>{service.views_count}</TableCell>
+                        <Button variant="secondary" onClick={() => openNoteDialog(service)}>
+                          <StickyNote className="h-4 w-4 mr-2" />
+                          Note
+                        </Button>
 
-                      <TableCell>
-                        {((service.approval_status || "pending") as string).toLowerCase() === "approved" ? (
-                          <Badge className="bg-green-500">Approved</Badge>
-                        ) : (
-                          <Badge variant="secondary">Pending</Badge>
-                        )}
-                      </TableCell>
-
-                      <TableCell>
-                        <div className="flex gap-1">
-                          {service.is_visible ? (
-                            <Badge className="bg-green-500">Visible</Badge>
-                          ) : (
-                            <Badge variant="secondary">Hidden</Badge>
-                          )}
-                          {!service.is_active && <Badge variant="destructive">Inactive</Badge>}
-                        </div>
-                      </TableCell>
-
-                      <TableCell>{format(new Date(service.created_at), "MMM d, yyyy")}</TableCell>
-
-                      <TableCell>
-                        <div className="flex gap-1">
-                          {((service.approval_status || "pending") as string).toLowerCase() !== "approved" && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="Approve service (makes it publicly visible)"
-                              onClick={() => approveService.mutate(service.id)}
-                              disabled={approveService.isPending}
-                            >
-                              <CheckCircle className="h-4 w-4 text-green-600" />
-                            </Button>
-                          )}
-
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() =>
-                              toggleVisibility.mutate({
-                                id: service.id,
-                                isVisible: !service.is_visible,
-                              })
+                        <Button
+                          variant="destructive"
+                          onClick={() => {
+                            if (confirm("Are you sure you want to delete this service?")) {
+                              deleteService.mutate(service.id);
                             }
-                          >
-                            {service.is_visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </Button>
-
-                          <Button variant="ghost" size="icon" onClick={() => openEditDialog(service)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-
-                          <Button variant="ghost" size="icon" onClick={() => openNoteDialog(service)}>
-                            <StickyNote className="h-4 w-4" />
-                          </Button>
-
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-red-500"
-                            onClick={() => {
-                              if (confirm("Are you sure you want to delete this service?")) {
-                                deleteService.mutate(service.id);
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                          }}
+                          disabled={deleteService.isPending}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
                   );
                 })}
-              </TableBody>
-            </Table>
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden sm:block">
+                <Table className="min-w-[1100px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Title</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>City</TableHead>
+                      <TableHead>Provider</TableHead>
+                      <TableHead>Featured</TableHead>
+                      <TableHead>Order</TableHead>
+                      <TableHead>Views</TableHead>
+                      <TableHead>Approval</TableHead>
+                      <TableHead>Visibility</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+
+                  <TableBody>
+                    {services?.map((service) => {
+                      const isFeatured = service.is_featured === true;
+
+                      const mappedCity = service.city ? cityMap.get(service.city) : null;
+                      const displayCity = mappedCity ? cityLabel(mappedCity) : service.city || "—";
+
+                      return (
+                        <TableRow key={service.id}>
+                          <TableCell className="font-medium max-w-48 truncate">
+                            {service.title}
+                            {service.admin_note && <StickyNote className="inline ml-2 h-3 w-3 text-yellow-500" />}
+                          </TableCell>
+
+                          <TableCell>{service.category}</TableCell>
+
+                          <TableCell className="max-w-40 truncate">{displayCity}</TableCell>
+
+                          <TableCell>
+                            {service.user_id ? (
+                              service.provider?.full_name || "—"
+                            ) : (
+                              <span className="text-muted-foreground text-sm">—</span>
+                            )}
+                          </TableCell>
+
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={isFeatured ? "text-yellow-600" : "text-muted-foreground"}
+                              onClick={() => handleToggleFeatured(service)}
+                              disabled={updateFeatured.isPending}
+                            >
+                              <Star className={isFeatured ? "h-4 w-4 fill-yellow-400 text-yellow-400" : "h-4 w-4"} />
+                              <span className="ml-2">{isFeatured ? "Yes" : "No"}</span>
+                            </Button>
+                          </TableCell>
+
+                          <TableCell className="w-32">
+                            <Input
+                              value={featuredOrderDraft[service.id] ?? ""}
+                              onChange={(e) =>
+                                setFeaturedOrderDraft((prev) => ({
+                                  ...prev,
+                                  [service.id]: e.target.value,
+                                }))
+                              }
+                              onBlur={() => handleSaveFeaturedOrder(service)}
+                              placeholder="e.g. 1"
+                              className="h-9"
+                              inputMode="numeric"
+                            />
+                          </TableCell>
+
+                          <TableCell>{service.views_count}</TableCell>
+
+                          <TableCell>
+                            {((service.approval_status || "pending") as string).toLowerCase() === "approved" ? (
+                              <Badge className="bg-green-500">Approved</Badge>
+                            ) : (
+                              <Badge variant="secondary">Pending</Badge>
+                            )}
+                          </TableCell>
+
+                          <TableCell>
+                            <div className="flex gap-1">
+                              {service.is_visible ? (
+                                <Badge className="bg-green-500">Visible</Badge>
+                              ) : (
+                                <Badge variant="secondary">Hidden</Badge>
+                              )}
+                              {!service.is_active && <Badge variant="destructive">Inactive</Badge>}
+                            </div>
+                          </TableCell>
+
+                          <TableCell>{format(new Date(service.created_at), "MMM d, yyyy")}</TableCell>
+
+                          <TableCell>
+                            <div className="flex gap-1">
+                              {((service.approval_status || "pending") as string).toLowerCase() !== "approved" && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title="Approve service (makes it publicly visible)"
+                                  onClick={() => approveService.mutate(service.id)}
+                                  disabled={approveService.isPending}
+                                >
+                                  <CheckCircle className="h-4 w-4 text-green-600" />
+                                </Button>
+                              )}
+
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() =>
+                                  toggleVisibility.mutate({
+                                    id: service.id,
+                                    isVisible: !service.is_visible,
+                                  })
+                                }
+                              >
+                                {service.is_visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </Button>
+
+                              <Button variant="ghost" size="icon" onClick={() => openEditDialog(service)}>
+                                <Edit className="h-4 w-4" />
+                              </Button>
+
+                              <Button variant="ghost" size="icon" onClick={() => openNoteDialog(service)}>
+                                <StickyNote className="h-4 w-4" />
+                              </Button>
+
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-red-500"
+                                onClick={() => {
+                                  if (confirm("Are you sure you want to delete this service?")) {
+                                    deleteService.mutate(service.id);
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

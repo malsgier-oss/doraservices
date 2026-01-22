@@ -15,6 +15,7 @@ import { useCities } from "@/hooks/useCities";
 import { useListing } from "@/hooks/useListing";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
 
 const CATEGORIES = ["electronics", "vehicles", "home", "fashion", "sports", "games", "books", "other"] as const;
 const MAX_PHOTOS = 5;
@@ -33,6 +34,7 @@ export default function EditListing() {
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
   const { user } = useAuth();
   const { data: cities } = useCities();
+  const { isEnabled: buySellEnabled, isLoading: buySellLoading } = useBuySellEnabled();
 
   const { data: listing, isLoading } = useListing(id || null, true);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -179,6 +181,28 @@ export default function EditListing() {
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-48 w-full" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (buySellLoading) {
+    return (
+      <Layout>
+        <div className="container py-8">
+          <div className="text-sm text-muted-foreground">{t("جاري التحميل...", "Loading...")}</div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!buySellEnabled) {
+    return (
+      <Layout>
+        <div className="container py-8">
+          <div className="rounded-xl border p-6 text-sm text-muted-foreground text-center">
+            {t("ميزة الشراء والبيع غير مفعلة حالياً.", "Buy & Sell is currently disabled.")}
+          </div>
         </div>
       </Layout>
     );

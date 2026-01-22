@@ -10,6 +10,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useListings, type Listing } from "@/hooks/useListings";
 import { ListingCard } from "@/components/hub/ListingCard";
 import { ListingDetailSheet } from "@/components/hub/ListingDetailSheet";
+import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
 
 const CITY_STORAGE_KEY = "dora_city_id";
 
@@ -26,6 +27,7 @@ export default function ListingsBrowse() {
   const [params] = useSearchParams();
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
+  const { isEnabled: buySellEnabled, isLoading: buySellLoading } = useBuySellEnabled();
 
   const category = params.get("category");
   const q = params.get("q")?.trim() || "";
@@ -61,7 +63,15 @@ export default function ListingsBrowse() {
           ) : null}
         </div>
 
-        {isLoading ? (
+        {buySellLoading ? (
+          <div className={`${HUB_CARD_BASE} bg-card p-6 text-sm text-muted-foreground text-center`}>
+            {t("جاري التحميل...", "Loading...")}
+          </div>
+        ) : !buySellEnabled ? (
+          <div className={`${HUB_CARD_BASE} bg-card p-6 text-sm text-muted-foreground text-center`}>
+            {t("ميزة الشراء والبيع غير مفعلة حالياً.", "Buy & Sell is currently disabled.")}
+          </div>
+        ) : isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {Array.from({ length: 9 }).map((_, i) => (
               <div key={`listing-browse-loading-${i}`} className={`${HUB_CARD_BASE} bg-card overflow-hidden`}>
@@ -94,18 +104,20 @@ export default function ListingsBrowse() {
         )}
       </div>
 
-      <ListingDetailSheet
-        open={sheetOpen}
-        listing={selected}
-        onOpenChange={(open) => {
-          setSheetOpen(open);
-          if (!open) setSelected(null);
-        }}
-        onSelectListing={(l) => {
-          setSelected(l);
-          setSheetOpen(true);
-        }}
-      />
+      {buySellEnabled ? (
+        <ListingDetailSheet
+          open={sheetOpen}
+          listing={selected}
+          onOpenChange={(open) => {
+            setSheetOpen(open);
+            if (!open) setSelected(null);
+          }}
+          onSelectListing={(l) => {
+            setSelected(l);
+            setSheetOpen(true);
+          }}
+        />
+      ) : null}
     </Layout>
   );
 }
