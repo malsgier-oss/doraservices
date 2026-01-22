@@ -17,9 +17,9 @@ export interface Recommendation {
   reason?: string; // Why it's recommended
 }
 
-export function useRecommendations(cityId?: string | null, userId?: string | null) {
+export function useRecommendations(cityId?: string | null, userId?: string | null, limit = 8) {
   return useQuery({
-    queryKey: ["recommendations", cityId, userId],
+    queryKey: ["recommendations", cityId, userId, limit],
     queryFn: async (): Promise<Recommendation[]> => {
       // For now, return popular services in city
       // TODO: Add logic for user-based recommendations (favorites, history)
@@ -29,7 +29,7 @@ export function useRecommendations(cityId?: string | null, userId?: string | nul
         .eq("is_active", true)
         .eq("is_visible", true)
         .order("views_count", { ascending: false })
-        .limit(8);
+        .limit(limit);
 
       // Filter by city if provided
       if (cityId) {

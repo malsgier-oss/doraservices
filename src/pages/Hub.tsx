@@ -3,6 +3,7 @@ import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState } from
 import type { ReactNode } from "react";
 import { Bell, CheckCheck, ChevronDown, Search, Wrench, Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper, Droplets, Wind, Fuel, ClipboardCheck, X, LayoutGrid, Star, TrendingUp, BookOpen, Sparkles, Store, Tag } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -326,10 +327,25 @@ async function fetchShelfSubcategories(params: { categoryId: string; limit: numb
 
 
 // Buy/Sell Sections Components
-function BuySellDealsSection({ cityId, category, onDealClick }: { cityId?: string | null; category?: string | null; onDealClick: (deal: Deal) => void }) {
+function BuySellDealsSection({
+  cityId,
+  category,
+  search,
+  onDealClick,
+}: {
+  cityId?: string | null;
+  category?: string | null;
+  search?: string | null;
+  onDealClick: (deal: Deal) => void;
+}) {
   const { data: deals, isLoading } = useDeals({ cityId, category, limit: 12 });
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
+
+  const q = (search || "").trim().toLowerCase();
+  const filteredDeals = q
+    ? (deals || []).filter((d) => `${d.title} ${(d.description || "")}`.toLowerCase().includes(q))
+    : (deals || []);
 
   if (isLoading) {
     return (
@@ -353,7 +369,7 @@ function BuySellDealsSection({ cityId, category, onDealClick }: { cityId?: strin
     );
   }
 
-  if (!deals || deals.length === 0) {
+  if (filteredDeals.length === 0) {
     return (
       <HubSection title={t("العروض النشطة", "Active Deals")} icon={Tag}>
         <div className={`${HUB_CARD_BASE} bg-card p-4 text-sm text-muted-foreground text-center`}>
@@ -370,7 +386,7 @@ function BuySellDealsSection({ cityId, category, onDealClick }: { cityId?: strin
         className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
         style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
       >
-        {deals.map((deal) => (
+        {filteredDeals.map((deal) => (
           <div key={deal.id} className="shrink-0 w-[72vw] max-w-[320px] snap-center">
             <DealCard
               deal={deal}
@@ -384,10 +400,28 @@ function BuySellDealsSection({ cityId, category, onDealClick }: { cityId?: strin
   );
 }
 
-function BuySellBusinessesSection({ cityId, category, onBusinessClick }: { cityId?: string | null; category?: string | null; onBusinessClick: (business: Business) => void }) {
+function BuySellBusinessesSection({
+  cityId,
+  category,
+  search,
+  onBusinessClick,
+}: {
+  cityId?: string | null;
+  category?: string | null;
+  search?: string | null;
+  onBusinessClick: (business: Business) => void;
+}) {
   const { data: businesses, isLoading } = useBusinesses({ cityId, category, featured: true, limit: 8 });
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
+
+  const q = (search || "").trim().toLowerCase();
+  const filteredBusinesses = q
+    ? (businesses || []).filter((b) => {
+        const hay = `${b.name} ${b.description || ""} ${b.location || ""}`.toLowerCase();
+        return hay.includes(q);
+      })
+    : (businesses || []);
 
   if (isLoading) {
     return (
@@ -411,7 +445,7 @@ function BuySellBusinessesSection({ cityId, category, onBusinessClick }: { cityI
     );
   }
 
-  if (!businesses || businesses.length === 0) {
+  if (filteredBusinesses.length === 0) {
     if (import.meta.env.DEV) {
       console.log("[BuySellBusinessesSection] No businesses found", { cityId, featured: true });
     }
@@ -429,7 +463,7 @@ function BuySellBusinessesSection({ cityId, category, onBusinessClick }: { cityI
         className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
         style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
       >
-        {businesses.map((business) => (
+        {filteredBusinesses.map((business) => (
           <div key={business.id} className="shrink-0 w-[72vw] max-w-[320px] snap-center">
             <BusinessCard
               business={business}
@@ -444,6 +478,7 @@ function BuySellBusinessesSection({ cityId, category, onBusinessClick }: { cityI
 }
 
 export default function Hub() {
+  const navigate = useNavigate();
   const { language, isRTL } = useLanguage();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -468,6 +503,7 @@ export default function Hub() {
 
   // Buy/Sell category filter state
   const [selectedBuySellCategory, setSelectedBuySellCategory] = useState<string | null>(null);
+  const [buySellSearchQuery, setBuySellSearchQuery] = useState<string>("");
 
   const { data: notifications } = useNotifications();
   const { data: unreadCount } = useUnreadCount();
@@ -1453,9 +1489,7 @@ export default function Hub() {
               icon={TrendingUp}
               actionLabel={t("عرض الكل", "View All")}
               onAction={() => {
-                // TODO: Navigate to trending services page or filter
-                const el = document.getElementById("trending-services");
-                el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                navigate("/services/trending");
               }}
             >
             <TrendingSection
@@ -1539,9 +1573,7 @@ export default function Hub() {
             <HubSection
               actionLabel={t("عرض الكل", "View All")}
               onAction={() => {
-                // TODO: Navigate to recommendations page
-                const el = document.getElementById("recommendations");
-                el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                navigate("/services/recommendations");
               }} 
             id="recommendations" 
             title={user 
@@ -1745,6 +1777,30 @@ export default function Hub() {
           {/* BUY & SELL Tab */}
           <TabsContent value="buy-sell" className="mt-0 space-y-6">
             <div className="px-4 space-y-6">
+              {/* Search */}
+              <HubSection title={t("بحث", "Search")} icon={Search}>
+                <div className="flex items-center gap-2" dir={isRTL ? "rtl" : "ltr"}>
+                  <Input
+                    value={buySellSearchQuery}
+                    onChange={(e) => setBuySellSearchQuery(e.target.value)}
+                    placeholder={t("ابحث عن عرض أو متجر...", "Search deals or businesses...")}
+                    className="h-11"
+                  />
+                  {buySellSearchQuery.trim() ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-11 w-11"
+                      onClick={() => setBuySellSearchQuery("")}
+                      aria-label={t("مسح البحث", "Clear search")}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  ) : null}
+                </div>
+              </HubSection>
+
               {/* Categories Grid */}
               <HubSection title={t("التصنيفات", "Categories")} icon={LayoutGrid}>
                 <BuySellCategories onCategoryClick={(catId) => {
@@ -1777,14 +1833,14 @@ export default function Hub() {
                   icon={Tag}
                   actionLabel={t("عرض الكل", "View All")}
                   onAction={() => {
-                    // TODO: Navigate to all featured deals
-                    const el = document.getElementById("featured-deals");
-                    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
+                    navigate(`/buy-sell/deals/featured${qs}`);
                   }}
                 >
                   <FeaturedDeals
                     cityId={cityId}
                     category={selectedBuySellCategory}
+                    search={buySellSearchQuery}
                     limit={6}
                     onDealClick={(deal) => openDealDetail(deal)}
                   />
@@ -1792,7 +1848,7 @@ export default function Hub() {
               </AnimatedSection>
 
               {/* Active Deals Grid */}
-              <BuySellDealsSection cityId={cityId} category={selectedBuySellCategory} onDealClick={openDealDetail} />
+              <BuySellDealsSection cityId={cityId} category={selectedBuySellCategory} search={buySellSearchQuery} onDealClick={openDealDetail} />
 
               {/* Trending Deals */}
               <AnimatedSection direction="up" delay={400}>
@@ -1802,14 +1858,14 @@ export default function Hub() {
                   icon={TrendingUp}
                   actionLabel={t("عرض الكل", "View All")}
                   onAction={() => {
-                    // TODO: Navigate to all trending deals
-                    const el = document.getElementById("trending-deals");
-                    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
+                    navigate(`/buy-sell/deals/trending${qs}`);
                   }}
                 >
                   <TrendingDeals
                     cityId={cityId}
                     category={selectedBuySellCategory}
+                    search={buySellSearchQuery}
                     limit={8}
                     onDealClick={openDealDetail}
                   />
@@ -1824,14 +1880,14 @@ export default function Hub() {
                   icon={Sparkles}
                   actionLabel={t("عرض الكل", "View All")}
                   onAction={() => {
-                    // TODO: Navigate to all new listings
-                    const el = document.getElementById("new-listings");
-                    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
+                    navigate(`/buy-sell/deals/new${qs}`);
                   }}
                 >
                   <NewListings
                     cityId={cityId}
                     category={selectedBuySellCategory}
+                    search={buySellSearchQuery}
                     limit={8}
                     onDealClick={openDealDetail}
                   />
@@ -1839,7 +1895,7 @@ export default function Hub() {
               </AnimatedSection>
 
               {/* Featured Businesses */}
-              <BuySellBusinessesSection cityId={cityId} category={selectedBuySellCategory} onBusinessClick={openBusinessDetail} />
+              <BuySellBusinessesSection cityId={cityId} category={selectedBuySellCategory} search={buySellSearchQuery} onBusinessClick={openBusinessDetail} />
 
               {/* Business Directory */}
               <AnimatedSection direction="up" delay={600}>
@@ -1849,14 +1905,14 @@ export default function Hub() {
                   icon={Store}
                   actionLabel={t("عرض الكل", "View All")}
                   onAction={() => {
-                    // TODO: Navigate to full business directory
-                    const el = document.getElementById("business-directory");
-                    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
+                    navigate(`/buy-sell/businesses${qs}`);
                   }}
                 >
                   <BusinessDirectory
                     cityId={cityId}
                     category={selectedBuySellCategory}
+                    search={buySellSearchQuery}
                     limit={12}
                     onBusinessClick={openBusinessDetail}
                   />

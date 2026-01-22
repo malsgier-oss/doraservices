@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -13,12 +15,14 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useDeals, type Deal } from "@/hooks/useDeals";
-import { useBusinessRating } from "@/hooks/useBusinessReviews";
+import { useBusinessRating, useBusinessReviews } from "@/hooks/useBusinessReviews";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { DealCard } from "./DealCard";
 import { HUB_CARD_BASE } from "./hubStyles";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Business } from "@/hooks/useBusiness";
+import { supabase } from "@/integrations/supabase/client";
 
 interface BusinessDetailSheetProps {
   open: boolean;
@@ -35,6 +39,7 @@ export function BusinessDetailSheet({
 }: BusinessDetailSheetProps) {
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
+  const { user } = useAuth();
 
   const { data: deals, isLoading: dealsLoading } = useDeals({
     businessId: business?.id || null,
@@ -42,9 +47,15 @@ export function BusinessDetailSheet({
   });
 
   const { data: rating } = useBusinessRating(business?.id || null);
+  const { data: reviews, isLoading: reviewsLoading, refetch: refetchReviews } = useBusinessReviews(business?.id || null);
 
   const [copied, setCopied] = useState(false);
   const [descExpanded, setDescExpanded] = useState(false);
+
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [reviewStars, setReviewStars] = useState<number>(5);
+  const [reviewText, setReviewText] = useState<string>("");
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   const activeDeals = useMemo(() => {
     if (!deals) return [];
@@ -101,6 +112,40 @@ export function BusinessDetailSheet({
   };
 
   if (!business) return null;
+
+  const myExistingReview = user ? (reviews || []).find((r) => r.user_id === user.id) : null;
+
+  const openReviewDialog = () => {
+    if (!user) return;
+    setReviewStars(myExistingReview?.rating || 5);
+    setReviewText(myExistingReview?.content || "");
+    setReviewDialogOpen(true);
+  };
+
+  const submitReview = async () => {
+    if (!user || !business) return;
+    setSubmittingReview(true);
+    try {
+      const payload = {
+        user_id: user.id,
+        business_id: business.id,
+        rating: Math.max(1, Math.min(5, Number(reviewStars || 5))),
+        content: reviewText.trim() ? reviewText.trim() : null,
+      };
+
+      const { error } = await supabase.from("reviews").upsert(payload, { onConflict: "user_id,business_id" });
+      if (error) throw error;
+
+      toast.success(t("تم حفظ التقييم", "Review saved"));
+      setReviewDialogOpen(false);
+      await refetchReviews();
+    } catch (err) {
+      const msg = typeof err === "object" && err && "message" in err ? String((err as any).message) : t("حدث خطأ", "Something went wrong");
+      toast.error(msg);
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -212,6 +257,73 @@ export function BusinessDetailSheet({
               </div>
             )}
 
+            {/* Reviews */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <Star className="h-4 w-4" />
+                  <span>{t("التقييمات", "Reviews")}</span>
+                  {rating && rating.totalReviews > 0 ? (
+                    <span className="text-xs text-muted-foreground">
+                      ({rating.totalReviews})
+                    </span>
+                  ) : null}
+                </div>
+                {user ? (
+                  <Button type="button" variant="outline" size="sm" className="h-9" onClick={openReviewDialog}>
+                    {t("اكتب تقييم", "Write Review")}
+                  </Button>
+                ) : null}
+              </div>
+
+              {reviewsLoading ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 2 }).map((_, i) => (
+                    <div key={`review-skel-${i}`} className={`${HUB_CARD_BASE} bg-card p-4`}>
+                      <Skeleton className="h-4 w-40" />
+                      <Skeleton className="h-3 w-full mt-2" />
+                      <Skeleton className="h-3 w-2/3 mt-2" />
+                    </div>
+                  ))}
+                </div>
+              ) : (reviews || []).length === 0 ? (
+                <div className={`${HUB_CARD_BASE} bg-card p-4 text-sm text-muted-foreground text-center`}>
+                  {t("لا توجد تقييمات بعد", "No reviews yet")}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {(reviews || []).slice(0, 6).map((r) => {
+                    const isMine = user && r.user_id === user.id;
+                    return (
+                      <div key={r.id} className={`${HUB_CARD_BASE} bg-card p-4 space-y-2`}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-1.5">
+                            {Array.from({ length: 5 }).map((_, idx) => {
+                              const filled = idx < (r.rating || 0);
+                              return (
+                                <Star
+                                  key={`${r.id}-star-${idx}`}
+                                  className={cn("h-3.5 w-3.5", filled ? "fill-amber-400 text-amber-400" : "text-muted-foreground")}
+                                />
+                              );
+                            })}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {isMine ? t("أنت", "You") : t("مستخدم", "User")} • {new Date(r.created_at).toLocaleDateString()}
+                          </div>
+                        </div>
+                        {r.content ? (
+                          <div className="text-sm text-foreground/90 whitespace-pre-line leading-relaxed">
+                            {r.content}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             {/* Active Deals Section */}
             {dealsLoading ? (
               <div className="space-y-3">
@@ -291,6 +403,56 @@ export function BusinessDetailSheet({
           </div>
         </div>
       </DrawerContent>
+
+      <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+        <DialogContent className={cn("max-w-md", isRTL ? "rtl" : "ltr")}>
+          <DialogHeader>
+            <DialogTitle>{t("اكتب تقييم", "Write a review")}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4" dir={isRTL ? "rtl" : "ltr"}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-sm font-medium">{t("التقييم", "Rating")}</div>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: 5 }).map((_, idx) => {
+                  const value = idx + 1;
+                  const filled = value <= reviewStars;
+                  return (
+                    <button
+                      key={`rate-${value}`}
+                      type="button"
+                      className="h-9 w-9 inline-flex items-center justify-center rounded-full hover:bg-muted"
+                      onClick={() => setReviewStars(value)}
+                      aria-label={`${value} stars`}
+                    >
+                      <Star className={cn("h-5 w-5", filled ? "fill-amber-400 text-amber-400" : "text-muted-foreground")} />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium">{t("ملاحظات (اختياري)", "Notes (optional)")}</div>
+              <Textarea
+                value={reviewText}
+                onChange={(e) => setReviewText(e.target.value)}
+                placeholder={t("اكتب تجربتك...", "Share your experience...")}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className={isRTL ? "sm:justify-start" : "sm:justify-end"}>
+            <Button type="button" variant="outline" onClick={() => setReviewDialogOpen(false)} disabled={submittingReview}>
+              {t("إلغاء", "Cancel")}
+            </Button>
+            <Button type="button" onClick={submitReview} disabled={submittingReview}>
+              {submittingReview ? t("جارٍ الحفظ...", "Saving...") : t("حفظ", "Save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Drawer>
   );
 }
+

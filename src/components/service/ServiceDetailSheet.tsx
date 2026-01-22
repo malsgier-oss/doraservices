@@ -792,7 +792,9 @@ function ProviderDetailView({
         if (provider.image_url.startsWith("[")) {
           try {
             fallback = JSON.parse(provider.image_url);
-          } catch {}
+          } catch {
+            // ignore invalid JSON
+          }
         }
         if (fallback.length === 1 && fallback[0].includes(",")) {
           fallback = fallback[0].split(",").map((s) => s.trim());

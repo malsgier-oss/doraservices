@@ -7,13 +7,19 @@ import { useLanguage } from "@/contexts/LanguageContext";
 interface FeaturedDealsProps {
   cityId?: string | null;
   category?: string | null;
+  search?: string | null;
   limit?: number;
   onDealClick?: (deal: any) => void;
 }
 
-export function FeaturedDeals({ cityId, category, limit = 6, onDealClick }: FeaturedDealsProps) {
+export function FeaturedDeals({ cityId, category, search, limit = 6, onDealClick }: FeaturedDealsProps) {
   const { data: deals, isLoading } = useDeals({ cityId, category, featured: true, limit });
   const { isRTL } = useLanguage();
+
+  const q = (search || "").trim().toLowerCase();
+  const filtered = q
+    ? (deals || []).filter((d) => `${d.title} ${(d.description || "")}`.toLowerCase().includes(q))
+    : (deals || []);
 
   if (isLoading) {
     return (
@@ -38,7 +44,7 @@ export function FeaturedDeals({ cityId, category, limit = 6, onDealClick }: Feat
     );
   }
 
-  if (!deals || deals.length === 0) {
+  if (filtered.length === 0) {
     return null;
   }
 
@@ -48,7 +54,7 @@ export function FeaturedDeals({ cityId, category, limit = 6, onDealClick }: Feat
       className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
       style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
     >
-      {deals.slice(0, limit).map((deal) => (
+      {filtered.slice(0, limit).map((deal) => (
         <div key={deal.id} className="shrink-0 w-[72vw] max-w-[320px] snap-center">
           <DealCard
             deal={deal}

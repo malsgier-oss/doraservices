@@ -8,18 +8,24 @@ import { Skeleton } from "@/components/ui/skeleton";
 interface NewListingsProps {
   cityId?: string | null;
   category?: string | null;
+  search?: string | null;
   limit?: number;
   onDealClick?: (deal: Deal) => void;
 }
 
-export function NewListings({ cityId, category, limit = 8, onDealClick }: NewListingsProps) {
+export function NewListings({ cityId, category, search, limit = 8, onDealClick }: NewListingsProps) {
   const { data: deals, isLoading } = useDeals({ cityId, category, limit: limit * 2 });
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
 
+  const q = (search || "").trim().toLowerCase();
+  const searched = q
+    ? (deals || []).filter((d) => `${d.title} ${(d.description || "")}`.toLowerCase().includes(q))
+    : (deals || []);
+
   // Filter and sort by created_at (newest first)
-  const newDeals = deals
-    ? [...deals]
+  const newDeals = searched
+    ? [...searched]
         .filter((deal) => {
           const createdDate = new Date(deal.created_at);
           const daysSinceCreated = (Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24);
