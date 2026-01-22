@@ -894,6 +894,13 @@ export default function Hub() {
     return "services";
   });
 
+  // If Buy & Sell is disabled, force Services tab.
+  useEffect(() => {
+    if (!buySellEnabled && activeTab === "buy-sell") {
+      setActiveTab("services");
+    }
+  }, [activeTab, buySellEnabled]);
+
   // Sync URL hash when tab changes
   useEffect(() => {
     if (buySellEnabled && activeTab) {

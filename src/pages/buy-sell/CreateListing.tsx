@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCities } from "@/hooks/useCities";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
 
 const CITY_STORAGE_KEY = "dora_city_id";
 
@@ -33,6 +34,7 @@ export default function CreateListing() {
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
   const { user } = useAuth();
   const { data: cities } = useCities();
+  const { isEnabled: buySellEnabled, isLoading: buySellLoading } = useBuySellEnabled();
 
   const defaultCityId = getStoredCityId();
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -81,6 +83,10 @@ export default function CreateListing() {
   };
 
   const handleSubmit = async () => {
+    if (!buySellEnabled) {
+      toast.error(t("ميزة الإعلانات غير مفعلة حالياً.", "Listings are currently disabled."));
+      return;
+    }
     if (!user) {
       const returnTo = encodeURIComponent("/buy-sell/create-listing");
       navigate(`/auth?tab=login&returnTo=${returnTo}`);
@@ -179,7 +185,14 @@ export default function CreateListing() {
           </div>
         </div>
 
-        <div className="space-y-4 pb-6">
+        {buySellLoading ? (
+          <div className="text-sm text-muted-foreground">{t("جاري التحميل...", "Loading...")}</div>
+        ) : !buySellEnabled ? (
+          <div className="rounded-xl border p-6 text-sm text-muted-foreground text-center">
+            {t("ميزة الشراء والبيع غير مفعلة حالياً.", "Buy & Sell is currently disabled.")}
+          </div>
+        ) : (
+          <div className="space-y-4 pb-6">
           <div className="space-y-2">
             <Label>{t("العنوان", "Title")}</Label>
             <Input className="text-base" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("مثال: آيفون 13", "e.g. iPhone 13")} />
@@ -292,7 +305,8 @@ export default function CreateListing() {
               {submitting ? t("جارٍ النشر...", "Publishing...") : t("نشر", "Publish")}
             </Button>
           </div>
-        </div>
+          </div>
+        )}
       </div>
     </Layout>
   );

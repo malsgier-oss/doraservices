@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Users, Store, Tag, Flag, Settings, MessageSquare, History, ArrowLeft, Menu, MapPin, KeyRound, Megaphone, BookOpen } from "lucide-react";
+import { LayoutDashboard, Users, Store, Tag, Flag, Settings, MessageSquare, History, ArrowLeft, Menu, MapPin, KeyRound, Megaphone, BookOpen, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import doraLogo from "@/assets/dora-logo.png";
@@ -16,6 +16,9 @@ const preloadAdminRoute = (to: string) => {
   if (to === "/admin/users") void import("@/pages/admin/AdminUsers");
   if (to === "/admin/providers") void import("@/pages/admin/AdminProviders");
   if (to === "/admin/services") void import("@/pages/admin/AdminServices");
+  if (to === "/admin/businesses") void import("@/pages/admin/AdminBusinesses");
+  if (to === "/admin/deals") void import("@/pages/admin/AdminDeals");
+  if (to === "/admin/listings") void import("@/pages/admin/AdminListings");
   if (to === "/admin/reviews") void import("@/pages/admin/AdminReviews");
   if (to === "/admin/reports") void import("@/pages/admin/AdminReports");
   if (to === "/admin/messages") void import("@/pages/admin/AdminMessages");
@@ -41,6 +44,9 @@ const navItems = [
   { to: "/admin/users", label: "Users", icon: Users },
   { to: "/admin/providers", label: "Providers", icon: Users },
   { to: "/admin/services", label: "Services", icon: Store },
+  { to: "/admin/businesses", label: "Businesses", icon: Store },
+  { to: "/admin/deals", label: "Deals", icon: Tag },
+  { to: "/admin/listings", label: "Listings", icon: ShoppingBag },
   { to: "/admin/reviews", label: "Reviews", icon: Flag },
   { to: "/admin/reports", label: "Reports", icon: Flag },
   { to: "/admin/messages", label: "Messages", icon: MessageSquare },

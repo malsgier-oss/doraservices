@@ -111,7 +111,7 @@ export default function AdminBusinesses() {
               />
             </div>
             <Select value={authFilter} onValueChange={setAuthFilter}>
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className="w-full sm:w-[150px]">
                 <SelectValue placeholder="Authorization" />
               </SelectTrigger>
               <SelectContent>
@@ -122,7 +122,7 @@ export default function AdminBusinesses() {
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className="w-full sm:w-[150px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -134,9 +134,96 @@ export default function AdminBusinesses() {
             </Select>
           </div>
 
-          {/* Table */}
-          <div className="rounded-md border">
-            <Table>
+          {/* Mobile cards */}
+          <div className="space-y-3 sm:hidden">
+            {isLoading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="rounded-xl border p-4 space-y-3">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-4 w-64" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ))
+            ) : businesses?.length === 0 ? (
+              <div className="rounded-xl border p-6 text-center text-muted-foreground">No businesses found</div>
+            ) : (
+              businesses?.map((business) => (
+                <div key={business.id} className="rounded-xl border p-4 space-y-3">
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{business.name}</div>
+                    <div className="text-sm text-muted-foreground truncate">
+                      {business.category} • {format(new Date(business.created_at), "MMM d, yyyy")}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {getAuthBadge(business.authorization_status)}
+                    {getStatusBadge(business.operational_status)}
+                    <Badge variant="outline" className="gap-1">
+                      {business.featured ? <Star className="h-3 w-3 fill-star text-star" /> : <StarOff className="h-3 w-3" />}
+                      {business.featured ? "Featured" : "Not featured"}
+                    </Badge>
+                  </div>
+
+                  {business.authorization_status === "pending" ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setActionDialog({ open: true, type: "approve", businessId: business.id })}
+                      >
+                        <Check className="h-4 w-4 mr-2 text-green-600" />
+                        Approve
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={() => setActionDialog({ open: true, type: "reject", businessId: business.id })}
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Reject
+                      </Button>
+                    </div>
+                  ) : null}
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => toggleFeaturedBusiness.mutate({ businessId: business.id, featured: !business.featured })}
+                      disabled={toggleFeaturedBusiness.isPending}
+                    >
+                      {business.featured ? <StarOff className="h-4 w-4 mr-2" /> : <Star className="h-4 w-4 mr-2" />}
+                      {business.featured ? "Unfeature" : "Feature"}
+                    </Button>
+
+                    {business.operational_status === "active" ? (
+                      <Button
+                        variant="destructive"
+                        onClick={() => setActionDialog({ open: true, type: "suspend", businessId: business.id })}
+                      >
+                        <AlertTriangle className="h-4 w-4 mr-2" />
+                        Suspend
+                      </Button>
+                    ) : business.operational_status === "suspended" ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => reactivateBusiness.mutate(business.id)}
+                        disabled={reactivateBusiness.isPending}
+                      >
+                        Reactivate
+                      </Button>
+                    ) : (
+                      <Button variant="outline" disabled>
+                        —
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden sm:block rounded-md border">
+            <Table className="min-w-[900px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>

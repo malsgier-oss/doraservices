@@ -48,6 +48,7 @@ import {
 } from "lucide-react";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { useMyBusiness } from "@/hooks/useMyBusiness";
+import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
 
 function statusBadgeVariant(status?: string | null) {
   const s = (status || "").toLowerCase();
@@ -82,6 +83,7 @@ export default function Profile() {
   const { isRTL, language } = useLanguage();
   const { data: cities, isLoading: citiesLoading } = useCities();
   const { data: myBusiness } = useMyBusiness();
+  const { isEnabled: buySellEnabled } = useBuySellEnabled();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const [saving, setSaving] = useState(false);
@@ -129,6 +131,13 @@ export default function Profile() {
     setPhone((profile.phone || (typeof (user as any)?.user_metadata?.phone === "string" ? (user as any).user_metadata.phone : "")) as string); // fallback to auth metadata
     setMarketplaceEnabled(Boolean((profile as any).marketplace_enabled));
   }, [profile, user]);
+
+  // If buy/sell is disabled platform-wide, disable marketplace locally (user can't enable listings).
+  useEffect(() => {
+    if (!buySellEnabled) {
+      setMarketplaceEnabled(false);
+    }
+  }, [buySellEnabled]);
 
   // If city changes and the selected sub-city doesn't belong to the city, clear it.
   useEffect(() => {
@@ -804,13 +813,15 @@ export default function Profile() {
                   <div className="min-w-0">
                     <div className="font-medium">{isRTL ? "تفعيل البيع (إعلانات)" : "Enable selling (Listings)"}</div>
                     <div className="text-xs text-muted-foreground">
-                      {isRTL ? "يعرض لوحة المستخدم وأدوات الإعلانات." : "Unlocks user dashboard and listing tools."}
+                      {!buySellEnabled
+                        ? (isRTL ? "ميزة الشراء والبيع غير مفعلة حالياً." : "Buy & Sell is currently disabled.")
+                        : (isRTL ? "يعرض لوحة المستخدم وأدوات الإعلانات." : "Unlocks user dashboard and listing tools.")}
                     </div>
                   </div>
                   <Switch
                     checked={marketplaceEnabled}
                     onCheckedChange={(v) => setMarketplaceEnabled(Boolean(v))}
-                    disabled={!(!isProvider && !isBusiness)}
+                    disabled={!buySellEnabled || !(!isProvider && !isBusiness)}
                     aria-label="marketplace"
                   />
                 </div>
@@ -830,7 +841,7 @@ export default function Profile() {
                     variant="outline"
                     className="h-12 rounded-xl justify-start gap-2"
                     onClick={() => navigate("/buy-sell/my-listings")}
-                    disabled={!marketplaceEnabled}
+                    disabled={!buySellEnabled || !marketplaceEnabled}
                   >
                     <ShoppingBag className="h-4 w-4" />
                     {isRTL ? "إعلاناتي" : "My Listings"}

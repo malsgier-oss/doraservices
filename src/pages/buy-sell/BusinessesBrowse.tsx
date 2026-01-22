@@ -13,6 +13,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useBusinesses, type Business } from "@/hooks/useBusinesses";
 import type { Business as BusinessDetail } from "@/hooks/useBusiness";
 import type { Deal } from "@/hooks/useDeals";
+import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
 
 const CITY_STORAGE_KEY = "dora_city_id";
 
@@ -29,6 +30,7 @@ export default function BusinessesBrowse() {
   const [params] = useSearchParams();
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
+  const { isEnabled: buySellEnabled, isLoading: buySellLoading } = useBuySellEnabled();
 
   const category = params.get("category");
   const q = params.get("q")?.trim() || "";
@@ -81,7 +83,15 @@ export default function BusinessesBrowse() {
           ) : null}
         </div>
 
-        {isLoading ? (
+        {buySellLoading ? (
+          <div className={`${HUB_CARD_BASE} bg-card p-6 text-sm text-muted-foreground text-center`}>
+            {t("جاري التحميل...", "Loading...")}
+          </div>
+        ) : !buySellEnabled ? (
+          <div className={`${HUB_CARD_BASE} bg-card p-6 text-sm text-muted-foreground text-center`}>
+            {t("ميزة الشراء والبيع غير مفعلة حالياً.", "Buy & Sell is currently disabled.")}
+          </div>
+        ) : isLoading ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {Array.from({ length: 12 }).map((_, i) => (
               <div key={`business-browse-loading-${i}`} className={`${HUB_CARD_BASE} bg-card overflow-hidden`}>
@@ -114,27 +124,31 @@ export default function BusinessesBrowse() {
         )}
       </div>
 
-      <BusinessDetailSheet
-        open={businessSheetOpen}
-        business={selectedBusiness}
-        onOpenChange={(open) => {
-          setBusinessSheetOpen(open);
-          if (!open) setSelectedBusiness(null);
-        }}
-        onDealClick={(deal) => {
-          setSelectedDeal(deal);
-          setDealSheetOpen(true);
-        }}
-      />
+      {buySellEnabled ? (
+        <>
+          <BusinessDetailSheet
+            open={businessSheetOpen}
+            business={selectedBusiness}
+            onOpenChange={(open) => {
+              setBusinessSheetOpen(open);
+              if (!open) setSelectedBusiness(null);
+            }}
+            onDealClick={(deal) => {
+              setSelectedDeal(deal);
+              setDealSheetOpen(true);
+            }}
+          />
 
-      <DealDetailSheet
-        open={dealSheetOpen}
-        deal={selectedDeal}
-        onOpenChange={(open) => {
-          setDealSheetOpen(open);
-          if (!open) setSelectedDeal(null);
-        }}
-      />
+          <DealDetailSheet
+            open={dealSheetOpen}
+            deal={selectedDeal}
+            onOpenChange={(open) => {
+              setDealSheetOpen(open);
+              if (!open) setSelectedDeal(null);
+            }}
+          />
+        </>
+      ) : null}
     </Layout>
   );
 }
