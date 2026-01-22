@@ -19,6 +19,7 @@ import { LanguageToggle } from "@/components/LanguageToggle";
 import { FeaturedHero } from "@/components/hub/FeaturedHero";
 import { HubSection } from "@/components/hub/HubSection";
 import { ServiceCardFeatured } from "@/components/hub/ServiceCardFeatured";
+import { FeaturedProvidersCard } from "@/components/hub/FeaturedProvidersCard";
 import { ServiceCardCompact } from "@/components/hub/ServiceCardCompact";
 import { ServiceFilters } from "@/components/hub/ServiceFilters";
 import { ServiceGrid } from "@/components/hub/ServiceGrid";
@@ -771,6 +772,32 @@ export default function Hub() {
       count: Number(row.totalReviews || 0),
     };
   };
+
+  // Create ratings Map for FeaturedProvidersCard
+  const ratingsMap = useMemo(() => {
+    const map = new Map<string, { value: number; count: number }>();
+    for (const [serviceId, row] of serviceRatings.entries()) {
+      map.set(serviceId, {
+        value: Number(row.averageRating || 0),
+        count: Number(row.totalReviews || 0),
+      });
+    }
+    return map;
+  }, [serviceRatings]);
+
+  // Helper function to chunk array into groups of 4
+  const chunkArray = <T,>(array: T[], chunkSize: number): T[][] => {
+    const chunks: T[][] = [];
+    for (let i = 0; i < array.length; i += chunkSize) {
+      chunks.push(array.slice(i, i + chunkSize));
+    }
+    return chunks;
+  };
+
+  // Group featured services into chunks of 4
+  const featuredServicesChunks = useMemo(() => {
+    return chunkArray(featuredServices, 4);
+  }, [featuredServices]);
 
   const subcatByName = useMemo(() => {
     const map = new Map<string, {
@@ -1680,24 +1707,19 @@ export default function Hub() {
                 className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
                 style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
               >
-                {featuredServices.map((service) => {
-                  const contact = getContactState(service);
-                  return (
-                    <div key={service.id} className="shrink-0 w-[82vw] max-w-[360px] snap-center">
-                      <ServiceCardFeatured
-                        service={service}
-                        rating={getRating(service.id)}
-                        isRTL={isRTL}
-                        canCall={contact.canCall}
-                        canWhatsApp={contact.canWhatsApp}
-                        onOpen={() => openServiceFromRow(service)}
-                        onCall={() => handleCall(service)}
-                        onWhatsApp={() => handleWhatsApp(service)}
-                        labels={labels}
-                      />
-                    </div>
-                  );
-                })}
+                {featuredServicesChunks.map((chunk, chunkIndex) => (
+                  <FeaturedProvidersCard
+                    key={chunkIndex}
+                    services={chunk}
+                    ratings={ratingsMap}
+                    isRTL={isRTL}
+                    getContactState={getContactState}
+                    onOpen={openServiceFromRow}
+                    onCall={handleCall}
+                    onWhatsApp={handleWhatsApp}
+                    labels={labels}
+                  />
+                ))}
               </div>
               </HubSection>
             </AnimatedSection>
@@ -2308,24 +2330,19 @@ export default function Hub() {
                   className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
                   style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
                 >
-                  {featuredServices.map((service) => {
-                    const contact = getContactState(service);
-                    return (
-                      <div key={service.id} className="shrink-0 w-[82vw] max-w-[360px] snap-center">
-                        <ServiceCardFeatured
-                          service={service}
-                          rating={getRating(service.id)}
-                          isRTL={isRTL}
-                          canCall={contact.canCall}
-                          canWhatsApp={contact.canWhatsApp}
-                          onOpen={() => openServiceFromRow(service)}
-                          onCall={() => handleCall(service)}
-                          onWhatsApp={() => handleWhatsApp(service)}
-                          labels={labels}
-                        />
-                      </div>
-                    );
-                  })}
+                  {featuredServicesChunks.map((chunk, chunkIndex) => (
+                    <FeaturedProvidersCard
+                      key={chunkIndex}
+                      services={chunk}
+                      ratings={ratingsMap}
+                      isRTL={isRTL}
+                      getContactState={getContactState}
+                      onOpen={openServiceFromRow}
+                      onCall={handleCall}
+                      onWhatsApp={handleWhatsApp}
+                      labels={labels}
+                    />
+                  ))}
                 </div>
                 </HubSection>
               </AnimatedSection>
