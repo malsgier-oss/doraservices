@@ -20,6 +20,14 @@ import { FeaturedHero } from "@/components/hub/FeaturedHero";
 import { HubSection } from "@/components/hub/HubSection";
 import { ServiceCardFeatured } from "@/components/hub/ServiceCardFeatured";
 import { ServiceCardCompact } from "@/components/hub/ServiceCardCompact";
+import { ServiceFilters } from "@/components/hub/ServiceFilters";
+import { ServiceGrid } from "@/components/hub/ServiceGrid";
+import { DiscoverySection } from "@/components/hub/DiscoverySection";
+import { ServiceQuickView } from "@/components/hub/ServiceQuickView";
+import { ViewToggle } from "@/components/hub/ViewToggle";
+import { LoadMoreButton } from "@/components/hub/LoadMoreButton";
+import { useServiceFilters } from "@/hooks/useServiceFilters";
+import { useSimilarServices } from "@/hooks/useSimilarServices";
 import { TipChip } from "@/components/hub/TipChip";
 import { StatsBar } from "@/components/hub/StatsBar";
 import { TrendingSection } from "@/components/hub/TrendingSection";
@@ -106,6 +114,10 @@ type ServiceRow = {
   city: string | null;
   sub_city: string | null;
   image_url: string | null;
+  is_featured?: boolean | null;
+  is_verified?: boolean | null;
+  price?: number | null;
+  description?: string | null;
 };
 
 type SubcategoryRow = {
@@ -806,7 +818,7 @@ export default function Hub() {
         // Base featured query
         let q = supabase
           .from("services")
-          .select("id,title,category,provider_name,provider_phone,allow_whatsapp,city,sub_city,image_url")
+          .select("id,title,category,provider_name,provider_phone,allow_whatsapp,city,sub_city,image_url,is_featured,price")
           .eq("is_featured", true)
           .eq("is_active", true)
           .eq("is_visible", true)
@@ -1049,6 +1061,23 @@ export default function Hub() {
     minRating: 0,
     sortBy: "relevance",
   });
+
+  // Premium service filters
+  const {
+    filters: serviceFilters,
+    updateFilters: updateServiceFilters,
+    clearFilters: clearServiceFilters,
+    hasActiveFilters: hasActiveServiceFilters,
+  } = useServiceFilters({
+    city: cityId || null,
+  });
+
+  // Quick view state
+  const [quickViewService, setQuickViewService] = useState<ServiceRow | null>(null);
+  const [quickViewOpen, setQuickViewOpen] = useState(false);
+
+  // View mode (grid/list)
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selectedSubcategory, setSelectedSubcategory] = useState<{
     id: string;
     name: string;
@@ -1107,6 +1136,18 @@ export default function Hub() {
       return;
     }
     openSubcategoryProviders(subcat, service.id);
+  };
+
+  const handleQuickView = (service: ServiceRow) => {
+    setQuickViewService(service);
+    setQuickViewOpen(true);
+  };
+
+  const handleQuickViewFull = () => {
+    if (quickViewService) {
+      setQuickViewOpen(false);
+      openServiceFromRow(quickViewService);
+    }
   };
 
   // When selecting a subcategory from the browse sheet, we must close/unmount the browse Drawer
@@ -2719,6 +2760,24 @@ export default function Hub() {
             initialProviderServiceId={initialProviderServiceId}
           />
         </SafeBoundary>
+      )}
+
+      {/* Quick View Modal */}
+      {quickViewService && (
+        <ServiceQuickView
+          service={quickViewService}
+          open={quickViewOpen}
+          onOpenChange={setQuickViewOpen}
+          onCall={() => {
+            if (quickViewService) handleCall(quickViewService);
+          }}
+          onWhatsApp={() => {
+            if (quickViewService) handleWhatsApp(quickViewService);
+          }}
+          onViewFull={handleQuickViewFull}
+          canCall={quickViewService ? getContactState(quickViewService).canCall : false}
+          canWhatsApp={quickViewService ? getContactState(quickViewService).canWhatsApp : false}
+        />
       )}
 
       {activeSheet === "guide" && activeGuide && (
