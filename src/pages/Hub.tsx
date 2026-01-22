@@ -19,6 +19,7 @@ import { LanguageToggle } from "@/components/LanguageToggle";
 import { FeaturedHero } from "@/components/hub/FeaturedHero";
 import { HubSection } from "@/components/hub/HubSection";
 import { ServiceCardFeatured } from "@/components/hub/ServiceCardFeatured";
+import { FeaturedProvidersCard } from "@/components/hub/FeaturedProvidersCard";
 import { ServiceCardCompact } from "@/components/hub/ServiceCardCompact";
 import { ServiceFilters } from "@/components/hub/ServiceFilters";
 import { ServiceGrid } from "@/components/hub/ServiceGrid";
@@ -772,6 +773,32 @@ export default function Hub() {
     };
   };
 
+  // Create ratings Map for FeaturedProvidersCard
+  const ratingsMap = useMemo(() => {
+    const map = new Map<string, { value: number; count: number }>();
+    for (const [serviceId, row] of serviceRatings.entries()) {
+      map.set(serviceId, {
+        value: Number(row.averageRating || 0),
+        count: Number(row.totalReviews || 0),
+      });
+    }
+    return map;
+  }, [serviceRatings]);
+
+  // Helper function to chunk array into groups of 4
+  const chunkArray = <T,>(array: T[], chunkSize: number): T[][] => {
+    const chunks: T[][] = [];
+    for (let i = 0; i < array.length; i += chunkSize) {
+      chunks.push(array.slice(i, i + chunkSize));
+    }
+    return chunks;
+  };
+
+  // Group featured services into chunks of 4
+  const featuredServicesChunks = useMemo(() => {
+    return chunkArray(featuredServices, 4);
+  }, [featuredServices]);
+
   const subcatByName = useMemo(() => {
     const map = new Map<string, {
       id: string;
@@ -1326,22 +1353,22 @@ export default function Hub() {
         ref={headerRef}
         className="fixed top-0 left-0 right-0 w-full z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pt-[calc(env(safe-area-inset-top)+16px)] pb-4 border-b border-border/60 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
       >
-        <div className="px-4 space-y-4">
+        <div className="px-6 space-y-6">
           {/* Header */}
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <div className={`text-xl font-semibold leading-tight ${isRTL ? "text-right" : "text-left"}`}>
+              <div className={`text-2xl font-bold leading-tight bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text ${isRTL ? "text-right" : "text-left"}`}>
                 {activeTab === "buy-sell" ? t("بيع وشراء", "Buy & Sell") : t("شن تحتاج اليوم؟", "What do you need today?")}
               </div>
-              <div className={`text-sm text-muted-foreground ${isRTL ? "text-right" : "text-left"}`}>
+              <div className={`text-base text-muted-foreground font-medium mt-1 ${isRTL ? "text-right" : "text-left"}`}>
                 {activeTab === "buy-sell"
                   ? t("تصفح الإعلانات والعروض", "Browse listings and deals")
                   : t("ابحث وتواصل مباشرة", "Search and contact directly")}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <LanguageToggle className="h-11 w-11" />
-              <ThemeToggle className="h-11 w-11" />
+            <div className="flex items-center gap-3">
+              <LanguageToggle className="h-12 w-12 rounded-2xl bg-background/50 backdrop-blur-sm border border-border/60 hover:bg-background transition-all duration-300 shadow-sm" />
+              <ThemeToggle className="h-12 w-12 rounded-2xl bg-background/50 backdrop-blur-sm border border-border/60 hover:bg-background transition-all duration-300 shadow-sm" />
               <Popover>
                 <PopoverTrigger asChild>
                   <button
@@ -1355,7 +1382,12 @@ export default function Hub() {
                         });
                       }
                     }}
-                    className="relative h-11 w-11 rounded-full hover:bg-muted transition-colors flex items-center justify-center"
+                    className={cn(
+                      "relative h-12 w-12 rounded-2xl flex items-center justify-center",
+                      "bg-background/50 backdrop-blur-sm border border-border/60",
+                      "hover:bg-background hover:shadow-md transition-all duration-300",
+                      "shadow-sm active:scale-95"
+                    )}
                   >
                     <Bell className="h-5 w-5" />
                     {user && unreadCount && unreadCount > 0 && (
@@ -1437,19 +1469,27 @@ export default function Hub() {
           </div>
 
           {/* Search + City */}
-          <div className="space-y-3">
+          <div className="space-y-4">
             {/* Option 1: City inside search row */}
-            <div className={`flex items-center gap-2 ${isRTL ? "flex-row-reverse" : ""}`}
+            <div className={`flex items-center gap-3 ${isRTL ? "flex-row-reverse" : ""}`}
             >
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     type="button"
                     variant="secondary"
-                    className="h-11 px-3 rounded-xl shrink-0 justify-between gap-2"
+                    className={cn(
+                      "h-12 px-4 rounded-2xl shrink-0 justify-between gap-3 font-medium",
+                      "bg-background/50 backdrop-blur-sm border-border/60",
+                      "hover:bg-background hover:shadow-md transition-all duration-300",
+                      "shadow-sm"
+                    )}
                   >
-                    <span className="max-w-[7.5rem] truncate">{cityLabel}</span>
-                    <ChevronDown className="h-4 w-4 opacity-70" />
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-primary/60"></div>
+                      <span className="max-w-[8rem] truncate">{cityLabel}</span>
+                    </div>
+                    <ChevronDown className="h-4 w-4 opacity-70 group-hover:opacity-100 transition-opacity" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[--radix-popover-trigger-width] p-2">
@@ -1471,10 +1511,10 @@ export default function Hub() {
                 </PopoverContent>
               </Popover>
 
-              <div className="relative flex-1">
-                <Search
-                  className={`absolute top-3.5 h-4 w-4 text-muted-foreground ${isRTL ? "right-3" : "left-3"}`}
-                />
+              <div className="relative flex-1 group">
+                <div className={`absolute top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground/60 group-focus-within:text-primary transition-colors ${isRTL ? "right-4" : "left-4"}`}>
+                  <Search className="h-5 w-5" />
+                </div>
                 <Input
                   value={activeTab === "buy-sell" ? buySellSearchQuery : query}
                   onChange={(e) => {
@@ -1482,7 +1522,13 @@ export default function Hub() {
                     if (activeTab === "buy-sell") setBuySellSearchQuery(v);
                     else setQuery(v);
                   }}
-                  className="h-11 rounded-xl pl-9 pr-9 text-base"
+                  className={cn(
+                    "h-12 rounded-2xl pl-12 pr-12 text-base font-medium",
+                    "bg-background/50 backdrop-blur-sm border-border/60",
+                    "focus:border-primary focus:ring-2 focus:ring-primary/20 focus:bg-background",
+                    "placeholder:text-muted-foreground/60 transition-all duration-300",
+                    "shadow-sm hover:shadow-md focus:shadow-lg"
+                  )}
                   placeholder={
                     activeTab === "buy-sell"
                       ? t("ابحث عن عرض أو متجر...", "Search deals or businesses...")
@@ -1494,8 +1540,10 @@ export default function Hub() {
                   <button
                     type="button"
                     className={cn(
-                      "absolute top-1/2 -translate-y-1/2 h-9 w-9 rounded-full hover:bg-muted flex items-center justify-center",
-                      isRTL ? "left-1" : "right-1",
+                      "absolute top-1/2 -translate-y-1/2 h-8 w-8 rounded-full",
+                      "hover:bg-destructive/10 hover:text-destructive flex items-center justify-center",
+                      "transition-all duration-200 active:scale-95",
+                      isRTL ? "left-2" : "right-2",
                     )}
                     onClick={() => {
                       if (activeTab === "buy-sell") setBuySellSearchQuery("");
@@ -1503,7 +1551,7 @@ export default function Hub() {
                     }}
                     aria-label={t("مسح البحث", "Clear search")}
                   >
-                    <X className="h-4 w-4 text-muted-foreground" />
+                    <X className="h-4 w-4" />
                   </button>
                 ) : null}
               </div>
@@ -1717,24 +1765,19 @@ export default function Hub() {
                 className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
                 style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
               >
-                {featuredServices.map((service) => {
-                  const contact = getContactState(service);
-                  return (
-                    <div key={service.id} className="shrink-0 w-[82vw] max-w-[360px] snap-center">
-                      <ServiceCardFeatured
-                        service={service}
-                        rating={getRating(service.id)}
-                        isRTL={isRTL}
-                        canCall={contact.canCall}
-                        canWhatsApp={contact.canWhatsApp}
-                        onOpen={() => openServiceFromRow(service)}
-                        onCall={() => handleCall(service)}
-                        onWhatsApp={() => handleWhatsApp(service)}
-                        labels={labels}
-                      />
-                    </div>
-                  );
-                })}
+                {featuredServicesChunks.map((chunk, chunkIndex) => (
+                  <FeaturedProvidersCard
+                    key={chunkIndex}
+                    services={chunk}
+                    ratings={ratingsMap}
+                    isRTL={isRTL}
+                    getContactState={getContactState}
+                    onOpen={openServiceFromRow}
+                    onCall={handleCall}
+                    onWhatsApp={handleWhatsApp}
+                    labels={labels}
+                  />
+                ))}
               </div>
               </HubSection>
             </AnimatedSection>
@@ -2328,7 +2371,7 @@ export default function Hub() {
           </TabsContent>
         </Tabs>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-8">
           <FeaturedHero
             banners={banners as any}
             publicUrlsById={publicUrlsById as any}
@@ -2350,19 +2393,35 @@ export default function Hub() {
 
           <StatsBar />
 
-          <div className="px-4 space-y-6">
+          <div className="px-4 space-y-8">
             {/* Services (MAIN categories) grid - exactly 8 */}
             <AnimatedSection direction="up" delay={100}>
               <HubSection title={t("الخدمات", "Categories")} icon={LayoutGrid}>
               {categoriesLoading ? (
-                <div className="text-sm text-muted-foreground">Loading...</div>
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
               ) : categoriesError ? (
-                <div className={`${HUB_CARD_BASE} bg-card p-4 text-sm text-muted-foreground`}>
-                  {t("تعذر تحميل الأقسام. حاول مرة أخرى.", "Couldn't load categories. Please try again.")}
+                <div className={`${HUB_CARD_BASE} bg-card p-6 text-center`}>
+                  <div className="text-muted-foreground mb-2">
+                    <svg className="h-12 w-12 mx-auto mb-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {t("تعذر تحميل الأقسام. حاول مرة أخرى.", "Couldn't load categories. Please try again.")}
+                  </div>
                 </div>
               ) : gridCategories.length === 0 ? (
-                <div className={`${HUB_CARD_BASE} bg-card p-4 text-sm text-muted-foreground`}>
-                  {t("لا توجد أقسام متاحة حالياً.", "No categories available right now.")}
+                <div className={`${HUB_CARD_BASE} bg-card p-6 text-center`}>
+                  <div className="text-muted-foreground mb-2">
+                    <svg className="h-12 w-12 mx-auto mb-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {t("لا توجد أقسام متاحة حالياً.", "No categories available right now.")}
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-4 gap-4">
@@ -2371,16 +2430,16 @@ export default function Hub() {
                     return (
                       <button
                         key={c.id}
-                        className={`${HUB_CARD_BASE} bg-card min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
+                        className={`${HUB_CARD_BASE} bg-card min-h-[120px] px-4 py-5 flex flex-col items-center justify-center gap-4 text-center group`}
                         onClick={() => openCategoryBrowse(c.id)}
                       >
                         <div
-                          className="h-14 w-14 rounded-full flex items-center justify-center shadow-sm"
-                          style={{ backgroundColor: (c.color || "#888") + "1f" }}
+                          className="h-16 w-16 rounded-2xl flex items-center justify-center shadow-sm group-hover:shadow-md transition-all duration-300 group-hover:scale-105"
+                          style={{ backgroundColor: (c.color || "#888") + "15" }}
                         >
-                          <Icon className="h-7 w-7 text-foreground" strokeWidth={2.2} />
+                          <Icon className="h-8 w-8 text-foreground group-hover:scale-110 transition-transform duration-300" strokeWidth={2} />
                         </div>
-                        <div className="text-xs font-medium text-muted-foreground leading-snug line-clamp-2">
+                        <div className="text-sm font-semibold text-foreground leading-tight line-clamp-2 group-hover:text-primary transition-colors">
                           {c.name_ar || c.name}
                         </div>
                       </button>
@@ -2395,29 +2454,28 @@ export default function Hub() {
             {featuredServices.length > 0 && (
               <AnimatedSection direction="up" delay={200}>
                 <HubSection id="featured-providers" title={t("مزودين مميزين", "Featured providers")} icon={Star}>
-                <div
-                  dir={isRTL ? "rtl" : "ltr"}
-                  className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
-                  style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
-                >
-                  {featuredServices.map((service) => {
-                    const contact = getContactState(service);
-                    return (
-                      <div key={service.id} className="shrink-0 w-[82vw] max-w-[360px] snap-center">
-                        <ServiceCardFeatured
-                          service={service}
-                          rating={getRating(service.id)}
-                          isRTL={isRTL}
-                          canCall={contact.canCall}
-                          canWhatsApp={contact.canWhatsApp}
-                          onOpen={() => openServiceFromRow(service)}
-                          onCall={() => handleCall(service)}
-                          onWhatsApp={() => handleWhatsApp(service)}
-                          labels={labels}
-                        />
-                      </div>
-                    );
-                  })}
+                <div className="relative">
+                  <div
+                    dir={isRTL ? "rtl" : "ltr"}
+                    className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar snap-x snap-mandatory scroll-smooth"
+                    style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+                  >
+                    {featuredServicesChunks.map((chunk, chunkIndex) => (
+                      <FeaturedProvidersCard
+                        key={chunkIndex}
+                        services={chunk}
+                        ratings={ratingsMap}
+                        isRTL={isRTL}
+                        getContactState={getContactState}
+                        onOpen={openServiceFromRow}
+                        onCall={handleCall}
+                        onWhatsApp={handleWhatsApp}
+                        labels={labels}
+                      />
+                    ))}
+                  </div>
+                  {/* Gradient fade effect */}
+                  <div className="absolute top-0 bottom-4 right-0 w-12 bg-gradient-to-l from-background to-transparent pointer-events-none" />
                 </div>
                 </HubSection>
               </AnimatedSection>
@@ -2427,36 +2485,45 @@ export default function Hub() {
             {featuredSubcats.length > 0 && (
               <AnimatedSection direction="up" delay={300}>
                 <HubSection id="featured-services" title={t("الخدمات المميزة", "Featured services")} icon={Star}>
-                <div
-                  dir={isRTL ? "rtl" : "ltr"}
-                  className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
-                  style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
-                >
-                  {featuredSubcats.slice(0, 6).map((sc) => {
-                    const Icon = ICON_MAP[sc.icon] || Wrench;
-                    return (
-                      <button
-                        key={sc.id}
-                        className={`${HUB_CARD_BASE} bg-card shrink-0 w-[66vw] max-w-[320px] snap-center p-4 text-left transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
-                        onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
-                      >
-                        <div className={`flex items-center gap-4 ${isRTL ? "text-right" : "text-left"}`} dir={isRTL ? "rtl" : "ltr"}>
-                          <div
-                            className="h-14 w-14 rounded-full flex items-center justify-center shrink-0 shadow-sm"
-                            style={{ backgroundColor: (sc.color || "#888") + "1f" }}
-                          >
-                            <Icon className="h-7 w-7 text-foreground" strokeWidth={2.1} />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="font-semibold text-[15px] line-clamp-1">{sc.name_ar || sc.name}</div>
-                            <div className="text-xs text-muted-foreground line-clamp-1 mt-1">
-                              {t("اضغط لعرض المزودين", "Tap to view providers")}
+                <div className="relative">
+                  <div
+                    dir={isRTL ? "rtl" : "ltr"}
+                    className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar snap-x snap-mandatory scroll-smooth"
+                    style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+                  >
+                    {featuredSubcats.slice(0, 6).map((sc) => {
+                      const Icon = ICON_MAP[sc.icon] || Wrench;
+                      return (
+                        <button
+                          key={sc.id}
+                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[70vw] max-w-[340px] snap-center p-5 text-left group`}
+                          onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
+                        >
+                          <div className={`flex items-center gap-4 ${isRTL ? "text-right" : "text-left"}`} dir={isRTL ? "rtl" : "ltr"}>
+                            <div
+                              className="h-16 w-16 rounded-2xl flex items-center justify-center shrink-0 shadow-sm group-hover:shadow-md transition-all duration-300 group-hover:scale-105"
+                              style={{ backgroundColor: (sc.color || "#888") + "15" }}
+                            >
+                              <Icon className="h-8 w-8 text-foreground group-hover:scale-110 transition-transform duration-300" strokeWidth={2} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="font-bold text-base line-clamp-1 group-hover:text-primary transition-colors">{sc.name_ar || sc.name}</div>
+                              <div className="text-sm text-muted-foreground line-clamp-1 mt-1 group-hover:text-muted-foreground/80 transition-colors">
+                                {t("اضغط لعرض المزودين", "Tap to view providers")}
+                              </div>
+                            </div>
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                              <svg className="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
                             </div>
                           </div>
-                        </div>
-                      </button>
-                    );
-                  })}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* Gradient fade effect */}
+                  <div className="absolute top-0 bottom-4 right-0 w-12 bg-gradient-to-l from-background to-transparent pointer-events-none" />
                 </div>
                 </HubSection>
               </AnimatedSection>
@@ -2478,52 +2545,61 @@ export default function Hub() {
             {/* Most demanded services (SYSTEM) */}
             <AnimatedSection direction="up" delay={500}>
               <HubSection id="most-demanded-services" title={t("الأكثر طلباً", "Most demanded")} icon={TrendingUp}>
-              <div
-                dir={isRTL ? "rtl" : "ltr"}
-                className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
-                style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
-              >
-                {mostDemandedLoading && mostDemandedRows.length === 0
-                  ? Array.from({ length: 6 }).map((_, i) => (
-                      <div
-                        key={`demanded-placeholder-${i}`}
-                        className={`${HUB_CARD_BASE} bg-card shrink-0 w-[72vw] max-w-[320px] snap-center overflow-hidden`}
-                      >
-                        <div className="aspect-[4/3] bg-muted" />
-                        <div className="p-3">
-                          <div className="h-4 w-36 rounded bg-muted" />
-                          <div className="mt-2 h-3 w-44 rounded bg-muted" />
-                          <div className="mt-2 h-3 w-32 rounded bg-muted" />
-                        </div>
-                      </div>
-                    ))
-                  : mostDemandedRows.length === 0
-                    ? (
-                        <div className={`${HUB_CARD_BASE} bg-card shrink-0 w-[72vw] max-w-[320px] snap-center p-4`}>
-                          <div className="font-semibold text-sm">{t("لا توجد بيانات بعد", "No data yet")}</div>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {t("سيظهر هذا القسم تلقائياً بعد تفاعل المستخدمين (مشاهدات/اتصالات)", "This will appear automatically once users interact (views/calls).")}
+              <div className="relative">
+                <div
+                  dir={isRTL ? "rtl" : "ltr"}
+                  className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar snap-x snap-mandatory scroll-smooth"
+                  style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+                >
+                  {mostDemandedLoading && mostDemandedRows.length === 0
+                    ? Array.from({ length: 6 }).map((_, i) => (
+                        <div
+                          key={`demanded-placeholder-${i}`}
+                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[75vw] max-w-[340px] snap-center overflow-hidden animate-pulse`}
+                        >
+                          <div className="aspect-[4/3] bg-muted/50 rounded-t-2xl" />
+                          <div className="p-4 space-y-3">
+                            <div className="h-4 w-3/4 rounded bg-muted/50" />
+                            <div className="h-3 w-full rounded bg-muted/50" />
+                            <div className="h-3 w-2/3 rounded bg-muted/50" />
                           </div>
                         </div>
-                      )
-                    : mostDemandedRows.slice(0, 6).map((service) => {
-                        const contact = getContactState(service);
-                        return (
-                          <div key={service.id} className="shrink-0 w-[72vw] max-w-[320px] snap-center">
-                            <ServiceCardCompact
-                              service={service}
-                              rating={getRating(service.id)}
-                              isRTL={isRTL}
-                              canCall={contact.canCall}
-                              canWhatsApp={contact.canWhatsApp}
-                              onOpen={() => openServiceFromRow(service)}
-                              onCall={() => handleCall(service)}
-                              onWhatsApp={() => handleWhatsApp(service)}
-                              labels={labels}
-                            />
+                      ))
+                    : mostDemandedRows.length === 0
+                      ? (
+                          <div className={`${HUB_CARD_BASE} bg-card shrink-0 w-[75vw] max-w-[340px] snap-center p-6 text-center`}>
+                            <div className="mb-4">
+                              <svg className="h-12 w-12 mx-auto text-muted-foreground/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                              </svg>
+                            </div>
+                            <div className="font-semibold text-sm text-muted-foreground mb-2">{t("لا توجد بيانات بعد", "No data yet")}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {t("سيظهر هذا القسم تلقائياً بعد تفاعل المستخدمين (مشاهدات/اتصالات)", "This will appear automatically once users interact (views/calls).")}
+                            </div>
                           </div>
-                        );
-                      })}
+                        )
+                      : mostDemandedRows.slice(0, 6).map((service) => {
+                          const contact = getContactState(service);
+                          return (
+                            <div key={service.id} className="shrink-0 w-[75vw] max-w-[340px] snap-center">
+                              <ServiceCardCompact
+                                service={service}
+                                rating={getRating(service.id)}
+                                isRTL={isRTL}
+                                canCall={contact.canCall}
+                                canWhatsApp={contact.canWhatsApp}
+                                onOpen={() => openServiceFromRow(service)}
+                                onCall={() => handleCall(service)}
+                                onWhatsApp={() => handleWhatsApp(service)}
+                                labels={labels}
+                              />
+                            </div>
+                          );
+                        })}
+                </div>
+                {/* Gradient fade effect */}
+                <div className="absolute top-0 bottom-4 right-0 w-12 bg-gradient-to-l from-background to-transparent pointer-events-none" />
               </div>
               </HubSection>
             </AnimatedSection>
