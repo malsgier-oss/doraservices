@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { LayoutDashboard, Users, Store, Tag, Flag, Settings, MessageSquare, History, ArrowLeft, Menu, MapPin, KeyRound, Megaphone, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -58,6 +59,8 @@ const navItems = [
 ];
 
 export default function AdminLayout() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return <div className="min-h-screen bg-background">
       <div className="flex flex-row-reverse">
         {/* Sidebar */}
@@ -100,10 +103,13 @@ export default function AdminLayout() {
         </aside>
 
         {/* Mobile Header */}
-        <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-card border-b p-4">
+        <div
+          className="md:hidden fixed top-0 left-0 right-0 z-50 bg-card border-b px-4 pb-4"
+          style={{ paddingTop: "max(env(safe-area-inset-top), 16px)" }}
+        >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Sheet>
+              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                 <SheetTrigger asChild>
                   <Button variant="ghost" size="icon" aria-label="Open admin menu">
                     <Menu className="h-5 w-5" />
@@ -113,6 +119,14 @@ export default function AdminLayout() {
                   <SheetHeader>
                     <SheetTitle className="font-display">Admin Panel</SheetTitle>
                   </SheetHeader>
+                  <NavLink
+                    to="/"
+                    className="mt-4 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    <span>Back to App</span>
+                  </NavLink>
                   <nav className="mt-4 space-y-1 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
                     {navItems.map((item) => (
                       <NavLink
@@ -121,9 +135,10 @@ export default function AdminLayout() {
                         end={item.end}
                         onMouseEnter={() => preloadAdminRoute(item.to)}
                         onTouchStart={() => preloadAdminRoute(item.to)}
+                        onClick={() => setMobileMenuOpen(false)}
                         className={({ isActive }) =>
                           cn(
-                            "flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-colors",
+                            "flex items-center gap-3 px-3 py-3 rounded-xl text-sm transition-colors",
                             isActive
                               ? "bg-primary/10 text-primary"
                               : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -151,7 +166,7 @@ export default function AdminLayout() {
         </div>
 
         {/* Main Content */}
-        <main className="flex-1 p-6 md:p-8 mt-16 md:mt-0">
+        <main className="flex-1 px-4 py-6 md:p-8 mt-20 md:mt-0">
           <Outlet />
         </main>
       </div>
