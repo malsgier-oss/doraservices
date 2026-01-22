@@ -94,9 +94,9 @@ export default function AdminReports() {
         </CardHeader>
         <CardContent>
           {/* Filters */}
-          <div className="flex gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row gap-4 mb-6">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className="w-full sm:w-[150px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -108,9 +108,64 @@ export default function AdminReports() {
             </Select>
           </div>
 
-          {/* Table */}
-          <div className="rounded-md border">
-            <Table>
+          {/* Mobile cards */}
+          <div className="space-y-3 sm:hidden">
+            {isLoading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="rounded-xl border p-4 space-y-3">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-4 w-64" />
+                  <Skeleton className="h-8 w-28" />
+                </div>
+              ))
+            ) : reports?.length === 0 ? (
+              <div className="rounded-xl border p-6 text-center text-muted-foreground">
+                No reports found
+              </div>
+            ) : (
+              reports?.map((report) => (
+                <div key={report.id} className="rounded-xl border p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 font-medium">
+                        {getReportTypeIcon(report)}
+                        <span className="capitalize truncate">{report.report_type}</span>
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {getReportTarget(report)} • {format(new Date(report.created_at), "MMM d, yyyy")}
+                      </div>
+                    </div>
+                    <div className="shrink-0">{getStatusBadge(report.status)}</div>
+                  </div>
+
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Reason:</span> {report.reason}
+                  </div>
+
+                  {report.status === "pending" ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button variant="outline" onClick={() => setResolveDialog({ open: true, reportId: report.id })}>
+                        <Check className="h-4 w-4 mr-2" />
+                        Resolve
+                      </Button>
+                      <Button variant="secondary" onClick={() => dismissReport.mutate({ reportId: report.id })}>
+                        <X className="h-4 w-4 mr-2" />
+                        Dismiss
+                      </Button>
+                    </div>
+                  ) : report.resolution_note ? (
+                    <div className="text-sm text-muted-foreground">
+                      {report.resolution_note}
+                    </div>
+                  ) : null}
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden sm:block rounded-md border">
+            <Table className="min-w-[900px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Type</TableHead>
