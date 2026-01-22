@@ -61,6 +61,7 @@ import { CategoryBrowseSheet } from "@/components/hub/CategoryBrowseSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { trackProviderEvent } from "@/lib/providerTelemetry";
 import { getTelLink, getWhatsAppLink } from "@/lib/phoneUtils";
+import { cn } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications, useUnreadCount, useNotificationMutations } from "@/hooks/useNotifications";
