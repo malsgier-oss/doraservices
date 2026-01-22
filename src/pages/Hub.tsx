@@ -1,7 +1,7 @@
 // DORA_HUB_PATCH_v4 (ticker+banner-loop+no-all-cities+sticky-fullwidth)
 import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { Award, Bell, CheckCheck, ChevronDown, Search, Shield, MapPin, Wrench, Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper, Droplets, Wind, Fuel, ClipboardCheck, X, LayoutGrid, Star, TrendingUp, BookOpen, Sparkles, Store, Tag, ShoppingBag } from "lucide-react";
+import { Award, Bell, CheckCheck, ChevronDown, Search, Shield, MapPin, Clock, Users, Wrench, Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper, Droplets, Wind, Fuel, ClipboardCheck, X, LayoutGrid, Star, TrendingUp, BookOpen, Sparkles, Store, Tag, ShoppingBag } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -2629,9 +2629,11 @@ export default function Hub() {
                       className="w-full border-red-300 text-red-700 hover:bg-red-100 dark:border-red-700 dark:text-red-400"
                       onClick={() => {
                         // Navigate to emergency services
-                        const emergencyCategory = categories.find(c => c.name?.toLowerCase().includes('emergency') || c.name_ar?.includes('طوارئ'));
-                        if (emergencyCategory) {
-                          openCategoryBrowse(emergencyCategory.id);
+                        if (categories && categories.length > 0) {
+                          const emergencyCategory = categories.find(c => c.name?.toLowerCase().includes('emergency') || c.name_ar?.includes('طوارئ'));
+                          if (emergencyCategory) {
+                            openCategoryBrowse(emergencyCategory.id);
+                          }
                         }
                       }}
                     >
@@ -3012,12 +3014,12 @@ export default function Hub() {
           <button
             type="button"
             onClick={() => {
-              const emergencyCategory = categories.find(c => c.name?.toLowerCase().includes('emergency') || c.name_ar?.includes('طوارئ'));
-              if (emergencyCategory) {
-                openCategoryBrowse(emergencyCategory.id);
-              } else {
-                // Fallback to first category
-                if (categories.length > 0) {
+              if (categories && categories.length > 0) {
+                const emergencyCategory = categories.find(c => c.name?.toLowerCase().includes('emergency') || c.name_ar?.includes('طوارئ'));
+                if (emergencyCategory) {
+                  openCategoryBrowse(emergencyCategory.id);
+                } else {
+                  // Fallback to first category
                   openCategoryBrowse(categories[0].id);
                 }
               }
