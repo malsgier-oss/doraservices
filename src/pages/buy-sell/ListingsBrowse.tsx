@@ -101,6 +101,10 @@ export default function ListingsBrowse() {
           setSheetOpen(open);
           if (!open) setSelected(null);
         }}
+        onSelectListing={(l) => {
+          setSelected(l);
+          setSheetOpen(true);
+        }}
       />
     </Layout>
   );

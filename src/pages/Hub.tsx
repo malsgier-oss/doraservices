@@ -2510,6 +2510,10 @@ export default function Hub() {
           setListingSheetOpen(open);
           if (!open) setSelectedListing(null);
         }}
+        onSelectListing={(l) => {
+          setSelectedListing(l);
+          setListingSheetOpen(true);
+        }}
       />
 
       {/* Floating CTA (Buy/Sell listings) */}

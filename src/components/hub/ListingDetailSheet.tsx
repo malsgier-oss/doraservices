@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -9,14 +9,17 @@ import type { Listing } from "@/hooks/useListings";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePublicProfileByUserId } from "@/hooks/usePublicProfileByUserId";
 import { getTelLink, getWhatsAppLink } from "@/lib/phoneUtils";
+import { useListings } from "@/hooks/useListings";
+import { ListingCard } from "@/components/hub/ListingCard";
 
 interface ListingDetailSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   listing: Listing | null;
+  onSelectListing?: (listing: Listing) => void;
 }
 
-export function ListingDetailSheet({ open, onOpenChange, listing }: ListingDetailSheetProps) {
+export function ListingDetailSheet({ open, onOpenChange, listing, onSelectListing }: ListingDetailSheetProps) {
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
   const [copied, setCopied] = useState(false);
@@ -24,9 +27,35 @@ export function ListingDetailSheet({ open, onOpenChange, listing }: ListingDetai
 
   const images = (listing?.image_urls || []).filter(Boolean);
   const cover = images[0] || null;
+  const carouselRef = useRef<HTMLDivElement | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
 
   // Profiles are SELECTable only for authenticated users (RLS).
   const { data: seller } = usePublicProfileByUserId(listing?.user_id || null, !!user);
+
+  const { data: maybeLike } = useListings({
+    cityId: listing?.city_id || null,
+    category: listing?.category || null,
+    excludeId: listing?.id || null,
+    limit: 12,
+    enabled: open && !!listing,
+  });
+
+  const { data: moreListings } = useListings({
+    cityId: listing?.city_id || null,
+    excludeId: listing?.id || null,
+    limit: 18,
+    enabled: open && !!listing,
+  });
+
+  useEffect(() => {
+    setCopied(false);
+    setActiveIndex(0);
+    // Reset carousel scroll when listing changes
+    if (carouselRef.current) {
+      carouselRef.current.scrollLeft = 0;
+    }
+  }, [listing?.id]);
 
   const priceText = useMemo(() => {
     if (!listing) return "";
@@ -73,9 +102,12 @@ export function ListingDetailSheet({ open, onOpenChange, listing }: ListingDetai
   const waLink = canContact ? getWhatsAppLink(String(seller?.phone)) : null;
   const canWhatsApp = !!waLink && waLink !== "https://wa.me/";
 
+  const youMayAlsoLike = (maybeLike || []).slice(0, 8);
+  const more = (moreListings || []).filter((x) => !(new Set(youMayAlsoLike.map((y) => y.id)).has(x.id))).slice(0, 8);
+
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[96vh]">
+      <DrawerContent className="max-h-[96vh] flex flex-col">
         <DrawerHeader className="pb-2">
           <div className="flex items-center justify-between">
             <DrawerTitle className="sr-only">{t("تفاصيل الإعلان", "Listing Details")}</DrawerTitle>
@@ -85,13 +117,22 @@ export function ListingDetailSheet({ open, onOpenChange, listing }: ListingDetai
           </div>
         </DrawerHeader>
 
-        <div className="overflow-y-auto pb-8" dir={isRTL ? "rtl" : "ltr"}>
+        <div className="flex-1 overflow-y-auto" dir={isRTL ? "rtl" : "ltr"}>
           {cover ? (
             <div className="relative -mx-4 -mt-4 mb-4">
               <div
+                ref={carouselRef}
                 className="flex overflow-x-auto hide-scrollbar snap-x snap-mandatory"
                 style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
                 dir={isRTL ? "rtl" : "ltr"}
+                onScroll={() => {
+                  const el = carouselRef.current;
+                  if (!el) return;
+                  const w = el.clientWidth || 1;
+                  const left = Math.abs(el.scrollLeft);
+                  const idx = Math.max(0, Math.min(images.length - 1, Math.round(left / w)));
+                  setActiveIndex(idx);
+                }}
               >
                 {images.map((src, idx) => (
                   <div key={`${listing.id}-img-${idx}`} className="w-full shrink-0 snap-center">
@@ -107,13 +148,27 @@ export function ListingDetailSheet({ open, onOpenChange, listing }: ListingDetai
               </div>
               {images.length > 1 ? (
                 <div className="absolute top-3 right-3 bg-black/60 text-white text-xs font-semibold px-2.5 py-1 rounded-full">
-                  1/{images.length}
+                  {activeIndex + 1}/{images.length}
+                </div>
+              ) : null}
+
+              {images.length > 1 ? (
+                <div className="absolute bottom-3 left-0 right-0 flex items-center justify-center gap-1.5">
+                  {images.map((_, i) => (
+                    <div
+                      key={`dot-${i}`}
+                      className={cn(
+                        "h-1.5 rounded-full transition-all bg-white/70",
+                        i === activeIndex ? "w-6" : "w-2",
+                      )}
+                    />
+                  ))}
                 </div>
               ) : null}
             </div>
           ) : null}
 
-          <div className="px-4 space-y-6">
+          <div className="px-4 space-y-6 pb-[calc(7.5rem+env(safe-area-inset-bottom))]">
             <div className="flex items-start justify-between gap-4">
               <div className="text-2xl font-bold text-foreground">{priceText}</div>
               <Button size="lg" variant="outline" className="gap-2 shrink-0" onClick={handleShare}>
@@ -131,55 +186,12 @@ export function ListingDetailSheet({ open, onOpenChange, listing }: ListingDetai
               </div>
             ) : null}
 
-            {/* Contact seller */}
-            <div className="bg-muted/30 rounded-xl p-4 space-y-3 border border-border/50">
-              <div className="text-sm font-semibold">{t("تواصل مع البائع", "Contact seller")}</div>
-              {user ? (
-                canContact ? (
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      size="lg"
-                      className="flex-1 gap-2"
-                      onClick={() => {
-                        if (telLink) window.location.href = telLink;
-                      }}
-                    >
-                      <Phone className="h-4 w-4" />
-                      {t("اتصال", "Call")}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="lg"
-                      variant="secondary"
-                      className={cn(
-                        "flex-1 gap-2 bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400",
-                        !canWhatsApp && "opacity-50",
-                      )}
-                      disabled={!canWhatsApp}
-                      onClick={() => {
-                        if (waLink) window.location.href = waLink;
-                      }}
-                    >
-                      <MessageCircle className="h-4 w-4" />
-                      {t("واتساب", "WhatsApp")}
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground">
-                    {t("رقم الهاتف غير متوفر حالياً", "Phone number not available")}
-                  </div>
-                )
-              ) : (
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm text-muted-foreground">
-                    {t("سجّل دخولك للتواصل مع البائع", "Sign in to contact the seller")}
-                  </div>
-                  <Button type="button" variant="outline" onClick={() => (window.location.href = "/auth?tab=login")}>
-                    {t("تسجيل الدخول", "Sign in")}
-                  </Button>
-                </div>
-              )}
+            {/* Seller */}
+            <div className="bg-muted/30 rounded-xl p-4 space-y-1 border border-border/50">
+              <div className="text-sm font-semibold">{t("البائع", "Seller")}</div>
+              <div className="text-sm text-muted-foreground">
+                {user ? (seller?.full_name || t("مستخدم", "User")) : t("سجّل دخولك لعرض بيانات البائع", "Sign in to view seller info")}
+              </div>
             </div>
 
             <div className="bg-muted/30 rounded-xl p-4 space-y-2 border border-border/50">
@@ -200,6 +212,54 @@ export function ListingDetailSheet({ open, onOpenChange, listing }: ListingDetai
               </div>
             </div>
 
+            {/* You may also like */}
+            {youMayAlsoLike.length > 0 ? (
+              <div className="space-y-3">
+                <div className="text-sm font-semibold">{t("قد يعجبك أيضاً", "You may also like")}</div>
+                <div
+                  dir={isRTL ? "rtl" : "ltr"}
+                  className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
+                  style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+                >
+                  {youMayAlsoLike.map((l) => (
+                    <div key={l.id} className="shrink-0 w-[72vw] max-w-[320px] snap-center">
+                      <ListingCard
+                        listing={l}
+                        isRTL={isRTL}
+                        onClick={() => {
+                          onSelectListing?.(l);
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {/* More listings */}
+            {more.length > 0 ? (
+              <div className="space-y-3">
+                <div className="text-sm font-semibold">{t("إعلانات أخرى", "More listings")}</div>
+                <div
+                  dir={isRTL ? "rtl" : "ltr"}
+                  className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
+                  style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+                >
+                  {more.map((l) => (
+                    <div key={l.id} className="shrink-0 w-[72vw] max-w-[320px] snap-center">
+                      <ListingCard
+                        listing={l}
+                        isRTL={isRTL}
+                        onClick={() => {
+                          onSelectListing?.(l);
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             <div className="flex gap-3 pt-2">
               <Button size="lg" variant="outline" className="flex-1 gap-2" onClick={handleShare}>
                 <Share2 className="h-4 w-4" />
@@ -211,6 +271,54 @@ export function ListingDetailSheet({ open, onOpenChange, listing }: ListingDetai
               </Button>
             </div>
           </div>
+        </div>
+
+        {/* Bottom contact bar */}
+        <div className="border-t border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]" dir={isRTL ? "rtl" : "ltr"}>
+          {user ? (
+            canContact ? (
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="lg"
+                  className="flex-1 gap-2 h-12"
+                  onClick={() => {
+                    if (telLink) window.location.href = telLink;
+                  }}
+                >
+                  <Phone className="h-4 w-4" />
+                  {t("اتصال", "Call")}
+                </Button>
+                <Button
+                  type="button"
+                  size="lg"
+                  variant="secondary"
+                  className={cn(
+                    "flex-1 gap-2 h-12 bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400",
+                    !canWhatsApp && "opacity-50",
+                  )}
+                  disabled={!canWhatsApp}
+                  onClick={() => {
+                    if (waLink) window.location.href = waLink;
+                  }}
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  {t("واتساب", "WhatsApp")}
+                </Button>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground text-center">{t("رقم الهاتف غير متوفر حالياً", "Phone number not available")}</div>
+            )
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-sm text-muted-foreground">
+                {t("سجّل دخولك للتواصل مع البائع", "Sign in to contact the seller")}
+              </div>
+              <Button type="button" variant="outline" onClick={() => (window.location.href = "/auth?tab=login")}>
+                {t("تسجيل الدخول", "Sign in")}
+              </Button>
+            </div>
+          )}
         </div>
       </DrawerContent>
     </Drawer>
