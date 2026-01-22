@@ -1765,7 +1765,7 @@ export default function Hub() {
                 className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
                 style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
               >
-                {featuredServicesChunks.map((chunk, chunkIndex) => (
+                {featuredServicesChunks.filter(chunk => chunk.length > 0).map((chunk, chunkIndex) => (
                   <FeaturedProvidersCard
                     key={chunkIndex}
                     services={chunk}
@@ -2359,8 +2359,21 @@ export default function Hub() {
                         type="email"
                         placeholder={t("بريدك الإلكتروني", "Your email")}
                         className="flex-1 h-9 text-sm"
+                        disabled
+                        readOnly
                       />
-                      <Button size="sm" className="h-9 px-4">
+                      <Button 
+                        size="sm" 
+                        className="h-9 px-4"
+                        disabled
+                        onClick={(e) => {
+                          e.preventDefault();
+                          toast({
+                            title: t("قريباً", "Coming Soon"),
+                            description: t("سيتم تفعيل هذه الميزة قريباً", "This feature will be available soon"),
+                          });
+                        }}
+                      >
                         {t("اشتراك", "Subscribe")}
                       </Button>
                     </div>
@@ -2460,7 +2473,7 @@ export default function Hub() {
                     className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar snap-x snap-mandatory scroll-smooth"
                     style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
                   >
-                    {featuredServicesChunks.map((chunk, chunkIndex) => (
+                    {featuredServicesChunks.filter(chunk => chunk.length > 0).map((chunk, chunkIndex) => (
                       <FeaturedProvidersCard
                         key={chunkIndex}
                         services={chunk}
