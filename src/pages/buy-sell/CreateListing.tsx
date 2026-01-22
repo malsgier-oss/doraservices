@@ -133,14 +133,14 @@ export default function CreateListing() {
           const imageId = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${i}`;
           const path = `listings/${user.id}/${listingId}/${imageId}.${ext}`;
 
-          const { error: uploadError } = await supabase.storage.from("service-images").upload(path, file, {
+          const { error: uploadError } = await supabase.storage.from("listing-images").upload(path, file, {
             cacheControl: "3600",
             upsert: false,
             contentType: file.type || undefined,
           });
           if (uploadError) throw uploadError;
 
-          const { data: publicData } = supabase.storage.from("service-images").getPublicUrl(path);
+          const { data: publicData } = supabase.storage.from("listing-images").getPublicUrl(path);
           const publicUrl = publicData?.publicUrl || null;
           if (publicUrl) urls.push(publicUrl);
         }
