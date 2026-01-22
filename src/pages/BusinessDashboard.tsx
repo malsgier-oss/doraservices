@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Briefcase, ArrowLeft, Loader2, Tag, PlusCircle, PencilLine, Archive, CheckCircle, XCircle } from "lucide-react";
+import { Briefcase, ArrowLeft, Loader2, Tag, PlusCircle, PencilLine, Archive, CheckCircle, XCircle, Package } from "lucide-react";
 
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMyBusiness } from "@/hooks/useMyBusiness";
@@ -17,6 +18,14 @@ import { useMyBusinessDeals, useMyBusinessDealMutations } from "@/hooks/useMyBus
 import type { Deal } from "@/hooks/useDeals";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { StoreSettingsForm } from "@/components/store/StoreSettingsForm";
+import { CreateListingDialog } from "@/components/store/CreateListingDialog";
+import { useStoreListings, useStoreListingMutations } from "@/hooks/useStoreListings";
+import { useBusinessStoreMutations } from "@/hooks/useBusinessStore";
+import { useStoreStats } from "@/hooks/useStoreStats";
+import { StoreStatsCard } from "@/components/store/StoreStatsCard";
+import { ListingStatsTable } from "@/components/store/ListingStatsTable";
+import { Settings, BarChart3 } from "lucide-react";
 
 const DEAL_CATEGORIES = ["electronics", "vehicles", "home", "fashion", "sports", "games", "books", "other"] as const;
 const DISCOUNT_TYPES = ["percentage", "fixed", "free_item"] as const;
@@ -36,9 +45,15 @@ export default function BusinessDashboard() {
 
   const { data: myDeals, isLoading: dealsLoading } = useMyBusinessDeals(myBusiness?.id ?? null);
   const dealMutations = useMyBusinessDealMutations(myBusiness?.id ?? null);
+  const { data: myListings, isLoading: listingsLoading } = useStoreListings(myBusiness?.id ?? null);
+  const listingMutations = useStoreListingMutations(myBusiness?.id ?? null);
+  const { pauseStore, resumeStore } = useBusinessStoreMutations();
+  const { data: storeStats, isLoading: statsLoading } = useStoreStats(myBusiness?.id ?? null);
 
   const [dealDialogOpen, setDealDialogOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
+  const [listingDialogOpen, setListingDialogOpen] = useState(false);
+  const [editingListing, setEditingListing] = useState<any | null>(null);
   const [dealForm, setDealForm] = useState({
     title: "",
     description: "",
@@ -211,29 +226,113 @@ export default function BusinessDashboard() {
 
         {myBusiness ? (
           <>
-            <Card className="rounded-2xl">
-              <CardHeader>
-                <CardTitle>{myBusiness.name}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm text-muted-foreground">
-                <div>{t("الحالة:", "Status:")} {myBusiness.authorization_status}</div>
-                <div>{t("التصنيف:", "Category:")} {myBusiness.category}</div>
-                {myBusiness.location ? <div>{t("الموقع:", "Location:")} {myBusiness.location}</div> : null}
-                {myBusiness.description ? <div className="whitespace-pre-line">{myBusiness.description}</div> : null}
-              </CardContent>
-            </Card>
+            <Tabs defaultValue="overview" className="w-full">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="overview">{t("نظرة عامة", "Overview")}</TabsTrigger>
+                <TabsTrigger value="listings" className="flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  {t("الإعلانات", "Listings")}
+                </TabsTrigger>
+                <TabsTrigger value="stats" className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  {t("الإحصائيات", "Stats")}
+                </TabsTrigger>
+                <TabsTrigger value="settings" className="flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  {t("الإعدادات", "Settings")}
+                </TabsTrigger>
+              </TabsList>
 
-            <Card className="rounded-2xl">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Tag className="h-5 w-5" />
-                  {t("عروضي", "My Deals")}
-                </CardTitle>
-                <Button size="sm" onClick={openCreateDeal} className="gap-1.5">
-                  <PlusCircle className="h-4 w-4" />
-                  {t("عرض جديد", "New deal")}
-                </Button>
-              </CardHeader>
+              <TabsContent value="overview" className="space-y-4">
+                {/* Store Control Section - Phase 3 */}
+                <Card className="rounded-2xl">
+                  <CardHeader>
+                    <CardTitle>{t("تحكم المتجر", "Store Control")}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">{t("حالة المتجر", "Store Status")}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {myBusiness.operational_status === 'active'
+                            ? t("المتجر نشط ومتاح للجمهور", "Store is live and visible to the public")
+                            : t("المتجر متوقف ومخفي عن الجمهور", "Store is paused and hidden from the public")}
+                        </p>
+                      </div>
+                      <Button
+                        variant={myBusiness.operational_status === 'active' ? "destructive" : "default"}
+                        onClick={async () => {
+                          if (myBusiness.operational_status === 'active') {
+                            if (confirm(t("هل أنت متأكد من إيقاف المتجر؟", "Are you sure you want to pause the store?"))) {
+                              try {
+                                await pauseStore(myBusiness.id);
+                                toast.success(t("تم إيقاف المتجر", "Store paused"));
+                              } catch (error) {
+                                toast.error(t("حدث خطأ", "An error occurred"));
+                              }
+                            }
+                          } else {
+                            try {
+                              await resumeStore(myBusiness.id);
+                              toast.success(t("تم تفعيل المتجر", "Store resumed"));
+                            } catch (error) {
+                              toast.error(t("حدث خطأ", "An error occurred"));
+                            }
+                          }
+                        }}
+                      >
+                        {myBusiness.operational_status === 'active'
+                          ? t("إيقاف المتجر", "Pause Store")
+                          : t("تفعيل المتجر", "Resume Store")}
+                      </Button>
+                    </div>
+                    <div className="pt-2 border-t">
+                      <p className="text-sm font-medium mb-1">{t("حالة الترخيص", "Authorization Status")}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {myBusiness.authorization_status === 'approved'
+                          ? t("معتمد", "Approved")
+                          : myBusiness.authorization_status === 'pending'
+                          ? t("قيد المراجعة", "Pending Review")
+                          : t("مرفوض", "Rejected")}
+                      </p>
+                    </div>
+                    {myBusiness.authorization_status === 'approved' && (
+                      <div className="pt-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(`/store/${myBusiness.id}`, '_blank')}
+                        >
+                          {t("عرض المتجر", "View Store")}
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl">
+                  <CardHeader>
+                    <CardTitle>{myBusiness.name}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm text-muted-foreground">
+                    <div>{t("الحالة:", "Status:")} {myBusiness.authorization_status}</div>
+                    <div>{t("التصنيف:", "Category:")} {myBusiness.category}</div>
+                    {myBusiness.location ? <div>{t("الموقع:", "Location:")} {myBusiness.location}</div> : null}
+                    {myBusiness.description ? <div className="whitespace-pre-line">{myBusiness.description}</div> : null}
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Tag className="h-5 w-5" />
+                      {t("عروضي", "My Deals")}
+                    </CardTitle>
+                    <Button size="sm" onClick={openCreateDeal} className="gap-1.5">
+                      <PlusCircle className="h-4 w-4" />
+                      {t("عرض جديد", "New deal")}
+                    </Button>
+                  </CardHeader>
               <CardContent>
                 {dealsLoading ? (
                   <div className="text-sm text-muted-foreground py-4">{t("جاري التحميل...", "Loading...")}</div>
@@ -286,8 +385,193 @@ export default function BusinessDashboard() {
                     })}
                   </div>
                 )}
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="listings" className="space-y-4">
+                <Card className="rounded-2xl">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Package className="h-5 w-5" />
+                      {t("إعلانات المتجر", "Store Listings")}
+                    </CardTitle>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setEditingListing(null);
+                        setListingDialogOpen(true);
+                      }}
+                      className="gap-1.5"
+                    >
+                      <PlusCircle className="h-4 w-4" />
+                      {t("إعلان جديد", "New Listing")}
+                    </Button>
+                  </CardHeader>
+                  <CardContent>
+                    {listingsLoading ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {[1, 2, 3, 4].map((i) => (
+                          <div key={i} className="border rounded-lg p-3 space-y-2">
+                            <div className="w-full h-32 bg-muted animate-pulse rounded" />
+                            <div className="h-4 bg-muted animate-pulse rounded w-3/4" />
+                            <div className="h-4 bg-muted animate-pulse rounded w-1/2" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : !myListings || myListings.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+                        <Package className="h-16 w-16 text-muted-foreground/40" />
+                        <div>
+                          <h3 className="font-semibold mb-1">{t("لا توجد إعلانات", "No Listings")}</h3>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            {t("ابدأ بإضافة إعلانك الأول.", "Start by adding your first listing.")}
+                          </p>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setEditingListing(null);
+                              setListingDialogOpen(true);
+                            }}
+                          >
+                            <PlusCircle className="h-4 w-4 mr-2" />
+                            {t("إعلان جديد", "New Listing")}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {myListings.map((listing) => {
+                          const statusLabel =
+                            listing.status === "active" ? t("نشط", "Active") :
+                            listing.status === "paused" ? t("متوقف", "Paused") :
+                            listing.status === "draft" ? t("مسودة", "Draft") :
+                            t("أرشيف", "Archived");
+                          return (
+                            <div key={listing.id} className="border rounded-lg p-3 space-y-2">
+                              {listing.image_urls?.[0] && (
+                                <img
+                                  src={listing.image_urls[0]}
+                                  alt={listing.title}
+                                  className="w-full h-32 object-cover rounded"
+                                />
+                              )}
+                              <div>
+                                <h4 className="font-medium truncate">{listing.title}</h4>
+                                {listing.price && (
+                                  <p className="text-sm text-primary font-semibold">
+                                    {listing.price} {listing.currency}
+                                  </p>
+                                )}
+                                <div className="flex items-center justify-between mt-2">
+                                  <span className="text-xs text-muted-foreground">{statusLabel}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {t("مشاهدات", "Views")}: {listing.views_count || 0}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="flex-1"
+                                  onClick={() => {
+                                    setEditingListing(listing);
+                                    setListingDialogOpen(true);
+                                  }}
+                                >
+                                  <PencilLine className="h-3.5 w-3.5 mr-1" />
+                                  {t("تعديل", "Edit")}
+                                </Button>
+                                {listing.status === "active" ? (
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    className="flex-1"
+                                    onClick={async () => {
+                                      try {
+                                        await listingMutations.setListingStatus({ id: listing.id, status: "paused" });
+                                        toast.success(t("تم إيقاف الإعلان", "Listing paused"));
+                                      } catch (error) {
+                                        toast.error(t("حدث خطأ", "An error occurred"));
+                                      }
+                                    }}
+                                  >
+                                    <XCircle className="h-3.5 w-3.5 mr-1" />
+                                    {t("إيقاف", "Pause")}
+                                  </Button>
+                                ) : listing.status === "paused" ? (
+                                  <Button
+                                    size="sm"
+                                    className="flex-1"
+                                    onClick={async () => {
+                                      try {
+                                        await listingMutations.setListingStatus({ id: listing.id, status: "active" });
+                                        toast.success(t("تم تفعيل الإعلان", "Listing activated"));
+                                      } catch (error) {
+                                        toast.error(t("حدث خطأ", "An error occurred"));
+                                      }
+                                    }}
+                                  >
+                                    <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                                    {t("تفعيل", "Activate")}
+                                  </Button>
+                                ) : null}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="stats" className="space-y-4">
+                {statsLoading ? (
+                  <div className="text-sm text-muted-foreground py-4">{t("جاري التحميل...", "Loading...")}</div>
+                ) : storeStats ? (
+                  <>
+                    <Card className="rounded-2xl">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <BarChart3 className="h-5 w-5" />
+                          {t("إحصائيات المتجر", "Store Statistics")}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <StoreStatsCard stats={storeStats} />
+                      </CardContent>
+                    </Card>
+
+                    {myListings && myListings.length > 0 && (
+                      <Card className="rounded-2xl">
+                        <CardHeader>
+                          <CardTitle>{t("إحصائيات الإعلانات", "Listing Statistics")}</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <ListingStatsTable listings={myListings} />
+                        </CardContent>
+                      </Card>
+                    )}
+                  </>
+                ) : null}
+              </TabsContent>
+
+              <TabsContent value="settings">
+                <Card className="rounded-2xl">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Settings className="h-5 w-5" />
+                      {t("إعدادات المتجر", "Store Settings")}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <StoreSettingsForm />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
 
             <Dialog open={dealDialogOpen} onOpenChange={(open) => { setDealDialogOpen(open); if (!open) resetDealForm(); }}>
               <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto" dir={isRTL ? "rtl" : "ltr"}>
@@ -358,6 +642,30 @@ export default function BusinessDashboard() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+            <CreateListingDialog
+              open={listingDialogOpen}
+              onOpenChange={(open) => {
+                setListingDialogOpen(open);
+                if (!open) setEditingListing(null);
+              }}
+              listing={editingListing}
+              businessId={myBusiness.id}
+              onSave={async (data) => {
+                if (editingListing) {
+                  await listingMutations.updateListing({
+                    id: editingListing.id,
+                    data: {
+                      ...data,
+                      status: data.status,
+                    },
+                  });
+                } else {
+                  await listingMutations.createListing(data);
+                }
+                listingMutations.invalidate();
+              }}
+            />
           </>
         ) : (
           <Card className="rounded-2xl">

@@ -1,0 +1,20 @@
+-- NOTE: Storage bucket 'store-assets' must be created manually via Supabase Dashboard
+-- or via Supabase Management API before this migration can be used.
+-- 
+-- Required bucket structure:
+-- - Bucket name: 'store-assets'
+-- - Public: true (for public read access)
+-- - Allowed MIME types: image/jpeg, image/jpg, image/png, image/webp
+-- - Max file size: 5MB
+-- - Folders: 'logos/', 'banners/'
+--
+-- Also create bucket 'store-listings' for listing images:
+-- - Bucket name: 'store-listings'
+-- - Public: true
+-- - Allowed MIME types: image/jpeg, image/jpg, image/png, image/webp
+-- - Max file size: 5MB
+-- - Path structure: {business_id}/{listing_id}/{image_index}.{ext}
+
+-- RLS policies for storage will be handled by Supabase Storage policies
+-- Business owners can upload to their own business folders
+-- Public read access for all images

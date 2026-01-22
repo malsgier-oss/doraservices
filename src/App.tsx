@@ -10,6 +10,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AdminRoute } from "@/components/auth/AdminRoute";
 import { ProviderRoute } from "@/components/auth/ProviderRoute";
+import { BusinessRoute } from "@/components/auth/BusinessRoute";
 import { AppErrorBoundary } from "@/components/layout/AppErrorBoundary";
 import { FullScreenFallback } from "@/components/layout/FullScreenFallback";
 import { RouteAnalytics } from "@/observability/RouteAnalytics";
@@ -33,6 +34,7 @@ const NotFound = React.lazy(() => import("./pages/NotFound"));
 const ProviderDashboard = React.lazy(() => import("./pages/ProviderDashboard"));
 const Dashboard = React.lazy(() => import("./pages/Dashboard"));
 const BusinessDashboard = React.lazy(() => import("./pages/BusinessDashboard"));
+const StorePage = React.lazy(() => import("./pages/StorePage"));
 const ServiceEditor = React.lazy(() => import("./pages/ServiceEditor"));
 const PendingVerification = React.lazy(() => import("./pages/PendingVerification"));
 const PendingConfirmation = React.lazy(() => import("./pages/PendingConfirmation"));
@@ -169,11 +171,12 @@ const AppRoutes = () => {
         <Route
           path="/business-dashboard"
           element={
-            <ProtectedRoute>
+            <BusinessRoute>
               <BusinessDashboard />
-            </ProtectedRoute>
+            </BusinessRoute>
           }
         />
+        <Route path="/store/:businessId" element={<StorePage />} />
         <Route path="/buy-sell/deals/:type" element={<DealsBrowse />} />
         <Route path="/buy-sell/businesses" element={<BusinessesBrowse />} />
         <Route path="/buy-sell/listings" element={<ListingsBrowse />} />

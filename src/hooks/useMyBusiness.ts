@@ -25,7 +25,7 @@ export function useMyBusiness() {
       if (!user) return null;
       const { data, error } = await supabase
         .from("businesses")
-        .select("id,user_id,name,category,location,description,image_url,authorization_status,operational_status,featured,created_at,updated_at")
+        .select("*")
         .eq("user_id", user.id)
         .is("archived_at", null)
         .order("created_at", { ascending: false })
