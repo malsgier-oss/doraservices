@@ -28,13 +28,14 @@ export interface UseListingsOptions {
   limit?: number;
   excludeId?: string | null;
   enabled?: boolean;
+  userId?: string | null;
 }
 
 export function useListings(options: UseListingsOptions = {}) {
-  const { cityId, category, search, status = "active", limit = 20, excludeId, enabled = true } = options;
+  const { cityId, category, search, status = "active", limit = 20, excludeId, enabled = true, userId } = options;
 
   return useQuery({
-    queryKey: ["listings", cityId, category, search, status, limit, excludeId],
+    queryKey: ["listings", cityId, category, search, status, limit, excludeId, userId],
     queryFn: async (): Promise<Listing[]> => {
       let query = supabase
         .from("listings")
@@ -47,6 +48,7 @@ export function useListings(options: UseListingsOptions = {}) {
       if (cityId) query = query.eq("city_id", cityId);
       if (category) query = query.eq("category", category);
       if (excludeId) query = query.neq("id", excludeId);
+      if (userId) query = query.eq("user_id", userId);
 
       const q = (search || "").trim();
       if (q) {
