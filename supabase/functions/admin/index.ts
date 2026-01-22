@@ -53,7 +53,8 @@ type AdminActionBody =
   | { action: "softDeleteUser"; userId: string }
   | { action: "bulkSoftDeleteUsers"; userIds: string[] }
   | { action: "set_temp_password"; phone: string; password: string; requestId: string }
-  | { action: "fix_admin_email"; userId: string; phone: string };
+  | { action: "fix_admin_email"; userId: string; phone: string }
+  | { action: "deleteListing"; listingId: string };
 
 Deno.serve(async (req) => {
   const origin = req.headers.get("Origin");
@@ -633,6 +634,41 @@ Deno.serve(async (req) => {
       console.log("Admin email updated to:", newEmail);
 
       return new Response(JSON.stringify({ ok: true, newEmail }), {
+        status: 200,
+        headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
+      });
+    }
+
+    // ==================== DELETE LISTING ====================
+    if (body.action === "deleteListing") {
+      const { listingId } = body;
+
+      if (!listingId) {
+        return new Response(JSON.stringify({ error: "Missing listingId" }), {
+          status: 400,
+          headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
+        });
+      }
+
+      const { error: delErr } = await adminClient.from("listings").delete().eq("id", listingId);
+      if (delErr) {
+        console.error("deleteListing failed", delErr);
+        return new Response(JSON.stringify({ error: "Failed to delete listing", details: delErr.message }), {
+          status: 500,
+          headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
+        });
+      }
+
+      // Audit log (best effort)
+      await adminClient.from("admin_audit_log").insert({
+        admin_id: callerId,
+        action: "delete_listing",
+        target_type: "listing",
+        target_id: listingId,
+        details: { deleted_by: callerId },
+      });
+
+      return new Response(JSON.stringify({ ok: true }), {
         status: 200,
         headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
       });

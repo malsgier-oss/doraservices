@@ -81,8 +81,33 @@ export default function AdminListings() {
 
   const deleteListing = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("listings").delete().eq("id", id);
-      if (error) throw error;
+      // Admin hard delete: requires either (a) DB RLS policy for admin delete or (b) Edge Function service role.
+      // We prefer the Edge Function because it bypasses RLS and is consistent with other admin operations.
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+
+      // Try Edge Function first
+      try {
+        const { data, error } = await supabase.functions.invoke("admin", {
+          body: { action: "deleteListing", listingId: id },
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (error) throw error;
+        if (data && typeof data === "object" && "error" in (data as Record<string, unknown>)) {
+          throw new Error(String((data as Record<string, unknown>).error));
+        }
+        return;
+      } catch (e) {
+        // Fallback: attempt direct delete (works if admin delete policy exists)
+        const { error } = await supabase.from("listings").delete().eq("id", id);
+        if (!error) return;
+
+        // Final fallback: archive (always allowed for admins via UPDATE policy)
+        await supabase.from("listings").update({ status: "archived", archived_at: new Date().toISOString() }).eq("id", id);
+        throw new Error(
+          "Hard delete was blocked by permissions. The listing was archived instead.",
+        );
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-listings"] });
