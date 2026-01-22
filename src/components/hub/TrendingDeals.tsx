@@ -8,18 +8,24 @@ import { Skeleton } from "@/components/ui/skeleton";
 interface TrendingDealsProps {
   cityId?: string | null;
   category?: string | null;
+  search?: string | null;
   limit?: number;
   onDealClick?: (deal: Deal) => void;
 }
 
-export function TrendingDeals({ cityId, category, limit = 8, onDealClick }: TrendingDealsProps) {
+export function TrendingDeals({ cityId, category, search, limit = 8, onDealClick }: TrendingDealsProps) {
   const { data: deals, isLoading } = useDeals({ cityId, category, limit });
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
 
+  const q = (search || "").trim().toLowerCase();
+  const searched = q
+    ? (deals || []).filter((d) => `${d.title} ${(d.description || "")}`.toLowerCase().includes(q))
+    : (deals || []);
+
   // Sort by views_count + clicks_count for trending
-  const trendingDeals = deals
-    ? [...deals].sort((a, b) => {
+  const trendingDeals = searched
+    ? [...searched].sort((a, b) => {
         const aScore = (a.views_count || 0) + (a.clicks_count || 0);
         const bScore = (b.views_count || 0) + (b.clicks_count || 0);
         return bScore - aScore;
