@@ -22,6 +22,7 @@ const BusinessesBrowse = React.lazy(() => import("./pages/buy-sell/BusinessesBro
 const CreateListing = React.lazy(() => import("./pages/buy-sell/CreateListing"));
 const ListingsBrowse = React.lazy(() => import("./pages/buy-sell/ListingsBrowse"));
 const MyListings = React.lazy(() => import("./pages/buy-sell/MyListings"));
+const EditListing = React.lazy(() => import("./pages/buy-sell/EditListing"));
 const TrendingServicesPage = React.lazy(() => import("./pages/services/TrendingServicesPage"));
 const RecommendationsPage = React.lazy(() => import("./pages/services/RecommendationsPage"));
 const Favorites = React.lazy(() => import("./pages/Favorites"));
@@ -161,6 +162,14 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute>
               <MyListings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/buy-sell/edit-listing/:id"
+          element={
+            <ProtectedRoute>
+              <EditListing />
             </ProtectedRoute>
           }
         />
