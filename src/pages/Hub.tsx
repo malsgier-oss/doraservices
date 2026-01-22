@@ -31,9 +31,7 @@ import { useServiceFilters } from "@/hooks/useServiceFilters";
 import { useSimilarServices } from "@/hooks/useSimilarServices";
 import { TipChip } from "@/components/hub/TipChip";
 import { StatsBar } from "@/components/hub/StatsBar";
-import { TrendingSection } from "@/components/hub/TrendingSection";
 import { ActivityFeed } from "@/components/hub/ActivityFeed";
-import { RecommendationsSection } from "@/components/hub/RecommendationsSection";
 import { HubTabSwitcher } from "@/components/hub/HubTabSwitcher";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
@@ -1682,37 +1680,6 @@ export default function Hub() {
           fallbackCta={t("استكشف", "Explore")}
           />
 
-          {/* Quick Actions Bar */}
-          <div className="px-4">
-            <div className="bg-gradient-to-r from-primary/5 via-primary/3 to-transparent rounded-2xl p-4 border border-primary/10">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Sparkles className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold text-foreground">
-                      {t("بحاجة لمساعدة فورية؟", "Need immediate help?")}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {t("تصفح الخدمات الأكثر طلباً", "Browse most requested services")}
-                    </div>
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground px-4"
-                  onClick={() => {
-                    const trendingSection = document.getElementById("trending-services");
-                    trendingSection?.scrollIntoView({ behavior: "smooth", block: "start" });
-                  }}
-                >
-                  {t("استكشف", "Explore")}
-                </Button>
-              </div>
-            </div>
-          </div>
-
           <StatsBar />
 
           <div className="px-4 space-y-10">
@@ -1822,27 +1789,6 @@ export default function Hub() {
             </AnimatedSection>
           )}
 
-          {/* Trending Services */}
-          <AnimatedSection direction="up" delay={400}>
-            <HubSection 
-              id="trending-services" 
-              title={t("ترند الآن", "Trending Now")} 
-              icon={TrendingUp}
-              actionLabel={t("عرض الكل", "View All")}
-              onAction={() => {
-                navigate("/services/trending");
-              }}
-            >
-            <TrendingSection
-              cityId={cityId}
-              cityName={selectedCityName}
-              onOpenService={openServiceFromRow}
-              onCall={handleCall}
-              onWhatsApp={handleWhatsApp}
-            />
-            </HubSection>
-          </AnimatedSection>
-
           {/* Most demanded services (SYSTEM) */}
           <AnimatedSection direction="up" delay={500}>
             <HubSection id="most-demanded-services" title={t("الأكثر طلباً", "Most demanded")} icon={TrendingUp}>
@@ -1900,31 +1846,6 @@ export default function Hub() {
           <AnimatedSection direction="up" delay={600}>
             <HubSection id="activity-feed" title={t("النشاط الأخير", "Recent Activity")} icon={Heart}>
             <ActivityFeed
-              cityId={cityId}
-              cityName={selectedCityName}
-              onOpenService={openServiceFromRow}
-              onCall={handleCall}
-              onWhatsApp={handleWhatsApp}
-            />
-            </HubSection>
-          </AnimatedSection>
-
-          {/* Personalized Recommendations */}
-          <AnimatedSection direction="up" delay={700}>
-            <HubSection
-              actionLabel={t("عرض الكل", "View All")}
-              onAction={() => {
-                navigate("/services/recommendations");
-              }} 
-            id="recommendations" 
-            title={user 
-              ? t("مقترح لك", "For You") 
-              : (cityId 
-                ? t(`شائع في ${selectedCityName || ""}`, `Popular in ${selectedCityName || "your area"}`)
-                : t("الأكثر شعبية", "Most Popular"))} 
-            icon={Sparkles}
-          >
-            <RecommendationsSection
               cityId={cityId}
               cityName={selectedCityName}
               onOpenService={openServiceFromRow}
@@ -2542,19 +2463,6 @@ export default function Hub() {
               </AnimatedSection>
             )}
 
-            {/* Trending Services */}
-            <AnimatedSection direction="up" delay={400}>
-              <HubSection id="trending-services" title={t("ترند الآن", "Trending Now")} icon={TrendingUp}>
-              <TrendingSection
-                cityId={cityId}
-                cityName={selectedCityName}
-                onOpenService={openServiceFromRow}
-                onCall={handleCall}
-                onWhatsApp={handleWhatsApp}
-              />
-              </HubSection>
-            </AnimatedSection>
-
             {/* Most demanded services (SYSTEM) */}
             <AnimatedSection direction="up" delay={500}>
               <HubSection id="most-demanded-services" title={t("الأكثر طلباً", "Most demanded")} icon={TrendingUp}>
@@ -2620,97 +2528,37 @@ export default function Hub() {
             {/* Popular Services Showcase */}
             <AnimatedSection direction="up" delay={550}>
               <HubSection id="popular-showcase" title={t("خدمات مميزة", "Popular Services")} icon={Award}>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {/* Emergency Services */}
-                  <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950/20 dark:to-red-900/20 rounded-xl p-4 border border-red-200/50 dark:border-red-800/50">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                        <Shield className="w-5 h-5 text-red-600 dark:text-red-400" />
-                      </div>
-                      <div>
-                        <div className="font-semibold text-foreground text-sm">
-                          {t("طوارئ 24/7", "24/7 Emergency")}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {t("خدمات طوارئ متاحة دائماً", "Emergency services always available")}
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-full border-red-300 text-red-700 hover:bg-red-100 dark:border-red-700 dark:text-red-400"
-                      onClick={() => {
-                        // Navigate to emergency services
-                        if (categories && categories.length > 0) {
-                          const emergencyCategory = categories.find(c => c.name?.toLowerCase().includes('emergency') || c.name_ar?.includes('طوارئ'));
-                          if (emergencyCategory) {
-                            openCategoryBrowse(emergencyCategory.id);
-                          }
-                        }
-                      }}
-                    >
-                      {t("اطلب الآن", "Request Now")}
-                    </Button>
+                {featuredServices.length === 0 ? (
+                  <div className={`${HUB_CARD_BASE} bg-card p-6 flex flex-col items-center justify-center gap-3 text-center`}>
+                    <Award className="h-10 w-10 text-muted-foreground/60" />
+                    <p className="text-sm text-muted-foreground">{t("لا توجد خدمات مميزة حالياً", "No featured services available right now")}</p>
                   </div>
-
-                  {/* Premium Services */}
-                  <div className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/20 dark:to-amber-900/20 rounded-xl p-4 border border-amber-200/50 dark:border-amber-800/50">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-                        <Sparkles className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                      </div>
-                      <div>
-                        <div className="font-semibold text-foreground text-sm">
-                          {t("خدمات مميزة", "Premium Services")}
+                ) : (
+                  <div
+                    dir={isRTL ? "rtl" : "ltr"}
+                    className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory -mx-4 px-4"
+                    style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+                  >
+                    {featuredServices.slice(0, 6).map((service) => {
+                      const contact = getContactState(service);
+                      return (
+                        <div key={service.id} className="shrink-0 w-[72vw] max-w-[320px] snap-center">
+                          <ServiceCardCompact
+                            service={service}
+                            rating={getRating(service.id)}
+                            isRTL={isRTL}
+                            canCall={contact.canCall}
+                            canWhatsApp={contact.canWhatsApp}
+                            onOpen={() => openServiceFromRow(service)}
+                            onCall={() => handleCall(service)}
+                            onWhatsApp={() => handleWhatsApp(service)}
+                            labels={labels}
+                          />
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {t("أعلى جودة وأفضل مقدمي الخدمات", "Highest quality service providers")}
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-full border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-400"
-                      onClick={() => {
-                        // Scroll to featured services
-                        const featuredSection = document.getElementById("featured-services");
-                        featuredSection?.scrollIntoView({ behavior: "smooth", block: "start" });
-                      }}
-                    >
-                      {t("استكشف", "Explore")}
-                    </Button>
+                      );
+                    })}
                   </div>
-
-                  {/* Local Favorites */}
-                  <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/20 dark:to-green-900/20 rounded-xl p-4 border border-green-200/50 dark:border-green-800/50">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                        <MapPin className="w-5 h-5 text-green-600 dark:text-green-400" />
-                      </div>
-                      <div>
-                        <div className="font-semibold text-foreground text-sm">
-                          {t("محلي وموثوق", "Local & Trusted")}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {t("مقدمي خدمات محليين موثقين", "Verified local service providers")}
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-full border-green-300 text-green-700 hover:bg-green-100 dark:border-green-700 dark:text-green-400"
-                      onClick={() => {
-                        // Filter by verified services
-                        setQuery("verified");
-                      }}
-                    >
-                      {t("ابحث", "Search")}
-                    </Button>
-                  </div>
-                </div>
+                )}
               </HubSection>
             </AnimatedSection>
 
@@ -2724,86 +2572,6 @@ export default function Hub() {
                 onCall={handleCall}
                 onWhatsApp={handleWhatsApp}
               />
-              </HubSection>
-            </AnimatedSection>
-
-            {/* Personalized Recommendations */}
-            <AnimatedSection direction="up" delay={700}>
-              <HubSection 
-              id="recommendations" 
-              title={user 
-                ? t("مقترح لك", "For You") 
-                : (cityId 
-                  ? t(`شائع في ${selectedCityName || ""}`, `Popular in ${selectedCityName || "your area"}`)
-                  : t("الأكثر شعبية", "Most Popular"))} 
-              icon={Sparkles}
-            >
-              <RecommendationsSection
-                cityId={cityId}
-                cityName={selectedCityName}
-                onOpenService={openServiceFromRow}
-                onCall={handleCall}
-                onWhatsApp={handleWhatsApp}
-              />
-              </HubSection>
-            </AnimatedSection>
-
-            {/* Customer Success Stories */}
-            <AnimatedSection direction="up" delay={750}>
-              <HubSection id="success-stories" title={t("قصص نجاح", "Success Stories")} icon={Award}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 rounded-xl p-5 border border-green-200/50 dark:border-green-800/50">
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
-                        <Users className="w-6 h-6 text-green-600 dark:text-green-400" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="flex">
-                            {[1,2,3,4,5].map((star) => (
-                              <Star key={star} className="w-4 h-4 text-amber-400 fill-amber-400" />
-                            ))}
-                          </div>
-                          <span className="text-sm font-medium text-green-700 dark:text-green-400">
-                            {t("عميل راضي", "Happy Customer")}
-                          </span>
-                        </div>
-                        <p className="text-sm text-foreground leading-relaxed mb-3">
-                          {t("خدمة ممتازة وسرعة في الاستجابة. تم إصلاح المكيف في أقل من ساعة!", "Excellent service and quick response. AC fixed in less than an hour!")}
-                        </p>
-                        <div className="text-xs text-muted-foreground">
-                          {t("أحمد محمد - جدة", "Ahmed Mohamed - Jeddah")}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 rounded-xl p-5 border border-blue-200/50 dark:border-blue-800/50">
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                        <Shield className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="flex">
-                            {[1,2,3,4,5].map((star) => (
-                              <Star key={star} className="w-4 h-4 text-amber-400 fill-amber-400" />
-                            ))}
-                          </div>
-                          <span className="text-sm font-medium text-blue-700 dark:text-blue-400">
-                            {t("خدمة موثوقة", "Trusted Service")}
-                          </span>
-                        </div>
-                        <p className="text-sm text-foreground leading-relaxed mb-3">
-                          {t("مقدم الخدمة كان محترفاً جداً وانتهى العمل بدقة عالية.", "The service provider was very professional and finished the work with high precision.")}
-                        </p>
-                        <div className="text-xs text-muted-foreground">
-                          {t("فاطمة علي - الرياض", "Fatima Ali - Riyadh")}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </HubSection>
             </AnimatedSection>
 
@@ -3023,30 +2791,6 @@ export default function Hub() {
           "fixed z-40 bottom-[calc(6rem+env(safe-area-inset-bottom))] flex flex-col gap-3",
           isRTL ? "left-4" : "right-4"
         )}>
-          {/* Emergency Button */}
-          <button
-            type="button"
-            onClick={() => {
-              if (categories && categories.length > 0) {
-                const emergencyCategory = categories.find(c => c.name?.toLowerCase().includes('emergency') || c.name_ar?.includes('طوارئ'));
-                if (emergencyCategory) {
-                  openCategoryBrowse(emergencyCategory.id);
-                } else {
-                  // Fallback to first category
-                  openCategoryBrowse(categories[0].id);
-                }
-              }
-            }}
-            className={cn(
-              "w-12 h-12 rounded-full shadow-lg flex items-center justify-center",
-              "bg-red-500 hover:bg-red-600 text-white transition-all duration-300",
-              "hover:scale-110 active:scale-95 ring-4 ring-red-500/20 hover:ring-red-500/40"
-            )}
-            title={t("خدمات طوارئ", "Emergency Services")}
-          >
-            <Shield className="w-5 h-5" />
-          </button>
-
           {/* Quick Search Button */}
           <button
             type="button"
