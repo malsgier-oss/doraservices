@@ -177,12 +177,9 @@ export default function CreateListing() {
               <h1 className="text-base font-semibold text-foreground">{t("نشر إعلان للبيع", "Post a listing")}</h1>
             </div>
           </div>
-          <Button type="button" onClick={handleSubmit} disabled={!canSubmit}>
-            {submitting ? t("جارٍ النشر...", "Publishing...") : t("نشر", "Publish")}
-          </Button>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 pb-6">
           <div className="space-y-2">
             <Label>{t("العنوان", "Title")}</Label>
             <Input className="text-base" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("مثال: آيفون 13", "e.g. iPhone 13")} />
@@ -288,6 +285,13 @@ export default function CreateListing() {
               {t("ستحتاج لتسجيل الدخول قبل النشر.", "You’ll need to sign in before publishing.")}
             </div>
           ) : null}
+
+          {/* Publish (end of form) */}
+          <div className="pt-2">
+            <Button type="button" size="lg" className="w-full h-12" onClick={handleSubmit} disabled={!canSubmit}>
+              {submitting ? t("جارٍ النشر...", "Publishing...") : t("نشر", "Publish")}
+            </Button>
+          </div>
         </div>
       </div>
     </Layout>
