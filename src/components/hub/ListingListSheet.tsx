@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useListings, type Listing } from "@/hooks/useListings";
 import { ListingCard } from "@/components/hub/ListingCard";
+import { getBuySellCategoryLabel } from "@/components/hub/buySellCategories";
 
 interface ListingListSheetProps {
   open: boolean;
@@ -34,7 +35,8 @@ export function ListingListSheet({
     enabled: open,
   });
 
-  const title = category || t("الإعلانات", "Listings");
+  const categoryLabel = getBuySellCategoryLabel(category, language);
+  const title = categoryLabel || t("الإعلانات", "Listings");
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
