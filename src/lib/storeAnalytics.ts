@@ -49,14 +49,14 @@ export async function trackListingView(listingId: string): Promise<void> {
       .single();
 
     if (listing) {
-      await supabase
+      const { error: updateError } = await supabase
         .from("store_listings")
         .update({ views_count: (listing.views_count || 0) + 1 })
         .eq("id", listingId);
-    }
 
-    if (!error) {
-      sessionStorage.setItem(key, "1");
+      if (!updateError) {
+        sessionStorage.setItem(key, "1");
+      }
     }
   } catch (error) {
     console.error("Error tracking listing view:", error);

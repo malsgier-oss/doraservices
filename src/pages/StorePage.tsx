@@ -23,6 +23,13 @@ export default function StorePage() {
   const [selectedListing, setSelectedListing] = useState<StoreListing | null>(null);
   const [detailSheetOpen, setDetailSheetOpen] = useState(false);
 
+  // Track store view on mount - must be before any early returns
+  useEffect(() => {
+    if (store && store.authorization_status === 'approved' && store.operational_status === 'active') {
+      trackStoreView(store.id);
+    }
+  }, [store]);
+
   if (isLoading) {
     return (
       <Layout>
@@ -82,13 +89,6 @@ export default function StorePage() {
   }
 
   const activeListings = (listings || []).filter((l) => l.status === "active");
-
-  // Track store view on mount
-  useEffect(() => {
-    if (store && store.authorization_status === 'approved' && store.operational_status === 'active') {
-      trackStoreView(store.id);
-    }
-  }, [store]);
 
   return (
     <Layout>

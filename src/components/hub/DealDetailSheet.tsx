@@ -47,14 +47,18 @@ export function DealDetailSheet({
       // Debounce view tracking to prevent multiple increments
       const timer = setTimeout(async () => {
         try {
-          await supabase.rpc("increment_deal_views", { deal_id: deal.id }).catch(() => {
+          const { error } = await supabase.rpc("increment_deal_views", { deal_id: deal.id });
+          if (error) {
             // Fallback to direct update if RPC doesn't exist
-            supabase
-              .from("deals")
-              .update({ views_count: (deal.views_count || 0) + 1 })
-              .eq("id", deal.id)
-              .then(() => {});
-          });
+            try {
+              await supabase
+                .from("deals")
+                .update({ views_count: (deal.views_count || 0) + 1 })
+                .eq("id", deal.id);
+            } catch {
+              // Best-effort tracking only
+            }
+          }
         } catch {
           // Best-effort tracking only
         }

@@ -210,8 +210,8 @@ export function CreateListingDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} dir={isRTL ? "rtl" : "ltr"}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir={isRTL ? "rtl" : "ltr"}>
         <DialogHeader>
           <DialogTitle>{listing ? t("تعديل الإعلان", "Edit Listing") : t("إعلان جديد", "New Listing")}</DialogTitle>
         </DialogHeader>

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Lightbulb, Clock, Heart, TrendingUp } from "lucide-react";
+import { Lightbulb, Clock, Heart, TrendingUp, type LucideIcon } from "lucide-react";
 import { HubSection } from "./HubSection";
 import { ServiceGrid } from "./ServiceGrid";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -23,7 +23,7 @@ interface DiscoverySectionProps {
   type: "recommendations" | "recent" | "similar" | "trending";
   services: Service[];
   title?: string;
-  icon?: React.ComponentType<{ className?: string }>;
+  icon?: LucideIcon;
   onServiceClick: (service: Service) => void;
   onCall: (service: Service) => void;
   onWhatsApp: (service: Service) => void;

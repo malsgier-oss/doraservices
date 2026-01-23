@@ -65,7 +65,7 @@ const SelectContent = React.forwardRef<
   // Detect iOS Safari to avoid DOM synchronization issues
   const isIOS = typeof navigator !== 'undefined' &&
     /iPad|iPhone|iPod/.test(navigator.userAgent) &&
-    !window.MSStream;
+    !(window as any).MSStream;
 
   const isSafari = typeof navigator !== 'undefined' &&
     /^((?!chrome|android).)*safari/i.test(navigator.userAgent);

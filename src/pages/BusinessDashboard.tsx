@@ -186,7 +186,11 @@ export default function BusinessDashboard() {
       if (error) throw error;
 
       // Best-effort: store a business role marker in profiles if schema allows it.
-      await supabase.from("profiles").update({ role: "business" } as any).eq("user_id", user.id).catch(() => {});
+      try {
+        await supabase.from("profiles").update({ role: "business" } as any).eq("user_id", user.id);
+      } catch {
+        // Best-effort only, ignore errors
+      }
       await refreshProfile();
 
       toast.success(t("تم إنشاء المتجر", "Business created"));
