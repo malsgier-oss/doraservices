@@ -26,6 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 
 import { toast } from "@/hooks/use-toast";
@@ -44,7 +45,6 @@ import {
   X,
   LayoutDashboard,
   ShoppingBag,
-  Briefcase,
 } from "lucide-react";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { useMyBusiness } from "@/hooks/useMyBusiness";
@@ -82,7 +82,6 @@ export default function Profile() {
   const { user, profile, loading, profileLoading, signOut, refreshProfile } = useAuth();
   const { isRTL, language } = useLanguage();
   const { data: cities, isLoading: citiesLoading } = useCities();
-  const { data: myBusiness } = useMyBusiness();
   const { isEnabled: buySellEnabled } = useBuySellEnabled();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -103,6 +102,8 @@ export default function Profile() {
 
   const [becomingProvider, setBecomingProvider] = useState(false);
   const [marketplaceEnabled, setMarketplaceEnabled] = useState(false);
+  const [termsDialogOpen, setTermsDialogOpen] = useState(false);
+  const [termsAgreed, setTermsAgreed] = useState(false);
 
   // Route guard
   useEffect(() => {
@@ -161,12 +162,10 @@ export default function Profile() {
   const currentRole = (profile?.role || "user").toString().toLowerCase();
   const isProvider = isProviderLike(currentRole);
   const isAdmin = currentRole === "admin";
-  const isBusiness = currentRole === "business";
-  const hasBusinessProfile = !!myBusiness;
 
   // Dora principle: Profile pages stay focused on account/security/personal data.
   // "Become provider" is available only for non-remixed users.
-  const showProviderTab = !isAdmin && !isProvider && !isBusiness;
+  const showProviderTab = !isAdmin && !isProvider;
 
   const accountLocked = useMemo(() => {
     const st = (profile?.status || "").toLowerCase();
@@ -405,18 +404,24 @@ export default function Profile() {
     }
   };
 
+  const handleRequestProvider = () => {
+    setTermsAgreed(false);
+    setTermsDialogOpen(true);
+  };
+
   const handleBecomeProvider = async () => {
     if (!user) return;
-    if (isBusiness || hasBusinessProfile) {
+    if (!termsAgreed) {
       toast({
-        title: isRTL ? "غير متاح" : "Not available",
-        description: isRTL ? "لا يمكن الجمع بين متجر ومزود خدمة" : "You can't be both business and provider",
+        title: isRTL ? "يجب الموافقة على الشروط" : "Terms agreement required",
+        description: isRTL ? "يرجى الموافقة على الشروط والأحكام أولاً" : "Please agree to the terms and conditions first",
         variant: "destructive",
       });
       return;
     }
 
     setBecomingProvider(true);
+    setTermsDialogOpen(false);
     try {
       const { error } = await supabase
         .from("profiles")
@@ -447,28 +452,10 @@ export default function Profile() {
       });
     } finally {
       setBecomingProvider(false);
+      setTermsAgreed(false);
     }
   };
 
-  const handleBecomeBusiness = async () => {
-    if (!user) return;
-    if (isProvider) {
-      toast({
-        title: isRTL ? "غير متاح" : "Not available",
-        description: isRTL ? "لا يمكن الجمع بين مزود ومتجر" : "You can't be both provider and business",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const { error } = await supabase.from("profiles").update({ role: "business" } as any).eq("user_id", user.id);
-    if (error) {
-      toast({ title: isRTL ? "فشل" : "Failed", description: error.message, variant: "destructive" });
-      return;
-    }
-    await refreshProfile?.();
-    navigate("/business-dashboard");
-  };
 
   const handleSoftDelete = async () => {
     if (!user || !profile) return;
@@ -804,7 +791,7 @@ export default function Profile() {
                   {isRTL ? "اختيار الدور" : "Choose your role"}
                 </CardTitle>
                 <CardDescription>
-                  {isRTL ? "يمكنك تفعيل البيع كـ مستخدم، أو التحول إلى مزود/متجر." : "Enable selling as a user, or switch to provider/business."}
+                  {isRTL ? "يمكنك تفعيل البيع كـ مستخدم، أو التحول إلى مزود." : "Enable selling as a user, or become a provider."}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -815,13 +802,13 @@ export default function Profile() {
                     <div className="text-xs text-muted-foreground">
                       {!buySellEnabled
                         ? (isRTL ? "ميزة الشراء والبيع غير مفعلة حالياً." : "Buy & Sell is currently disabled.")
-                        : (isRTL ? "يعرض لوحة المستخدم وأدوات الإعلانات." : "Unlocks user dashboard and listing tools.")}
+                        : (isRTL ? "يفتح أدوات الإعلانات." : "Unlocks listing tools.")}
                     </div>
                   </div>
                   <Switch
                     checked={marketplaceEnabled}
                     onCheckedChange={(v) => setMarketplaceEnabled(Boolean(v))}
-                    disabled={!buySellEnabled || !(!isProvider && !isBusiness)}
+                    disabled={!buySellEnabled || (isProvider ? false : !marketplaceEnabled)}
                     aria-label="marketplace"
                   />
                 </div>
@@ -831,17 +818,8 @@ export default function Profile() {
                     type="button"
                     variant="outline"
                     className="h-12 rounded-xl justify-start gap-2"
-                    onClick={() => navigate("/dashboard")}
-                  >
-                    <ShoppingBag className="h-4 w-4" />
-                    {isRTL ? "لوحة المستخدم" : "User Dashboard"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-12 rounded-xl justify-start gap-2"
                     onClick={() => navigate("/buy-sell/my-listings")}
-                    disabled={!buySellEnabled || !marketplaceEnabled}
+                    disabled={!buySellEnabled || (!marketplaceEnabled && !isProvider)}
                   >
                     <ShoppingBag className="h-4 w-4" />
                     {isRTL ? "إعلاناتي" : "My Listings"}
@@ -861,38 +839,14 @@ export default function Profile() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={handleBecomeProvider}
-                    disabled={becomingProvider || isBusiness || hasBusinessProfile || isProvider}
+                    onClick={handleRequestProvider}
+                    disabled={becomingProvider || isProvider}
                   >
                     {becomingProvider ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
                     <span className="ms-2">{isRTL ? "تفعيل" : "Enable"}</span>
                   </Button>
                 </div>
 
-                {/* Business */}
-                <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
-                  <div className="min-w-0">
-                    <div className="font-medium">{isRTL ? "متجر" : "Business"}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {isRTL ? "أنشئ ملف متجر ثم أضف عروضك." : "Create a business profile and add deals."}
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleBecomeBusiness}
-                    disabled={isProvider}
-                  >
-                    <Briefcase className="h-4 w-4" />
-                    <span className="ms-2">{isRTL ? "فتح" : "Open"}</span>
-                  </Button>
-                </div>
-
-                <div className="text-xs text-muted-foreground">
-                  {isRTL
-                    ? "ملاحظة: لا يمكن الجمع بين مزود خدمة ومتجر."
-                    : "Note: you cannot be both provider and business."}
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -915,7 +869,7 @@ export default function Profile() {
 
                 <CardContent className="space-y-3">
                   <Button
-                    onClick={handleBecomeProvider}
+                    onClick={handleRequestProvider}
                     disabled={becomingProvider}
                     className="h-12 rounded-xl w-full gap-2"
                   >
@@ -1035,6 +989,103 @@ export default function Profile() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Terms of Use Dialog for Provider Request */}
+      <Dialog open={termsDialogOpen} onOpenChange={setTermsDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{isRTL ? "الشروط والأحكام" : "Terms of Use"}</DialogTitle>
+            <DialogDescription>
+              {isRTL
+                ? "يرجى قراءة الشروط والأحكام والموافقة عليها قبل أن تصبح مزود خدمة."
+                : "Please read and agree to the terms and conditions before becoming a provider."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className={`prose max-w-none text-sm ${isRTL ? "text-right" : "text-left"}`}>
+              <p className="whitespace-pre-wrap">
+                {isRTL
+                  ? `الشروط والأحكام لمزودي الخدمة
+
+1. الموافقة على الشروط
+   باستخدامك لمنصة دورا كمزود خدمة، فإنك توافق على الالتزام بهذه الشروط والأحكام.
+
+2. المسؤولية
+   أنت مسؤول عن جميع الخدمات التي تقدمها والتفاعلات مع العملاء.
+
+3. السلوك المهني
+   يجب أن تتصرف بشكل مهني واحترافي في جميع التفاعلات مع العملاء.
+
+4. الموافقة الإدارية
+   طلبك كمزود خدمة سيتم مراجعته من قبل الإدارة. الخدمات التي تضيفها ستكون مخفية حتى الموافقة.
+
+5. دقة المعلومات
+   يجب أن تكون جميع المعلومات التي تقدمها دقيقة وصحيحة.
+
+6. انتهاك الشروط
+   قد يؤدي انتهاك هذه الشروط إلى تعليق أو إلغاء حسابك.
+
+بالموافقة على هذه الشروط، فإنك تقر بأنك قرأت وفهمت جميع البنود أعلاه.`
+                  : `Terms of Use for Service Providers
+
+1. Agreement to Terms
+   By using Dora platform as a service provider, you agree to comply with these terms and conditions.
+
+2. Responsibility
+   You are responsible for all services you provide and interactions with customers.
+
+3. Professional Conduct
+   You must act professionally and respectfully in all interactions with customers.
+
+4. Admin Approval
+   Your provider request will be reviewed by administration. Services you add will be hidden until approval.
+
+5. Information Accuracy
+   All information you provide must be accurate and truthful.
+
+6. Violation of Terms
+   Violation of these terms may result in suspension or cancellation of your account.
+
+By agreeing to these terms, you acknowledge that you have read and understood all the above provisions.`}
+              </p>
+            </div>
+
+            <div className="flex items-start gap-3 p-4 rounded-lg border">
+              <Checkbox
+                id="terms-agree"
+                checked={termsAgreed}
+                onCheckedChange={(checked) => setTermsAgreed(checked === true)}
+                className="mt-1"
+              />
+              <label
+                htmlFor="terms-agree"
+                className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+              >
+                {isRTL
+                  ? "أوافق على الشروط والأحكام وأريد أن أصبح مزود خدمة"
+                  : "I agree to the terms and conditions and want to become a provider"}
+              </label>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setTermsDialogOpen(false)} disabled={becomingProvider}>
+              {isRTL ? "إلغاء" : "Cancel"}
+            </Button>
+            <Button onClick={handleBecomeProvider} disabled={!termsAgreed || becomingProvider}>
+              {becomingProvider ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className={cn("ms-2")}>{isRTL ? "جاري المعالجة..." : "Processing..."}</span>
+                </>
+              ) : (
+                <>{isRTL ? "موافق ومتابعة" : "Agree & Continue"}</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Keep bottom navigation visible on Profile (mobile-first). */}
       <MobileNav />

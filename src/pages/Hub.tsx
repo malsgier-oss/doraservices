@@ -2404,7 +2404,7 @@ export default function Hub() {
                           className="h-16 w-16 rounded-2xl flex items-center justify-center shadow-sm group-hover:shadow-md transition-all duration-300 group-hover:scale-105"
                           style={{ backgroundColor: (c.color || "#888") + "15" }}
                         >
-                          <Icon className="h-8 w-8 text-foreground group-hover:scale-110 transition-transform duration-300" strokeWidth={2} />
+                          <Icon className="h-8 w-8 group-hover:scale-110 transition-transform duration-300" style={{ color: c.color || "#888" }} strokeWidth={2} />
                         </div>
                         <div className="text-sm font-semibold text-foreground leading-tight line-clamp-2 group-hover:text-primary transition-colors">
                           {c.name_ar || c.name}

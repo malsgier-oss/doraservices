@@ -1,26 +1,6 @@
 import { useLanguage } from "@/contexts/LanguageContext";
 import { HUB_CARD_BASE } from "./hubStyles";
-import { ShoppingBag, Smartphone, Car, Home, Shirt, Gamepad2, Book, Dumbbell } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-
-interface Category {
-  id: string;
-  name: string;
-  nameAr: string;
-  icon: LucideIcon;
-  color: string;
-}
-
-const BUY_SELL_CATEGORIES: Category[] = [
-  { id: "electronics", name: "Electronics", nameAr: "إلكترونيات", icon: Smartphone, color: "#3b82f6" },
-  { id: "vehicles", name: "Vehicles", nameAr: "مركبات", icon: Car, color: "#ef4444" },
-  { id: "home", name: "Home & Garden", nameAr: "المنزل والحديقة", icon: Home, color: "#22c55e" },
-  { id: "fashion", name: "Fashion", nameAr: "أزياء", icon: Shirt, color: "#a855f7" },
-  { id: "sports", name: "Sports", nameAr: "رياضة", icon: Dumbbell, color: "#f59e0b" },
-  { id: "games", name: "Games", nameAr: "ألعاب", icon: Gamepad2, color: "#ec4899" },
-  { id: "books", name: "Books", nameAr: "كتب", icon: Book, color: "#06b6d4" },
-  { id: "other", name: "Other", nameAr: "أخرى", icon: ShoppingBag, color: "#64748b" },
-];
+import { BUY_SELL_CATEGORIES } from "@/components/hub/buySellCategories";
 
 export { BUY_SELL_CATEGORIES };
 
