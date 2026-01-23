@@ -450,25 +450,6 @@ export default function Profile() {
     }
   };
 
-  const handleBecomeBusiness = async () => {
-    if (!user) return;
-    if (isProvider) {
-      toast({
-        title: isRTL ? "غير متاح" : "Not available",
-        description: isRTL ? "لا يمكن الجمع بين مزود ومتجر" : "You can't be both provider and business",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const { error } = await supabase.from("profiles").update({ role: "business" } as any).eq("user_id", user.id);
-    if (error) {
-      toast({ title: isRTL ? "فشل" : "Failed", description: error.message, variant: "destructive" });
-      return;
-    }
-    await refreshProfile?.();
-    navigate("/business-dashboard");
-  };
 
   const handleSoftDelete = async () => {
     if (!user || !profile) return;
@@ -867,31 +848,6 @@ export default function Profile() {
                     {becomingProvider ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
                     <span className="ms-2">{isRTL ? "تفعيل" : "Enable"}</span>
                   </Button>
-                </div>
-
-                {/* Business */}
-                <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
-                  <div className="min-w-0">
-                    <div className="font-medium">{isRTL ? "متجر" : "Business"}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {isRTL ? "أنشئ ملف متجر ثم أضف عروضك." : "Create a business profile and add deals."}
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleBecomeBusiness}
-                    disabled={isProvider}
-                  >
-                    <Briefcase className="h-4 w-4" />
-                    <span className="ms-2">{isRTL ? "فتح" : "Open"}</span>
-                  </Button>
-                </div>
-
-                <div className="text-xs text-muted-foreground">
-                  {isRTL
-                    ? "ملاحظة: لا يمكن الجمع بين مزود خدمة ومتجر."
-                    : "Note: you cannot be both provider and business."}
                 </div>
               </CardContent>
             </Card>

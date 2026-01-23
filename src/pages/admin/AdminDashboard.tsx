@@ -17,10 +17,6 @@ export default function AdminDashboard() {
 
   const statCards = [
     { label: "Total Users", value: stats?.totalUsers || 0, icon: Users, color: "text-primary" },
-    { label: "Business Users", value: stats?.businessUsers || 0, icon: Store, color: "text-accent" },
-    { label: "Pending Businesses", value: stats?.pendingBusinesses || 0, icon: Clock, color: "text-yellow-500" },
-    { label: "Approved Businesses", value: stats?.approvedBusinesses || 0, icon: TrendingUp, color: "text-success" },
-    { label: "Active Deals", value: stats?.activeDeals || 0, icon: Tag, color: "text-primary" },
     { label: "Suspended Users", value: stats?.suspendedProfiles || 0, icon: ShieldAlert, color: "text-destructive" },
     { label: "Pending Reports", value: stats?.pendingReports || 0, icon: AlertTriangle, color: "text-yellow-500" },
   ];

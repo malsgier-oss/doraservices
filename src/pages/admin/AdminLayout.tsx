@@ -16,7 +16,6 @@ const preloadAdminRoute = (to: string) => {
   if (to === "/admin/users") void import("@/pages/admin/AdminUsers");
   if (to === "/admin/providers") void import("@/pages/admin/AdminProviders");
   if (to === "/admin/services") void import("@/pages/admin/AdminServices");
-  if (to === "/admin/businesses") void import("@/pages/admin/AdminBusinesses");
   if (to === "/admin/deals") void import("@/pages/admin/AdminDeals");
   if (to === "/admin/listings") void import("@/pages/admin/AdminListings");
   if (to === "/admin/reviews") void import("@/pages/admin/AdminReviews");

@@ -1,8 +1,7 @@
-import { Home, Heart, User, Shield, LayoutDashboard, Briefcase } from "lucide-react";
+import { Home, Heart, User, Shield, LayoutDashboard } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { useMyBusiness } from "@/hooks/useMyBusiness";
 import { cn } from "@/lib/utils";
 
 function isAdmin(role: string | null | undefined) {
@@ -12,7 +11,6 @@ function isAdmin(role: string | null | undefined) {
 export function MobileNav() {
   const { t, isRTL } = useLanguage();
   const { profile } = useAuth();
-  const { data: myBusiness } = useMyBusiness();
   const location = useLocation();
 
   const preloadRoute = (to: string) => {
@@ -21,27 +19,21 @@ export function MobileNav() {
     if (to === "/profile") void import("@/pages/Profile");
     if (to === "/provider-dashboard") void import("@/pages/ProviderDashboard");
     if (to === "/dashboard") void import("@/pages/Dashboard");
-    if (to === "/business-dashboard") void import("@/pages/BusinessDashboard");
     if (to.startsWith("/admin")) void import("@/pages/admin/AdminLayout");
   };
 
   const role = (profile?.role || "user").toString();
   const admin = isAdmin(role);
   const providerApproved = (role || "").toLowerCase() === "provider" && (profile?.provider_status || "").toLowerCase() === "approved";
-  const hasBusiness = !!myBusiness;
   const marketplaceEnabled = !!(profile as any)?.marketplace_enabled;
 
-  const dashboardTo = providerApproved ? "/provider-dashboard" : hasBusiness ? "/business-dashboard" : "/dashboard";
-  const dashboardIcon = providerApproved ? LayoutDashboard : hasBusiness ? Briefcase : LayoutDashboard;
-  const dashboardLabel = providerApproved
-    ? (isRTL ? "لوحة المزود" : "Provider")
-    : hasBusiness
-      ? (isRTL ? "لوحة المتجر" : "Business")
-      : (isRTL ? "لوحة التحكم" : "Dashboard");
+  const dashboardTo = providerApproved ? "/provider-dashboard" : "/dashboard";
+  const dashboardIcon = LayoutDashboard;
+  const dashboardLabel = providerApproved ? (isRTL ? "لوحة المزود" : "Provider") : (isRTL ? "لوحة التحكم" : "Dashboard");
 
   const navItems = [
     { to: "/", icon: Home, label: t.nav.home },
-    ...(providerApproved || hasBusiness || marketplaceEnabled
+    ...(providerApproved || marketplaceEnabled
       ? [{ to: dashboardTo, icon: dashboardIcon, label: dashboardLabel }]
       : []),
     ...(admin

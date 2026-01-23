@@ -1,6 +1,6 @@
 import { useHubStats } from "@/hooks/useHubStats";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, Store, Tag, MapPin } from "lucide-react";
+import { Users, MapPin } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 
@@ -16,7 +16,7 @@ export function StatsBar() {
           isRTL ? "rtl" : "ltr"
         )}
       >
-        {Array.from({ length: 4 }).map((_, i) => (
+        {Array.from({ length: 2 }).map((_, i) => (
           <Skeleton key={i} className="h-16 w-[140px] shrink-0 rounded-xl" />
         ))}
       </div>
@@ -31,18 +31,6 @@ export function StatsBar() {
       label: isRTL ? "مزودين" : "Providers",
       value: stats.totalServices.toLocaleString(),
       color: "text-blue-600 dark:text-blue-400",
-    },
-    {
-      icon: Store,
-      label: isRTL ? "متاجر" : "Businesses",
-      value: stats.totalBusinesses.toLocaleString(),
-      color: "text-green-600 dark:text-green-400",
-    },
-    {
-      icon: Tag,
-      label: isRTL ? "عروض" : "Deals",
-      value: stats.activeDeals.toLocaleString(),
-      color: "text-purple-600 dark:text-purple-400",
     },
     {
       icon: MapPin,

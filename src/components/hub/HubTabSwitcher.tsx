@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
 import { useBuySellStats } from "@/hooks/useBuySellStats";
@@ -25,9 +24,7 @@ export function HubTabSwitcher({
     return null;
   }
 
-  const dealsCount = stats?.activeDeals || 0;
-  const businessesCount = stats?.totalBusinesses || 0;
-  const totalCount = dealsCount + businessesCount;
+  const totalCount = stats?.activeListings || 0;
 
   return (
     <div

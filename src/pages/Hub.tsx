@@ -36,17 +36,12 @@ import { HubTabSwitcher } from "@/components/hub/HubTabSwitcher";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
 import { BuySellHubTab } from "@/components/hub/BuySellHubTab";
-import { BusinessDetailSheet } from "@/components/hub/BusinessDetailSheet";
 import { ListingDetailSheet } from "@/components/hub/ListingDetailSheet";
 import { ListingListSheet } from "@/components/hub/ListingListSheet";
 import { SearchFilters, type FilterState } from "@/components/hub/SearchFilters";
 import { AnimatedSection } from "@/components/hub/AnimatedSection";
-import { DealDetailSheet } from "@/components/hub/DealDetailSheet";
-import { type Deal } from "@/hooks/useDeals";
-import { type Business } from "@/hooks/useBusinesses";
 import { type Listing } from "@/hooks/useListings";
 import { useListing } from "@/hooks/useListing";
-import { useBusiness as useBusinessById } from "@/hooks/useBusiness";
 import { HUB_CARD_BASE } from "@/components/hub/hubStyles";
 
 import { useCategories } from "@/hooks/useCategories";
@@ -354,35 +349,11 @@ export default function Hub() {
   // Flag to hide business/store features
   const SHOW_BUSINESSES = false;
 
-  // Deal detail state
-  const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
-  const [dealSheetOpen, setDealSheetOpen] = useState(false);
 
-  const openDealDetail = (deal: Deal) => {
-    // Ensure we never have two Drawers open at once
-    setListingSheetOpen(false);
-    setSelectedListing(null);
-    setSelectedDeal(deal);
-    setDealSheetOpen(true);
-  };
-
-  // Business detail state
-  const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
-  const [businessSheetOpen, setBusinessSheetOpen] = useState(false);
-
-  const openBusinessDetail = (business: Business) => {
-    if (!SHOW_BUSINESSES) return;
-    // Ensure we never have two Drawers open at once
-    setListingSheetOpen(false);
-    setSelectedListing(null);
-    setSelectedBusiness(business);
-    setBusinessSheetOpen(true);
-  };
 
   // Buy/Sell category filter state
   const [selectedBuySellCategory, setSelectedBuySellCategory] = useState<string | null>(null);
   const [buySellSearchQuery, setBuySellSearchQuery] = useState<string>("");
-  const [buySellMode, setBuySellMode] = useState<"all" | "listings" | "business">("all");
 
   // Listing detail state
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
@@ -392,12 +363,6 @@ export default function Hub() {
   const [listingListSearch, setListingListSearch] = useState<string>("");
 
   const openListingList = (params?: { category?: string | null; search?: string | null }) => {
-    setDealSheetOpen(false);
-    setSelectedDeal(null);
-    if (SHOW_BUSINESSES) {
-      setBusinessSheetOpen(false);
-      setSelectedBusiness(null);
-    }
     setListingSheetOpen(false);
     setSelectedListing(null);
     setListingListCategory(params?.category ?? selectedBuySellCategory);
@@ -407,12 +372,6 @@ export default function Hub() {
 
   const openListingDetail = (listing: Listing) => {
     // Ensure we never have two Drawers open at once
-    setDealSheetOpen(false);
-    setSelectedDeal(null);
-    if (SHOW_BUSINESSES) {
-      setBusinessSheetOpen(false);
-      setSelectedBusiness(null);
-    }
     setListingListSheetOpen(false);
     setSelectedListing(listing);
     setListingSheetOpen(true);
@@ -423,35 +382,12 @@ export default function Hub() {
     const p = new URLSearchParams(location.search);
     return {
       listingId: p.get("listing")?.trim() || null,
-      businessId: SHOW_BUSINESSES ? (p.get("business")?.trim() || null) : null,
-      dealId: p.get("deal")?.trim() || null,
     };
   }, [location.search]);
 
   const { data: deepLinkListing } = useListing(deepLinkParams.listingId, !!deepLinkParams.listingId);
-  const { data: deepLinkBusiness } = SHOW_BUSINESSES ? useBusinessById(deepLinkParams.businessId ?? null) : { data: null };
-  const [deepLinkDeal, setDeepLinkDeal] = useState<Deal | null>(null);
   const deepLinkHandledRef = useRef(false);
 
-  useEffect(() => {
-    if (!deepLinkParams.dealId) {
-      setDeepLinkDeal(null);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      const { data, error } = await supabase
-        .from("deals")
-        .select("*")
-        .eq("id", deepLinkParams.dealId)
-        .eq("status", "active")
-        .is("archived_at", null)
-        .maybeSingle();
-      if (cancelled || error) return;
-      setDeepLinkDeal((data as Deal) || null);
-    })();
-    return () => { cancelled = true; };
-  }, [deepLinkParams.dealId]);
 
   const { data: notifications } = useNotifications();
   const { data: unreadCount } = useUnreadCount();
@@ -797,25 +733,10 @@ export default function Hub() {
       navigate("/", { replace: true });
       return;
     }
-    if (SHOW_BUSINESSES && businessId && deepLinkBusiness && !deepLinkHandledRef.current) {
-      deepLinkHandledRef.current = true;
-      setActiveTab("buy-sell");
-      openBusinessDetail(deepLinkBusiness as Business);
-      navigate("/", { replace: true });
-      return;
-    }
-    if (dealId && deepLinkDeal && !deepLinkHandledRef.current) {
-      deepLinkHandledRef.current = true;
-      setActiveTab("buy-sell");
-      openDealDetail(deepLinkDeal);
-      setDeepLinkDeal(null);
-      navigate("/", { replace: true });
-      return;
-    }
     if (!listingId && !(SHOW_BUSINESSES && businessId) && !dealId) {
       deepLinkHandledRef.current = false;
     }
-  }, [buySellEnabled, deepLinkParams, deepLinkListing, deepLinkBusiness, deepLinkDeal, navigate, SHOW_BUSINESSES]);
+  }, [buySellEnabled, deepLinkParams, deepLinkListing, navigate, SHOW_BUSINESSES]);
 
   // Bottom sheets
   // IMPORTANT: Do NOT mount two Drawers at the same time.
@@ -1808,17 +1729,12 @@ export default function Hub() {
           <TabsContent value="buy-sell" className="mt-0 space-y-6">
             <BuySellHubTab
               cityId={cityId}
-              buySellMode={buySellMode}
-              onBuySellModeChange={setBuySellMode}
               selectedBuySellCategory={selectedBuySellCategory}
               onCategoryChange={setSelectedBuySellCategory}
               buySellSearchQuery={buySellSearchQuery}
               openListingList={openListingList}
               openListingDetail={openListingDetail}
-              openDealDetail={openDealDetail}
-              openBusinessDetail={openBusinessDetail}
               navigate={navigate}
-              showBusinesses={SHOW_BUSINESSES}
             />
           </TabsContent>
         </Tabs>
@@ -2278,7 +2194,7 @@ export default function Hub() {
       />
 
       {/* Floating CTA (Buy/Sell listings) */}
-      {activeTab === "buy-sell" && (buySellMode === "all" || buySellMode === "listings") ? (
+      {activeTab === "buy-sell" && true ? (
         <button
           type="button"
           onClick={() => navigate("/buy-sell/create-listing")}
@@ -2319,39 +2235,6 @@ export default function Hub() {
             <Search className="w-5 h-5" />
           </button>
         </div>
-      )}
-
-      {/* Deal Detail Sheet */}
-      <DealDetailSheet
-        open={dealSheetOpen}
-        onOpenChange={(open) => {
-          setDealSheetOpen(open);
-          if (!open) {
-            setSelectedDeal(null);
-          }
-        }}
-        deal={selectedDeal}
-        onViewBusiness={SHOW_BUSINESSES ? ((b) => {
-          setDealSheetOpen(false);
-          setSelectedDeal(null);
-          setSelectedBusiness(b as any);
-          setBusinessSheetOpen(true);
-        }) : undefined}
-      />
-
-      {/* Business Detail Sheet */}
-      {SHOW_BUSINESSES && (
-        <BusinessDetailSheet
-          open={businessSheetOpen}
-          onOpenChange={(open) => {
-            setBusinessSheetOpen(open);
-            if (!open) {
-              setSelectedBusiness(null);
-            }
-          }}
-          business={selectedBusiness}
-          onDealClick={openDealDetail}
-        />
       )}
 
       {activeSheet === "browse" && (
