@@ -44,6 +44,7 @@ import { NewListings } from "@/components/hub/NewListings";
 import { BusinessDirectory } from "@/components/hub/BusinessDirectory";
 import { BusinessDetailSheet } from "@/components/hub/BusinessDetailSheet";
 import { ListingCard } from "@/components/hub/ListingCard";
+import { ListingCardGroup } from "@/components/hub/ListingCardGroup";
 import { ListingDetailSheet } from "@/components/hub/ListingDetailSheet";
 import { SearchFilters, type FilterState } from "@/components/hub/SearchFilters";
 import { AnimatedSection } from "@/components/hub/AnimatedSection";
@@ -530,15 +531,21 @@ function BuySellListingsSection({
       <HubSection title={t("إعلانات للبيع", "Listings")} icon={Tag}>
         <div
           dir={isRTL ? "rtl" : "ltr"}
-          className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
-          style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+          className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory scroll-smooth -mx-4 px-4"
+          style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y", scrollSnapType: "x mandatory" }}
         >
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={`listing-loading-${i}`} className={`${HUB_CARD_BASE} bg-card shrink-0 w-[72vw] max-w-[320px] snap-center overflow-hidden`}>
-              <Skeleton className="aspect-[4/3] w-full" />
-              <div className="p-4">
-                <Skeleton className="h-4 w-24 mb-2" />
-                <Skeleton className="h-4 w-36" />
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={`listing-loading-${i}`} className={`${HUB_CARD_BASE} bg-card shrink-0 w-[90vw] max-w-[700px] snap-start overflow-hidden`}>
+              <div className="grid grid-cols-2 gap-3 p-4">
+                {Array.from({ length: 4 }).map((_, j) => (
+                  <div key={`listing-loading-${i}-${j}`} className="rounded-xl overflow-hidden">
+                    <Skeleton className="aspect-[4/3] w-full" />
+                    <div className="p-2.5">
+                      <Skeleton className="h-3 w-16 mb-1" />
+                      <Skeleton className="h-3 w-12" />
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}
@@ -566,17 +573,25 @@ function BuySellListingsSection({
     );
   }
 
+  const labels = {
+    noPhoto: t("لا توجد صورة", "No photo"),
+  };
+
   return (
     <HubSection title={t("إعلانات للبيع", "Listings")} icon={Tag}>
       <div
         dir={isRTL ? "rtl" : "ltr"}
-        className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
-        style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+        className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory scroll-smooth -mx-4 px-4"
+        style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y", scrollSnapType: "x mandatory" }}
       >
-        {listings.map((listing) => (
-          <div key={listing.id} className="shrink-0 w-[72vw] max-w-[320px] snap-center">
-            <ListingCard listing={listing} isRTL={isRTL} onClick={() => onListingClick(listing)} />
-          </div>
+        {chunkArray(listings.slice(0, 8), 4).map((chunk, chunkIndex) => (
+          <ListingCardGroup
+            key={`chunk-${chunkIndex}`}
+            listings={chunk}
+            isRTL={isRTL}
+            onOpen={onListingClick}
+            labels={labels}
+          />
         ))}
       </div>
     </HubSection>
