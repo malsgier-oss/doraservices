@@ -35,8 +35,7 @@ export function ListingDetailSheet({ open, onOpenChange, listing, onSelectListin
   const carouselRef = useRef<HTMLDivElement | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  // Profiles are SELECTable only for authenticated users (RLS).
-  const { data: seller } = usePublicProfileByUserId(listing?.user_id || null, !!user);
+  const { data: seller } = usePublicProfileByUserId(listing?.user_id || null, open && !!listing);
 
   const { data: maybeLike } = useListings({
     cityId: listing?.city_id || null,
@@ -274,7 +273,7 @@ export function ListingDetailSheet({ open, onOpenChange, listing, onSelectListin
             <div className="bg-muted/30 rounded-xl p-4 space-y-1 border border-border/50">
               <div className="text-sm font-semibold">{t("البائع", "Seller")}</div>
               <div className="text-sm text-muted-foreground">
-                {user ? (seller?.full_name || t("مستخدم", "User")) : t("سجّل دخولك لعرض بيانات البائع", "Sign in to view seller info")}
+                {seller?.full_name || t("بيانات البائع غير متوفرة", "Seller info unavailable")}
               </div>
             </div>
 
@@ -359,53 +358,41 @@ export function ListingDetailSheet({ open, onOpenChange, listing, onSelectListin
 
         {/* Bottom contact bar */}
         <div className="border-t border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]" dir={isRTL ? "rtl" : "ltr"}>
-          {user ? (
-            canContact ? (
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  size="lg"
-                  className="flex-1 gap-2 h-12"
-                  onClick={() => {
-                    if (telLink) window.location.href = telLink;
-                  }}
-                >
-                  <Phone className="h-4 w-4" />
-                  {t("اتصال", "Call")}
-                </Button>
-                <Button
-                  type="button"
-                  size="lg"
-                  variant="secondary"
-                  className={cn(
-                    "flex-1 gap-2 h-12 bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400",
-                    !canWhatsApp && "opacity-50",
-                  )}
-                  disabled={!canWhatsApp}
-                  onClick={() => {
-                    if (waLink) window.location.href = waLink;
-                  }}
-                >
-                  <MessageCircle className="h-4 w-4" />
-                  {t("واتساب", "WhatsApp")}
-                </Button>
-              </div>
-            ) : (
-              <div className="text-sm text-muted-foreground text-center">{t("رقم الهاتف غير متوفر حالياً", "Phone number not available")}</div>
-            )
-          ) : (
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-sm text-muted-foreground">
-                {t("سجّل دخولك للتواصل مع البائع", "Sign in to contact the seller")}
-              </div>
-              <Button type="button" variant="outline" onClick={() => (window.location.href = "/auth?tab=login")}>
-                {t("تسجيل الدخول", "Sign in")}
+          {canContact ? (
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="lg"
+                className="flex-1 gap-2 h-12"
+                onClick={() => {
+                  if (telLink) window.location.href = telLink;
+                }}
+              >
+                <Phone className="h-4 w-4" />
+                {t("اتصال", "Call")}
+              </Button>
+              <Button
+                type="button"
+                size="lg"
+                variant="secondary"
+                className={cn(
+                  "flex-1 gap-2 h-12 bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400",
+                  !canWhatsApp && "opacity-50",
+                )}
+                disabled={!canWhatsApp}
+                onClick={() => {
+                  if (waLink) window.location.href = waLink;
+                }}
+              >
+                <MessageCircle className="h-4 w-4" />
+                {t("واتساب", "WhatsApp")}
               </Button>
             </div>
+          ) : (
+            <div className="text-sm text-muted-foreground text-center">{t("رقم الهاتف غير متوفر حالياً", "Phone number not available")}</div>
           )}
         </div>
       </DrawerContent>
     </Drawer>
   );
 }
-

@@ -43,9 +43,9 @@ import { TrendingDeals } from "@/components/hub/TrendingDeals";
 import { NewListings } from "@/components/hub/NewListings";
 import { BusinessDirectory } from "@/components/hub/BusinessDirectory";
 import { BusinessDetailSheet } from "@/components/hub/BusinessDetailSheet";
-import { ListingCard } from "@/components/hub/ListingCard";
 import { ListingCardGroup } from "@/components/hub/ListingCardGroup";
 import { ListingDetailSheet } from "@/components/hub/ListingDetailSheet";
+import { ListingListSheet } from "@/components/hub/ListingListSheet";
 import { SearchFilters, type FilterState } from "@/components/hub/SearchFilters";
 import { AnimatedSection } from "@/components/hub/AnimatedSection";
 import { DealDetailSheet } from "@/components/hub/DealDetailSheet";
@@ -581,10 +581,6 @@ function BuySellListingsSection({
     );
   }
 
-  const labels = {
-    noPhoto: t("لا توجد صورة", "No photo"),
-  };
-
   return (
     <HubSection title={t("إعلانات للبيع", "Listings")} icon={Tag}>
       <div
@@ -598,7 +594,6 @@ function BuySellListingsSection({
             listings={chunk}
             isRTL={isRTL}
             onOpen={onListingClick}
-            labels={labels}
           />
         ))}
       </div>
@@ -648,6 +643,23 @@ export default function Hub() {
   // Listing detail state
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [listingSheetOpen, setListingSheetOpen] = useState(false);
+  const [listingListSheetOpen, setListingListSheetOpen] = useState(false);
+  const [listingListCategory, setListingListCategory] = useState<string | null>(null);
+  const [listingListSearch, setListingListSearch] = useState<string>("");
+
+  const openListingList = (params?: { category?: string | null; search?: string | null }) => {
+    setDealSheetOpen(false);
+    setSelectedDeal(null);
+    if (SHOW_BUSINESSES) {
+      setBusinessSheetOpen(false);
+      setSelectedBusiness(null);
+    }
+    setListingSheetOpen(false);
+    setSelectedListing(null);
+    setListingListCategory(params?.category ?? selectedBuySellCategory);
+    setListingListSearch(params?.search ?? buySellSearchQuery);
+    setListingListSheetOpen(true);
+  };
 
   const openListingDetail = (listing: Listing) => {
     // Ensure we never have two Drawers open at once
@@ -657,6 +669,7 @@ export default function Hub() {
       setBusinessSheetOpen(false);
       setSelectedBusiness(null);
     }
+    setListingListSheetOpen(false);
     setSelectedListing(listing);
     setListingSheetOpen(true);
   };
@@ -2090,7 +2103,9 @@ export default function Hub() {
                     console.log("Category clicked:", catId);
                   }
                   // Toggle category filter - if same category clicked, clear filter
-                  setSelectedBuySellCategory(selectedBuySellCategory === catId ? null : catId);
+                  const nextCategory = selectedBuySellCategory === catId ? null : catId;
+                  setSelectedBuySellCategory(nextCategory);
+                  openListingList({ category: nextCategory, search: buySellSearchQuery });
                 }} />
                 {selectedBuySellCategory && (
                   <div className="mt-3 flex items-center gap-2">
@@ -2125,7 +2140,12 @@ export default function Hub() {
                         cityId={cityId}
                         category={selectedBuySellCategory}
                         search={buySellSearchQuery}
-                        onListingClick={openListingDetail}
+                        onListingClick={(listing) => {
+                          openListingList({
+                            category: listing.category || selectedBuySellCategory,
+                            search: buySellSearchQuery,
+                          });
+                        }}
                         onEmptyAction={() => navigate("/buy-sell/create-listing")}
                       />
                     </HubSection>
@@ -2753,6 +2773,15 @@ export default function Hub() {
           </div>
         </div>
       )}
+
+      <ListingListSheet
+        open={listingListSheetOpen}
+        onOpenChange={(open) => setListingListSheetOpen(open)}
+        cityId={cityId}
+        category={listingListCategory}
+        search={listingListSearch}
+        onSelectListing={openListingDetail}
+      />
 
       <ListingDetailSheet
         open={listingSheetOpen}
