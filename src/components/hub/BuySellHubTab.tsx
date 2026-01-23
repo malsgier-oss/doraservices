@@ -271,6 +271,7 @@ interface BuySellHubTabProps {
   onCategoryChange: (category: string | null) => void;
   buySellSearchQuery: string;
   openListingList: (params?: { category?: string | null; search?: string | null }) => void;
+  openListingDetail: (listing: Listing) => void;
   openDealDetail: (deal: Deal) => void;
   openBusinessDetail: (business: Business) => void;
   navigate: (path: string) => void;
@@ -285,6 +286,7 @@ export function BuySellHubTab({
   onCategoryChange,
   buySellSearchQuery,
   openListingList,
+  openListingDetail,
   openDealDetail,
   openBusinessDetail,
   navigate,
@@ -382,10 +384,7 @@ export function BuySellHubTab({
               category={selectedBuySellCategory}
               search={buySellSearchQuery}
               onListingClick={(listing) => {
-                openListingList({
-                  category: listing.category || selectedBuySellCategory,
-                  search: buySellSearchQuery,
-                });
+                openListingDetail(listing);
               }}
               onEmptyAction={() => navigate("/buy-sell/create-listing")}
             />
