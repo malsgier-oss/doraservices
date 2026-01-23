@@ -104,6 +104,17 @@ export default function Profile() {
   const [roleConfirmOpen, setRoleConfirmOpen] = useState(false);
   const [roleConfirmTarget, setRoleConfirmTarget] = useState<"provider" | "business" | null>(null);
 
+
+  // ---- Role & access (single source of truth) ----
+  const currentRole = (profile?.role || "user").toString().toLowerCase();
+  const isAdmin = currentRole === "admin";
+  const isProviderRole = currentRole === "provider";
+  const isBusinessRole = currentRole === "business";
+  const isProviderOrBusiness = isProviderRole || isBusinessRole;
+  const isRegularUser = !isProviderOrBusiness && !isAdmin;
+  const hasBusinessProfile = !!myBusiness;
+
+
   // Route guard
   useEffect(() => {
     if (loading || profileLoading) return;
@@ -164,15 +175,6 @@ export default function Profile() {
   }, [cities, cityId, language]);
 
   const providerStatus = profile?.provider_status || null;
-
-  // ---- Role & access (single source of truth) ----
-  const currentRole = (profile?.role || "user").toString().toLowerCase();
-  const isAdmin = currentRole === "admin";
-  const isProviderRole = currentRole === "provider";
-  const isBusinessRole = currentRole === "business";
-  const isProviderOrBusiness = isProviderRole || isBusinessRole;
-  const isRegularUser = !isProviderOrBusiness && !isAdmin;
-  const hasBusinessProfile = !!myBusiness;
 
 
   const accountLocked = useMemo(() => {
