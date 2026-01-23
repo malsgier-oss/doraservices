@@ -646,10 +646,6 @@ export default function Hub() {
   const [buySellSearchQuery, setBuySellSearchQuery] = useState<string>("");
   const [buySellMode, setBuySellMode] = useState<"all" | "listings" | "business">("all");
 
-  // Buy/Sell category drawer state
-  const [buySellCategoryDrawerOpen, setBuySellCategoryDrawerOpen] = useState(false);
-  const [selectedCategoryForDrawer, setSelectedCategoryForDrawer] = useState<string | null>(null);
-
   // Listing detail state
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [listingSheetOpen, setListingSheetOpen] = useState(false);
@@ -662,8 +658,6 @@ export default function Hub() {
       setBusinessSheetOpen(false);
       setSelectedBusiness(null);
     }
-    setBuySellCategoryDrawerOpen(false);
-    setSelectedCategoryForDrawer(null);
     setSelectedListing(listing);
     setListingSheetOpen(true);
   };
@@ -2404,7 +2398,7 @@ export default function Hub() {
                           className="h-16 w-16 rounded-2xl flex items-center justify-center shadow-sm group-hover:shadow-md transition-all duration-300 group-hover:scale-105"
                           style={{ backgroundColor: (c.color || "#888") + "15" }}
                         >
-                          <Icon className="h-8 w-8 group-hover:scale-110 transition-transform duration-300" style={{ color: c.color || "#888" }} strokeWidth={2} />
+                          <Icon className="h-8 w-8 text-foreground group-hover:scale-110 transition-transform duration-300" strokeWidth={2} />
                         </div>
                         <div className="text-sm font-semibold text-foreground leading-tight line-clamp-2 group-hover:text-primary transition-colors">
                           {c.name_ar || c.name}
@@ -2782,6 +2776,27 @@ export default function Hub() {
           setListingSheetOpen(true);
         }}
       />
+
+      {/* Buy/Sell Category Drawer */}
+      {selectedCategoryForDrawer && (() => {
+        const category = BUY_SELL_CATEGORIES.find(c => c.id === selectedCategoryForDrawer);
+        return (
+          <BuySellCategoryDrawer
+            open={buySellCategoryDrawerOpen}
+            onOpenChange={(open) => {
+              setBuySellCategoryDrawerOpen(open);
+              if (!open) {
+                setSelectedCategoryForDrawer(null);
+              }
+            }}
+            categoryId={selectedCategoryForDrawer}
+            categoryName={category?.name}
+            categoryNameAr={category?.nameAr}
+            cityId={cityId}
+            onListingClick={openListingDetail}
+          />
+        );
+      })()}
 
       {/* Floating CTA (Buy/Sell listings) */}
       {activeTab === "buy-sell" && (buySellMode === "all" || buySellMode === "listings") ? (
