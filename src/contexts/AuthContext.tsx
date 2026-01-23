@@ -96,41 +96,81 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const metaCityId = typeof meta.city_id === "string" ? (meta.city_id as string) : null;
     const metaCityName = typeof meta.city === "string" ? (meta.city as string) : null;
 
-    const payload: TablesInsert<"profiles"> = {
-      user_id: authUser.id,
-      full_name: overrides?.fullName ?? (existing ? undefined : metaFullName),
-      phone: overrides?.phone ?? (existing ? undefined : metaPhone),
-      city_id: overrides?.cityId ?? (existing ? undefined : metaCityId),
-      city: overrides?.cityName ?? (existing ? undefined : metaCityName),
-      // Dora P0: regular users should NOT have any provider state.
-      // Set is_verified to false for new users (they need admin verification)
-      ...(existing ? {} : ({ role: "user", provider_status: null, is_verified: false } as any)),
-    };
-
     if (existing) {
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          full_name: overrides?.fullName ?? undefined,
-          phone: overrides?.phone ?? undefined,
-          city_id: overrides?.cityId ?? undefined,
-          city: overrides?.cityName ?? undefined,
-          // If this user is not a provider, ensure provider_status stays null.
-          ...(overrides && !isProviderLike(String(existing.role || "user"))
-            ? ({ provider_status: null } as any)
-            : {}),
-        })
-        .eq("user_id", authUser.id);
+      // Profile exists - use update, but don't touch is_verified (it's already set by trigger or previous operations)
+      const updateData: any = {};
+      if (overrides?.fullName !== undefined) updateData.full_name = overrides.fullName;
+      if (overrides?.phone !== undefined) updateData.phone = overrides.phone;
+      if (overrides?.cityId !== undefined) updateData.city_id = overrides.cityId;
+      if (overrides?.cityName !== undefined) updateData.city = overrides.cityName;
+      
+      // If this user is not a provider, ensure provider_status stays null.
+      if (overrides && !isProviderLike(String(existing.role || "user"))) {
+        updateData.provider_status = null;
+      }
 
-      if (updateError) {
-        console.error("[ensureProfile] update error:", updateError);
-        return existing as Profile;
+      if (Object.keys(updateData).length > 0) {
+        const { error: updateError } = await supabase
+          .from("profiles")
+          .update(updateData)
+          .eq("user_id", authUser.id);
+
+        if (updateError) {
+          console.error("[ensureProfile] update error:", updateError);
+          return existing as Profile;
+        }
       }
     } else {
-      const { error: upsertError } = await supabase.from("profiles").upsert(payload, { onConflict: "user_id" });
-      if (upsertError) {
-        console.error("[ensureProfile] upsert error:", upsertError);
-        return null;
+      // Profile doesn't exist - create new one with is_verified = false
+      const insertPayload: TablesInsert<"profiles"> = {
+        user_id: authUser.id,
+        full_name: overrides?.fullName ?? metaFullName ?? null,
+        phone: overrides?.phone ?? metaPhone ?? null,
+        city_id: overrides?.cityId ?? metaCityId ?? null,
+        city: overrides?.cityName ?? metaCityName ?? null,
+        role: "user",
+        provider_status: null,
+        is_verified: false, // Explicitly set to false for new signups
+      };
+
+      const { error: insertError } = await supabase
+        .from("profiles")
+        .insert(insertPayload);
+
+      if (insertError) {
+        console.error("[ensureProfile] insert error:", insertError);
+        // If insert fails (e.g., profile was created by trigger between check and insert),
+        // try to fetch it and update instead
+        const { data: triggerCreated } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("user_id", authUser.id)
+          .maybeSingle();
+        
+        if (triggerCreated) {
+          // Profile was created by trigger, update it with our data
+          const updateData: any = {};
+          if (insertPayload.full_name) updateData.full_name = insertPayload.full_name;
+          if (insertPayload.phone) updateData.phone = insertPayload.phone;
+          if (insertPayload.city_id) updateData.city_id = insertPayload.city_id;
+          if (insertPayload.city) updateData.city = insertPayload.city;
+          
+          if (Object.keys(updateData).length > 0) {
+            await supabase
+              .from("profiles")
+              .update(updateData)
+              .eq("user_id", authUser.id);
+          }
+          
+          // Ensure is_verified is false (in case trigger didn't set it)
+          await supabase
+            .from("profiles")
+            .update({ is_verified: false })
+            .eq("user_id", authUser.id)
+            .is("is_verified", null); // Only update if currently null
+        } else {
+          return null;
+        }
       }
     }
 
@@ -282,7 +322,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Ensure profile exists and fill with overrides
-      // Set is_verified to false explicitly for new signups
+      // ensureProfile now handles is_verified correctly (sets to false for new users)
       const profile = await ensureProfile(data.user, {
         fullName,
         phone: cleanedPhone,
@@ -290,12 +330,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         cityName,
       });
 
-      // Explicitly set is_verified to false for new signups
-      if (profile) {
-        await supabase
+      if (!profile) {
+        console.error("[signUp] Failed to create/update profile");
+        // Still sign out even if profile creation failed
+        await supabase.auth.signOut();
+        setUser(null);
+        setSession(null);
+        setProfile(null);
+        return { error: new Error("Failed to create user profile. Please try again.") };
+      }
+
+      // Verify that is_verified is set to false (should be handled by ensureProfile, but double-check)
+      // Only update if it's null or true (not already false)
+      if (profile.is_verified !== false) {
+        const { error: verifyError } = await supabase
           .from("profiles")
           .update({ is_verified: false })
-          .eq("user_id", data.user.id);
+          .eq("user_id", data.user.id)
+          .or("is_verified.is.null,is_verified.eq.true"); // Only update if null or true
+        
+        if (verifyError) {
+          console.error("[signUp] Failed to set is_verified:", verifyError);
+          // Don't fail signup for this, but log the error
+        }
       }
 
       // Always sign out after signup (no auto login).
