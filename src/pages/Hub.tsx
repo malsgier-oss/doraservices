@@ -38,7 +38,8 @@ import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
 import { FeaturedDeals } from "@/components/hub/FeaturedDeals";
 import { DealCard } from "@/components/hub/DealCard";
 import { BusinessCard } from "@/components/hub/BusinessCard";
-import { BuySellCategories } from "@/components/hub/BuySellCategories";
+import { BuySellCategories, BUY_SELL_CATEGORIES } from "@/components/hub/BuySellCategories";
+import { BuySellCategoryDrawer } from "@/components/hub/BuySellCategoryDrawer";
 import { TrendingDeals } from "@/components/hub/TrendingDeals";
 import { NewListings } from "@/components/hub/NewListings";
 import { BusinessDirectory } from "@/components/hub/BusinessDirectory";
@@ -646,6 +647,10 @@ export default function Hub() {
   const [buySellSearchQuery, setBuySellSearchQuery] = useState<string>("");
   const [buySellMode, setBuySellMode] = useState<"all" | "listings" | "business">("all");
 
+  // Buy/Sell category drawer state
+  const [buySellCategoryDrawerOpen, setBuySellCategoryDrawerOpen] = useState(false);
+  const [selectedCategoryForDrawer, setSelectedCategoryForDrawer] = useState<string | null>(null);
+
   // Listing detail state
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [listingSheetOpen, setListingSheetOpen] = useState(false);
@@ -658,6 +663,8 @@ export default function Hub() {
       setBusinessSheetOpen(false);
       setSelectedBusiness(null);
     }
+    setBuySellCategoryDrawerOpen(false);
+    setSelectedCategoryForDrawer(null);
     setSelectedListing(listing);
     setListingSheetOpen(true);
   };
@@ -2099,8 +2106,18 @@ export default function Hub() {
                   if (import.meta.env.DEV) {
                     console.log("Category clicked:", catId);
                   }
-                  // Toggle category filter - if same category clicked, clear filter
-                  setSelectedBuySellCategory(selectedBuySellCategory === catId ? null : catId);
+                  // Ensure we never have two Drawers open at once
+                  setListingSheetOpen(false);
+                  setSelectedListing(null);
+                  setDealSheetOpen(false);
+                  setSelectedDeal(null);
+                  if (SHOW_BUSINESSES) {
+                    setBusinessSheetOpen(false);
+                    setSelectedBusiness(null);
+                  }
+                  // Open drawer with selected category
+                  setSelectedCategoryForDrawer(catId);
+                  setBuySellCategoryDrawerOpen(true);
                 }} />
                 {selectedBuySellCategory && (
                   <div className="mt-3 flex items-center gap-2">

@@ -4,6 +4,8 @@ import { BUY_SELL_CATEGORIES } from "@/components/hub/buySellCategories";
 
 export { BUY_SELL_CATEGORIES };
 
+export { BUY_SELL_CATEGORIES };
+
 interface BuySellCategoriesProps {
   onCategoryClick?: (categoryId: string) => void;
 }
