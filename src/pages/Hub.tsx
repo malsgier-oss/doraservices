@@ -120,6 +120,14 @@ type ServiceRow = {
   description?: string | null;
 };
 
+const chunkArray = <T,>(array: T[], chunkSize: number): T[][] => {
+  const chunks: T[][] = [];
+  for (let i = 0; i < array.length; i += chunkSize) {
+    chunks.push(array.slice(i, i + chunkSize));
+  }
+  return chunks;
+};
+
 type SubcategoryRow = {
   id: string;
   category_id: string;
@@ -803,15 +811,6 @@ export default function Hub() {
     }
     return map;
   }, [serviceRatings]);
-
-  // Helper function to chunk array into groups of 4
-  const chunkArray = <T,>(array: T[], chunkSize: number): T[][] => {
-    const chunks: T[][] = [];
-    for (let i = 0; i < array.length; i += chunkSize) {
-      chunks.push(array.slice(i, i + chunkSize));
-    }
-    return chunks;
-  };
 
   // Group featured services into chunks of 4
   const featuredServicesChunks = useMemo(() => {
