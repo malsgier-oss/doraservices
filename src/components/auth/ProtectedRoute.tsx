@@ -37,7 +37,11 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   // Check if user is verified (admin must verify before they can sign in)
-  if (profile.is_verified === false) {
+  // Admin users should bypass verification check
+  const userRole = (profile.role || "").toLowerCase();
+  const isAdmin = userRole === "admin";
+  
+  if (!isAdmin && profile.is_verified === false) {
     return <Navigate to="/pending-confirmation" replace />;
   }
 

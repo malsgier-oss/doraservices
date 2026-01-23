@@ -341,20 +341,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) return { error: new Error(error.message) };
 
     // Check if user is verified after successful sign-in
+    // Admin users should bypass verification check
     if (data.user) {
       const { data: profileData } = await supabase
         .from("profiles")
-        .select("is_verified")
+        .select("is_verified, role")
         .eq("user_id", data.user.id)
         .maybeSingle();
 
-      if (profileData && profileData.is_verified === false) {
-        // Sign out the user if not verified
-        await supabase.auth.signOut();
-        setUser(null);
-        setSession(null);
-        setProfile(null);
-        return { error: new Error("Your account is pending admin verification. Please wait for approval.") };
+      if (profileData) {
+        const userRole = (profileData.role || "").toLowerCase();
+        const isAdmin = userRole === "admin";
+        
+        // Only block non-admin users who are not verified
+        if (!isAdmin && profileData.is_verified === false) {
+          // Sign out the user if not verified
+          await supabase.auth.signOut();
+          setUser(null);
+          setSession(null);
+          setProfile(null);
+          return { error: new Error("Your account is pending admin verification. Please wait for approval.") };
+        }
       }
     }
 
