@@ -338,6 +338,33 @@ export default function AdminUsers() {
                           </DropdownMenuItem>
                         ) : null}
                         <DropdownMenuSeparator />
+                        {/* User Verification (for all users, not just providers) */}
+                        {!user.roles.includes("admin") && (
+                          (user.is_verified === true ? (
+                            <DropdownMenuItem
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                unverifyUser.mutate(user.user_id);
+                              }}
+                              className="text-yellow-600"
+                            >
+                              <XCircle className="h-4 w-4 mr-2" />
+                              Unverify User
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                verifyUser.mutate(user.user_id);
+                              }}
+                              className="text-green-600"
+                            >
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Verify User
+                            </DropdownMenuItem>
+                          ))
+                        )}
+                        <DropdownMenuSeparator />
                         {user.roles.includes("provider") &&
                           ((user.provider_status || "pending").toLowerCase() !== "approved" ? (
                             <DropdownMenuItem
@@ -436,6 +463,20 @@ export default function AdminUsers() {
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="flex gap-1 flex-wrap">{getRoleBadges(user.roles)}</div>
                     {getStatusBadge(user.status)}
+                    {/* User Verification Status */}
+                    {!user.roles.includes("admin") && (
+                      user.is_verified === true ? (
+                        <Badge variant="default" className="bg-green-600 gap-1">
+                          <CheckCircle className="h-3 w-3" />
+                          Verified
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-orange-600 border-orange-600 gap-1">
+                          <XCircle className="h-3 w-3" />
+                          Pending Verification
+                        </Badge>
+                      )
+                    )}
                     {user.roles.includes("provider") ? (
                       (user.provider_status || "pending").toLowerCase() === "approved" ? (
                         <Badge variant="default" className="bg-green-600 gap-1">
@@ -474,6 +515,7 @@ export default function AdminUsers() {
                   <TableHead>Name</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>City</TableHead>
+                  <TableHead>Verification</TableHead>
                   <TableHead>Provider Status</TableHead>
                   <TableHead>Roles</TableHead>
                   <TableHead>Status</TableHead>
@@ -516,7 +558,7 @@ export default function AdminUsers() {
                   ))
                 ) : users?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                       No users found
                     </TableCell>
                   </TableRow>
@@ -542,6 +584,23 @@ export default function AdminUsers() {
                         )}
                       </TableCell>
                       <TableCell>{getCityName(user.city_id)}</TableCell>
+                      <TableCell>
+                        {!user.roles.includes("admin") ? (
+                          user.is_verified === true ? (
+                            <Badge variant="default" className="bg-green-600 gap-1">
+                              <CheckCircle className="h-3 w-3" />
+                              Verified
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-orange-600 border-orange-600 gap-1">
+                              <XCircle className="h-3 w-3" />
+                              Pending
+                            </Badge>
+                          )
+                        ) : (
+                          <Badge variant="secondary">Admin</Badge>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {user.roles.includes("provider") ? (
                           (user.provider_status || "pending").toLowerCase() === "approved" ? (
@@ -595,6 +654,33 @@ export default function AdminUsers() {
                                 Reactivate User
                               </DropdownMenuItem>
                             ) : null}
+                            <DropdownMenuSeparator />
+                            {/* User Verification (for all users, not just providers) */}
+                            {!user.roles.includes("admin") && (
+                              (user.is_verified === true ? (
+                                <DropdownMenuItem
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    unverifyUser.mutate(user.user_id);
+                                  }}
+                                  className="text-yellow-600"
+                                >
+                                  <XCircle className="h-4 w-4 mr-2" />
+                                  Unverify User
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    verifyUser.mutate(user.user_id);
+                                  }}
+                                  className="text-green-600"
+                                >
+                                  <CheckCircle className="h-4 w-4 mr-2" />
+                                  Verify User
+                                </DropdownMenuItem>
+                              ))
+                            )}
                             <DropdownMenuSeparator />
                             {user.roles.includes("provider") &&
                               ((user.provider_status || "pending").toLowerCase() !== "approved" ? (

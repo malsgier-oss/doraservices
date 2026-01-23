@@ -103,7 +103,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       city_id: overrides?.cityId ?? (existing ? undefined : metaCityId),
       city: overrides?.cityName ?? (existing ? undefined : metaCityName),
       // Dora P0: regular users should NOT have any provider state.
-      ...(existing ? {} : ({ role: "user", provider_status: null } as any)),
+      // Set is_verified to false for new users (they need admin verification)
+      ...(existing ? {} : ({ role: "user", provider_status: null, is_verified: false } as any)),
     };
 
     if (existing) {
@@ -354,7 +355,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const isAdmin = userRole === "admin";
         
         // Only block non-admin users who are not verified
-        if (!isAdmin && profileData.is_verified === false) {
+        // Handle both false and null as unverified
+        const isVerified = profileData.is_verified === true;
+        if (!isAdmin && !isVerified) {
           // Sign out the user if not verified
           await supabase.auth.signOut();
           setUser(null);

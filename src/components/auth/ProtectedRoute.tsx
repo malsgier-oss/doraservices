@@ -41,7 +41,9 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const userRole = (profile.role || "").toLowerCase();
   const isAdmin = userRole === "admin";
   
-  if (!isAdmin && profile.is_verified === false) {
+  // Handle both false and null as unverified
+  const isVerified = profile.is_verified === true;
+  if (!isAdmin && !isVerified) {
     return <Navigate to="/pending-confirmation" replace />;
   }
 
