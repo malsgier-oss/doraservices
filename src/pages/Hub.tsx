@@ -598,6 +598,15 @@ function BuySellListingsSection({
   );
 }
 
+// Helper function to chunk array into groups
+const chunkArray = <T,>(array: T[], chunkSize: number): T[][] => {
+  const chunks: T[][] = [];
+  for (let i = 0; i < array.length; i += chunkSize) {
+    chunks.push(array.slice(i, i + chunkSize));
+  }
+  return chunks;
+};
+
 export default function Hub() {
   const navigate = useNavigate();
   const { language, isRTL } = useLanguage();
@@ -637,6 +646,10 @@ export default function Hub() {
   const [buySellSearchQuery, setBuySellSearchQuery] = useState<string>("");
   const [buySellMode, setBuySellMode] = useState<"all" | "listings" | "business">("all");
 
+  // Buy/Sell category drawer state
+  const [buySellCategoryDrawerOpen, setBuySellCategoryDrawerOpen] = useState(false);
+  const [selectedCategoryForDrawer, setSelectedCategoryForDrawer] = useState<string | null>(null);
+
   // Listing detail state
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [listingSheetOpen, setListingSheetOpen] = useState(false);
@@ -649,6 +662,8 @@ export default function Hub() {
       setBusinessSheetOpen(false);
       setSelectedBusiness(null);
     }
+    setBuySellCategoryDrawerOpen(false);
+    setSelectedCategoryForDrawer(null);
     setSelectedListing(listing);
     setListingSheetOpen(true);
   };

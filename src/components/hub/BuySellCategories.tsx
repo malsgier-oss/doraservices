@@ -22,6 +22,8 @@ const BUY_SELL_CATEGORIES: Category[] = [
   { id: "other", name: "Other", nameAr: "أخرى", icon: ShoppingBag, color: "#64748b" },
 ];
 
+export { BUY_SELL_CATEGORIES };
+
 interface BuySellCategoriesProps {
   onCategoryClick?: (categoryId: string) => void;
 }
