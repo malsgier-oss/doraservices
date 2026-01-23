@@ -7,7 +7,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useCities } from "@/hooks/useCities";
 import { useSubCities } from "@/hooks/useSubCities";
 
-import { cleanPhoneForStorage, isValidLibyanPhone } from "@/lib/phoneUtils";
+
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -84,7 +84,7 @@ export default function Profile() {
 
   const [saving, setSaving] = useState(false);
   const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState(""); // only editable if empty in DB
+  const [phone, setPhone] = useState("");
   const [bio, setBio] = useState("");
   const [cityId, setCityId] = useState<string>("");
   const [subCity, setSubCity] = useState<string>("");
@@ -192,12 +192,6 @@ export default function Profile() {
     return "account";
   }, [showWelcome]);
 
-  const canEditPhone = useMemo(() => {
-    // Editing phone freely can break login (phone->internal email mapping).
-    // P0 rule: allow edit ONLY if it's empty in DB.
-    return !profile?.phone;
-  }, [profile?.phone]);
-
   const handleSave = async () => {
     if (!user) return;
 
@@ -209,20 +203,6 @@ export default function Profile() {
         variant: "destructive",
       });
       return;
-    }
-
-    let cleanedPhone: string | null = null;
-    if (canEditPhone) {
-      const p = cleanPhoneForStorage(phone);
-      if (p && !isValidLibyanPhone(p)) {
-        toast({
-          title: isRTL ? "رقم غير صالح" : "Invalid phone",
-          description: isRTL ? "اكتب رقم ليبي صحيح مثل 09XXXXXXXX" : "Enter a valid Libyan phone like 09XXXXXXXX",
-          variant: "destructive",
-        });
-        return;
-      }
-      cleanedPhone = p || null;
     }
 
     const selected = cities?.find((c) => c.id === cityId);
@@ -242,8 +222,6 @@ export default function Profile() {
       sub_city: subCity?.trim() || null,
       marketplace_enabled: isRegularUser && buySellEnabled ? marketplaceEnabled : false,
     };
-
-    if (canEditPhone) payload.phone = cleanedPhone;
 
     const { error } = await supabase.from("profiles").update(payload).eq("user_id", user.id);
 
@@ -752,19 +730,16 @@ export default function Profile() {
                   <Label>{isRTL ? "رقم الهاتف" : "Phone number"}</Label>
                   <Input
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
                     className="h-12 rounded-xl"
                     placeholder={isRTL ? "09XXXXXXXX" : "09XXXXXXXX"}
-                    disabled={!canEditPhone}
-                    readOnly={!canEditPhone}
+                    disabled
+                    readOnly
                   />
-                  {!canEditPhone && (
-                    <p className="text-xs text-muted-foreground">
-                      {isRTL
-                        ? "لأسباب أمنية، تغيير رقم الهاتف قد يسبب مشاكل في تسجيل الدخول. (حالياً للعرض فقط)"
-                        : "For security, changing phone can break login. (Currently display-only)"}
-                    </p>
-                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {isRTL
+                      ? "رقم الهاتف للعرض فقط ولا يمكن تعديله من هنا."
+                      : "Phone number is display-only and can’t be edited here."}
+                  </p>
                 </div>
 
                 <div className="grid gap-3">
