@@ -183,7 +183,7 @@ export function ServiceCardGroup({
     <div
       className={cn(
         HUB_CARD_BASE,
-        "bg-card shrink-0 w-[90vw] max-w-[700px] snap-center overflow-hidden",
+        "bg-card shrink-0 w-[90vw] max-w-[700px] snap-start overflow-hidden",
         "hover:shadow-[0_12px_24px_rgba(15,23,42,0.12)] dark:hover:shadow-[0_12px_24px_rgba(0,0,0,0.3)]",
         "transition-all duration-300 ease-out"
       )}

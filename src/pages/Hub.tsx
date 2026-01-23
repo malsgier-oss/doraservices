@@ -1800,14 +1800,14 @@ export default function Hub() {
             <HubSection id="most-demanded-services" title={t("الأكثر طلباً", "Most demanded")} icon={TrendingUp}>
             <div
               dir={isRTL ? "rtl" : "ltr"}
-              className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
-              style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+              className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory scroll-smooth"
+              style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y", scrollSnapType: "x mandatory" }}
             >
               {mostDemandedLoading && mostDemandedRows.length === 0
                 ? Array.from({ length: 2 }).map((_, i) => (
                     <div
                       key={`demanded-placeholder-${i}`}
-                      className={`${HUB_CARD_BASE} bg-card shrink-0 w-[90vw] max-w-[700px] snap-center overflow-hidden`}
+                      className={`${HUB_CARD_BASE} bg-card shrink-0 w-[90vw] max-w-[700px] snap-start overflow-hidden`}
                     >
                       <div className="grid grid-cols-2 gap-3 p-4">
                         {Array.from({ length: 4 }).map((_, j) => (
@@ -1818,7 +1818,7 @@ export default function Hub() {
                   ))
                 : mostDemandedRows.length === 0
                   ? (
-                      <div className={`${HUB_CARD_BASE} bg-card shrink-0 w-[90vw] max-w-[700px] snap-center p-4`}>
+                      <div className={`${HUB_CARD_BASE} bg-card shrink-0 w-[90vw] max-w-[700px] snap-start p-4`}>
                         <div className="font-semibold text-sm">{t("لا توجد بيانات بعد", "No data yet")}</div>
                         <div className="text-xs text-muted-foreground mt-1">
                           {t("سيظهر هذا القسم تلقائياً بعد تفاعل المستخدمين (مشاهدات/اتصالات)", "This will appear automatically once users interact (views/calls).")}
@@ -2473,13 +2473,13 @@ export default function Hub() {
                 <div
                   dir={isRTL ? "rtl" : "ltr"}
                   className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar snap-x snap-mandatory scroll-smooth"
-                  style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+                  style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y", scrollSnapType: "x mandatory" }}
                 >
                   {mostDemandedLoading && mostDemandedRows.length === 0
                     ? Array.from({ length: 2 }).map((_, i) => (
                         <div
                           key={`demanded-placeholder-${i}`}
-                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[90vw] max-w-[700px] snap-center overflow-hidden animate-pulse`}
+                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[90vw] max-w-[700px] snap-start overflow-hidden animate-pulse`}
                         >
                           <div className="grid grid-cols-2 gap-3 p-4">
                             {Array.from({ length: 4 }).map((_, j) => (
@@ -2490,7 +2490,7 @@ export default function Hub() {
                       ))
                     : mostDemandedRows.length === 0
                       ? (
-                          <div className={`${HUB_CARD_BASE} bg-card shrink-0 w-[90vw] max-w-[700px] snap-center p-6 text-center`}>
+                          <div className={`${HUB_CARD_BASE} bg-card shrink-0 w-[90vw] max-w-[700px] snap-start p-6 text-center`}>
                             <div className="mb-4">
                               <svg className="h-12 w-12 mx-auto text-muted-foreground/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -2530,8 +2530,8 @@ export default function Hub() {
                 ) : (
                   <div
                     dir={isRTL ? "rtl" : "ltr"}
-                    className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory -mx-4 px-4"
-                    style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+                    className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory scroll-smooth -mx-4 px-4"
+                    style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y", scrollSnapType: "x mandatory" }}
                   >
                     {chunkArray(featuredServices.slice(0, 8), 4).map((chunk, chunkIndex) => (
                       <ServiceCardGroup
