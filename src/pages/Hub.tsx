@@ -20,7 +20,7 @@ import { FeaturedHero } from "@/components/hub/FeaturedHero";
 import { HubSection } from "@/components/hub/HubSection";
 import { ServiceCardFeatured } from "@/components/hub/ServiceCardFeatured";
 import { FeaturedProvidersCard } from "@/components/hub/FeaturedProvidersCard";
-import { ServiceCardCompact } from "@/components/hub/ServiceCardCompact";
+import { ServiceCardGroup } from "@/components/hub/ServiceCardGroup";
 import { ServiceFilters } from "@/components/hub/ServiceFilters";
 import { ServiceGrid } from "@/components/hub/ServiceGrid";
 import { DiscoverySection } from "@/components/hub/DiscoverySection";
@@ -1798,46 +1798,37 @@ export default function Hub() {
               style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
             >
               {mostDemandedLoading && mostDemandedRows.length === 0
-                ? Array.from({ length: 6 }).map((_, i) => (
+                ? Array.from({ length: 2 }).map((_, i) => (
                     <div
                       key={`demanded-placeholder-${i}`}
-                      className={`${HUB_CARD_BASE} bg-card shrink-0 w-[72vw] max-w-[320px] snap-center overflow-hidden`}
+                      className={`${HUB_CARD_BASE} bg-card shrink-0 w-[90vw] max-w-[700px] snap-center overflow-hidden`}
                     >
-                      <div className="aspect-[4/3] bg-muted" />
-                      <div className="p-3">
-                        <div className="h-4 w-36 rounded bg-muted" />
-                        <div className="mt-2 h-3 w-44 rounded bg-muted" />
-                        <div className="mt-2 h-3 w-32 rounded bg-muted" />
+                      <div className="grid grid-cols-2 gap-3 p-4">
+                        {Array.from({ length: 4 }).map((_, j) => (
+                          <div key={j} className="aspect-[4/3] bg-muted rounded-xl" />
+                        ))}
                       </div>
                     </div>
                   ))
                 : mostDemandedRows.length === 0
                   ? (
-                      <div className={`${HUB_CARD_BASE} bg-card shrink-0 w-[72vw] max-w-[320px] snap-center p-4`}>
+                      <div className={`${HUB_CARD_BASE} bg-card shrink-0 w-[90vw] max-w-[700px] snap-center p-4`}>
                         <div className="font-semibold text-sm">{t("لا توجد بيانات بعد", "No data yet")}</div>
                         <div className="text-xs text-muted-foreground mt-1">
                           {t("سيظهر هذا القسم تلقائياً بعد تفاعل المستخدمين (مشاهدات/اتصالات)", "This will appear automatically once users interact (views/calls).")}
                         </div>
                       </div>
                     )
-                  : mostDemandedRows.slice(0, 6).map((service) => {
-                      const contact = getContactState(service);
-                      return (
-                        <div key={service.id} className="shrink-0 w-[72vw] max-w-[320px] snap-center">
-                          <ServiceCardCompact
-                            service={service}
-                            rating={getRating(service.id)}
-                            isRTL={isRTL}
-                            canCall={contact.canCall}
-                            canWhatsApp={contact.canWhatsApp}
-                            onOpen={() => openServiceFromRow(service)}
-                            onCall={() => handleCall(service)}
-                            onWhatsApp={() => handleWhatsApp(service)}
-                            labels={labels}
-                          />
-                        </div>
-                      );
-                    })}
+                  : chunkArray(mostDemandedRows.slice(0, 8), 4).map((chunk, chunkIndex) => (
+                      <ServiceCardGroup
+                        key={`chunk-${chunkIndex}`}
+                        services={chunk}
+                        ratings={ratingsMap}
+                        isRTL={isRTL}
+                        onOpen={openServiceFromRow}
+                        labels={labels}
+                      />
+                    ))}
             </div>
             </HubSection>
           </AnimatedSection>
@@ -2473,22 +2464,21 @@ export default function Hub() {
                   style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
                 >
                   {mostDemandedLoading && mostDemandedRows.length === 0
-                    ? Array.from({ length: 6 }).map((_, i) => (
+                    ? Array.from({ length: 2 }).map((_, i) => (
                         <div
                           key={`demanded-placeholder-${i}`}
-                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[75vw] max-w-[340px] snap-center overflow-hidden animate-pulse`}
+                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[90vw] max-w-[700px] snap-center overflow-hidden animate-pulse`}
                         >
-                          <div className="aspect-[4/3] bg-muted/50 rounded-t-2xl" />
-                          <div className="p-4 space-y-3">
-                            <div className="h-4 w-3/4 rounded bg-muted/50" />
-                            <div className="h-3 w-full rounded bg-muted/50" />
-                            <div className="h-3 w-2/3 rounded bg-muted/50" />
+                          <div className="grid grid-cols-2 gap-3 p-4">
+                            {Array.from({ length: 4 }).map((_, j) => (
+                              <div key={j} className="aspect-[4/3] bg-muted/50 rounded-xl" />
+                            ))}
                           </div>
                         </div>
                       ))
                     : mostDemandedRows.length === 0
                       ? (
-                          <div className={`${HUB_CARD_BASE} bg-card shrink-0 w-[75vw] max-w-[340px] snap-center p-6 text-center`}>
+                          <div className={`${HUB_CARD_BASE} bg-card shrink-0 w-[90vw] max-w-[700px] snap-center p-6 text-center`}>
                             <div className="mb-4">
                               <svg className="h-12 w-12 mx-auto text-muted-foreground/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -2500,24 +2490,16 @@ export default function Hub() {
                             </div>
                           </div>
                         )
-                      : mostDemandedRows.slice(0, 6).map((service) => {
-                          const contact = getContactState(service);
-                          return (
-                            <div key={service.id} className="shrink-0 w-[75vw] max-w-[340px] snap-center">
-                              <ServiceCardCompact
-                                service={service}
-                                rating={getRating(service.id)}
-                                isRTL={isRTL}
-                                canCall={contact.canCall}
-                                canWhatsApp={contact.canWhatsApp}
-                                onOpen={() => openServiceFromRow(service)}
-                                onCall={() => handleCall(service)}
-                                onWhatsApp={() => handleWhatsApp(service)}
-                                labels={labels}
-                              />
-                            </div>
-                          );
-                        })}
+                      : chunkArray(mostDemandedRows.slice(0, 8), 4).map((chunk, chunkIndex) => (
+                          <ServiceCardGroup
+                            key={`chunk-${chunkIndex}`}
+                            services={chunk}
+                            ratings={ratingsMap}
+                            isRTL={isRTL}
+                            onOpen={openServiceFromRow}
+                            labels={labels}
+                          />
+                        ))}
                 </div>
                 {/* Gradient fade effect */}
                 <div className="absolute top-0 bottom-4 right-0 w-12 bg-gradient-to-l from-background to-transparent pointer-events-none" />
@@ -2539,24 +2521,16 @@ export default function Hub() {
                     className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory -mx-4 px-4"
                     style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
                   >
-                    {featuredServices.slice(0, 6).map((service) => {
-                      const contact = getContactState(service);
-                      return (
-                        <div key={service.id} className="shrink-0 w-[72vw] max-w-[320px] snap-center">
-                          <ServiceCardCompact
-                            service={service}
-                            rating={getRating(service.id)}
-                            isRTL={isRTL}
-                            canCall={contact.canCall}
-                            canWhatsApp={contact.canWhatsApp}
-                            onOpen={() => openServiceFromRow(service)}
-                            onCall={() => handleCall(service)}
-                            onWhatsApp={() => handleWhatsApp(service)}
-                            labels={labels}
-                          />
-                        </div>
-                      );
-                    })}
+                    {chunkArray(featuredServices.slice(0, 8), 4).map((chunk, chunkIndex) => (
+                      <ServiceCardGroup
+                        key={`chunk-${chunkIndex}`}
+                        services={chunk}
+                        ratings={ratingsMap}
+                        isRTL={isRTL}
+                        onOpen={openServiceFromRow}
+                        labels={labels}
+                      />
+                    ))}
                   </div>
                 )}
               </HubSection>
