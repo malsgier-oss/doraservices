@@ -46,6 +46,7 @@ const AdminMessages = React.lazy(() => import("./pages/admin/AdminMessages"));
 const AdminAuditLog = React.lazy(() => import("./pages/admin/AdminAuditLog"));
 const AdminProviders = React.lazy(() => import("./pages/admin/AdminProviders"));
 const AdminServices = React.lazy(() => import("./pages/admin/AdminServices"));
+const AdminDeals = React.lazy(() => import("./pages/admin/AdminDeals"));
 const AdminListings = React.lazy(() => import("./pages/admin/AdminListings"));
 const AdminCategories = React.lazy(() => import("./pages/admin/AdminCategories"));
 const AdminCities = React.lazy(() => import("./pages/admin/AdminCities"));
@@ -149,157 +150,20 @@ const AppRoutes = () => {
     <OnboardingGate>
       <React.Suspense fallback={<RouteFallback />}>
         <Routes>
-          {/* Onboarding */}
-          <Route path="/onboarding" element={<Onboarding />} />
+        {/* Onboarding */}
+        <Route path="/onboarding" element={<Onboarding />} />
+        {/* Hub is public */}
+        <Route path="/" element={<Hub />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
 
-          {/* Hub is public */}
-          <Route path="/" element={<Hub />} />
-
-          {/* Core signed-in experiences */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Buy & Sell (Listings only — no stores/businesses/deals) */}
-          <Route path="/buy-sell/listings" element={<ListingsBrowse />} />
-          <Route path="/buy-sell/create-listing" element={<CreateListing />} />
-          <Route
-            path="/buy-sell/my-listings"
-            element={
-              <ProtectedRoute>
-                <MyListings />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/buy-sell/edit-listing/:id"
-            element={
-              <ProtectedRoute>
-                <EditListing />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Services */}
-          <Route path="/services/trending" element={<TrendingServicesPage />} />
-          <Route path="/services/recommendations" element={<RecommendationsPage />} />
-
-          {/* Public site pages */}
-          <Route path="/:slug(about|contact|help|become-provider|terms|privacy)" element={<SitePage />} />
-
-          {/* Auth routes */}
-          <Route
-            path="/auth"
-            element={
-              <AuthenticatedRedirect>
-                <Auth />
-              </AuthenticatedRedirect>
-            }
-          />
-          <Route path="/pending-confirmation" element={<PendingConfirmation />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route
-            path="/pending-verification"
-            element={
-              <ProtectedRoute>
-                <PendingVerification />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/change-password"
-            element={
-              <ProtectedRoute>
-                <ChangePassword />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Protected routes - require login */}
-          <Route
-            path="/favorites"
-            element={
-              <ProtectedRoute>
-                <Favorites />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/create-service"
-            element={
-              <ProviderRoute>
-                <ServiceCreator />
-              </ProviderRoute>
-            }
-          />
-          <Route
-            path="/edit-service/:id"
-            element={
-              <ProviderRoute>
-                <ServiceEditor />
-              </ProviderRoute>
-            }
-          />
-
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Provider Dashboard should require approved provider */}
-          <Route
-            path="/provider-dashboard"
-            element={
-              <ProviderRoute>
-                <ProviderDashboard />
-              </ProviderRoute>
-            }
-          />
-
-          {/* Admin Routes */}
-          <Route
-            path="/admin"
-            element={
-              <AdminRoute>
-                <AdminLayout />
-              </AdminRoute>
-            }
-          >
-            <Route index element={<AdminDashboard />} />
-            <Route path="users" element={<AdminUsers />} />
-            <Route path="providers" element={<AdminProviders />} />
-            <Route path="services" element={<AdminServices />} />
-            <Route path="listings" element={<AdminListings />} />
-            <Route path="hub" element={<AdminHub />} />
-            <Route path="hub-suggestions" element={<AdminHubSuggestions />} />
-            <Route path="guides" element={<AdminGuides />} />
-            <Route path="pages" element={<AdminPages />} />
-            <Route path="categories" element={<AdminCategories />} />
-            <Route path="cities" element={<AdminCities />} />
-            <Route path="sub-cities" element={<AdminSubCities />} />
-            <Route path="reviews" element={<AdminReviews />} />
-            <Route path="announcements" element={<AdminAnnouncements />} />
-            <Route path="reports" element={<AdminReports />} />
-            <Route path="settings" element={<AdminSettings />} />
-            <Route path="messages" element={<AdminMessages />} />
-            <Route path="analytics" element={<AdminAnalytics />} />
-            <Route path="media" element={<AdminMedia />} />
-            <Route path="bulk-upload" element={<AdminBulkUpload />} />
-            <Route path="audit-log" element={<AdminAuditLog />} />
-            <Route path="password-resets" element={<AdminPasswordResets />} />
-          </Route>
-
-          <Route path="*" element={<NotFound />} />
+        <Route path="*" element={<NotFound />} />
         </Routes>
       </React.Suspense>
     </OnboardingGate>
