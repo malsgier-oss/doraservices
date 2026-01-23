@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Types
 interface Profile {
@@ -167,6 +168,7 @@ export function useAdminUsers(filters?: { status?: string; role?: string; search
 export function useUserMutations() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const suspendUser = useMutation({
     mutationFn: async ({ userId, reason }: { userId: string; reason: string }) => {
@@ -419,10 +421,38 @@ export function useUserMutations() {
 
   const verifyUser = useMutation({
     mutationFn: async (userId: string) => {
-      // Dora P0: "verification" maps to provider approval.
-      // For non-provider users this is effectively a no-op.
-      const { error } = await supabase.from("profiles").update({ provider_status: "approved" }).eq("user_id", userId);
+      // Verify user by setting is_verified = true and recording verification details
+      const updateData: any = {
+        is_verified: true,
+        verified_at: new Date().toISOString(),
+      };
+      
+      // Set verified_by if admin user is available
+      if (user?.id) {
+        updateData.verified_by = user.id;
+      }
+
+      const { error } = await supabase
+        .from("profiles")
+        .update(updateData)
+        .eq("user_id", userId);
+      
       if (error) throw error;
+
+      // For provider/business users, also set provider_status to approved
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (profile && (profile.role === "business" || profile.role === "provider")) {
+        const { error: providerError } = await supabase
+          .from("profiles")
+          .update({ provider_status: "approved" })
+          .eq("user_id", userId);
+        if (providerError) throw providerError;
+      }
 
       await supabase.rpc("log_admin_action", {
         p_action: "verify_user",
@@ -441,7 +471,15 @@ export function useUserMutations() {
 
   const unverifyUser = useMutation({
     mutationFn: async (userId: string) => {
-      const { error } = await supabase.from("profiles").update({ provider_status: "pending" }).eq("user_id", userId);
+      const { error } = await supabase
+        .from("profiles")
+        .update({ 
+          is_verified: false,
+          verified_at: null,
+          verified_by: null,
+          provider_status: "pending" 
+        })
+        .eq("user_id", userId);
       if (error) throw error;
 
       await supabase.rpc("log_admin_action", {

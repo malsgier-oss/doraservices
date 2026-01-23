@@ -5,18 +5,30 @@ import { Button } from "@/components/ui/button";
 import { Clock } from "lucide-react";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
 import doraLogo from "@/assets/dora-logo.png";
 
 export default function PendingConfirmation() {
   const navigate = useNavigate();
   const { isRTL } = useLanguage();
+  const { user, profile, loading, profileLoading } = useAuth();
 
   useEffect(() => {
-    const t = setTimeout(() => {
+    // If not logged in, redirect to auth
+    if (!loading && !profileLoading && !user) {
+      navigate("/auth", { replace: true });
+      return;
+    }
+
+    // If verified, redirect to home
+    if (profile && profile.is_verified === true) {
       navigate("/", { replace: true });
-    }, 8000);
-    return () => clearTimeout(t);
-  }, [navigate]);
+      return;
+    }
+  }, [user, profile, loading, profileLoading, navigate]);
+
+  // Don't auto-redirect anymore - user must wait for admin verification
+  // The page will stay until admin verifies them
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4" dir={isRTL ? "rtl" : "ltr"}>
@@ -35,20 +47,24 @@ export default function PendingConfirmation() {
             <Clock className="h-8 w-8 text-primary" />
           </div>
           <CardTitle className="text-xl">
-            {isRTL ? "تم استلام طلب التسجيل" : "Signup received"}
+            {isRTL ? "في انتظار التحقق من الحساب" : "Account Pending Verification"}
           </CardTitle>
           <CardDescription className="mt-2">
-            {isRTL ? "سنتواصل معك قريباً لتأكيد الحساب." : "We will contact you soon to confirm."}
+            {isRTL 
+              ? "تم استلام طلب التسجيل. يرجى الانتظار حتى يقوم المسؤول بالتحقق من حسابك. سيتم إشعارك عند الموافقة على حسابك." 
+              : "Your registration request has been received. Please wait for an admin to verify your account. You will be notified once your account is approved."}
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-4">
           <div className="text-sm text-muted-foreground text-center">
-            {isRTL ? "سيتم تحويلك إلى الصفحة الرئيسية خلال ثوانٍ." : "You’ll be redirected to the Hub in a few seconds."}
+            {isRTL 
+              ? "لا يمكنك تسجيل الدخول حتى يتم التحقق من حسابك من قبل المسؤول." 
+              : "You cannot sign in until your account is verified by an admin."}
           </div>
 
-          <Button className="w-full rounded-full" onClick={() => navigate("/", { replace: true })}>
-            {isRTL ? "الذهاب إلى الصفحة الرئيسية" : "Go to Hub"}
+          <Button className="w-full rounded-full" onClick={() => navigate("/auth", { replace: true })}>
+            {isRTL ? "العودة إلى تسجيل الدخول" : "Back to Sign In"}
           </Button>
         </CardContent>
       </Card>

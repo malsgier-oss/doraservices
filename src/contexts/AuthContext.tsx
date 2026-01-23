@@ -281,12 +281,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Ensure profile exists and fill with overrides
-      await ensureProfile(data.user, {
+      // Set is_verified to false explicitly for new signups
+      const profile = await ensureProfile(data.user, {
         fullName,
         phone: cleanedPhone,
         cityId,
         cityName,
       });
+
+      // Explicitly set is_verified to false for new signups
+      if (profile) {
+        await supabase
+          .from("profiles")
+          .update({ is_verified: false })
+          .eq("user_id", data.user.id);
+      }
 
       // Always sign out after signup (no auto login).
       await supabase.auth.signOut();
@@ -324,12 +333,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const internalEmail = phoneToInternalEmail(cleanedPhone);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: internalEmail,
       password,
     });
 
     if (error) return { error: new Error(error.message) };
+
+    // Check if user is verified after successful sign-in
+    if (data.user) {
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("is_verified")
+        .eq("user_id", data.user.id)
+        .maybeSingle();
+
+      if (profileData && profileData.is_verified === false) {
+        // Sign out the user if not verified
+        await supabase.auth.signOut();
+        setUser(null);
+        setSession(null);
+        setProfile(null);
+        return { error: new Error("Your account is pending admin verification. Please wait for approval.") };
+      }
+    }
 
     return { error: null };
   };

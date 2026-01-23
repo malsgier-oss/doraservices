@@ -11,6 +11,7 @@ interface ProtectedRouteProps {
  * ProtectedRoute (Dora P0):
  * - requires login
  * - blocks deleted/inactive accounts
+ * - blocks unverified accounts (requires admin verification)
  * - does NOT enforce provider/admin role (use ProviderRoute/AdminRoute for that)
  */
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
@@ -33,6 +34,11 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const st = (profile.status || "").toLowerCase();
   if (st === "deleted" || st === "inactive") {
     return <Navigate to="/auth" replace />;
+  }
+
+  // Check if user is verified (admin must verify before they can sign in)
+  if (profile.is_verified === false) {
+    return <Navigate to="/pending-confirmation" replace />;
   }
 
   return <>{children}</>;

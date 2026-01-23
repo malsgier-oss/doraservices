@@ -71,6 +71,7 @@ export default function Auth() {
   const [signupData, setSignupData] = useState({
     phone: "",
     password: "",
+    confirmPassword: "",
     fullName: "",
     cityId: ""
   });
@@ -141,9 +142,16 @@ export default function Auth() {
     } = await signIn(cleanedPhone, loginData.password);
     setIsLoading(false);
     if (error) {
+      const errorMsg = error.message.toLowerCase();
+      let message = error.message;
+      if (errorMsg.includes("pending admin verification") || errorMsg.includes("pending verification")) {
+        message = isRTL 
+          ? "حسابك في انتظار التحقق من قبل المسؤول. يرجى الانتظار حتى يتم التحقق من حسابك." 
+          : "Your account is pending admin verification. Please wait for approval.";
+      }
       toast({
         title: isRTL ? "فشل تسجيل الدخول" : "Login failed",
-        description: isRTL ? "رقم الهاتف أو كلمة المرور غير صحيحة" : error.message,
+        description: message,
         variant: "destructive"
       });
       return;
@@ -196,6 +204,14 @@ export default function Auth() {
       toast({
         title: isRTL ? "كلمة مرور غير صالحة" : "Invalid password",
         description: passwordResult.error.errors[0].message,
+        variant: "destructive"
+      });
+      return;
+    }
+    if (signupData.password !== signupData.confirmPassword) {
+      toast({
+        title: isRTL ? "كلمات المرور غير متطابقة" : "Passwords do not match",
+        description: isRTL ? "يرجى التأكد من تطابق كلمات المرور" : "Please make sure the passwords match",
         variant: "destructive"
       });
       return;
@@ -358,6 +374,17 @@ export default function Auth() {
                     <Input id="signup-password" type="password" placeholder="••••••••" className={cn("h-12 rounded-2xl", isRTL ? "pr-10" : "pl-10")} value={signupData.password} onChange={e => setSignupData({
                     ...signupData,
                     password: e.target.value
+                  })} required />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-confirm-password">{isRTL ? "تأكيد كلمة المرور" : "Confirm Password"}</Label>
+                  <div className="relative">
+                    <Lock className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground", isRTL ? "right-3" : "left-3")} />
+                    <Input id="signup-confirm-password" type="password" placeholder="••••••••" className={cn("h-12 rounded-2xl", isRTL ? "pr-10" : "pl-10")} value={signupData.confirmPassword} onChange={e => setSignupData({
+                    ...signupData,
+                    confirmPassword: e.target.value
                   })} required />
                   </div>
                 </div>
