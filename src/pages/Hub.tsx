@@ -1814,6 +1814,7 @@ export default function Hub() {
               onCategoryChange={setSelectedBuySellCategory}
               buySellSearchQuery={buySellSearchQuery}
               openListingList={openListingList}
+              openListingDetail={openListingDetail}
               openDealDetail={openDealDetail}
               openBusinessDetail={openBusinessDetail}
               navigate={navigate}
