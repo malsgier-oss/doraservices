@@ -14,10 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -26,28 +24,28 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
 
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
-  Building2,
   Camera,
+  Heart,
+  HelpCircle,
+  Info,
   KeyRound,
+  LayoutDashboard,
   Loader2,
   LogOut,
+  Mail,
   MapPin,
   Phone,
   ShieldCheck,
+  ShoppingBag,
   Trash2,
   User2,
   X,
-  LayoutDashboard,
-  ShoppingBag,
-  Briefcase,
 } from "lucide-react";
 import { MobileNav } from "@/components/layout/MobileNav";
-import { useMyBusiness } from "@/hooks/useMyBusiness";
 import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
 
 function statusBadgeVariant(status?: string | null) {
@@ -82,7 +80,6 @@ export default function Profile() {
   const { user, profile, loading, profileLoading, signOut, refreshProfile } = useAuth();
   const { isRTL, language } = useLanguage();
   const { data: cities, isLoading: citiesLoading } = useCities();
-  const { data: myBusiness } = useMyBusiness();
   const { isEnabled: buySellEnabled } = useBuySellEnabled();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -101,7 +98,6 @@ export default function Profile() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
 
-  const [becomingProvider, setBecomingProvider] = useState(false);
   const [marketplaceEnabled, setMarketplaceEnabled] = useState(false);
 
   // Route guard
@@ -161,13 +157,6 @@ export default function Profile() {
   const currentRole = (profile?.role || "user").toString().toLowerCase();
   const isProvider = isProviderLike(currentRole);
   const isAdmin = currentRole === "admin";
-  const isBusiness = currentRole === "business";
-  const hasBusinessProfile = !!myBusiness;
-
-  // Dora principle: Profile pages stay focused on account/security/personal data.
-  // "Become provider" is available only for non-remixed users.
-  const showProviderTab = !isAdmin && !isProvider && !isBusiness;
-
   const accountLocked = useMemo(() => {
     const st = (profile?.status || "").toLowerCase();
     return st === "suspended" || st === "deleted" || st === "inactive";
@@ -177,11 +166,6 @@ export default function Profile() {
     const q = new URLSearchParams(location.search);
     return q.get("welcome") === "1";
   }, [location.search]);
-
-  const defaultTab = useMemo(() => {
-    if (showWelcome) return "role";
-    return "account";
-  }, [showWelcome]);
 
   const canEditPhone = useMemo(() => {
     // Editing phone freely can break login (phone->internal email mapping).
@@ -405,52 +389,6 @@ export default function Profile() {
     }
   };
 
-  const handleBecomeProvider = async () => {
-    if (!user) return;
-    if (isBusiness || hasBusinessProfile) {
-      toast({
-        title: isRTL ? "غير متاح" : "Not available",
-        description: isRTL ? "لا يمكن الجمع بين متجر ومزود خدمة" : "You can't be both business and provider",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setBecomingProvider(true);
-    try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          // Dora P0: admin-controlled trust.
-          // User can request to become a provider, but approval is required.
-          role: "provider",
-          provider_status: "pending",
-        })
-        .eq("user_id", user.id);
-
-      if (error) {
-        toast({
-          title: isRTL ? "فشل التفعيل" : "Activation failed",
-          description: error.message,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      await refreshProfile?.();
-
-      toast({
-        title: isRTL ? "تم إرسال طلب المزود" : "Provider request sent",
-        description: isRTL
-          ? "حسابك تحت المراجعة. يمكنك إضافة خدمات لكنها لن تظهر للناس حتى الموافقة."
-          : "You're under review. You can add services, but they won't be visible until approved.",
-      });
-    } finally {
-      setBecomingProvider(false);
-    }
-  };
-
-
   const handleSoftDelete = async () => {
     if (!user || !profile) return;
     if (deleteConfirmText.trim().toUpperCase() !== "DELETE") return;
@@ -639,32 +577,12 @@ export default function Profile() {
 
         </Card>
 
-        {/* Tabs */}
-        <Tabs defaultValue={defaultTab} className="w-full">
-          <TabsList
-            className={cn(
-              "grid w-full rounded-2xl h-12",
-              showProviderTab ? "grid-cols-4" : "grid-cols-3",
-            )}
-          >
-            <TabsTrigger value="account" className="rounded-xl">
+        <div className="space-y-6">
+          <section className="space-y-4">
+            <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
               {isRTL ? "الحساب" : "Account"}
-            </TabsTrigger>
-            <TabsTrigger value="role" className="rounded-xl">
-              {isRTL ? "الدور" : "Role"}
-            </TabsTrigger>
-            {showProviderTab && (
-              <TabsTrigger value="provider" className="rounded-xl">
-                {isRTL ? "المزود" : "Provider"}
-              </TabsTrigger>
-            )}
-            <TabsTrigger value="security" className="rounded-xl">
-              {isRTL ? "الأمان" : "Security"}
-            </TabsTrigger>
-          </TabsList>
+            </div>
 
-          {/* Account */}
-          <TabsContent value="account" className="mt-4 space-y-4">
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -774,134 +692,15 @@ export default function Profile() {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
 
-          {/* Role */}
-          <TabsContent value="role" className="mt-4 space-y-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <LayoutDashboard className="h-4 w-4" />
-                  {isRTL ? "اختيار الدور" : "Choose your role"}
-                </CardTitle>
-                <CardDescription>
-                  {isRTL ? "يمكنك تفعيل البيع كـ مستخدم، أو التحول إلى مزود/متجر." : "Enable selling as a user, or switch to provider/business."}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* User marketplace */}
-                <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
-                  <div className="min-w-0">
-                    <div className="font-medium">{isRTL ? "تفعيل البيع (إعلانات)" : "Enable selling (Listings)"}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {!buySellEnabled
-                        ? (isRTL ? "ميزة الشراء والبيع غير مفعلة حالياً." : "Buy & Sell is currently disabled.")
-                        : (isRTL ? "يعرض لوحة المستخدم وأدوات الإعلانات." : "Unlocks user dashboard and listing tools.")}
-                    </div>
-                  </div>
-                  <Switch
-                    checked={marketplaceEnabled}
-                    onCheckedChange={(v) => setMarketplaceEnabled(Boolean(v))}
-                    disabled={!buySellEnabled || !(!isProvider && !isBusiness)}
-                    aria-label="marketplace"
-                  />
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-12 rounded-xl justify-start gap-2"
-                    onClick={() => navigate("/dashboard")}
-                  >
-                    <ShoppingBag className="h-4 w-4" />
-                    {isRTL ? "لوحة المستخدم" : "User Dashboard"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-12 rounded-xl justify-start gap-2"
-                    onClick={() => navigate("/buy-sell/my-listings")}
-                    disabled={!buySellEnabled || !marketplaceEnabled}
-                  >
-                    <ShoppingBag className="h-4 w-4" />
-                    {isRTL ? "إعلاناتي" : "My Listings"}
-                  </Button>
-                </div>
-
-                <Separator />
-
-                {/* Provider */}
-                <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
-                  <div className="min-w-0">
-                    <div className="font-medium">{isRTL ? "مزود خدمة" : "Provider"}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {isRTL ? "يتطلب موافقة الإدارة." : "Requires admin approval."}
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleBecomeProvider}
-                    disabled={becomingProvider || isBusiness || hasBusinessProfile || isProvider}
-                  >
-                    {becomingProvider ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
-                    <span className="ms-2">{isRTL ? "تفعيل" : "Enable"}</span>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Provider (upgrade only) */}
-          {showProviderTab && (
-            <TabsContent value="provider" className="mt-4 space-y-4">
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Building2 className="h-4 w-4" />
-                    {isRTL ? "أصبح مزود خدمة" : "Become a provider"}
-                  </CardTitle>
-                  <CardDescription>
-                    {isRTL
-                      ? "ستتم مراجعة طلبك من الإدارة قبل ظهور خدماتك للناس."
-                      : "Your request will be reviewed by admin before your services become visible."}
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="space-y-3">
-                  <Button
-                    onClick={handleBecomeProvider}
-                    disabled={becomingProvider}
-                    className="h-12 rounded-xl w-full gap-2"
-                  >
-                    {becomingProvider ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Building2 className="h-4 w-4" />
-                    )}
-                    {isRTL ? "أريد أن أكون مزود" : "I want to be a provider"}
-                  </Button>
-                  <p className="text-xs text-muted-foreground">
-                    {isRTL
-                      ? "بعد الموافقة، ستجد لوحة المزود في الشريط السفلي."
-                      : "After approval, you'll find Dashboard in the bottom navigation."}
-                  </p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          )}
-
-          {/* Security */}
-          <TabsContent value="security" className="mt-4 space-y-4">
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <KeyRound className="h-4 w-4" />
-                  {isRTL ? "الأمان" : "Security"}
+                  {isRTL ? "إجراءات الحساب" : "Account actions"}
                 </CardTitle>
                 <CardDescription>
-                  {isRTL ? "تغيير كلمة المرور وتسجيل الخروج." : "Change password and sign out."}
+                  {isRTL ? "تغيير كلمة المرور أو تسجيل الخروج." : "Change password or sign out."}
                 </CardDescription>
               </CardHeader>
 
@@ -988,8 +787,108 @@ export default function Profile() {
                 </Dialog>
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
+          </section>
+
+          <section className="space-y-4">
+            <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              {isRTL ? "نشاطي" : "My activity"}
+            </div>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <LayoutDashboard className="h-4 w-4" />
+                  {isRTL ? "النشاط" : "Activity"}
+                </CardTitle>
+                <CardDescription>
+                  {isRTL ? "الوصول السريع للمفضلة والإعلانات." : "Quick access to favorites and listings."}
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-12 rounded-xl justify-start gap-2"
+                  onClick={() => navigate("/favorites")}
+                >
+                  <Heart className="h-4 w-4" />
+                  {isRTL ? "المفضلة" : "Favorites"}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-12 rounded-xl justify-start gap-2"
+                  onClick={() => navigate("/buy-sell/my-listings")}
+                  disabled={!buySellEnabled || !marketplaceEnabled}
+                >
+                  <ShoppingBag className="h-4 w-4" />
+                  {isRTL ? "إعلاناتي" : "My Listings"}
+                </Button>
+
+                {(isProvider || isAdmin) && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-12 rounded-xl justify-start gap-2"
+                    onClick={() => navigate("/provider-dashboard")}
+                  >
+                    <LayoutDashboard className="h-4 w-4" />
+                    {isRTL ? "لوحة المزود" : "Provider Dashboard"}
+                  </Button>
+                )}
+
+                {!buySellEnabled && (
+                  <p className="text-xs text-muted-foreground">
+                    {isRTL ? "ميزة الشراء والبيع غير مفعلة حالياً." : "Buy & Sell is currently disabled."}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+
+          <section className="space-y-4">
+            <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              {isRTL ? "الدعم" : "Support"}
+            </div>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <HelpCircle className="h-4 w-4" />
+                  {isRTL ? "المساعدة" : "Help"}
+                </CardTitle>
+                <CardDescription>
+                  {isRTL ? "روابط مفيدة للمساعدة والتواصل." : "Helpful links for support and info."}
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-3">
+                <Button asChild variant="outline" className="h-12 rounded-xl justify-start gap-2">
+                  <Link to="/about">
+                    <Info className="h-4 w-4" />
+                    {isRTL ? "من نحن" : "About Dora"}
+                  </Link>
+                </Button>
+
+                <Button asChild variant="outline" className="h-12 rounded-xl justify-start gap-2">
+                  <Link to="/help">
+                    <HelpCircle className="h-4 w-4" />
+                    {isRTL ? "مركز المساعدة" : "Help Center"}
+                  </Link>
+                </Button>
+
+                <Button asChild variant="outline" className="h-12 rounded-xl justify-start gap-2">
+                  <Link to="/contact">
+                    <Mail className="h-4 w-4" />
+                    {isRTL ? "تواصل معنا" : "Contact"}
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </section>
+        </div>
       </div>
 
       {/* Keep bottom navigation visible on Profile (mobile-first). */}
