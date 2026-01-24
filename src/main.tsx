@@ -55,9 +55,91 @@ const showFatal = (message: string) => {
   }
 };
 
+// Prevent zoom gestures and text selection
+const preventZoomAndSelection = () => {
+  // Prevent zoom with keyboard shortcuts (Ctrl/Cmd + Plus/Minus/0)
+  document.addEventListener("keydown", (e) => {
+    if (
+      (e.ctrlKey || e.metaKey) &&
+      (e.key === "=" || e.key === "+" || e.key === "-" || e.key === "0")
+    ) {
+      e.preventDefault();
+      return false;
+    }
+    // Prevent Ctrl/Cmd + Mouse wheel zoom
+    if ((e.ctrlKey || e.metaKey) && (e.key === "=" || e.key === "+" || e.key === "-")) {
+      e.preventDefault();
+      return false;
+    }
+  });
+
+  // Prevent zoom with mouse wheel + Ctrl/Cmd
+  document.addEventListener("wheel", (e) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      return false;
+    }
+  }, { passive: false });
+
+  // Prevent pinch zoom on touch devices
+  let lastTouchDistance = 0;
+  document.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 2) {
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      lastTouchDistance = Math.hypot(
+        touch2.clientX - touch1.clientX,
+        touch2.clientY - touch1.clientY
+      );
+    }
+  }, { passive: false });
+
+  document.addEventListener("touchmove", (e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      return false;
+    }
+  }, { passive: false });
+
+  // Prevent double-tap zoom
+  let lastTouchEnd = 0;
+  document.addEventListener("touchend", (e) => {
+    const now = Date.now();
+    if (now - lastTouchEnd < 300) {
+      e.preventDefault();
+      return false;
+    }
+    lastTouchEnd = now;
+  }, { passive: false });
+
+  // Prevent text selection via context menu
+  document.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    return false;
+  });
+
+  // Prevent text selection via drag
+  document.addEventListener("selectstart", (e) => {
+    const target = e.target as HTMLElement;
+    // Allow selection in input fields and textareas
+    if (
+      target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.isContentEditable
+    ) {
+      return true;
+    }
+    e.preventDefault();
+    return false;
+  });
+};
+
 if (!rootEl) {
   showFatal("Root element not found");
 } else {
+  // Prevent zoom and text selection as early as possible
+  preventZoomAndSelection();
+  
   // Observability should be initialized as early as possible.
   initSentry();
   initAnalytics();
