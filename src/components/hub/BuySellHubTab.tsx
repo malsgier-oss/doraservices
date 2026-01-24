@@ -318,6 +318,28 @@ export function BuySellHubTab({
             <SectionDivider variant="light" />
 
             {/* Enhanced Footer */}
+            <div className="pt-8 pb-4 border-t border-border/30">
+              <div className="space-y-6">
+                <div className="flex items-center justify-center gap-8 text-sm text-muted-foreground flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-green-500" />
+                    <span>{t("خدمات موثوقة", "Trusted Services")}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Award className="h-4 w-4 text-blue-500" />
+                    <span>{t("جودة مضمونة", "Quality Guaranteed")}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-purple-500" />
+                    <span>{t("دعم 24/7", "24/7 Support")}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : null}
+
+        {/* Enhanced Footer - Outside conditional */}
         <div className="pt-8 pb-4 border-t border-border/30">
           <div className="space-y-6">
             <div className="flex items-center justify-center gap-8 text-sm text-muted-foreground flex-wrap">
@@ -336,7 +358,6 @@ export function BuySellHubTab({
             </div>
           </div>
         </div>
-      </div>
     </div>
   );
 }
