@@ -358,6 +358,7 @@ export function BuySellHubTab({
             </div>
           </div>
         </div>
+      </div>
     </div>
   );
 }
