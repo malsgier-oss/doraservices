@@ -37,24 +37,20 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
 import { FeaturedDeals } from "@/components/hub/FeaturedDeals";
 import { DealCard } from "@/components/hub/DealCard";
-import { BusinessCard } from "@/components/hub/BusinessCard";
 import { BuySellCategories, BUY_SELL_CATEGORIES } from "@/components/hub/BuySellCategories";
 import { BuySellCategoryDrawer } from "@/components/hub/BuySellCategoryDrawer";
 import { TrendingDeals } from "@/components/hub/TrendingDeals";
 import { NewListings } from "@/components/hub/NewListings";
-import { BusinessDirectory } from "@/components/hub/BusinessDirectory";
-import { BusinessDetailSheet } from "@/components/hub/BusinessDetailSheet";
 import { ListingCard } from "@/components/hub/ListingCard";
 import { ListingCardGroup } from "@/components/hub/ListingCardGroup";
 import { ListingDetailSheet } from "@/components/hub/ListingDetailSheet";
+import { ListingListSheet } from "@/components/hub/ListingListSheet";
 import { SearchFilters, type FilterState } from "@/components/hub/SearchFilters";
 import { AnimatedSection } from "@/components/hub/AnimatedSection";
 import { DealDetailSheet } from "@/components/hub/DealDetailSheet";
 import { useDeals, type Deal } from "@/hooks/useDeals";
-import { useBusinesses, type Business } from "@/hooks/useBusinesses";
 import { useListings, type Listing } from "@/hooks/useListings";
 import { useListing } from "@/hooks/useListing";
-import { useBusiness as useBusinessById } from "@/hooks/useBusiness";
 import { HUB_CARD_BASE } from "@/components/hub/hubStyles";
 
 import { useCategories } from "@/hooks/useCategories";
@@ -423,93 +419,6 @@ function BuySellDealsSection({
   );
 }
 
-function BuySellBusinessesSection({
-  cityId,
-  category,
-  search,
-  onBusinessClick,
-}: {
-  cityId?: string | null;
-  category?: string | null;
-  search?: string | null;
-  onBusinessClick: (business: Business) => void;
-}) {
-  const { data: businesses, isLoading } = useBusinesses({ cityId, category, featured: true, limit: 8 });
-  const { language, isRTL } = useLanguage();
-  const t = (ar: string, en: string) => (language === "ar" ? ar : en);
-
-  const q = (search || "").trim().toLowerCase();
-  const filteredBusinesses = q
-    ? (businesses || []).filter((b) => {
-        const hay = `${b.name} ${b.description || ""} ${b.location || ""}`.toLowerCase();
-        return hay.includes(q);
-      })
-    : (businesses || []);
-
-  if (isLoading) {
-    return (
-      <HubSection title={t("المتاجر المميزة", "Featured Businesses")} icon={Store}>
-        <div
-          dir={isRTL ? "rtl" : "ltr"}
-          className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
-          style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
-        >
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={`business-loading-${i}`} className={`${HUB_CARD_BASE} bg-card shrink-0 w-[72vw] max-w-[320px] snap-center overflow-hidden`}>
-              <Skeleton className="aspect-[4/3] w-full" />
-              <div className="p-4">
-                <Skeleton className="h-4 w-32 mb-2" />
-                <Skeleton className="h-3 w-24" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </HubSection>
-    );
-  }
-
-  if (filteredBusinesses.length === 0) {
-    if (import.meta.env.DEV) {
-      console.log("[BuySellBusinessesSection] No businesses found", { cityId, featured: true });
-    }
-    const msg = category
-      ? (isRTL ? "لا توجد متاجر في هذا التصنيف" : "No businesses in this category")
-      : (isRTL ? "لا توجد متاجر مميزة حالياً" : "No featured businesses yet");
-    return (
-      <HubSection title={t("المتاجر المميزة", "Featured Businesses")} icon={Store}>
-        <div className={`${HUB_CARD_BASE} bg-card p-6 flex flex-col items-center justify-center gap-3 text-center`}>
-          <Store className="h-10 w-10 text-muted-foreground/60" />
-          <p className="text-sm text-muted-foreground">{msg}</p>
-        </div>
-      </HubSection>
-    );
-  }
-
-  if (import.meta.env.DEV) {
-    console.log("[BuySellBusinessesSection] Rendering businesses", { count: businesses.length });
-  }
-
-  return (
-    <HubSection title={t("المتاجر المميزة", "Featured Businesses")} icon={Store}>
-      <div
-        dir={isRTL ? "rtl" : "ltr"}
-        className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
-        style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
-      >
-        {filteredBusinesses.map((business) => (
-          <div key={business.id} className="shrink-0 w-[72vw] max-w-[320px] snap-center">
-            <BusinessCard
-              business={business}
-              onClick={() => onBusinessClick(business)}
-              isRTL={isRTL}
-            />
-          </div>
-        ))}
-      </div>
-    </HubSection>
-  );
-}
-
 function BuySellListingsSection({
   cityId,
   category,
@@ -614,38 +523,28 @@ export default function Hub() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Flag to hide business/store features
-  const SHOW_BUSINESSES = false;
-
   // Deal detail state
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [dealSheetOpen, setDealSheetOpen] = useState(false);
 
   const openDealDetail = (deal: Deal) => {
     // Ensure we never have two Drawers open at once
+    setDealSheetOpen(false);
+    setSelectedDeal(null);
     setListingSheetOpen(false);
     setSelectedListing(null);
-    setSelectedDeal(deal);
-    setDealSheetOpen(true);
-  };
-
-  // Business detail state
-  const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
-  const [businessSheetOpen, setBusinessSheetOpen] = useState(false);
-
-  const openBusinessDetail = (business: Business) => {
-    if (!SHOW_BUSINESSES) return;
-    // Ensure we never have two Drawers open at once
-    setListingSheetOpen(false);
-    setSelectedListing(null);
-    setSelectedBusiness(business);
-    setBusinessSheetOpen(true);
+    setBuySellCategoryDrawerOpen(false);
+    setSelectedCategoryForDrawer(null);
+    // Open ListingListSheet with deal's category
+    setListingListCategory(deal.category || null);
+    setListingListSearch(null);
+    setListingListSheetOpen(true);
   };
 
   // Buy/Sell category filter state
   const [selectedBuySellCategory, setSelectedBuySellCategory] = useState<string | null>(null);
   const [buySellSearchQuery, setBuySellSearchQuery] = useState<string>("");
-  const [buySellMode, setBuySellMode] = useState<"all" | "listings" | "business">("all");
+  const [buySellMode, setBuySellMode] = useState<"all" | "listings">("all");
 
   // Buy/Sell category drawer state
   const [buySellCategoryDrawerOpen, setBuySellCategoryDrawerOpen] = useState(false);
@@ -655,16 +554,20 @@ export default function Hub() {
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [listingSheetOpen, setListingSheetOpen] = useState(false);
 
+  // ListingListSheet state (for deal card clicks)
+  const [listingListSheetOpen, setListingListSheetOpen] = useState(false);
+  const [listingListCategory, setListingListCategory] = useState<string | null>(null);
+  const [listingListSearch, setListingListSearch] = useState<string | null>(null);
+
   const openListingDetail = (listing: Listing) => {
     // Ensure we never have two Drawers open at once
     setDealSheetOpen(false);
     setSelectedDeal(null);
-    if (SHOW_BUSINESSES) {
-      setBusinessSheetOpen(false);
-      setSelectedBusiness(null);
-    }
     setBuySellCategoryDrawerOpen(false);
     setSelectedCategoryForDrawer(null);
+    setListingListSheetOpen(false);
+    setListingListCategory(null);
+    setListingListSearch(null);
     setSelectedListing(listing);
     setListingSheetOpen(true);
   };
@@ -674,13 +577,11 @@ export default function Hub() {
     const p = new URLSearchParams(location.search);
     return {
       listingId: p.get("listing")?.trim() || null,
-      businessId: SHOW_BUSINESSES ? (p.get("business")?.trim() || null) : null,
       dealId: p.get("deal")?.trim() || null,
     };
   }, [location.search]);
 
   const { data: deepLinkListing } = useListing(deepLinkParams.listingId, !!deepLinkParams.listingId);
-  const { data: deepLinkBusiness } = SHOW_BUSINESSES ? useBusinessById(deepLinkParams.businessId ?? null) : { data: null };
   const [deepLinkDeal, setDeepLinkDeal] = useState<Deal | null>(null);
   const deepLinkHandledRef = useRef(false);
 
@@ -1046,21 +947,14 @@ export default function Hub() {
     }
   }, [activeTab, buySellEnabled]);
 
-  // Deep links: ?listing=, ?deal=, ?business= — open corresponding sheet and switch to buy-sell
+  // Deep links: ?listing=, ?deal= — open corresponding sheet and switch to buy-sell
   useEffect(() => {
     if (!buySellEnabled) return;
-    const { listingId, businessId, dealId } = deepLinkParams;
+    const { listingId, dealId } = deepLinkParams;
     if (listingId && deepLinkListing && !deepLinkHandledRef.current) {
       deepLinkHandledRef.current = true;
       setActiveTab("buy-sell");
       openListingDetail(deepLinkListing);
-      navigate("/", { replace: true });
-      return;
-    }
-    if (SHOW_BUSINESSES && businessId && deepLinkBusiness && !deepLinkHandledRef.current) {
-      deepLinkHandledRef.current = true;
-      setActiveTab("buy-sell");
-      openBusinessDetail(deepLinkBusiness as Business);
       navigate("/", { replace: true });
       return;
     }
@@ -1072,10 +966,10 @@ export default function Hub() {
       navigate("/", { replace: true });
       return;
     }
-    if (!listingId && !(SHOW_BUSINESSES && businessId) && !dealId) {
+    if (!listingId && !dealId) {
       deepLinkHandledRef.current = false;
     }
-  }, [buySellEnabled, deepLinkParams, deepLinkListing, deepLinkBusiness, deepLinkDeal, navigate, SHOW_BUSINESSES]);
+  }, [buySellEnabled, deepLinkParams, deepLinkListing, deepLinkDeal, navigate]);
 
   // Bottom sheets
   // IMPORTANT: Do NOT mount two Drawers at the same time.
@@ -1566,7 +1460,7 @@ export default function Hub() {
                   )}
                   placeholder={
                     activeTab === "buy-sell"
-                      ? (SHOW_BUSINESSES ? t("ابحث عن عرض أو متجر...", "Search deals or businesses...") : t("ابحث عن عرض...", "Search deals..."))
+                      ? t("ابحث عن عرض...", "Search deals...")
                       : t("ابحث عن خدمة… كهرباء، سباكة، تكييف", "Search services… electricity, plumbing, AC")
                   }
                 />
@@ -2087,17 +1981,6 @@ export default function Hub() {
                 >
                   {t("إعلانات", "Listings")}
                 </Button>
-                {SHOW_BUSINESSES && (
-                  <Button
-                    type="button"
-                    variant={buySellMode === "business" ? "default" : "outline"}
-                    size="sm"
-                    className="h-10"
-                    onClick={() => setBuySellMode("business")}
-                  >
-                    {t("متاجر", "Businesses")}
-                  </Button>
-                )}
               </div>
 
               {/* Categories Grid */}
@@ -2111,10 +1994,9 @@ export default function Hub() {
                   setSelectedListing(null);
                   setDealSheetOpen(false);
                   setSelectedDeal(null);
-                  if (SHOW_BUSINESSES) {
-                    setBusinessSheetOpen(false);
-                    setSelectedBusiness(null);
-                  }
+                  setListingListSheetOpen(false);
+                  setListingListCategory(null);
+                  setListingListSearch(null);
                   // Open drawer with selected category
                   setSelectedCategoryForDrawer(catId);
                   setBuySellCategoryDrawerOpen(true);
@@ -2160,7 +2042,7 @@ export default function Hub() {
                 </>
               ) : null}
 
-              {(buySellMode === "business" || buySellMode === "all") && SHOW_BUSINESSES ? (
+              {buySellMode === "all" ? (
                 <>
                   {/* Featured Deals */}
                   <AnimatedSection direction="up" delay={200}>
@@ -2233,36 +2115,6 @@ export default function Hub() {
                       />
                     </HubSection>
                   </AnimatedSection>
-
-                  {/* Featured Businesses */}
-                  {SHOW_BUSINESSES && (
-                    <BuySellBusinessesSection cityId={cityId} category={selectedBuySellCategory} search={buySellSearchQuery} onBusinessClick={openBusinessDetail} />
-                  )}
-
-                  {/* Business Directory */}
-                  {SHOW_BUSINESSES && (
-                    <AnimatedSection direction="up" delay={600}>
-                      <HubSection 
-                        id="business-directory" 
-                        title={t("دليل المتاجر", "Business Directory")} 
-                        icon={Store}
-                        actionLabel={t("عرض الكل", "View All")}
-                        onAction={() => {
-                          const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
-                          const q = buySellSearchQuery.trim() ? (qs ? `${qs}&q=${encodeURIComponent(buySellSearchQuery.trim())}` : `?q=${encodeURIComponent(buySellSearchQuery.trim())}`) : qs;
-                          navigate(`/buy-sell/businesses${q}`);
-                        }}
-                      >
-                        <BusinessDirectory
-                          cityId={cityId}
-                          category={selectedBuySellCategory}
-                          search={buySellSearchQuery}
-                          limit={12}
-                          onBusinessClick={openBusinessDetail}
-                        />
-                      </HubSection>
-                    </AnimatedSection>
-                  )}
                 </>
               ) : null}
 
@@ -2794,6 +2646,22 @@ export default function Hub() {
         }}
       />
 
+      {/* ListingListSheet (for deal card clicks) */}
+      <ListingListSheet
+        open={listingListSheetOpen}
+        onOpenChange={(open) => {
+          setListingListSheetOpen(open);
+          if (!open) {
+            setListingListCategory(null);
+            setListingListSearch(null);
+          }
+        }}
+        cityId={cityId}
+        category={listingListCategory}
+        search={listingListSearch}
+        onSelectListing={openListingDetail}
+      />
+
       {/* Buy/Sell Category Drawer */}
       {selectedCategoryForDrawer && (() => {
         const category = BUY_SELL_CATEGORIES.find(c => c.id === selectedCategoryForDrawer);
@@ -2859,7 +2727,7 @@ export default function Hub() {
         </div>
       )}
 
-      {/* Deal Detail Sheet */}
+      {/* Deal Detail Sheet - kept for potential future use, but deals now open ListingListSheet */}
       <DealDetailSheet
         open={dealSheetOpen}
         onOpenChange={(open) => {
@@ -2869,28 +2737,8 @@ export default function Hub() {
           }
         }}
         deal={selectedDeal}
-        onViewBusiness={SHOW_BUSINESSES ? ((b) => {
-          setDealSheetOpen(false);
-          setSelectedDeal(null);
-          setSelectedBusiness(b as any);
-          setBusinessSheetOpen(true);
-        }) : undefined}
       />
 
-      {/* Business Detail Sheet */}
-      {SHOW_BUSINESSES && (
-        <BusinessDetailSheet
-          open={businessSheetOpen}
-          onOpenChange={(open) => {
-            setBusinessSheetOpen(open);
-            if (!open) {
-              setSelectedBusiness(null);
-            }
-          }}
-          business={selectedBusiness}
-          onDealClick={openDealDetail}
-        />
-      )}
 
       {activeSheet === "browse" && (
         <CategoryBrowseSheet
