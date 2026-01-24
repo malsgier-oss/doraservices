@@ -244,7 +244,6 @@ interface BuySellHubTabProps {
   onCategoryChange: (category: string | null) => void;
   buySellSearchQuery: string;
   onSearchChange?: (query: string) => void;
-  openListingList: (params?: { category?: string | null; search?: string | null }) => void;
   openListingDetail: (listing: Listing) => void;
   openDealDetail: (deal: Deal) => void;
   openBusinessDetail: (business: Business) => void;
@@ -260,7 +259,6 @@ export function BuySellHubTab({
   onCategoryChange,
   buySellSearchQuery,
   onSearchChange,
-  openListingList,
   openListingDetail,
   openDealDetail,
   openBusinessDetail,

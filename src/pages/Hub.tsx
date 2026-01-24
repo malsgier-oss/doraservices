@@ -1969,7 +1969,6 @@ export default function Hub() {
               onCategoryChange={setSelectedBuySellCategory}
               buySellSearchQuery={buySellSearchQuery}
               onSearchChange={setBuySellSearchQuery}
-              openListingList={openListingList}
               openListingDetail={openListingDetail}
               openDealDetail={openDealDetail}
               openBusinessDetail={openBusinessDetail}
