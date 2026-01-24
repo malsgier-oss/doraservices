@@ -49,9 +49,11 @@ import { ListingListSheet } from "@/components/hub/ListingListSheet";
 import { SearchFilters, type FilterState } from "@/components/hub/SearchFilters";
 import { AnimatedSection } from "@/components/hub/AnimatedSection";
 import { DealDetailSheet } from "@/components/hub/DealDetailSheet";
+import { BusinessDetailSheet } from "@/components/hub/BusinessDetailSheet";
 import { useDeals, type Deal } from "@/hooks/useDeals";
 import { useListings, type Listing } from "@/hooks/useListings";
 import { useListing } from "@/hooks/useListing";
+import { useBusinesses, type Business } from "@/hooks/useBusinesses";
 import { HUB_CARD_BASE } from "@/components/hub/hubStyles";
 
 import { useCategories } from "@/hooks/useCategories";
@@ -555,6 +557,10 @@ export default function Hub() {
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [listingSheetOpen, setListingSheetOpen] = useState(false);
 
+  // Business detail state
+  const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
+  const [businessSheetOpen, setBusinessSheetOpen] = useState(false);
+
   // ListingListSheet state (for deal card clicks)
   const [listingListSheetOpen, setListingListSheetOpen] = useState(false);
   const [listingListCategory, setListingListCategory] = useState<string | null>(null);
@@ -569,8 +575,25 @@ export default function Hub() {
     setListingListSheetOpen(false);
     setListingListCategory(null);
     setListingListSearch(null);
+    setBusinessSheetOpen(false);
+    setSelectedBusiness(null);
     setSelectedListing(listing);
     setListingSheetOpen(true);
+  };
+
+  const openBusinessDetail = (business: Business) => {
+    // Ensure we never have two Drawers open at once
+    setDealSheetOpen(false);
+    setSelectedDeal(null);
+    setBuySellCategoryDrawerOpen(false);
+    setSelectedCategoryForDrawer(null);
+    setListingListSheetOpen(false);
+    setListingListCategory(null);
+    setListingListSearch(null);
+    setListingSheetOpen(false);
+    setSelectedListing(null);
+    setSelectedBusiness(business);
+    setBusinessSheetOpen(true);
   };
 
   const location = useLocation();
@@ -2516,6 +2539,17 @@ export default function Hub() {
         deal={selectedDeal}
       />
 
+      {/* Business Detail Sheet */}
+      <BusinessDetailSheet
+        open={businessSheetOpen}
+        onOpenChange={(open) => {
+          setBusinessSheetOpen(open);
+          if (!open) {
+            setSelectedBusiness(null);
+          }
+        }}
+        business={selectedBusiness}
+      />
 
       {activeSheet === "browse" && (
         <CategoryBrowseSheet
