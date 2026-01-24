@@ -1614,7 +1614,7 @@ export default function Hub() {
           />
 
           <div className="px-4 space-y-10">
-            {/* Services (MAIN categories) grid - exactly 8 */}
+            {/* Services (MAIN categories) – 6 main cards, non-scrollable */}
             <AnimatedSection direction="up" delay={100}>
               <HubSection title={t("الخدمات", "Categories")} icon={LayoutGrid}>
                 {categoriesLoading ? (
@@ -1629,11 +1629,10 @@ export default function Hub() {
                   </div>
                 ) : (
                   <div
-                    className="flex gap-3 overflow-x-auto hide-scrollbar pb-2 snap-x snap-mandatory"
+                    className="grid grid-cols-2 md:grid-cols-3 gap-3"
                     dir={isRTL ? "rtl" : "ltr"}
-                    style={{ WebkitOverflowScrolling: "touch" as any }}
                   >
-                    {gridCategories.map((c) => {
+                    {gridCategories.slice(0, 6).map((c) => {
                       const Icon = ICON_MAP[c.icon] || Wrench;
                       return (
                         <HubChipCard
@@ -1643,6 +1642,7 @@ export default function Hub() {
                           iconColor={c.color ?? undefined}
                           onClick={() => openCategoryBrowse(c.id)}
                           isRTL={isRTL}
+                          fill
                         />
                       );
                     })}
@@ -1995,7 +1995,7 @@ export default function Hub() {
           <StatsBar />
 
           <div className="px-4 space-y-8">
-            {/* Services (MAIN categories) grid - exactly 8 */}
+            {/* Services (MAIN categories) – 6 main cards, non-scrollable */}
             <AnimatedSection direction="up" delay={100}>
               <HubSection title={t("الخدمات", "Categories")} icon={LayoutGrid}>
               {categoriesLoading ? (
@@ -2026,11 +2026,10 @@ export default function Hub() {
                 </div>
               ) : (
                 <div
-                  className="flex gap-3 overflow-x-auto hide-scrollbar pb-2 snap-x snap-mandatory"
+                  className="grid grid-cols-2 md:grid-cols-3 gap-3"
                   dir={isRTL ? "rtl" : "ltr"}
-                  style={{ WebkitOverflowScrolling: "touch" as any }}
                 >
-                  {gridCategories.map((c) => {
+                  {gridCategories.slice(0, 6).map((c) => {
                     const Icon = ICON_MAP[c.icon] || Wrench;
                     return (
                       <HubChipCard
@@ -2040,6 +2039,7 @@ export default function Hub() {
                         iconColor={c.color ?? undefined}
                         onClick={() => openCategoryBrowse(c.id)}
                         isRTL={isRTL}
+                        fill
                       />
                     );
                   })}

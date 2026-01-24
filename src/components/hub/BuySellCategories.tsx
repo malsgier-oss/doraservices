@@ -42,17 +42,17 @@ export function BuySellCategories({
   const hasMore = BUY_SELL_CATEGORIES.length > TOP_CATEGORIES_COUNT;
 
   if (compact) {
-    // Scrollable cards – same style as Services main categories
+    // 6 main cards – same style as Services, non-scrollable grid
+    const mainCategories = BUY_SELL_CATEGORIES.slice(0, 6);
     return (
       <div
         className={cn(
-          "flex gap-3 overflow-x-auto hide-scrollbar pb-3 snap-x snap-mandatory",
+          "grid grid-cols-2 md:grid-cols-3 gap-3",
           sticky && "sticky top-0 bg-background/95 backdrop-blur-sm z-40 -mx-4 px-4 py-2"
         )}
         dir={isRTL ? "rtl" : "ltr"}
-        style={{ WebkitOverflowScrolling: "touch" as any }}
       >
-        {BUY_SELL_CATEGORIES.map((cat) => {
+        {mainCategories.map((cat) => {
           const label = language === "ar" ? cat.nameAr : cat.name;
           return (
             <HubChipCard
@@ -62,6 +62,7 @@ export function BuySellCategories({
               iconColor={cat.color}
               onClick={() => handleCategoryClick(cat.id)}
               isRTL={isRTL}
+              fill
             />
           );
         })}
