@@ -45,6 +45,9 @@ import {
   X,
   LayoutDashboard,
   ShoppingBag,
+  Clock,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
@@ -813,22 +816,81 @@ export default function Profile() {
                 <Separator />
 
                 {/* Provider */}
-                <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
-                  <div className="min-w-0">
-                    <div className="font-medium">{isRTL ? "مزود خدمة" : "Provider"}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {isRTL ? "يتطلب موافقة الإدارة." : "Requires admin approval."}
+                <div className="flex flex-col gap-3 rounded-xl border border-border p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-medium">{isRTL ? "مزود خدمة" : "Provider"}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {isRTL ? "يتطلب موافقة الإدارة." : "Requires admin approval."}
+                      </div>
                     </div>
+                    {providerStatus ? (
+                      <Badge
+                        variant={
+                          providerStatus === "approved"
+                            ? "default"
+                            : providerStatus === "pending"
+                              ? "secondary"
+                              : "destructive"
+                        }
+                        className="whitespace-nowrap"
+                      >
+                        {providerStatus === "approved" && (
+                          <>
+                            <CheckCircle className="h-3 w-3 me-1" />
+                            {isRTL ? "موافق عليه" : "Approved"}
+                          </>
+                        )}
+                        {providerStatus === "pending" && (
+                          <>
+                            <Clock className="h-3 w-3 me-1" />
+                            {isRTL ? "قيد المراجعة" : "Pending"}
+                          </>
+                        )}
+                        {providerStatus === "rejected" && (
+                          <>
+                            <XCircle className="h-3 w-3 me-1" />
+                            {isRTL ? "مرفوض" : "Rejected"}
+                          </>
+                        )}
+                      </Badge>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleRequestProvider}
+                        disabled={becomingProvider || isProvider}
+                      >
+                        {becomingProvider ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
+                        <span className="ms-2">{isRTL ? "تفعيل" : "Enable"}</span>
+                      </Button>
+                    )}
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleRequestProvider}
-                    disabled={becomingProvider || isProvider}
-                  >
-                    {becomingProvider ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
-                    <span className="ms-2">{isRTL ? "تفعيل" : "Enable"}</span>
-                  </Button>
+                  {providerStatus && (
+                    <div className="text-xs text-muted-foreground pt-1 border-t border-border">
+                      {providerStatus === "pending" && (
+                        <>
+                          {isRTL
+                            ? "طلبك قيد المراجعة من قبل الإدارة. الخدمات التي تضيفها ستكون مخفية حتى الموافقة."
+                            : "Your request is under review by admin. Services you add will be hidden until approval."}
+                        </>
+                      )}
+                      {providerStatus === "approved" && (
+                        <>
+                          {isRTL
+                            ? "حسابك معتمد كمزود. يمكنك الآن إنشاء وإدارة الخدمات."
+                            : "Your account is approved as a provider. You can now create and manage services."}
+                        </>
+                      )}
+                      {providerStatus === "rejected" && (
+                        <>
+                          {isRTL
+                            ? "للأسف، تم رفض طلبك. يرجى التواصل مع الدعم للمزيد من المعلومات."
+                            : "Your provider request was rejected. Please contact support for more information."}
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
 
               </CardContent>
