@@ -226,7 +226,10 @@ export function ListingDetailSheet({ open, onOpenChange, listing, onSelectListin
                         nextStatus === "archived" ? t("تأكيد: أرشفة الإعلان؟", "Archive this listing?") : t("تأكيد: إلغاء الأرشفة؟", "Unarchive this listing?"),
                       );
                       if (!ok) return;
-                      const { error } = await supabase.from("listings").update({ status: nextStatus }).eq("id", listing.id);
+                      const updateData = nextStatus === "archived" 
+                        ? { status: nextStatus, archived_at: new Date().toISOString() }
+                        : { status: nextStatus, archived_at: null };
+                      const { error } = await supabase.from("listings").update(updateData).eq("id", listing.id);
                       if (error) toast.error(t("فشل التحديث", "Failed to update"));
                       else {
                         toast.success(nextStatus === "archived" ? t("تمت الأرشفة", "Archived") : t("تم إلغاء الأرشفة", "Unarchived"));

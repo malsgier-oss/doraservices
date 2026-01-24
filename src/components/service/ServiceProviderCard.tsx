@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, memo } from "react";
 import { 
   MessageCircle, 
   Phone, 
@@ -94,7 +94,7 @@ function RatingBadge({ rating, count }: { rating?: number; count?: number }) {
   );
 }
 
-export function ServiceProviderCard({
+export const ServiceProviderCard = memo(function ServiceProviderCardImpl({
   provider,
   className,
   variant = "card",
@@ -399,6 +399,6 @@ export function ServiceProviderCard({
       </div>
     </div>
   );
-}
+});
 
 export default ServiceProviderCard;

@@ -1,4 +1,5 @@
 import { Tag, Clock } from "lucide-react";
+import { memo } from "react";
 import { HUB_CARD_BASE } from "./hubStyles";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -10,7 +11,7 @@ interface DealCardProps {
   isRTL?: boolean;
 }
 
-export function DealCard({ deal, onClick, isRTL }: DealCardProps) {
+const DealCardContent = ({ deal, onClick, isRTL }: DealCardProps) => {
   const { language } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
 
@@ -91,4 +92,6 @@ export function DealCard({ deal, onClick, isRTL }: DealCardProps) {
       </div>
     </button>
   );
-}
+};
+
+export const DealCard = memo(DealCardContent);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, ImagePlus, PencilLine, Trash2 } from "lucide-react";
 
@@ -16,6 +16,7 @@ import { useListing } from "@/hooks/useListing";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const CATEGORIES = ["electronics", "vehicles", "home", "fashion", "sports", "games", "books", "other"] as const;
 const MAX_PHOTOS = 5;
@@ -28,6 +29,14 @@ function storagePathFromPublicUrl(publicUrl: string) {
 }
 
 export default function EditListing() {
+  return (
+    <ErrorBoundary>
+      <EditListingContent />
+    </ErrorBoundary>
+  );
+}
+
+function EditListingContent() {
   const navigate = useNavigate();
   const { id } = useParams();
   const { language, isRTL } = useLanguage();
@@ -70,10 +79,32 @@ export default function EditListing() {
     return canEdit && title.trim().length >= 3 && !!category && !!cityId && !saving;
   }, [canEdit, title, category, cityId, saving]);
 
-  const onPickPhotos = (fileList: FileList | null) => {
+  const onPickPhotos = useCallback((fileList: FileList | null) => {
     if (!fileList) return;
     const files = Array.from(fileList).filter(Boolean);
     if (files.length === 0) return;
+
+    // Validate file sizes and types
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    const validFiles: File[] = [];
+
+    for (const file of files) {
+      // Check file size
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(t(`${file.name}: الحد الأقصى للحجم 5MB`, `${file.name}: Max file size is 5MB`));
+        continue;
+      }
+
+      // Check MIME type
+      if (!file.type.startsWith("image/")) {
+        toast.error(t(`${file.name}: يجب أن يكون ملف صورة`, `${file.name}: Must be an image file`));
+        continue;
+      }
+
+      validFiles.push(file);
+    }
+
+    if (validFiles.length === 0) return;
 
     const remaining = Math.max(0, MAX_PHOTOS - (existingUrls.length + newPhotos.length));
     if (remaining <= 0) {
@@ -81,15 +112,15 @@ export default function EditListing() {
       return;
     }
 
-    const picked = files.slice(0, remaining).map((file) => ({
+    const picked = validFiles.slice(0, remaining).map((file) => ({
       file,
       previewUrl: URL.createObjectURL(file),
     }));
     setNewPhotos((prev) => [...prev, ...picked]);
     if (fileRef.current) fileRef.current.value = "";
-  };
+  }, [existingUrls.length, newPhotos.length, t]);
 
-  const removeExistingAt = async (idx: number) => {
+  const removeExistingAt = useCallback(async (idx: number) => {
     const url = existingUrls[idx];
     const next = existingUrls.filter((_, i) => i !== idx);
     setExistingUrls(next);
@@ -98,16 +129,16 @@ export default function EditListing() {
     if (path) {
       await supabase.storage.from("listing-images").remove([path]).catch(() => {});
     }
-  };
+  }, [existingUrls]);
 
-  const removeNewAt = (idx: number) => {
+  const removeNewAt = useCallback((idx: number) => {
     setNewPhotos((prev) => {
       const next = prev.slice();
       const removed = next.splice(idx, 1)[0];
       if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl);
       return next;
     });
-  };
+  }, []);
 
   const onSave = async () => {
     if (!user) {
@@ -121,6 +152,27 @@ export default function EditListing() {
       const numericPrice = price.trim() ? Number(price) : null;
       if (price.trim() && Number.isNaN(numericPrice)) {
         toast.error(t("السعر غير صالح", "Invalid price"));
+        setSaving(false);
+        return;
+      }
+
+      // Validate title length
+      if (title.trim().length > 100) {
+        toast.error(t("العنوان: حد أقصى 100 حرف", "Title: max 100 characters"));
+        setSaving(false);
+        return;
+      }
+
+      // Validate description length
+      if (description && description.trim().length > 1000) {
+        toast.error(t("الوصف: حد أقصى 1000 حرف", "Description: max 1000 characters"));
+        setSaving(false);
+        return;
+      }
+
+      // Validate price range
+      if (numericPrice !== null && (numericPrice < 0 || numericPrice > 10000000)) {
+        toast.error(t("السعر: بين 0 و 10,000,000", "Price: between 0 and 10,000,000"));
         setSaving(false);
         return;
       }
@@ -250,14 +302,15 @@ export default function EditListing() {
 
         <div className="space-y-4 pb-6">
           <div className="space-y-2">
-            <Label>{t("العنوان", "Title")}</Label>
-            <Input className="text-base" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <Label htmlFor="title-input-edit">{t("العنوان", "Title")}</Label>
+            <Input id="title-input-edit" className="text-base" value={title} onChange={(e) => setTitle(e.target.value)} aria-label={t("العنوان", "Title")} maxLength={100} />
+            <p className="text-xs text-muted-foreground">{title.length}/100</p>
           </div>
 
           <div className="space-y-2">
-            <Label>{t("التصنيف", "Category")}</Label>
+            <Label htmlFor="category-select-edit">{t("التصنيف", "Category")}</Label>
             <Select value={category} onValueChange={(v) => setCategory(v as any)}>
-              <SelectTrigger className="text-base">
+              <SelectTrigger id="category-select-edit" className="text-base" aria-label={t("التصنيف", "Category")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -273,7 +326,7 @@ export default function EditListing() {
           {/* Photos */}
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <Label>{t("الصور", "Photos")} ({totalPhotos}/{MAX_PHOTOS})</Label>
+              <Label htmlFor="photos-input-edit">{t("الصور", "Photos")} ({totalPhotos}/{MAX_PHOTOS})</Label>
               <Button
                 type="button"
                 variant="outline"
@@ -281,17 +334,20 @@ export default function EditListing() {
                 className="h-9"
                 onClick={() => fileRef.current?.click()}
                 disabled={totalPhotos >= MAX_PHOTOS}
+                aria-label={t("إضافة صور", "Add photos")}
               >
                 <ImagePlus className="h-4 w-4 mr-1" />
                 {t("إضافة صور", "Add photos")}
               </Button>
               <input
+                id="photos-input-edit"
                 ref={fileRef}
                 type="file"
                 accept="image/*"
                 multiple
                 className="hidden"
                 onChange={(e) => onPickPhotos(e.target.files)}
+                aria-label={t("اختر الصور", "Select photos")}
               />
             </div>
 
@@ -330,14 +386,14 @@ export default function EditListing() {
           </div>
 
           <div className="space-y-2">
-            <Label>{t("السعر (اختياري)", "Price (optional)")}</Label>
-            <Input className="text-base" value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" />
+            <Label htmlFor="price-input-edit">{t("السعر (اختياري)", "Price (optional)")}</Label>
+            <Input id="price-input-edit" className="text-base" value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" aria-label={t("السعر", "Price")} />
           </div>
 
           <div className="space-y-2">
-            <Label>{t("المدينة", "City")}</Label>
+            <Label htmlFor="city-select-edit">{t("المدينة", "City")}</Label>
             <Select value={cityId} onValueChange={(v) => setCityId(v)}>
-              <SelectTrigger className="text-base">
+              <SelectTrigger id="city-select-edit" className="text-base" aria-label={t("المدينة", "City")}>
                 <SelectValue placeholder={t("اختر مدينة", "Select city")} />
               </SelectTrigger>
               <SelectContent>
@@ -354,13 +410,14 @@ export default function EditListing() {
           </div>
 
           <div className="space-y-2">
-            <Label>{t("الموقع (اختياري)", "Location (optional)")}</Label>
-            <Input className="text-base" value={location} onChange={(e) => setLocation(e.target.value)} />
+            <Label htmlFor="location-input-edit">{t("الموقع (اختياري)", "Location (optional)")}</Label>
+            <Input id="location-input-edit" className="text-base" value={location} onChange={(e) => setLocation(e.target.value)} aria-label={t("الموقع", "Location")} />
           </div>
 
           <div className="space-y-2">
-            <Label>{t("الوصف (اختياري)", "Description (optional)")}</Label>
-            <Textarea className="text-base" value={description} onChange={(e) => setDescription(e.target.value)} />
+            <Label htmlFor="description-input-edit">{t("الوصف (اختياري)", "Description (optional)")}</Label>
+            <Textarea id="description-input-edit" className="text-base" value={description} onChange={(e) => setDescription(e.target.value)} aria-label={t("الوصف", "Description")} maxLength={1000} />
+            <p className="text-xs text-muted-foreground">{description.length}/1000</p>
           </div>
         </div>
       </div>

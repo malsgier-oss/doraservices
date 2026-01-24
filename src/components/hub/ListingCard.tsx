@@ -1,5 +1,5 @@
 import { MapPin, Tag } from "lucide-react";
-import { useState } from "react";
+import { useState, memo } from "react";
 import { HUB_CARD_BASE } from "./hubStyles";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -11,7 +11,7 @@ interface ListingCardProps {
   isRTL?: boolean;
 }
 
-export function ListingCard({ listing, onClick, isRTL }: ListingCardProps) {
+const ListingCardContent = ({ listing, onClick, isRTL }: ListingCardProps) => {
   const { language } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -110,4 +110,6 @@ export function ListingCard({ listing, onClick, isRTL }: ListingCardProps) {
       </div>
     </button>
   );
-}
+};
+
+export const ListingCard = memo(ListingCardContent);

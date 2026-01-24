@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn, normalizeCategory } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 import { ImagePlus, Trash2 } from "lucide-react";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import {
   Home,
   Car,
@@ -99,6 +100,14 @@ function normalizeLibyaPhoneForStorage(raw: string | null | undefined) {
 }
 
 export default function ServiceCreator() {
+  return (
+    <ErrorBoundary>
+      <ServiceCreatorContent />
+    </ErrorBoundary>
+  );
+}
+
+function ServiceCreatorContent() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { t, isRTL, language } = useLanguage();
@@ -178,6 +187,17 @@ export default function ServiceCreator() {
       toast.error(isRTL ? "يرجى إدخال اسم الخدمة" : "Please enter service name");
       return;
     }
+
+    if (formData.serviceName.trim().length > 100) {
+      toast.error(isRTL ? "اسم الخدمة: حد أقصى 100 حرف" : "Service name: max 100 characters");
+      return;
+    }
+
+    if (formData.bio && formData.bio.trim().length > 1000) {
+      toast.error(isRTL ? "الوصف: حد أقصى 1000 حرف" : "Description: max 1000 characters");
+      return;
+    }
+
     if (!formData.category) {
       toast.error(isRTL ? "يرجى اختيار الفئة" : "Please select a category");
       return;
@@ -314,30 +334,52 @@ export default function ServiceCreator() {
   };
 
   const remainingSlots = Math.max(0, 5 - imageFiles.length);
-  const onPickImages = (files: FileList | null) => {
+  const onPickImages = useCallback((files: FileList | null) => {
     if (!files) return;
     const picked = Array.from(files).filter(Boolean);
 
     if (picked.length === 0) return;
 
+    // Validate file sizes and types
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    const validFiles: File[] = [];
+
+    for (const file of picked) {
+      // Check file size
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(isRTL ? `${file.name}: الحد الأقصى للحجم 5MB` : `${file.name}: Max file size is 5MB`);
+        continue;
+      }
+
+      // Check MIME type
+      if (!file.type.startsWith("image/")) {
+        toast.error(isRTL ? `${file.name}: يجب أن يكون ملف صورة` : `${file.name}: Must be an image file`);
+        continue;
+      }
+
+      validFiles.push(file);
+    }
+
+    if (validFiles.length === 0) return;
+
     const next = [...imageFiles];
-    for (const f of picked) {
+    for (const f of validFiles) {
       if (next.length >= 5) break;
       next.push(f);
     }
 
-    if (imageFiles.length + picked.length > 5) {
+    if (imageFiles.length + validFiles.length > 5) {
       toast.error(isRTL ? "الخطة المجانية: حتى 5 صور" : "Free plan: up to 5 photos");
     }
 
     setImageFiles(next);
-  };
+  }, [imageFiles, isRTL]);
 
-  const removeImage = (idx: number) => {
+  const removeImage = useCallback((idx: number) => {
     setImageFiles((prev) => prev.filter((_, i) => i !== idx));
-  };
+  }, []);
 
-  const makeCover = (idx: number) => {
+  const makeCover = useCallback((idx: number) => {
     setImageFiles((prev) => {
       if (idx <= 0 || idx >= prev.length) return prev;
       const next = [...prev];
@@ -345,7 +387,7 @@ export default function ServiceCreator() {
       next.unshift(picked);
       return next;
     });
-  };
+  }, []);
 
   return (
     <Layout>
@@ -382,6 +424,7 @@ export default function ServiceCreator() {
                       className="hidden"
                       onChange={(e) => onPickImages(e.target.files)}
                       disabled={remainingSlots <= 0 || isSubmitting}
+                      aria-label={isRTL ? "اختر صور الخدمة" : "Select service photos"}
                     />
                   </label>
                 </Button>
@@ -433,12 +476,12 @@ export default function ServiceCreator() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
-            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{t.creator.category}</Label>
+            <Label htmlFor="category-select" className={cn(isRTL ? "text-right block" : "text-left block")}>{t.creator.category}</Label>
             <Select
               value={formData.category}
               onValueChange={(value) => setFormData({ ...formData, category: value, subcategory: "" })}
             >
-              <SelectTrigger className="rounded-xl h-12">
+              <SelectTrigger id="category-select" className="rounded-xl h-12" aria-label={t.creator.category}>
                 <SelectValue placeholder={t.creator.selectCategory} />
               </SelectTrigger>
               <SelectContent className="bg-card border-border z-50">
@@ -546,14 +589,18 @@ export default function ServiceCreator() {
           )}
 
           <div className="space-y-2">
-            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{t.creator.serviceName}</Label>
+            <Label htmlFor="service-name-input" className={cn(isRTL ? "text-right block" : "text-left block")}>{t.creator.serviceName}</Label>
             <Input
+              id="service-name-input"
               value={formData.serviceName}
               onChange={(e) => setFormData({ ...formData, serviceName: e.target.value })}
               placeholder={t.creator.serviceNamePlaceholder}
               className={cn("rounded-xl h-12", isRTL ? "text-right" : "text-left")}
               dir={isRTL ? "rtl" : "ltr"}
+              aria-label={t.creator.serviceName}
+              maxLength={100}
             />
+            <p className="text-xs text-muted-foreground">{formData.serviceName.length}/100</p>
           </div>
 
           <div className="space-y-2">
@@ -564,7 +611,9 @@ export default function ServiceCreator() {
               placeholder={t.creator.bioPlaceholder}
               className={cn("min-h-[120px] rounded-xl resize-none", isRTL ? "text-right" : "text-left")}
               dir={isRTL ? "rtl" : "ltr"}
+              maxLength={1000}
             />
+            <p className="text-xs text-muted-foreground">{formData.bio.length}/1000</p>
           </div>
 
           <Button type="submit" disabled={isSubmitting} className="w-full rounded-full h-12 text-base">

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ImagePlus, PlusCircle, Trash2 } from "lucide-react";
 
@@ -14,6 +14,7 @@ import { useCities } from "@/hooks/useCities";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const CITY_STORAGE_KEY = "dora_city_id";
 
@@ -29,6 +30,14 @@ const CATEGORIES = ["electronics", "vehicles", "home", "fashion", "sports", "gam
 const MAX_PHOTOS = 5;
 
 export default function CreateListing() {
+  return (
+    <ErrorBoundary>
+      <CreateListingContent />
+    </ErrorBoundary>
+  );
+}
+
+function CreateListingContent() {
   const navigate = useNavigate();
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
@@ -52,10 +61,32 @@ export default function CreateListing() {
     return title.trim().length >= 3 && !!category && !!cityId && !submitting;
   }, [title, category, cityId, submitting]);
 
-  const onPickPhotos = (fileList: FileList | null) => {
+  const onPickPhotos = useCallback((fileList: FileList | null) => {
     if (!fileList) return;
     const files = Array.from(fileList).filter(Boolean);
     if (files.length === 0) return;
+
+    // Validate file sizes and types
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    const validFiles: File[] = [];
+
+    for (const file of files) {
+      // Check file size
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(t(`${file.name}: الحد الأقصى للحجم 5MB`, `${file.name}: Max file size is 5MB`));
+        continue;
+      }
+
+      // Check MIME type
+      if (!file.type.startsWith("image/")) {
+        toast.error(t(`${file.name}: يجب أن يكون ملف صورة`, `${file.name}: Must be an image file`));
+        continue;
+      }
+
+      validFiles.push(file);
+    }
+
+    if (validFiles.length === 0) return;
 
     const remaining = Math.max(0, MAX_PHOTOS - photos.length);
     if (remaining <= 0) {
@@ -63,7 +94,7 @@ export default function CreateListing() {
       return;
     }
 
-    const picked = files.slice(0, remaining).map((file) => ({
+    const picked = validFiles.slice(0, remaining).map((file) => ({
       file,
       previewUrl: URL.createObjectURL(file),
     }));
@@ -71,16 +102,16 @@ export default function CreateListing() {
     setPhotos((prev) => [...prev, ...picked]);
     // reset input so user can re-pick same file if needed
     if (fileRef.current) fileRef.current.value = "";
-  };
+  }, [photos.length, t]);
 
-  const removePhotoAt = (idx: number) => {
+  const removePhotoAt = useCallback((idx: number) => {
     setPhotos((prev) => {
       const next = prev.slice();
       const removed = next.splice(idx, 1)[0];
       if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl);
       return next;
     });
-  };
+  }, []);
 
   const handleSubmit = async () => {
     if (!buySellEnabled) {
@@ -100,6 +131,27 @@ export default function CreateListing() {
       const numericPrice = price.trim() ? Number(price) : null;
       if (price.trim() && Number.isNaN(numericPrice)) {
         toast.error(t("السعر غير صالح", "Invalid price"));
+        setSubmitting(false);
+        return;
+      }
+
+      // Validate title length
+      if (title.trim().length > 100) {
+        toast.error(t("العنوان: حد أقصى 100 حرف", "Title: max 100 characters"));
+        setSubmitting(false);
+        return;
+      }
+
+      // Validate description length
+      if (description && description.trim().length > 1000) {
+        toast.error(t("الوصف: حد أقصى 1000 حرف", "Description: max 1000 characters"));
+        setSubmitting(false);
+        return;
+      }
+
+      // Validate price range
+      if (numericPrice !== null && (numericPrice < 0 || numericPrice > 10000000)) {
+        toast.error(t("السعر: بين 0 و 10,000,000", "Price: between 0 and 10,000,000"));
         setSubmitting(false);
         return;
       }
@@ -194,14 +246,15 @@ export default function CreateListing() {
         ) : (
           <div className="space-y-4 pb-6">
           <div className="space-y-2">
-            <Label>{t("العنوان", "Title")}</Label>
-            <Input className="text-base" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("مثال: آيفون 13", "e.g. iPhone 13")} />
+            <Label htmlFor="title-input">{t("العنوان", "Title")}</Label>
+            <Input id="title-input" className="text-base" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("مثال: آيفون 13", "e.g. iPhone 13")} aria-label={t("العنوان", "Title")} maxLength={100} />
+            <p className="text-xs text-muted-foreground">{title.length}/100</p>
           </div>
 
           <div className="space-y-2">
-            <Label>{t("التصنيف", "Category")}</Label>
+            <Label htmlFor="category-select">{t("التصنيف", "Category")}</Label>
             <Select value={category} onValueChange={(v) => setCategory(v as any)}>
-              <SelectTrigger className="text-base">
+              <SelectTrigger id="category-select" className="text-base" aria-label={t("التصنيف", "Category")}>
                 <SelectValue placeholder={t("اختر تصنيف", "Select category")} />
               </SelectTrigger>
               <SelectContent>
@@ -217,18 +270,20 @@ export default function CreateListing() {
           {/* Photos */}
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <Label>{t("الصور (حتى 5)", "Photos (up to 5)")}</Label>
-              <Button type="button" variant="outline" size="sm" className="h-9" onClick={() => fileRef.current?.click()}>
+              <Label htmlFor="photos-input">{t("الصور (حتى 5)", "Photos (up to 5)")}</Label>
+              <Button type="button" variant="outline" size="sm" className="h-9" onClick={() => fileRef.current?.click()} aria-label={t("إضافة صور", "Add photos")}>
                 <ImagePlus className="h-4 w-4 mr-1" />
                 {t("إضافة صور", "Add photos")}
               </Button>
               <input
+                id="photos-input"
                 ref={fileRef}
                 type="file"
                 accept="image/*"
                 multiple
                 className="hidden"
                 onChange={(e) => onPickPhotos(e.target.files)}
+                aria-label={t("اختر الصور", "Select photos")}
               />
             </div>
             {photos.length > 0 ? (
@@ -255,14 +310,14 @@ export default function CreateListing() {
           </div>
 
           <div className="space-y-2">
-            <Label>{t("السعر (اختياري)", "Price (optional)")}</Label>
-            <Input className="text-base" value={price} onChange={(e) => setPrice(e.target.value)} placeholder={t("مثال: 1200", "e.g. 1200")} inputMode="decimal" />
+            <Label htmlFor="price-input">{t("السعر (اختياري)", "Price (optional)")}</Label>
+            <Input id="price-input" className="text-base" value={price} onChange={(e) => setPrice(e.target.value)} placeholder={t("مثال: 1200", "e.g. 1200")} inputMode="decimal" aria-label={t("السعر", "Price")} />
           </div>
 
           <div className="space-y-2">
-            <Label>{t("المدينة", "City")}</Label>
+            <Label htmlFor="city-select">{t("المدينة", "City")}</Label>
             <Select value={cityId} onValueChange={(v) => setCityId(v)}>
-              <SelectTrigger className="text-base">
+              <SelectTrigger id="city-select" className="text-base" aria-label={t("المدينة", "City")}>
                 <SelectValue placeholder={t("اختر مدينة", "Select city")} />
               </SelectTrigger>
               <SelectContent>
@@ -279,18 +334,22 @@ export default function CreateListing() {
           </div>
 
           <div className="space-y-2">
-            <Label>{t("الموقع (اختياري)", "Location (optional)")}</Label>
-            <Input className="text-base" value={location} onChange={(e) => setLocation(e.target.value)} placeholder={t("مثال: سوق الجمعة", "e.g. Souq Al-Jumaa")} />
+            <Label htmlFor="location-input">{t("الموقع (اختياري)", "Location (optional)")}</Label>
+            <Input id="location-input" className="text-base" value={location} onChange={(e) => setLocation(e.target.value)} placeholder={t("مثال: سوق الجمعة", "e.g. Souq Al-Jumaa")} aria-label={t("الموقع", "Location")} />
           </div>
 
           <div className="space-y-2">
-            <Label>{t("الوصف (اختياري)", "Description (optional)")}</Label>
+            <Label htmlFor="description-input">{t("الوصف (اختياري)", "Description (optional)")}</Label>
             <Textarea
+              id="description-input"
               className="text-base"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder={t("اكتب تفاصيل أكثر عن المنتج...", "Add more details about the item...")}
+              aria-label={t("الوصف", "Description")}
+              maxLength={1000}
             />
+            <p className="text-xs text-muted-foreground">{description.length}/1000</p>
           </div>
 
           {!user ? (
