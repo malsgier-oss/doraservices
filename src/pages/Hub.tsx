@@ -30,6 +30,7 @@ import { LoadMoreButton } from "@/components/hub/LoadMoreButton";
 import { useServiceFilters } from "@/hooks/useServiceFilters";
 import { useSimilarServices } from "@/hooks/useSimilarServices";
 import { TipChip } from "@/components/hub/TipChip";
+import { HubChipCard } from "@/components/hub/HubChipCard";
 import { StatsBar } from "@/components/hub/StatsBar";
 import { ActivityFeed } from "@/components/hub/ActivityFeed";
 import { HubTabSwitcher } from "@/components/hub/HubTabSwitcher";
@@ -1628,26 +1629,21 @@ export default function Hub() {
                   </div>
                 ) : (
                   <div
-                    className="flex gap-3 overflow-x-auto hide-scrollbar pb-2"
+                    className="flex gap-3 overflow-x-auto hide-scrollbar pb-2 snap-x snap-mandatory"
                     dir={isRTL ? "rtl" : "ltr"}
                     style={{ WebkitOverflowScrolling: "touch" as any }}
                   >
                     {gridCategories.map((c) => {
                       const Icon = ICON_MAP[c.icon] || Wrench;
                       return (
-                        <button
+                        <HubChipCard
                           key={c.id}
+                          label={c.name_ar || c.name}
+                          icon={Icon}
+                          iconColor={c.color ?? undefined}
                           onClick={() => openCategoryBrowse(c.id)}
-                          className="shrink-0 flex items-center gap-3 px-4 py-2.5 rounded-full border border-border hover:border-primary/60 hover:bg-primary/8 transition-all active:scale-95"
-                        >
-                          <div
-                            className="h-10 w-10 rounded-full flex items-center justify-center shadow-sm flex-shrink-0"
-                            style={{ backgroundColor: (c.color || "#888") + "20" }}
-                          >
-                            <Icon className="h-5 w-5" style={{ color: c.color }} strokeWidth={2.2} />
-                          </div>
-                          <span className="text-sm font-semibold whitespace-nowrap text-foreground">{c.name_ar || c.name}</span>
-                        </button>
+                          isRTL={isRTL}
+                        />
                       );
                     })}
                   </div>
@@ -2029,25 +2025,22 @@ export default function Hub() {
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-4 gap-4">
+                <div
+                  className="flex gap-3 overflow-x-auto hide-scrollbar pb-2 snap-x snap-mandatory"
+                  dir={isRTL ? "rtl" : "ltr"}
+                  style={{ WebkitOverflowScrolling: "touch" as any }}
+                >
                   {gridCategories.map((c) => {
                     const Icon = ICON_MAP[c.icon] || Wrench;
                     return (
-                      <button
+                      <HubChipCard
                         key={c.id}
-                        className={`${HUB_CARD_BASE} bg-card min-h-[120px] px-4 py-5 flex flex-col items-center justify-center gap-4 text-center group`}
+                        label={c.name_ar || c.name}
+                        icon={Icon}
+                        iconColor={c.color ?? undefined}
                         onClick={() => openCategoryBrowse(c.id)}
-                      >
-                        <div
-                          className="h-16 w-16 rounded-2xl flex items-center justify-center shadow-sm group-hover:shadow-md transition-all duration-300 group-hover:scale-105"
-                          style={{ backgroundColor: (c.color || "#888") + "15" }}
-                        >
-                          <Icon className="h-8 w-8 text-foreground group-hover:scale-110 transition-transform duration-300" strokeWidth={2} />
-                        </div>
-                        <div className="text-sm font-semibold text-foreground leading-tight line-clamp-2 group-hover:text-primary transition-colors">
-                          {c.name_ar || c.name}
-                        </div>
-                      </button>
+                        isRTL={isRTL}
+                      />
                     );
                   })}
                 </div>

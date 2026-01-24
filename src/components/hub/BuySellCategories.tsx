@@ -1,9 +1,9 @@
 import { useLanguage } from "@/contexts/LanguageContext";
 import { HUB_CARD_BASE } from "./hubStyles";
 import { BUY_SELL_CATEGORIES } from "@/components/hub/buySellCategories";
+import { HubChipCard } from "@/components/hub/HubChipCard";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -42,39 +42,29 @@ export function BuySellCategories({
   const hasMore = BUY_SELL_CATEGORIES.length > TOP_CATEGORIES_COUNT;
 
   if (compact) {
-    // Horizontal scroll version for sticky bar
+    // Scrollable cards – same style as Services main categories
     return (
       <div
         className={cn(
-          "flex gap-2 overflow-x-auto hide-scrollbar pb-2",
+          "flex gap-3 overflow-x-auto hide-scrollbar pb-3 snap-x snap-mandatory",
           sticky && "sticky top-0 bg-background/95 backdrop-blur-sm z-40 -mx-4 px-4 py-2"
         )}
+        dir={isRTL ? "rtl" : "ltr"}
         style={{ WebkitOverflowScrolling: "touch" as any }}
       >
-        {categoriesToShow.map((cat) => {
-          const Icon = cat.icon;
+        {BUY_SELL_CATEGORIES.map((cat) => {
           const label = language === "ar" ? cat.nameAr : cat.name;
-
           return (
-            <button
+            <HubChipCard
               key={cat.id}
+              label={label}
+              icon={cat.icon}
+              iconColor={cat.color}
               onClick={() => handleCategoryClick(cat.id)}
-              className="shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full border border-border hover:border-primary/50 hover:bg-primary/5 transition-all"
-            >
-              <Icon className="h-4 w-4" style={{ color: cat.color }} strokeWidth={2} />
-              <span className="text-sm font-medium whitespace-nowrap">{label}</span>
-            </button>
+              isRTL={isRTL}
+            />
           );
         })}
-        {hasMore && !showAll && (
-          <button
-            onClick={() => setShowAll(true)}
-            className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full border border-border hover:border-primary/50 hover:bg-primary/5 transition-all"
-          >
-            <MoreHorizontal className="h-4 w-4" />
-            <span className="text-sm font-medium whitespace-nowrap">{t("المزيد", "More")}</span>
-          </button>
-        )}
       </div>
     );
   }
