@@ -104,6 +104,7 @@ export default function Profile() {
 
   const [becomingProvider, setBecomingProvider] = useState(false);
   const [marketplaceEnabled, setMarketplaceEnabled] = useState(false);
+  const [savingMarketplace, setSavingMarketplace] = useState(false);
   const [termsDialogOpen, setTermsDialogOpen] = useState(false);
   const [termsAgreed, setTermsAgreed] = useState(false);
 
@@ -141,6 +142,38 @@ export default function Profile() {
       setMarketplaceEnabled(false);
     }
   }, [buySellEnabled]);
+
+  // Auto-save marketplace_enabled when it changes
+  useEffect(() => {
+    if (!user || !profile) return;
+
+    const saveMarketplace = async () => {
+      setSavingMarketplace(true);
+      const { error } = await supabase
+        .from("profiles")
+        .update({ marketplace_enabled: marketplaceEnabled })
+        .eq("user_id", user.id);
+      setSavingMarketplace(false);
+
+      if (error) {
+        toast({
+          title: isRTL ? "فشل الحفظ" : "Failed to save",
+          description: error.message,
+          variant: "destructive",
+        });
+        setMarketplaceEnabled(false); // Revert on error
+      } else {
+        toast({
+          title: isRTL ? "تم الحفظ" : "Saved",
+          description: isRTL ? "تم تحديث تفضيلات الإعلانات" : "Listing preference updated",
+        });
+      }
+    };
+
+    // Debounce to prevent rapid saves
+    const timer = setTimeout(saveMarketplace, 500);
+    return () => clearTimeout(timer);
+  }, [marketplaceEnabled, user, profile, isRTL]);
 
   // If city changes and the selected sub-city doesn't belong to the city, clear it.
   useEffect(() => {
@@ -795,7 +828,7 @@ export default function Profile() {
                   <Switch
                     checked={marketplaceEnabled}
                     onCheckedChange={(v) => setMarketplaceEnabled(Boolean(v))}
-                    disabled={!buySellEnabled || (isProvider ? false : !marketplaceEnabled)}
+                    disabled={!buySellEnabled || (isProvider ? false : !marketplaceEnabled) || savingMarketplace}
                     aria-label="marketplace"
                   />
                 </div>
