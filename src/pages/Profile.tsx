@@ -182,10 +182,10 @@ export default function Profile() {
   }, [showWelcome]);
 
   const canEditPhone = useMemo(() => {
-    // Editing phone freely can break login (phone->internal email mapping).
-    // P0 rule: allow edit ONLY if it's empty in DB.
-    return !profile?.phone;
-  }, [profile?.phone]);
+    // Editing phone can break login (phone->internal email mapping).
+    // P0 rule: phone is never editable after account creation.
+    return false;
+  }, []);
 
   const handleSave = async () => {
     if (!user) return;
@@ -201,18 +201,7 @@ export default function Profile() {
     }
 
     let cleanedPhone: string | null = null;
-    if (canEditPhone) {
-      const p = cleanPhoneForStorage(phone);
-      if (p && !isValidLibyanPhone(p)) {
-        toast({
-          title: isRTL ? "رقم غير صالح" : "Invalid phone",
-          description: isRTL ? "اكتب رقم ليبي صحيح مثل 09XXXXXXXX" : "Enter a valid Libyan phone like 09XXXXXXXX",
-          variant: "destructive",
-        });
-        return;
-      }
-      cleanedPhone = p || null;
-    }
+    // Phone is never editable, so we don't need to validate or update it
 
     const selected = cities?.find((c) => c.id === cityId);
     const cityName = selected
@@ -231,8 +220,6 @@ export default function Profile() {
       sub_city: subCity?.trim() || null,
       marketplace_enabled: marketplaceEnabled,
     };
-
-    if (canEditPhone) payload.phone = cleanedPhone;
 
     const { error } = await supabase.from("profiles").update(payload).eq("user_id", user.id);
 
@@ -695,13 +682,11 @@ export default function Profile() {
                     disabled={!canEditPhone}
                     readOnly={!canEditPhone}
                   />
-                  {!canEditPhone && (
-                    <p className="text-xs text-muted-foreground">
-                      {isRTL
-                        ? "لأسباب أمنية، تغيير رقم الهاتف قد يسبب مشاكل في تسجيل الدخول. (حالياً للعرض فقط)"
-                        : "For security, changing phone can break login. (Currently display-only)"}
-                    </p>
-                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {isRTL
+                      ? "لأسباب أمنية، رقم الهاتف لا يمكن تعديله بعد إنشاء الحساب."
+                      : "For security, phone number cannot be edited after account creation."}
+                  </p>
                 </div>
 
                 <div className="grid gap-3">
