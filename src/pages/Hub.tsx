@@ -1629,24 +1629,21 @@ export default function Hub() {
                     {t("لا توجد أقسام متاحة حالياً.", "No categories available right now.")}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-4 gap-4">
+                  <div
+                    className="flex gap-2 overflow-x-auto hide-scrollbar pb-2"
+                    dir={isRTL ? "rtl" : "ltr"}
+                    style={{ WebkitOverflowScrolling: "touch" as any }}
+                  >
                     {gridCategories.map((c) => {
                       const Icon = ICON_MAP[c.icon] || Wrench;
                       return (
                         <button
                           key={c.id}
-                          className={`${HUB_CARD_BASE} bg-card min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
                           onClick={() => openCategoryBrowse(c.id)}
+                          className="shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full border border-border hover:border-primary/50 hover:bg-primary/5 transition-all"
                         >
-                          <div
-                            className="h-14 w-14 rounded-full flex items-center justify-center shadow-sm"
-                            style={{ backgroundColor: (c.color || "#888") + "1f" }}
-                          >
-                            <Icon className="h-7 w-7 text-foreground" strokeWidth={2.2} />
-                          </div>
-                          <div className="text-xs font-medium text-muted-foreground leading-snug line-clamp-2">
-                            {c.name_ar || c.name}
-                          </div>
+                          <Icon className="h-4 w-4" style={{ color: c.color }} strokeWidth={2} />
+                          <span className="text-sm font-medium whitespace-nowrap">{c.name_ar || c.name}</span>
                         </button>
                       );
                     })}
