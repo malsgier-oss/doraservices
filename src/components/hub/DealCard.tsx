@@ -37,6 +37,7 @@ const DealCardContent = ({ deal, onClick, isRTL }: DealCardProps) => {
       className={cn(
         HUB_CARD_BASE,
         "bg-card overflow-hidden p-0 transition-transform active:scale-[0.99] touch-manipulation text-left",
+        "hover:shadow-[0_12px_40px_rgba(15,23,42,0.15)] dark:hover:shadow-[0_12px_40px_rgba(0,0,0,0.3)]",
         onClick && "cursor-pointer"
       )}
       dir={isRTL ? "rtl" : "ltr"}
@@ -47,12 +48,12 @@ const DealCardContent = ({ deal, onClick, isRTL }: DealCardProps) => {
           <img
             src={deal.image_url}
             alt={deal.title}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
             loading="lazy"
             decoding="async"
           />
           {deal.featured && (
-            <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded">
+            <div className="absolute top-3 left-3 bg-primary text-primary-foreground text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm">
               {isRTL ? "مميز" : "FEATURED"}
             </div>
           )}
@@ -60,14 +61,14 @@ const DealCardContent = ({ deal, onClick, isRTL }: DealCardProps) => {
       )}
 
       {/* Content */}
-      <div className="p-4 space-y-2">
+      <div className="p-4 space-y-3">
         {/* Discount badge */}
         <div className="flex items-center gap-2">
-          <div className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded">
+          <div className="bg-red-500/90 text-white text-xs font-bold px-2.5 py-1 rounded-lg shadow-sm">
             {discountText}
           </div>
           {daysRemaining !== null && daysRemaining > 0 && (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1">
               <Clock className="h-3 w-3" />
               <span>{isRTL ? `${daysRemaining} يوم` : `${daysRemaining}d left`}</span>
             </div>
@@ -75,18 +76,18 @@ const DealCardContent = ({ deal, onClick, isRTL }: DealCardProps) => {
         </div>
 
         {/* Title */}
-        <h3 className="font-semibold text-sm line-clamp-2">{deal.title}</h3>
+        <h3 className="font-semibold text-sm line-clamp-2 leading-tight">{deal.title}</h3>
 
         {/* Description */}
         {deal.description && (
-          <p className="text-xs text-muted-foreground line-clamp-2">{deal.description}</p>
+          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{deal.description}</p>
         )}
 
         {/* Promo code */}
         {deal.promo_code && (
           <div className="flex items-center gap-2 pt-1">
             <Tag className="h-3 w-3 text-muted-foreground" />
-            <span className="text-xs font-mono text-primary">{deal.promo_code}</span>
+            <span className="text-xs font-mono text-primary font-semibold">{deal.promo_code}</span>
           </div>
         )}
       </div>

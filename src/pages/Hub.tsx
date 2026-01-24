@@ -38,6 +38,7 @@ import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
 import { FeaturedDeals } from "@/components/hub/FeaturedDeals";
 import { DealCard } from "@/components/hub/DealCard";
 import { BuySellCategories, BUY_SELL_CATEGORIES } from "@/components/hub/BuySellCategories";
+import { BuySellHubTab } from "@/components/hub/BuySellHubTab";
 import { BuySellCategoryDrawer } from "@/components/hub/BuySellCategoryDrawer";
 import { TrendingDeals } from "@/components/hub/TrendingDeals";
 import { NewListings } from "@/components/hub/NewListings";
@@ -1959,245 +1960,22 @@ export default function Hub() {
           </TabsContent>
 
           {/* BUY & SELL Tab */}
-          <TabsContent value="buy-sell" className="mt-0 space-y-6">
-            <div className="px-4 space-y-6">
-              {/* Mode toggle */}
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant={buySellMode === "all" ? "default" : "outline"}
-                  size="sm"
-                  className="h-10"
-                  onClick={() => setBuySellMode("all")}
-                >
-                  {t("الكل", "All")}
-                </Button>
-                <Button
-                  type="button"
-                  variant={buySellMode === "listings" ? "default" : "outline"}
-                  size="sm"
-                  className="h-10"
-                  onClick={() => setBuySellMode("listings")}
-                >
-                  {t("إعلانات", "Listings")}
-                </Button>
-              </div>
-
-              {/* Categories Grid */}
-              <HubSection title={t("التصنيفات", "Categories")} icon={LayoutGrid}>
-                <BuySellCategories onCategoryClick={(catId) => {
-                  if (import.meta.env.DEV) {
-                    console.log("Category clicked:", catId);
-                  }
-                  // Ensure we never have two Drawers open at once
-                  setListingSheetOpen(false);
-                  setSelectedListing(null);
-                  setDealSheetOpen(false);
-                  setSelectedDeal(null);
-                  setListingListSheetOpen(false);
-                  setListingListCategory(null);
-                  setListingListSearch(null);
-                  // Open drawer with selected category
-                  setSelectedCategoryForDrawer(catId);
-                  setBuySellCategoryDrawerOpen(true);
-                }} />
-                {selectedBuySellCategory && (
-                  <div className="mt-3 flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedBuySellCategory(null)}
-                      className="text-xs"
-                    >
-                      {t("إلغاء التصفية", "Clear filter")}: {selectedBuySellCategory}
-                      <X className="h-3 w-3 ml-1" />
-                    </Button>
-                  </div>
-                )}
-              </HubSection>
-
-              {buySellMode === "listings" || buySellMode === "all" ? (
-                <>
-                  <AnimatedSection direction="up" delay={200}>
-                    <HubSection
-                      id="listings"
-                      title={t("إعلانات للبيع", "Listings")}
-                      icon={Tag}
-                      actionLabel={t("عرض الكل", "View All")}
-                      onAction={() => {
-                        const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
-                        const q = buySellSearchQuery.trim() ? (qs ? `${qs}&q=${encodeURIComponent(buySellSearchQuery.trim())}` : `?q=${encodeURIComponent(buySellSearchQuery.trim())}`) : qs;
-                        navigate(`/buy-sell/listings${q}`);
-                      }}
-                    >
-                      <BuySellListingsSection
-                        cityId={cityId}
-                        category={selectedBuySellCategory}
-                        search={buySellSearchQuery}
-                        onListingClick={openListingDetail}
-                        onEmptyAction={() => navigate("/buy-sell/create-listing")}
-                      />
-                    </HubSection>
-                  </AnimatedSection>
-                </>
-              ) : null}
-
-              {buySellMode === "all" ? (
-                <>
-                  {/* Featured Deals */}
-                  <AnimatedSection direction="up" delay={200}>
-                    <HubSection 
-                      id="featured-deals" 
-                      title={t("عروض مميزة", "Featured Deals")} 
-                      icon={Tag}
-                      actionLabel={t("عرض الكل", "View All")}
-                      onAction={() => {
-                        const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
-                        const q = buySellSearchQuery.trim() ? (qs ? `${qs}&q=${encodeURIComponent(buySellSearchQuery.trim())}` : `?q=${encodeURIComponent(buySellSearchQuery.trim())}`) : qs;
-                        navigate(`/buy-sell/deals/featured${q}`);
-                      }}
-                    >
-                      <FeaturedDeals
-                        cityId={cityId}
-                        category={selectedBuySellCategory}
-                        search={buySellSearchQuery}
-                        limit={6}
-                        onDealClick={(deal) => openDealDetail(deal)}
-                      />
-                    </HubSection>
-                  </AnimatedSection>
-
-                  {/* Active Deals Grid */}
-                  <BuySellDealsSection cityId={cityId} category={selectedBuySellCategory} search={buySellSearchQuery} onDealClick={openDealDetail} />
-
-                  {/* Trending Deals */}
-                  <AnimatedSection direction="up" delay={400}>
-                    <HubSection 
-                      id="trending-deals" 
-                      title={t("عروض ترند", "Trending Deals")} 
-                      icon={TrendingUp}
-                      actionLabel={t("عرض الكل", "View All")}
-                      onAction={() => {
-                        const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
-                        const q = buySellSearchQuery.trim() ? (qs ? `${qs}&q=${encodeURIComponent(buySellSearchQuery.trim())}` : `?q=${encodeURIComponent(buySellSearchQuery.trim())}`) : qs;
-                        navigate(`/buy-sell/deals/trending${q}`);
-                      }}
-                    >
-                      <TrendingDeals
-                        cityId={cityId}
-                        category={selectedBuySellCategory}
-                        search={buySellSearchQuery}
-                        limit={8}
-                        onDealClick={openDealDetail}
-                      />
-                    </HubSection>
-                  </AnimatedSection>
-
-                  {/* New Deals */}
-                  <AnimatedSection direction="up" delay={500}>
-                    <HubSection 
-                      id="new-listings" 
-                      title={t("عروض جديدة", "New Listings")} 
-                      icon={Sparkles}
-                      actionLabel={t("عرض الكل", "View All")}
-                      onAction={() => {
-                        const qs = selectedBuySellCategory ? `?category=${encodeURIComponent(selectedBuySellCategory)}` : "";
-                        const q = buySellSearchQuery.trim() ? (qs ? `${qs}&q=${encodeURIComponent(buySellSearchQuery.trim())}` : `?q=${encodeURIComponent(buySellSearchQuery.trim())}`) : qs;
-                        navigate(`/buy-sell/deals/new${q}`);
-                      }}
-                    >
-                      <NewListings
-                        cityId={cityId}
-                        category={selectedBuySellCategory}
-                        search={buySellSearchQuery}
-                        limit={8}
-                        onDealClick={openDealDetail}
-                      />
-                    </HubSection>
-                  </AnimatedSection>
-                </>
-              ) : null}
-
-              {/* Enhanced Footer */}
-              <div className="pt-8 pb-4 border-t border-border/30">
-                <div className="space-y-6">
-                  {/* Trust Indicators */}
-                  <div className="flex items-center justify-center gap-8 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <Shield className="h-4 w-4 text-green-500" />
-                      <span>{t("خدمات موثوقة", "Trusted Services")}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Award className="h-4 w-4 text-blue-500" />
-                      <span>{t("جودة مضمونة", "Quality Guaranteed")}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-purple-500" />
-                      <span>{t("دعم 24/7", "24/7 Support")}</span>
-                    </div>
-                  </div>
-
-                  {/* Links */}
-                  <div className="flex flex-wrap justify-center gap-x-6 gap-y-3 text-sm">
-                    <a className="text-muted-foreground hover:text-foreground transition-colors font-medium" href="/about">
-                      {t("من نحن", "About Us")}
-                    </a>
-                    <a className="text-muted-foreground hover:text-foreground transition-colors font-medium" href="/help">
-                      {t("مركز المساعدة", "Help Center")}
-                    </a>
-                    <a className="text-muted-foreground hover:text-foreground transition-colors font-medium" href="/become-provider">
-                      {t("انضم كمزود خدمة", "Become a Provider")}
-                    </a>
-                    <a className="text-muted-foreground hover:text-foreground transition-colors font-medium" href="/contact">
-                      {t("اتصل بنا", "Contact Us")}
-                    </a>
-                  </div>
-
-                  {/* Legal Links */}
-                  <div className="flex justify-center gap-6 text-xs text-muted-foreground">
-                    <a className="hover:text-foreground transition-colors" href="/terms">
-                      {t("الشروط والأحكام", "Terms & Conditions")}
-                    </a>
-                    <a className="hover:text-foreground transition-colors" href="/privacy">
-                      {t("سياسة الخصوصية", "Privacy Policy")}
-                    </a>
-                    <a className="hover:text-foreground transition-colors" href="/cookies">
-                      {t("ملفات تعريف الارتباط", "Cookie Policy")}
-                    </a>
-                  </div>
-
-                  {/* Newsletter Signup */}
-                  <div className="bg-muted/30 rounded-lg p-4 text-center">
-                    <div className="text-sm font-medium text-foreground mb-2">
-                      {t("اشترك للحصول على أحدث العروض", "Subscribe for latest offers")}
-                    </div>
-                    <div className="flex gap-2 max-w-sm mx-auto">
-                      <Input
-                        type="email"
-                        placeholder={t("بريدك الإلكتروني", "Your email")}
-                        className="flex-1 h-9 text-sm"
-                        disabled
-                        readOnly
-                      />
-                      <Button 
-                        size="sm" 
-                        className="h-9 px-4"
-                        disabled
-                        onClick={(e) => {
-                          e.preventDefault();
-                          toast({
-                            title: t("قريباً", "Coming Soon"),
-                            description: t("سيتم تفعيل هذه الميزة قريباً", "This feature will be available soon"),
-                          });
-                        }}
-                      >
-                        {t("اشتراك", "Subscribe")}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+          <TabsContent value="buy-sell" className="mt-0">
+            <BuySellHubTab
+              cityId={cityId}
+              buySellMode={buySellMode}
+              onBuySellModeChange={setBuySellMode}
+              selectedBuySellCategory={selectedBuySellCategory}
+              onCategoryChange={setSelectedBuySellCategory}
+              buySellSearchQuery={buySellSearchQuery}
+              onSearchChange={setBuySellSearchQuery}
+              openListingList={openListingList}
+              openListingDetail={openListingDetail}
+              openDealDetail={openDealDetail}
+              openBusinessDetail={openBusinessDetail}
+              navigate={navigate}
+              showBusinesses={showBusinesses}
+            />
           </TabsContent>
         </Tabs>
       ) : (
