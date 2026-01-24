@@ -362,4 +362,3 @@ export function BuySellHubTab({
     </div>
   );
 }
-}
