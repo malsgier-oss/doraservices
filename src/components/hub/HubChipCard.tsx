@@ -20,7 +20,9 @@ export function HubChipCard({
   iconColor,
 }: HubChipCardProps) {
   const iconColorStyle = iconColor ? { color: iconColor } : undefined;
-  const circleBg = iconColor ? { backgroundColor: `${iconColor}20` } : undefined;
+  const circleBg = iconColor
+    ? { backgroundColor: `${iconColor}30` }
+    : { backgroundColor: "hsl(var(--muted) / 0.5)" };
   const EffectiveIcon = Icon ?? LayoutGrid;
 
   return (
@@ -41,13 +43,13 @@ export function HubChipCard({
         )}
       >
         <div
-          className="h-12 w-12 rounded-full flex items-center justify-center shrink-0 border border-border/60"
-          style={circleBg ?? { backgroundColor: "hsl(var(--muted) / 0.5)" }}
+          className="h-14 w-14 rounded-full flex items-center justify-center shrink-0 border border-border/50"
+          style={circleBg}
         >
           <EffectiveIcon
-            className="h-6 w-6"
+            className="h-7 w-7"
             style={iconColorStyle}
-            strokeWidth={2}
+            strokeWidth={2.2}
           />
         </div>
         <div className="min-w-0 flex-1">
