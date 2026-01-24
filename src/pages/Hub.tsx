@@ -1612,8 +1612,6 @@ export default function Hub() {
           fallbackCta={t("استكشف", "Explore")}
           />
 
-          <StatsBar />
-
           <div className="px-4 space-y-10">
             {/* Services (MAIN categories) grid - exactly 8 */}
             <AnimatedSection direction="up" delay={100}>
@@ -1630,7 +1628,7 @@ export default function Hub() {
                   </div>
                 ) : (
                   <div
-                    className="flex gap-2 overflow-x-auto hide-scrollbar pb-2"
+                    className="flex gap-3 overflow-x-auto hide-scrollbar pb-2"
                     dir={isRTL ? "rtl" : "ltr"}
                     style={{ WebkitOverflowScrolling: "touch" as any }}
                   >
@@ -1640,10 +1638,15 @@ export default function Hub() {
                         <button
                           key={c.id}
                           onClick={() => openCategoryBrowse(c.id)}
-                          className="shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full border border-border hover:border-primary/50 hover:bg-primary/5 transition-all"
+                          className="shrink-0 flex items-center gap-3 px-4 py-2.5 rounded-full border border-border hover:border-primary/60 hover:bg-primary/8 transition-all active:scale-95"
                         >
-                          <Icon className="h-4 w-4" style={{ color: c.color }} strokeWidth={2} />
-                          <span className="text-sm font-medium whitespace-nowrap">{c.name_ar || c.name}</span>
+                          <div
+                            className="h-10 w-10 rounded-full flex items-center justify-center shadow-sm flex-shrink-0"
+                            style={{ backgroundColor: (c.color || "#888") + "20" }}
+                          >
+                            <Icon className="h-5 w-5" style={{ color: c.color }} strokeWidth={2.2} />
+                          </div>
+                          <span className="text-sm font-semibold whitespace-nowrap text-foreground">{c.name_ar || c.name}</span>
                         </button>
                       );
                     })}
