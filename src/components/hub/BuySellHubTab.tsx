@@ -36,7 +36,7 @@ function BuySellDealsSection({
   onDealClick: (deal: Deal) => void;
   limit?: number;
 }) {
-  const { data: deals, isLoading } = useDeals({ cityId, category, limit: 12 });
+  const { data: deals, isLoading } = useDeals({ cityId, category, limit });
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
 
@@ -45,7 +45,7 @@ function BuySellDealsSection({
     ? (deals || []).filter((d) => `${d.title} ${(d.description || "")}`.toLowerCase().includes(q))
     : (deals || []);
 
-  const displayedDeals = filteredDeals.slice(0, limit);
+  const displayedDeals = filteredDeals;
 
   if (isLoading) {
     return (
@@ -109,7 +109,7 @@ function BuySellBusinessesSection({
   onBusinessClick: (business: Business) => void;
   limit?: number;
 }) {
-  const { data: businesses, isLoading } = useBusinesses({ cityId, category, featured: true, limit: 8 });
+  const { data: businesses, isLoading } = useBusinesses({ cityId, category, featured: true, limit });
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
 
@@ -121,7 +121,7 @@ function BuySellBusinessesSection({
       })
     : (businesses || []);
 
-  const displayedBusinesses = filteredBusinesses.slice(0, limit);
+  const displayedBusinesses = filteredBusinesses;
 
   if (isLoading) {
     return (
