@@ -16,7 +16,9 @@ import { getBuySellCategoryLabel } from "@/components/hub/buySellCategories";
 import { useDeals, type Deal } from "@/hooks/useDeals";
 import { useBusinesses, type Business } from "@/hooks/useBusinesses";
 import { useListings, type Listing } from "@/hooks/useListings";
-import { Award, Clock, LayoutGrid, Shield, ShoppingBag, Sparkles, Store, Tag, TrendingUp, X } from "lucide-react";
+import { Award, Clock, LayoutGrid, Shield, ShoppingBag, Sparkles, Store, Tag, TrendingUp, X, Search } from "lucide-react";
+import { useState } from "react";
+import { cn } from "@/lib/utils";
 
 function BuySellDealsSection({
   cityId,
@@ -305,6 +307,28 @@ export function BuySellHubTab({
 
   return (
     <div className="px-4 space-y-6">
+      {/* Global Search Bar */}
+      <div className="space-y-2">
+        <div className="relative">
+          <Search className={cn(
+            "absolute top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none",
+            isRTL ? "right-3" : "left-3"
+          )} />
+          <input
+            type="text"
+            placeholder={t("ابحث في البيع والشراء...", "Search buy & sell...")}
+            value={buySellSearchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className={cn(
+              "w-full rounded-xl border border-border bg-background px-4 py-3 text-sm",
+              isRTL ? "pr-10 pl-4" : "pl-10 pr-4",
+              "placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-transparent",
+              "transition-all duration-200"
+            )}
+          />
+        </div>
+      </div>
+
       {/* Mode toggle */}
       <div className="flex items-center gap-2">
         <Button
