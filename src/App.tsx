@@ -48,7 +48,6 @@ const AdminMessages = React.lazy(() => import("./pages/admin/AdminMessages"));
 const AdminAuditLog = React.lazy(() => import("./pages/admin/AdminAuditLog"));
 const AdminProviders = React.lazy(() => import("./pages/admin/AdminProviders"));
 const AdminServices = React.lazy(() => import("./pages/admin/AdminServices"));
-const AdminBusinesses = React.lazy(() => import("./pages/admin/AdminBusinesses"));
 const AdminDeals = React.lazy(() => import("./pages/admin/AdminDeals"));
 const AdminListings = React.lazy(() => import("./pages/admin/AdminListings"));
 const AdminCategories = React.lazy(() => import("./pages/admin/AdminCategories"));
@@ -284,7 +283,6 @@ const AppRoutes = () => {
           <Route path="users" element={<AdminUsers />} />
           <Route path="providers" element={<AdminProviders />} />
           <Route path="services" element={<AdminServices />} />
-          <Route path="businesses" element={<AdminBusinesses />} />
           <Route path="deals" element={<AdminDeals />} />
           <Route path="listings" element={<AdminListings />} />
           <Route path="hub" element={<AdminHub />} />
