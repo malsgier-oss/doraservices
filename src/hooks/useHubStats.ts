@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 
 export interface HubStats {
   totalServices: number;
-  totalBusinesses: number;
   activeDeals: number;
   totalCities: number;
 }
@@ -17,12 +16,6 @@ export function useHubStats() {
         .from("services")
         .select("*", { count: "exact", head: true })
         .eq("is_active", true);
-
-      // Get total active businesses
-      const { count: businessesCount } = await supabase
-        .from("businesses")
-        .select("*", { count: "exact", head: true })
-        .eq("operational_status", "active");
 
       // Get active deals (not expired)
       const { count: dealsCount } = await supabase
@@ -40,7 +33,6 @@ export function useHubStats() {
 
       return {
         totalServices: servicesCount || 0,
-        totalBusinesses: businessesCount || 0,
         activeDeals: dealsCount || 0,
         totalCities: citiesCount || 0,
       };

@@ -70,25 +70,11 @@ export function useServiceStats(providerId?: string) {
         return acc;
       }, {} as Record<string, number>);
 
-      // Get favorites per service
-      const serviceIds = services.map(s => s.id);
-      const { data: favData, error: favError } = await supabase
-        .from("saved_businesses")
-        .select("business_id")
-        .in("business_id", serviceIds);
-
-      if (favError) throw favError;
-
-      const favCounts = favData.reduce((acc, fav) => {
-        acc[fav.business_id] = (acc[fav.business_id] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-
       return services.map(service => ({
         id: service.id,
         title: service.title,
         calls: callCounts[service.id] || 0,
-        favorites: favCounts[service.id] || 0,
+        favorites: 0,
       }));
     },
     enabled: !!id,

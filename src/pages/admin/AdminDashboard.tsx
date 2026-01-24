@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Users, Store, Tag, AlertTriangle, TrendingUp, ShieldAlert, Clock } from "lucide-react";
+import { Users, Tag, AlertTriangle, ShieldAlert } from "lucide-react";
 import { useAdminStats, usePlatformSettings, useSettingsMutations } from "@/hooks/useAdmin";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -17,9 +17,6 @@ export default function AdminDashboard() {
 
   const statCards = [
     { label: "Total Users", value: stats?.totalUsers || 0, icon: Users, color: "text-primary" },
-    { label: "Business Users", value: stats?.businessUsers || 0, icon: Store, color: "text-accent" },
-    { label: "Pending Businesses", value: stats?.pendingBusinesses || 0, icon: Clock, color: "text-yellow-500" },
-    { label: "Approved Businesses", value: stats?.approvedBusinesses || 0, icon: TrendingUp, color: "text-success" },
     { label: "Active Deals", value: stats?.activeDeals || 0, icon: Tag, color: "text-primary" },
     { label: "Suspended Users", value: stats?.suspendedProfiles || 0, icon: ShieldAlert, color: "text-destructive" },
     { label: "Pending Reports", value: stats?.pendingReports || 0, icon: AlertTriangle, color: "text-yellow-500" },
@@ -72,7 +69,7 @@ export default function AdminDashboard() {
                 <div className="space-y-0.5">
                   <Label htmlFor="deal-publishing">Deal Publishing</Label>
                   <p className="text-sm text-muted-foreground">
-                    Allow businesses to publish new deals
+                    Allow new deals to be published
                   </p>
                 </div>
                 <Switch
@@ -95,20 +92,6 @@ export default function AdminDashboard() {
                   id="deals-visible"
                   checked={settings?.deals_visible === "true"}
                   onCheckedChange={() => handleToggle("deals_visible", settings?.deals_visible || "true")}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="business-registration">Business Registration</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Allow new business registrations
-                  </p>
-                </div>
-                <Switch
-                  id="business-registration"
-                  checked={settings?.business_registration_enabled === "true"}
-                  onCheckedChange={() => handleToggle("business_registration_enabled", settings?.business_registration_enabled || "true")}
                 />
               </div>
 

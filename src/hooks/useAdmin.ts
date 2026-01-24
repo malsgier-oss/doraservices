@@ -95,17 +95,11 @@ export function useAdminStats() {
     queryFn: async () => {
       const [
         { count: totalUsers },
-        { count: businessUsers },
-        { count: pendingBusinesses },
-        { count: approvedBusinesses },
         { count: activeDeals },
         { count: suspendedProfiles },
         { count: pendingReports },
       ] = await Promise.all([
         supabase.from("profiles").select("*", { count: "exact", head: true }),
-        supabase.from("user_roles").select("*", { count: "exact", head: true }).eq("role", "business"),
-        supabase.from("businesses").select("*", { count: "exact", head: true }).eq("authorization_status", "pending"),
-        supabase.from("businesses").select("*", { count: "exact", head: true }).eq("authorization_status", "approved"),
         supabase.from("deals").select("*", { count: "exact", head: true }).eq("status", "active"),
         supabase.from("profiles").select("*", { count: "exact", head: true }).eq("status", "suspended"),
         supabase.from("user_reports").select("*", { count: "exact", head: true }).eq("status", "pending"),
@@ -113,9 +107,6 @@ export function useAdminStats() {
 
       return {
         totalUsers: totalUsers || 0,
-        businessUsers: businessUsers || 0,
-        pendingBusinesses: pendingBusinesses || 0,
-        approvedBusinesses: approvedBusinesses || 0,
         activeDeals: activeDeals || 0,
         suspendedProfiles: suspendedProfiles || 0,
         pendingReports: pendingReports || 0,
@@ -511,158 +502,6 @@ export function useUserMutations() {
   };
 }
 
-// Businesses Management
-export function useAdminBusinesses(filters?: { status?: string; authorization?: string; search?: string }) {
-  return useQuery({
-    queryKey: ["admin", "businesses", filters],
-    queryFn: async () => {
-      let query = supabase.from("businesses").select("*").order("created_at", { ascending: false });
-
-      if (filters?.status && filters.status !== "all") {
-        query = query.eq("operational_status", filters.status);
-      }
-
-      if (filters?.authorization && filters.authorization !== "all") {
-        query = query.eq("authorization_status", filters.authorization);
-      }
-
-      if (filters?.search) {
-        query = query.ilike("name", `%${filters.search}%`);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as Business[];
-    },
-  });
-}
-
-export function useBusinessMutations() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  const authorizeBusiness = useMutation({
-    mutationFn: async ({ businessId, status, note }: { businessId: string; status: string; note?: string }) => {
-      // Get business to find user_id
-      const { data: business } = await supabase
-        .from("businesses")
-        .select("user_id, name")
-        .eq("id", businessId)
-        .single();
-
-      const { error } = await supabase
-        .from("businesses")
-        .update({ authorization_status: status, authorization_note: note || null })
-        .eq("id", businessId);
-      if (error) throw error;
-
-      // Send notification to business owner
-      if (business?.user_id) {
-        const title =
-          status === "approved"
-            ? "Business Approved! 🎉"
-            : status === "rejected"
-              ? "Business Application Update"
-              : "Business Status Updated";
-        const content =
-          status === "approved"
-            ? `Your business "${business.name}" has been approved. You can now start offering services!`
-            : status === "rejected"
-              ? `Your business "${business.name}" application needs attention. ${note || "Please contact support for more details."}`
-              : `Your business "${business.name}" status has been updated to ${status}.`;
-
-        await supabase.rpc("create_user_notification", {
-          p_user_id: business.user_id,
-          p_title: title,
-          p_content: content,
-        });
-      }
-
-      await supabase.rpc("log_admin_action", {
-        p_action: `authorize_business_${status}`,
-        p_target_type: "business",
-        p_target_id: businessId,
-        p_details: { note },
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin"] });
-      toast({ title: "Business authorization updated" });
-    },
-    onError: (error) => {
-      toast({ title: "Error updating business", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const suspendBusiness = useMutation({
-    mutationFn: async ({ businessId, reason }: { businessId: string; reason?: string }) => {
-      const { error } = await supabase
-        .from("businesses")
-        .update({ operational_status: "suspended", suspended_at: new Date().toISOString() })
-        .eq("id", businessId);
-      if (error) throw error;
-
-      await supabase.rpc("log_admin_action", {
-        p_action: "suspend_business",
-        p_target_type: "business",
-        p_target_id: businessId,
-        p_details: { reason },
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin"] });
-      toast({ title: "Business suspended" });
-    },
-    onError: (error) => {
-      toast({ title: "Error suspending business", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const reactivateBusiness = useMutation({
-    mutationFn: async (businessId: string) => {
-      const { error } = await supabase
-        .from("businesses")
-        .update({ operational_status: "active", suspended_at: null })
-        .eq("id", businessId);
-      if (error) throw error;
-
-      await supabase.rpc("log_admin_action", {
-        p_action: "reactivate_business",
-        p_target_type: "business",
-        p_target_id: businessId,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin"] });
-      toast({ title: "Business reactivated" });
-    },
-    onError: (error) => {
-      toast({ title: "Error reactivating business", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const toggleFeaturedBusiness = useMutation({
-    mutationFn: async ({ businessId, featured }: { businessId: string; featured: boolean }) => {
-      const { error } = await supabase.from("businesses").update({ featured }).eq("id", businessId);
-      if (error) throw error;
-
-      await supabase.rpc("log_admin_action", {
-        p_action: featured ? "feature_business" : "unfeature_business",
-        p_target_type: "business",
-        p_target_id: businessId,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin"] });
-      toast({ title: "Business featured status updated" });
-    },
-    onError: (error) => {
-      toast({ title: "Error updating business", description: error.message, variant: "destructive" });
-    },
-  });
-
-  return { authorizeBusiness, suspendBusiness, reactivateBusiness, toggleFeaturedBusiness };
-}
 
 // Deals Management
 export function useAdminDeals(filters?: { status?: string; search?: string }) {

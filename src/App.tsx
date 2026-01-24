@@ -10,7 +10,6 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AdminRoute } from "@/components/auth/AdminRoute";
 import { ProviderRoute } from "@/components/auth/ProviderRoute";
-import { BusinessRoute } from "@/components/auth/BusinessRoute";
 import { AppErrorBoundary } from "@/components/layout/AppErrorBoundary";
 import { FullScreenFallback } from "@/components/layout/FullScreenFallback";
 import { RouteAnalytics } from "@/observability/RouteAnalytics";
@@ -19,7 +18,6 @@ import { ONBOARDING_DONE_KEY } from "./pages/onboardingKeys";
 
 const Hub = React.lazy(() => import("./pages/Hub"));
 const DealsBrowse = React.lazy(() => import("./pages/buy-sell/DealsBrowse"));
-const BusinessesBrowse = React.lazy(() => import("./pages/buy-sell/BusinessesBrowse"));
 const CreateListing = React.lazy(() => import("./pages/buy-sell/CreateListing"));
 const ListingsBrowse = React.lazy(() => import("./pages/buy-sell/ListingsBrowse"));
 const MyListings = React.lazy(() => import("./pages/buy-sell/MyListings"));
@@ -34,8 +32,6 @@ const Auth = React.lazy(() => import("./pages/Auth"));
 const NotFound = React.lazy(() => import("./pages/NotFound"));
 const ProviderDashboard = React.lazy(() => import("./pages/ProviderDashboard"));
 const Dashboard = React.lazy(() => import("./pages/Dashboard"));
-const BusinessDashboard = React.lazy(() => import("./pages/BusinessDashboard"));
-const StorePage = React.lazy(() => import("./pages/StorePage"));
 const ServiceEditor = React.lazy(() => import("./pages/ServiceEditor"));
 const PendingVerification = React.lazy(() => import("./pages/PendingVerification"));
 const PendingConfirmation = React.lazy(() => import("./pages/PendingConfirmation"));
@@ -169,18 +165,8 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/business-dashboard"
-          element={
-            <BusinessRoute>
-              <BusinessDashboard />
-            </BusinessRoute>
-          }
-        />
-        <Route path="/store/:businessId" element={<StorePage />} />
         <Route path="/buy-sell/deals/:type" element={<DealsBrowse />} />
         <Route path="/buy-sell/category/:categoryId" element={<CategoryDetail />} />
-        <Route path="/buy-sell/businesses" element={<BusinessesBrowse />} />
         <Route path="/buy-sell/listings" element={<ListingsBrowse />} />
         <Route path="/buy-sell/create-listing" element={<CreateListing />} />
         <Route

@@ -87,22 +87,9 @@ export default function AdminSettings() {
 
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label>Business Registration</Label>
-              <p className="text-sm text-muted-foreground">
-                Allow new business registrations
-              </p>
-            </div>
-            <Switch
-              checked={localSettings.business_registration_enabled === "true"}
-              onCheckedChange={() => handleToggle("business_registration_enabled")}
-            />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
               <Label>Buy & Sell Marketplace</Label>
               <p className="text-sm text-muted-foreground">
-                Enable marketplace features (deals, businesses) on Hub
+                Enable marketplace features (deals, listings) on Hub
               </p>
             </div>
             <Switch
@@ -242,26 +229,7 @@ export default function AdminSettings() {
           <CardDescription>Configure deal-related limits</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label htmlFor="max-deals">Max Deals per Business</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="max-deals"
-                  type="number"
-                  value={localSettings.max_deals_per_business || "10"}
-                  onChange={(e) => setLocalSettings((prev) => ({ ...prev, max_deals_per_business: e.target.value }))}
-                />
-                <Button
-                  size="icon"
-                  onClick={() => handleSave("max_deals_per_business")}
-                  disabled={updateSetting.isPending}
-                >
-                  <Save className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="min-duration">Min Deal Duration (days)</Label>
               <div className="flex gap-2">

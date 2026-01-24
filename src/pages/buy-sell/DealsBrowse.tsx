@@ -8,11 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DealCard } from "@/components/hub/DealCard";
 import { DealDetailSheet } from "@/components/hub/DealDetailSheet";
-import { BusinessDetailSheet } from "@/components/hub/BusinessDetailSheet";
 import { HUB_CARD_BASE } from "@/components/hub/hubStyles";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDeals, type Deal } from "@/hooks/useDeals";
-import type { Business } from "@/hooks/useBusiness";
 import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
 
 const CITY_STORAGE_KEY = "dora_city_id";
@@ -68,8 +66,6 @@ export default function DealsBrowse() {
 
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
-  const [businessSheetOpen, setBusinessSheetOpen] = useState(false);
 
   const { data: deals, isLoading } = useDeals({
     cityId,
@@ -213,26 +209,6 @@ export default function DealsBrowse() {
             onOpenChange={(open) => {
               setSheetOpen(open);
               if (!open) setSelectedDeal(null);
-            }}
-            onViewBusiness={(b) => {
-              setSheetOpen(false);
-              setSelectedDeal(null);
-              setSelectedBusiness(b);
-              setBusinessSheetOpen(true);
-            }}
-          />
-          <BusinessDetailSheet
-            open={businessSheetOpen}
-            business={selectedBusiness}
-            onOpenChange={(open) => {
-              setBusinessSheetOpen(open);
-              if (!open) setSelectedBusiness(null);
-            }}
-            onDealClick={(deal) => {
-              setSelectedBusiness(null);
-              setBusinessSheetOpen(false);
-              setSelectedDeal(deal);
-              setSheetOpen(true);
             }}
           />
         </>

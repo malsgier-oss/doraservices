@@ -7,20 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { useMyBusiness } from "@/hooks/useMyBusiness";
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
   const { profile } = useAuth();
-  const { data: myBusiness } = useMyBusiness();
 
   const providerStatus = (profile?.provider_status || "").toLowerCase();
   const isProvider = (profile?.role || "").toLowerCase() === "provider";
   const isProviderPending = isProvider && providerStatus === "pending";
   const isProviderApproved = isProvider && providerStatus === "approved";
-  const hasBusiness = !!myBusiness;
   const marketplaceEnabled = !!(profile as any)?.marketplace_enabled;
 
   return (
@@ -31,7 +28,7 @@ export default function Dashboard() {
           <div className="text-sm text-muted-foreground">{t("إدارة حسابك وإعلاناتك", "Manage your account and listings")}</div>
         </div>
 
-        {/* If user chose provider/business, guide them to the right dashboard */}
+        {/* If user chose provider, guide them to the right dashboard */}
         {isProviderApproved ? (
           <Card className="rounded-2xl">
             <CardHeader>
@@ -42,20 +39,6 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <Button className="w-full h-12" onClick={() => navigate("/provider-dashboard")}>
-                {t("فتح", "Open")}
-              </Button>
-            </CardContent>
-          </Card>
-        ) : hasBusiness ? (
-          <Card className="rounded-2xl">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <LayoutDashboard className="h-5 w-5" />
-                {t("لوحة المتجر", "Business Dashboard")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full h-12" onClick={() => navigate("/business-dashboard")}>
                 {t("فتح", "Open")}
               </Button>
             </CardContent>

@@ -6,10 +6,8 @@ import { HubSection } from "@/components/hub/HubSection";
 import { BuySellCategories } from "@/components/hub/BuySellCategories";
 import { FeaturedDeals } from "@/components/hub/FeaturedDeals";
 import { DealCard } from "@/components/hub/DealCard";
-import { BusinessCard } from "@/components/hub/BusinessCard";
 import { TrendingDeals } from "@/components/hub/TrendingDeals";
 import { NewListings } from "@/components/hub/NewListings";
-import { BusinessDirectory } from "@/components/hub/BusinessDirectory";
 import { ListingCardGroup } from "@/components/hub/ListingCardGroup";
 import { HeroSection } from "@/components/hub/HeroSection";
 import { ProgressiveSection } from "@/components/hub/ProgressiveSection";
@@ -18,7 +16,6 @@ import { BuySellSearchBar } from "@/components/hub/BuySellSearchBar";
 import { HUB_CARD_BASE, HUB_DIVIDER_LIGHT } from "@/components/hub/hubStyles";
 import { getBuySellCategoryLabel } from "@/components/hub/buySellCategories";
 import { useDeals, type Deal } from "@/hooks/useDeals";
-import { useBusinesses, type Business } from "@/hooks/useBusinesses";
 import { useListings, type Listing } from "@/hooks/useListings";
 import { Award, Clock, LayoutGrid, Shield, ShoppingBag, Sparkles, Store, Tag, TrendingUp, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -96,81 +93,6 @@ function BuySellDealsSection({
   );
 }
 
-function BuySellBusinessesSection({
-  cityId,
-  category,
-  search,
-  onBusinessClick,
-  limit = 4,
-}: {
-  cityId?: string | null;
-  category?: string | null;
-  search?: string | null;
-  onBusinessClick: (business: Business) => void;
-  limit?: number;
-}) {
-  const { data: businesses, isLoading } = useBusinesses({ cityId, category, featured: true, limit });
-  const { language, isRTL } = useLanguage();
-  const t = (ar: string, en: string) => (language === "ar" ? ar : en);
-
-  const q = (search || "").trim().toLowerCase();
-  const filteredBusinesses = q
-    ? (businesses || []).filter((b) => {
-        const hay = `${b.name} ${b.description || ""} ${b.location || ""}`.toLowerCase();
-        return hay.includes(q);
-      })
-    : (businesses || []);
-
-  const displayedBusinesses = filteredBusinesses;
-
-  if (isLoading) {
-    return (
-      <div
-        dir={isRTL ? "rtl" : "ltr"}
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-      >
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={`business-loading-${i}`} className={`${HUB_CARD_BASE} bg-card overflow-hidden`}>
-            <Skeleton className="aspect-[4/3] w-full" />
-            <div className="p-4">
-              <Skeleton className="h-4 w-32 mb-2" />
-              <Skeleton className="h-3 w-24" />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  if (filteredBusinesses.length === 0) {
-    const msg = category
-      ? (isRTL ? "لا توجد متاجر في هذا التصنيف" : "No businesses in this category")
-      : (isRTL ? "لا توجد متاجر مميزة حالياً" : "No featured businesses yet");
-    return (
-      <div className={`${HUB_CARD_BASE} bg-card p-6 flex flex-col items-center justify-center gap-3 text-center`}>
-        <Store className="h-10 w-10 text-muted-foreground/60" />
-        <p className="text-sm text-muted-foreground">{msg}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      dir={isRTL ? "rtl" : "ltr"}
-      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-    >
-      {displayedBusinesses.map((business) => (
-        <div key={business.id}>
-          <BusinessCard
-            business={business}
-            onClick={() => onBusinessClick(business)}
-            isRTL={isRTL}
-          />
-        </div>
-      ))}
-    </div>
-  );
-}
 
 function BuySellListingsSection({
   cityId,
@@ -246,9 +168,7 @@ interface BuySellHubTabProps {
   onSearchChange?: (query: string) => void;
   openListingDetail: (listing: Listing) => void;
   openDealDetail: (deal: Deal) => void;
-  openBusinessDetail: (business: Business) => void;
   navigate: (path: string) => void;
-  showBusinesses: boolean;
 }
 
 export function BuySellHubTab({
@@ -261,9 +181,7 @@ export function BuySellHubTab({
   onSearchChange,
   openListingDetail,
   openDealDetail,
-  openBusinessDetail,
   navigate,
-  showBusinesses,
 }: BuySellHubTabProps) {
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
@@ -329,17 +247,6 @@ export function BuySellHubTab({
           >
             {t("إعلانات", "Listings")}
           </Button>
-          {showBusinesses && (
-            <Button
-              type="button"
-              variant={buySellMode === "business" ? "default" : "outline"}
-              size="sm"
-              className="h-10"
-              onClick={() => onBuySellModeChange("business")}
-            >
-              {t("متاجر", "Businesses")}
-            </Button>
-          )}
         </div>
 
         {/* Full Categories Grid */}
@@ -488,55 +395,6 @@ export function BuySellHubTab({
                 limit={8}
               />
             </ProgressiveSection>
-          </>
-        ) : null}
-
-        {/* Business mode sections */}
-        {(buySellMode === "business" || buySellMode === "all") && showBusinesses ? (
-          <>
-            {/* Featured Businesses */}
-            <AnimatedSection direction="up" delay={200}>
-              <HubSection
-                id="featured-businesses"
-                title={t("المتاجر المميزة", "Featured Businesses")}
-                icon={Store}
-                actionLabel={t("عرض الكل", "View All")}
-                onAction={() => {
-                  const q = buildQueryString(selectedBuySellCategory, buySellSearchQuery);
-                  navigate(`/buy-sell/businesses${q}`);
-                }}
-              >
-                <BuySellBusinessesSection
-                  cityId={cityId}
-                  category={selectedBuySellCategory}
-                  search={buySellSearchQuery}
-                  onBusinessClick={openBusinessDetail}
-                  limit={4}
-                />
-              </HubSection>
-            </AnimatedSection>
-
-            {/* Business Directory */}
-            <AnimatedSection direction="up" delay={300}>
-              <HubSection
-                id="business-directory"
-                title={t("دليل المتاجر", "Business Directory")}
-                icon={Store}
-                actionLabel={t("عرض الكل", "View All")}
-                onAction={() => {
-                  const q = buildQueryString(selectedBuySellCategory, buySellSearchQuery);
-                  navigate(`/buy-sell/businesses${q}`);
-                }}
-              >
-                <BusinessDirectory
-                  cityId={cityId}
-                  category={selectedBuySellCategory}
-                  search={buySellSearchQuery}
-                  limit={12}
-                  onBusinessClick={openBusinessDetail}
-                />
-              </HubSection>
-            </AnimatedSection>
           </>
         ) : null}
 

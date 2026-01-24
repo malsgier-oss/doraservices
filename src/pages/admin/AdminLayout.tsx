@@ -16,7 +16,6 @@ const preloadAdminRoute = (to: string) => {
   if (to === "/admin/users") void import("@/pages/admin/AdminUsers");
   if (to === "/admin/providers") void import("@/pages/admin/AdminProviders");
   if (to === "/admin/services") void import("@/pages/admin/AdminServices");
-  if (to === "/admin/businesses") void import("@/pages/admin/AdminBusinesses");
   if (to === "/admin/deals") void import("@/pages/admin/AdminDeals");
   if (to === "/admin/listings") void import("@/pages/admin/AdminListings");
   if (to === "/admin/reviews") void import("@/pages/admin/AdminReviews");
@@ -44,7 +43,6 @@ const navItems = [
   { to: "/admin/users", label: "Users", icon: Users },
   { to: "/admin/providers", label: "Providers", icon: Users },
   { to: "/admin/services", label: "Services", icon: Store },
-  { to: "/admin/businesses", label: "Businesses", icon: Store },
   { to: "/admin/deals", label: "Deals", icon: Tag },
   { to: "/admin/listings", label: "Listings", icon: ShoppingBag },
   { to: "/admin/reviews", label: "Reviews", icon: Flag },

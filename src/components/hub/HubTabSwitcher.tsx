@@ -26,8 +26,7 @@ export function HubTabSwitcher({
   }
 
   const dealsCount = stats?.activeDeals || 0;
-  const businessesCount = stats?.totalBusinesses || 0;
-  const totalCount = dealsCount + businessesCount;
+  const totalCount = dealsCount;
 
   return (
     <div

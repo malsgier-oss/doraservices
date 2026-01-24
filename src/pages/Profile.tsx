@@ -47,7 +47,6 @@ import {
   ShoppingBag,
 } from "lucide-react";
 import { MobileNav } from "@/components/layout/MobileNav";
-import { useMyBusiness } from "@/hooks/useMyBusiness";
 import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
 
 function statusBadgeVariant(status?: string | null) {

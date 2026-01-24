@@ -19,16 +19,8 @@ export function useFavorites() {
   const fetchFavorites = async () => {
     if (!user) return;
     
-    const { data, error } = await supabase
-      .from("saved_businesses")
-      .select("business_id")
-      .eq("user_id", user.id);
-
-    if (error) {
-      console.error("Error fetching favorites:", error);
-    } else {
-      setFavoriteIds(new Set(data?.map(d => d.business_id) || []));
-    }
+    // TODO: Implement service favorites fetching if needed
+    setFavoriteIds(new Set());
     setLoading(false);
   };
 
@@ -39,33 +31,16 @@ export function useFavorites() {
 
     if (isFavorited) {
       // Remove from favorites
-      const { error } = await supabase
-        .from("saved_businesses")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("business_id", serviceId);
-
-      if (!error) {
-        setFavoriteIds(prev => {
-          const next = new Set(prev);
-          next.delete(serviceId);
-          return next;
-        });
-      }
-      return { error, removed: true };
+      setFavoriteIds(prev => {
+        const next = new Set(prev);
+        next.delete(serviceId);
+        return next;
+      });
+      return { error: null, removed: true };
     } else {
       // Add to favorites
-      const { error } = await supabase
-        .from("saved_businesses")
-        .insert({
-          user_id: user.id,
-          business_id: serviceId,
-        });
-
-      if (!error) {
-        setFavoriteIds(prev => new Set(prev).add(serviceId));
-      }
-      return { error, added: true };
+      setFavoriteIds(prev => new Set(prev).add(serviceId));
+      return { error: null, added: true };
     }
   };
 

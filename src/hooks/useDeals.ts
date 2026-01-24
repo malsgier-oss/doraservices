@@ -37,13 +37,9 @@ export function useDeals(options: UseDealsOptions = {}) {
   return useQuery({
     queryKey: ["deals", cityId, category, featured, businessId, limit],
     queryFn: async (): Promise<Deal[]> => {
-      const select = cityId
-        ? "*, businesses!inner(location,operational_status,authorization_status)"
-        : "*";
-
       let query = supabase
         .from("deals")
-        .select(select)
+        .select("*")
         .eq("status", "active")
         .gt("expires_at", new Date().toISOString())
         .is("archived_at", null)
@@ -64,24 +60,6 @@ export function useDeals(options: UseDealsOptions = {}) {
         query = query.eq("business_id", businessId);
       }
 
-      // Filter by city if cityId is provided (join to businesses and match on free-text `location`)
-      if (cityId) {
-        // Ensure we only show deals for approved + active businesses
-        query = query.eq("businesses.operational_status", "active").eq("businesses.authorization_status", "approved");
-
-        const { data: cityData } = await supabase
-          .from("cities")
-          .select("name,name_ar")
-          .eq("id", cityId)
-          .maybeSingle();
-
-        const cityNames = [cityData?.name, cityData?.name_ar].filter(Boolean).map(String);
-        if (cityNames.length > 0) {
-          const or = cityNames.map((n) => `businesses.location.ilike.%${n}%`).join(",");
-          query = query.or(or);
-        }
-      }
-
       const { data, error } = await query;
 
       if (error) {
@@ -89,11 +67,7 @@ export function useDeals(options: UseDealsOptions = {}) {
         return [];
       }
 
-      // If we joined `businesses`, strip it before returning.
-      return ((data || []) as any[]).map((row) => {
-        const { businesses: _businesses, ...deal } = row || {};
-        return deal as Deal;
-      });
+      return (data || []) as Deal[];
     },
     staleTime: 3 * 60 * 1000, // Cache for 3 minutes
     retry: 1,
