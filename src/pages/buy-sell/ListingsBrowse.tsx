@@ -86,18 +86,6 @@ export default function ListingsBrowse() {
           ) : null}
         </div>
 
-        {buySellEnabled ? (
-          <div className="relative">
-            <Search className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground ${isRTL ? "right-3" : "left-3"}`} />
-            <Input
-              type="search"
-              placeholder={t("ابحث عن إعلان...", "Search listings...")}
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className={isRTL ? "pr-9 pl-4" : "pl-9 pr-4"}
-            />
-          </div>
-        ) : null}
 
         {buySellLoading ? (
           <div className={`${HUB_CARD_BASE} bg-card p-6 text-sm text-muted-foreground text-center`}>

@@ -9,6 +9,7 @@ import { DealCard } from "@/components/hub/DealCard";
 import { TrendingDeals } from "@/components/hub/TrendingDeals";
 import { NewListings } from "@/components/hub/NewListings";
 import { ListingCardGroup } from "@/components/hub/ListingCardGroup";
+import { ListingCard } from "@/components/hub/ListingCard";
 import { HeroSection } from "@/components/hub/HeroSection";
 import { ProgressiveSection } from "@/components/hub/ProgressiveSection";
 import { SectionDivider } from "@/components/hub/SectionDivider";
@@ -100,14 +101,16 @@ function BuySellListingsSection({
   search,
   onListingClick,
   onEmptyAction,
+  limit = 12,
 }: {
   cityId?: string | null;
   category?: string | null;
   search?: string | null;
   onListingClick: (listing: Listing) => void;
   onEmptyAction?: () => void;
+  limit?: number;
 }) {
-  const { data: listings, isLoading } = useListings({ cityId, category, search, limit: 12 });
+  const { data: listings, isLoading } = useListings({ cityId, category, search, limit });
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
 
@@ -148,11 +151,19 @@ function BuySellListingsSection({
   }
 
   return (
-    <ListingCardGroup
-      listings={listings.slice(0, 12)}
-      isRTL={isRTL}
-      onOpen={onListingClick}
-    />
+    <div
+      dir={isRTL ? "rtl" : "ltr"}
+      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+    >
+      {listings.slice(0, limit).map((listing) => (
+        <ListingCard
+          key={listing.id}
+          listing={listing}
+          isRTL={isRTL}
+          onClick={() => onListingClick(listing)}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -208,16 +219,6 @@ export function BuySellHubTab({
         />
       </div>
 
-      {/* Search Bar */}
-      <div className="px-4">
-        <BuySellSearchBar
-          value={buySellSearchQuery}
-          onChange={onSearchChange || (() => {})}
-          onCategoryFilter={onCategoryChange}
-          selectedCategory={selectedBuySellCategory}
-        />
-      </div>
-
       <div className="px-4 space-y-6">
         {/* Hero Section */}
         <AnimatedSection direction="up" delay={100}>
@@ -227,49 +228,7 @@ export function BuySellHubTab({
           />
         </AnimatedSection>
 
-        {/* Mode toggle */}
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant={buySellMode === "all" ? "default" : "outline"}
-            size="sm"
-            className="h-10"
-            onClick={() => onBuySellModeChange("all")}
-          >
-            {t("الكل", "All")}
-          </Button>
-          <Button
-            type="button"
-            variant={buySellMode === "listings" ? "default" : "outline"}
-            size="sm"
-            className="h-10"
-            onClick={() => onBuySellModeChange("listings")}
-          >
-            {t("إعلانات", "Listings")}
-          </Button>
-        </div>
-
         {/* Full Categories Grid */}
-        <HubSection title={t("جميع التصنيفات", "All Categories")} icon={LayoutGrid}>
-          <BuySellCategories
-            onCategoryClick={(catId) => {
-              const nextCategory = selectedBuySellCategory === catId ? null : catId;
-              onCategoryChange(nextCategory);
-            }}
-          />
-          {selectedBuySellCategory && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onCategoryChange(null)}
-              className="w-full text-xs mt-3"
-            >
-              {t("إلغاء التصفية", "Clear filter")}: {selectedCategoryLabel}
-              <X className="h-3 w-3 ml-1" />
-            </Button>
-          )}
-        </HubSection>
-
         <SectionDivider variant="light" />
 
         {/* Primary Content Section */}
@@ -292,6 +251,7 @@ export function BuySellHubTab({
                   search={buySellSearchQuery}
                   onListingClick={openListingDetail}
                   onEmptyAction={() => navigate("/buy-sell/create-listing")}
+                  limit={6}
                 />
               </HubSection>
             </AnimatedSection>
@@ -357,48 +317,7 @@ export function BuySellHubTab({
 
             <SectionDivider variant="light" />
 
-            {/* Secondary sections (collapsed by default) */}
-            <ProgressiveSection
-              title={t("عروض مميزة", "Featured Deals")}
-              defaultExpanded={false}
-            >
-              <HubSection 
-                id="featured-deals" 
-                title={t("عروض مميزة", "Featured Deals")} 
-                icon={Tag}
-                actionLabel={t("عرض الكل", "View All")}
-                onAction={() => {
-                  const q = buildQueryString(selectedBuySellCategory, buySellSearchQuery);
-                  navigate(`/buy-sell/deals/featured${q}`);
-                }}
-              >
-                <FeaturedDeals
-                  cityId={cityId}
-                  category={selectedBuySellCategory}
-                  search={buySellSearchQuery}
-                  limit={6}
-                  onDealClick={openDealDetail}
-                />
-              </HubSection>
-            </ProgressiveSection>
-
-            {/* Active Deals Grid - Secondary */}
-            <ProgressiveSection
-              title={t("العروض النشطة", "Active Deals")}
-              defaultExpanded={false}
-            >
-              <BuySellDealsSection 
-                cityId={cityId} 
-                category={selectedBuySellCategory} 
-                search={buySellSearchQuery} 
-                onDealClick={openDealDetail}
-                limit={8}
-              />
-            </ProgressiveSection>
-          </>
-        ) : null}
-
-        {/* Enhanced Footer */}
+            {/* Enhanced Footer */}
         <div className="pt-8 pb-4 border-t border-border/30">
           <div className="space-y-6">
             <div className="flex items-center justify-center gap-8 text-sm text-muted-foreground flex-wrap">
