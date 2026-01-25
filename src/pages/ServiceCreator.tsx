@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useProfile } from "@/hooks/useProfile";
 import { useCategories } from "@/hooks/useCategories";
@@ -125,6 +126,7 @@ function ServiceCreatorContent() {
     bio: "",
     cityId: "",
     subCity: "",
+    allowWhatsApp: true,
   });
 
   // Preview URLs (cleanup on change/unmount)
@@ -313,6 +315,7 @@ function ServiceCreatorContent() {
         is_visible: true,
         is_paused: false,
         approval_status: "approved",
+        allow_whatsapp: formData.allowWhatsApp !== false,
       })
         .select("id")
         .single();
@@ -609,6 +612,14 @@ function ServiceCreatorContent() {
               maxLength={1000}
             />
             <p className="text-xs text-muted-foreground">{formData.bio.length}/1000</p>
+          </div>
+
+          <div className={cn("flex items-center justify-between gap-3 rounded-xl border p-4", isRTL ? "flex-row-reverse" : "")}>
+            <div className="space-y-0.5">
+              <Label htmlFor="allow-whatsapp-create">{isRTL ? "السماح بالتواصل عبر واتساب" : "Allow WhatsApp"}</Label>
+              <p className="text-xs text-muted-foreground">{isRTL ? "إذا أغلقتها، زر واتساب سيختفي للزبائن" : "When off, the WhatsApp button will be hidden for customers"}</p>
+            </div>
+            <Switch id="allow-whatsapp-create" checked={formData.allowWhatsApp !== false} onCheckedChange={(checked) => setFormData({ ...formData, allowWhatsApp: checked })} />
           </div>
 
           <Button type="submit" disabled={isSubmitting} className="w-full rounded-full h-12 text-base">

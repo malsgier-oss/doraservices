@@ -18,6 +18,10 @@ export interface Listing {
   archived_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Seller phone for this listing; visible to all so buyers can call without profile RLS */
+  contact_phone?: string | null;
+  /** When false, hide WhatsApp button for this listing */
+  allow_whatsapp?: boolean | null;
 }
 
 export interface UseListingsOptions {

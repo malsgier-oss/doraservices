@@ -8,11 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCities } from "@/hooks/useCities";
 import { useListing } from "@/hooks/useListing";
+import { useProfile } from "@/hooks/useProfile";
+import { cleanPhoneForStorage } from "@/lib/phoneUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
@@ -42,6 +45,7 @@ function EditListingContent() {
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
   const { user } = useAuth();
+  const { profile } = useProfile();
   const { data: cities } = useCities();
   const { isEnabled: buySellEnabled, isLoading: buySellLoading } = useBuySellEnabled();
 
@@ -56,6 +60,7 @@ function EditListingContent() {
   const [location, setLocation] = useState<string>("");
   const [existingUrls, setExistingUrls] = useState<string[]>([]);
   const [newPhotos, setNewPhotos] = useState<{ file: File; previewUrl: string }[]>([]);
+  const [allowWhatsApp, setAllowWhatsApp] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -68,6 +73,7 @@ function EditListingContent() {
     setLocation(listing.location || "");
     setExistingUrls((listing.image_urls || []).filter(Boolean));
     setNewPhotos([]);
+    setAllowWhatsApp(listing.allow_whatsapp !== false);
   }, [listing?.id]);
 
   const canEdit = useMemo(() => {
@@ -200,6 +206,9 @@ function EditListingContent() {
 
       const image_urls = [...existingUrls, ...uploadedUrls].slice(0, MAX_PHOTOS);
 
+      const rawPhone = profile?.phone ?? (typeof (user as any)?.user_metadata?.phone === "string" ? (user as any).user_metadata.phone : null);
+      const contactPhone = rawPhone ? cleanPhoneForStorage(String(rawPhone)) || null : null;
+
       const { error } = await supabase
         .from("listings")
         .update({
@@ -210,6 +219,8 @@ function EditListingContent() {
           city_id: cityId,
           location: location.trim() ? location.trim() : null,
           image_urls,
+          contact_phone: contactPhone ?? listing.contact_phone ?? null,
+          allow_whatsapp: allowWhatsApp,
         })
         .eq("id", listing.id);
 
@@ -412,6 +423,14 @@ function EditListingContent() {
           <div className="space-y-2">
             <Label htmlFor="location-input-edit">{t("الموقع (اختياري)", "Location (optional)")}</Label>
             <Input id="location-input-edit" className="text-base" value={location} onChange={(e) => setLocation(e.target.value)} aria-label={t("الموقع", "Location")} />
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="allow-whatsapp-edit">{t("إظهار زر واتساب", "Show WhatsApp button")}</Label>
+              <p className="text-xs text-muted-foreground">{t("عند إغلاقها لن يرى المشترون زر واتساب", "When off, buyers will not see the WhatsApp button")}</p>
+            </div>
+            <Switch id="allow-whatsapp-edit" checked={allowWhatsApp} onCheckedChange={setAllowWhatsApp} />
           </div>
 
           <div className="space-y-2">

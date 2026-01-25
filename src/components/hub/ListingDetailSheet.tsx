@@ -11,8 +11,18 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePublicProfileByUserId } from "@/hooks/usePublicProfileByUserId";
 import { getTelLink, getWhatsAppLink } from "@/lib/phoneUtils";
 import { useListings } from "@/hooks/useListings";
+import { useListingReviews } from "@/hooks/useListingReviews";
 import { ListingCard } from "@/components/hub/ListingCard";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +40,10 @@ export function ListingDetailSheet({ open, onOpenChange, listing, onSelectListin
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
   const [copied, setCopied] = useState(false);
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewContent, setReviewContent] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const { user } = useAuth();
 
   const images = (listing?.image_urls || []).filter(Boolean);
@@ -53,6 +67,11 @@ export function ListingDetailSheet({ open, onOpenChange, listing, onSelectListin
     limit: 18,
     enabled: open && !!listing,
   });
+
+  const { rating, userReview, loading: reviewsLoading, submitReview, refreshReviews } = useListingReviews(
+    listing?.id ?? null,
+    open && !!listing
+  );
 
   useEffect(() => {
     setCopied(false);
@@ -103,10 +122,12 @@ export function ListingDetailSheet({ open, onOpenChange, listing, onSelectListin
 
   if (!listing) return null;
 
-  const canContact = !!seller?.phone;
-  const telLink = canContact ? getTelLink(String(seller?.phone)) : null;
-  const waLink = canContact ? getWhatsAppLink(String(seller?.phone)) : null;
-  const canWhatsApp = !!waLink && waLink !== "https://wa.me/";
+  const contactPhone = listing.contact_phone ?? seller?.phone ?? null;
+  const canContact = !!contactPhone;
+  const telLink = contactPhone ? getTelLink(String(contactPhone)) : null;
+  const waLink = contactPhone ? getWhatsAppLink(String(contactPhone)) : null;
+  const allowWhatsApp = listing.allow_whatsapp !== false;
+  const canWhatsApp = !!waLink && waLink !== "https://wa.me/" && allowWhatsApp;
   const isOwner = !!user && listing.user_id === user.id;
 
   const youMayAlsoLike = (maybeLike || []).slice(0, 8);
@@ -133,7 +154,7 @@ export function ListingDetailSheet({ open, onOpenChange, listing, onSelectListin
           </div>
         </DrawerHeader>
 
-        <div className="flex-1 overflow-y-auto" dir={isRTL ? "rtl" : "ltr"}>
+        <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0" dir={isRTL ? "rtl" : "ltr"}>
           {cover ? (
             <div className="relative -mx-4 -mt-4 mb-6">
               <div
@@ -304,9 +325,15 @@ export function ListingDetailSheet({ open, onOpenChange, listing, onSelectListin
                       <Shield className="h-4 w-4 text-green-600 dark:text-green-400" />
                     </div>
                     <div className="flex items-center gap-1.5 text-xs">
-                      <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                      <span className="font-medium">4.8</span>
-                      <span className="text-muted-foreground">(42 {t("تقييم", "reviews")})</span>
+                      {!reviewsLoading && rating.totalReviews > 0 ? (
+                        <>
+                          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                          <span className="font-medium text-foreground">{rating.averageRating}</span>
+                          <span className="text-muted-foreground">({rating.totalReviews} {t("تقييم", "reviews")})</span>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">{t("لا توجد تقييمات بعد", "No reviews yet")}</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -314,9 +341,11 @@ export function ListingDetailSheet({ open, onOpenChange, listing, onSelectListin
                   {t("موثوق", "Verified")}
                 </Badge>
               </div>
-              <div className="text-xs text-muted-foreground pt-1">
-                {t("رد سريع متوسط: أقل من ساعة", "Avg response: Under 1 hour")}
-              </div>
+              {!isOwner && (
+                <Button variant="outline" size="sm" className="w-full rounded-xl" onClick={() => { setReviewRating(userReview?.rating ?? 0); setReviewContent(userReview?.content ?? ""); setReviewDialogOpen(true); }}>
+                  {userReview ? t("تعديل التقييم", "Edit review") : t("كتابة تقييم", "Leave a review")}
+                </Button>
+              )}
             </div>
 
             {/* Description */}
@@ -430,27 +459,80 @@ export function ListingDetailSheet({ open, onOpenChange, listing, onSelectListin
                 <Phone className="h-4 w-4" />
                 {t("اتصال", "Call")}
               </Button>
-              <Button
-                type="button"
-                size="lg"
-                className={cn(
-                  "flex-1 gap-2 h-12 rounded-xl font-semibold bg-green-600 hover:bg-green-700 text-white dark:bg-green-700 dark:hover:bg-green-800",
-                  !canWhatsApp && "opacity-50",
-                )}
-                disabled={!canWhatsApp}
-                onClick={() => {
-                  if (waLink) window.location.href = waLink;
-                }}
-              >
-                <MessageCircle className="h-4 w-4" />
-                {t("واتساب", "WhatsApp")}
-              </Button>
+              {allowWhatsApp ? (
+                <Button
+                  type="button"
+                  size="lg"
+                  className={cn(
+                    "flex-1 gap-2 h-12 rounded-xl font-semibold bg-green-600 hover:bg-green-700 text-white dark:bg-green-700 dark:hover:bg-green-800",
+                    !canWhatsApp && "opacity-50",
+                  )}
+                  disabled={!canWhatsApp}
+                  onClick={() => {
+                    if (waLink) window.location.href = waLink;
+                  }}
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  {t("واتساب", "WhatsApp")}
+                </Button>
+              ) : null}
             </div>
           ) : (
             <div className="text-sm text-muted-foreground text-center py-2">{t("رقم الهاتف غير متوفر حالياً", "Phone number not available")}</div>
           )}
         </div>
       </DrawerContent>
+
+      <Dialog open={reviewDialogOpen} onOpenChange={(o) => { setReviewDialogOpen(o); if (!o) { setReviewRating(0); setReviewContent(""); } }}>
+        <DialogContent className="sm:max-w-md" dir={isRTL ? "rtl" : "ltr"}>
+          <DialogHeader>
+            <DialogTitle>{userReview ? t("تعديل التقييم", "Edit review") : t("كتابة تقييم", "Leave a review")}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>{t("تقييمك", "Your rating")}</Label>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setReviewRating(star)}
+                    className="p-1 transition-transform hover:scale-110"
+                  >
+                    <Star className={cn("h-8 w-8 transition-colors", reviewRating >= star ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground/30")} />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="review-content">{t("تعليق (اختياري)", "Comment (optional)")}</Label>
+              <Textarea id="review-content" value={reviewContent} onChange={(e) => setReviewContent(e.target.value)} placeholder={t("اكتب تعليقك...", "Write your review...")} maxLength={500} className="min-h-[80px]" />
+              <p className="text-xs text-muted-foreground">{reviewContent.length}/500</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReviewDialogOpen(false)}>{t("إلغاء", "Cancel")}</Button>
+            <Button
+              disabled={reviewRating < 1 || reviewSubmitting}
+              onClick={async () => {
+                if (reviewRating < 1) return;
+                setReviewSubmitting(true);
+                const { error } = await submitReview({ rating: reviewRating, content: reviewContent.trim() || undefined });
+                setReviewSubmitting(false);
+                if (error) {
+                  toast.error(t("فشل حفظ التقييم", "Failed to save review"));
+                } else {
+                  setReviewDialogOpen(false);
+                  toast.success(userReview ? t("تم تحديث التقييم", "Review updated") : t("شكراً لتقييمك!", "Thanks for your review!"));
+                  refreshReviews();
+                }
+              }}
+            >
+              {reviewSubmitting ? t("جاري الحفظ...", "Saving...") : t("حفظ", "Save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Drawer>
   );
 }

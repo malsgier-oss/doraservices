@@ -8,9 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCities } from "@/hooks/useCities";
+import { useProfile } from "@/hooks/useProfile";
+import { cleanPhoneForStorage } from "@/lib/phoneUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
@@ -42,6 +45,7 @@ function CreateListingContent() {
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
   const { user } = useAuth();
+  const { profile } = useProfile();
   const { data: cities } = useCities();
   const { isEnabled: buySellEnabled, isLoading: buySellLoading } = useBuySellEnabled();
 
@@ -55,6 +59,7 @@ function CreateListingContent() {
   const [cityId, setCityId] = useState<string>(defaultCityId || "");
   const [location, setLocation] = useState<string>("");
   const [photos, setPhotos] = useState<{ file: File; previewUrl: string }[]>([]);
+  const [allowWhatsApp, setAllowWhatsApp] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   const canSubmit = useMemo(() => {
@@ -160,6 +165,9 @@ function CreateListingContent() {
         return;
       }
 
+      const rawPhone = profile?.phone ?? (typeof (user as any)?.user_metadata?.phone === "string" ? (user as any).user_metadata.phone : null);
+      const contactPhone = rawPhone ? cleanPhoneForStorage(String(rawPhone)) || null : null;
+
       const listingId =
         typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
 
@@ -175,6 +183,8 @@ function CreateListingContent() {
         location: location.trim() ? location.trim() : null,
         image_urls: null,
         status: "active",
+        contact_phone: contactPhone || null,
+        allow_whatsapp: allowWhatsApp,
       });
 
       if (insertError) {
@@ -246,6 +256,9 @@ function CreateListingContent() {
         setSubmitting(false);
         return;
       }
+      const rawPhone = profile?.phone ?? (typeof (user as any)?.user_metadata?.phone === "string" ? (user as any).user_metadata.phone : null);
+      const contactPhone = rawPhone ? cleanPhoneForStorage(String(rawPhone)) || null : null;
+
       const listingId =
         typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
 
@@ -261,6 +274,8 @@ function CreateListingContent() {
         location: location.trim() ? location.trim() : null,
         image_urls: null,
         status: "draft",
+        contact_phone: contactPhone || null,
+        allow_whatsapp: allowWhatsApp,
       });
 
       if (insertError) throw insertError;
@@ -389,6 +404,14 @@ function CreateListingContent() {
           <div className="space-y-2">
             <Label htmlFor="location-input">{t("الموقع (اختياري)", "Location (optional)")}</Label>
             <Input id="location-input" className="text-base" value={location} onChange={(e) => setLocation(e.target.value)} placeholder={t("مثال: سوق الجمعة", "e.g. Souq Al-Jumaa")} aria-label={t("الموقع", "Location")} />
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="allow-whatsapp">{t("إظهار زر واتساب", "Show WhatsApp button")}</Label>
+              <p className="text-xs text-muted-foreground">{t("عند إغلاقها لن يرى المشترون زر واتساب", "When off, buyers will not see the WhatsApp button")}</p>
+            </div>
+            <Switch id="allow-whatsapp" checked={allowWhatsApp} onCheckedChange={setAllowWhatsApp} />
           </div>
 
           <div className="space-y-2">
