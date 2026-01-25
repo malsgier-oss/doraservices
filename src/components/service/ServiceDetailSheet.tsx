@@ -18,10 +18,17 @@ import {
   X,
   Star,
   Flag,
+  MapPin,
+  Tag,
+  Shield,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useServiceRatings } from "@/hooks/useReviews";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { ServiceProviderCard, ProviderData } from "./ServiceProviderCard";
 
 // --- Types ---
@@ -286,6 +293,303 @@ export function useSheetData(open: boolean, service: SheetService, city?: string
   return { providers, loading, error };
 }
 
+/** Listing-style single-service layout (buy-and-sell style): image → price+share → title → provider card → description → details → similar */
+function ServiceDetailListingStyle({
+  provider,
+  service,
+  suggestions,
+  userId,
+  onToggleFavorite,
+  isFavorite,
+  onReport,
+}: {
+  provider: ProviderData & { rating?: number; rating_count?: number };
+  service: SheetService;
+  suggestions: (ProviderData & { rating?: number; rating_count?: number })[];
+  userId: string | null;
+  onToggleFavorite?: (id: string) => void;
+  isFavorite?: (id: string) => boolean;
+  onReport?: (serviceId: string, reason?: string | null) => void;
+}) {
+  const { language, isRTL } = useLanguage();
+  const t = (ar: string, en: string) => (language === "ar" ? ar : en);
+
+  const [images, setImages] = useState<string[]>([]);
+  const [reviews, setReviews] = useState<{ user_id: string | null; rating?: number; content?: string | null }[]>([]);
+  const [rateOpen, setRateOpen] = useState(false);
+  const [rateStars, setRateStars] = useState(5);
+  const [rateText, setRateText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const run = async () => {
+      const { data } = await supabase
+        .from("service_images")
+        .select("url")
+        .eq("service_id", provider.id)
+        .order("position")
+        .limit(5);
+      const dbImages = (data?.map((x: any) => x.url) || []) as string[];
+      if (dbImages.length === 0 && provider.image_url) {
+        let fallback = [provider.image_url];
+        if (typeof provider.image_url === "string" && provider.image_url.startsWith("[")) {
+          try {
+            fallback = JSON.parse(provider.image_url);
+          } catch {
+            /**/
+          }
+        }
+        if (fallback.length === 1 && typeof fallback[0] === "string" && fallback[0].includes(",")) {
+          fallback = fallback[0].split(",").map((s) => String(s).trim());
+        }
+        setImages(fallback.filter(Boolean));
+      } else {
+        setImages(dbImages);
+      }
+    };
+    run();
+  }, [provider.id, provider.image_url]);
+
+  useEffect(() => {
+    let alive = true;
+    supabase
+      .from("service_reviews")
+      .select("user_id,rating,content")
+      .eq("service_id", provider.id)
+      .then(({ data }) => {
+        if (alive) setReviews((data || []) as { user_id: string | null; rating?: number; content?: string | null }[]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [provider.id]);
+
+  const userReview = userId ? reviews.find((r) => r.user_id === userId) : null;
+  const priceText =
+    provider.price != null && provider.price !== undefined
+      ? `${provider.price} ${t("د.ل", "LYD")}`
+      : t("السعر عند التواصل", "Price on request");
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({ title: provider.provider_name || "", text: provider.title || "" }).catch(() => {});
+    } else {
+      toast.success(t("تم النسخ", "Copied!"));
+    }
+  };
+
+  const submitReview = async () => {
+    if (!userId || !provider.user_id) return;
+    if (rateStars < 1 || rateStars > 5) return;
+    setSubmitting(true);
+    try {
+      const { error } = await supabase.from("service_reviews").upsert(
+        {
+          service_id: provider.id,
+          user_id: userId,
+          provider_id: provider.user_id,
+          rating: rateStars,
+          content: rateText.trim().slice(0, 200) || null,
+        },
+        { onConflict: "service_id,user_id" }
+      );
+      if (error) throw error;
+      toast.success(t("تم إرسال تقييمك", "Thanks for your review!"));
+      setRateOpen(false);
+      const { data } = await supabase.from("service_reviews").select("user_id,rating,content").eq("service_id", provider.id);
+      setReviews((data || []) as { user_id: string | null; rating?: number; content?: string | null }[]);
+    } catch {
+      toast.error(t("تعذر إرسال التقييم", "Failed to save review"));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const initials = (provider.provider_name || "P")
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
+  return (
+    <div className="space-y-6" dir={isRTL ? "rtl" : "ltr"}>
+      {/* 1. Image carousel */}
+      {images.length > 0 ? (
+        <div className="relative -mx-4 -mt-2 mb-4">
+          <div className="flex overflow-x-auto hide-scrollbar snap-x snap-mandatory gap-2 px-2">
+            {images.map((src, idx) => (
+              <div key={idx} className="shrink-0 w-[85vw] max-w-[400px] aspect-[16/9] rounded-xl overflow-hidden bg-muted snap-center">
+                <img src={src} alt="" className="w-full h-full object-cover" loading={idx === 0 ? "eager" : "lazy"} />
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* 2. Price + Share */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <p className="text-sm text-muted-foreground">{t("السعر", "Price")}</p>
+          <div className="text-3xl font-bold text-foreground">{priceText}</div>
+        </div>
+        <Button size="lg" variant="outline" className="gap-2 shrink-0 rounded-xl" onClick={handleShare}>
+          <Share2 className="h-4 w-4" />
+          <span className="hidden sm:inline">{t("مشاركة", "Share")}</span>
+        </Button>
+      </div>
+
+      {/* 3. Title */}
+      <h1 className="text-2xl font-bold text-foreground leading-tight">
+        {provider.title || service.titleKey || provider.provider_name || ""}
+      </h1>
+
+      {/* 4. Provider card (Seller-style) */}
+      <div className="bg-muted/40 rounded-2xl p-5 border border-border/50 space-y-3">
+        <div className="text-sm font-semibold text-muted-foreground">{t("المزود", "Provider")}</div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Avatar className="h-12 w-12">
+              <AvatarImage src={(provider as any).provider_avatar || undefined} />
+              <AvatarFallback className="bg-primary/10 text-primary font-semibold">{initials}</AvatarFallback>
+            </Avatar>
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <p className="font-semibold text-foreground">{provider.provider_name || t("مزود", "Provider")}</p>
+                <Shield className="h-4 w-4 text-green-600 dark:text-green-400" />
+              </div>
+              <div className="flex items-center gap-1.5 text-xs">
+                {(provider.rating_count ?? 0) > 0 ? (
+                  <>
+                    <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                    <span className="font-medium">{Number(provider.rating ?? 0).toFixed(1)}</span>
+                    <span className="text-muted-foreground">({provider.rating_count} {t("تقييم", "reviews")})</span>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">{t("لا توجد تقييمات بعد", "No reviews yet")}</span>
+                )}
+              </div>
+            </div>
+          </div>
+          <Badge variant="secondary" className="shrink-0">{t("موثوق", "Verified")}</Badge>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full rounded-xl"
+          onClick={() => {
+            if (userReview) {
+              setRateStars(typeof userReview.rating === "number" ? userReview.rating : 5);
+              setRateText(typeof userReview.content === "string" ? userReview.content : "");
+            } else {
+              setRateStars(5);
+              setRateText("");
+            }
+            setRateOpen(true);
+          }}
+        >
+          {userReview ? t("تعديل التقييم", "Edit review") : t("كتابة تقييم", "Leave a review")}
+        </Button>
+      </div>
+
+      {/* 5. Description */}
+      {provider.description?.trim() ? (
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold">{t("الوصف", "Description")}</h3>
+          <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">{provider.description.trim()}</p>
+        </div>
+      ) : null}
+
+      {/* 6. Details grid */}
+      <div className="grid grid-cols-2 gap-3">
+        {(service.categoryName || provider.category) && (
+          <div className="bg-muted/30 rounded-lg p-3 space-y-1">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Tag className="h-4 w-4" />
+              <span>{t("الفئة", "Category")}</span>
+            </div>
+            <p className="text-sm font-medium">{service.categoryName || provider.category || "—"}</p>
+          </div>
+        )}
+        {(provider.city || provider.sub_city) && (
+          <div className="bg-muted/30 rounded-lg p-3 space-y-1">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <MapPin className="h-4 w-4" />
+              <span>{t("الموقع", "Location")}</span>
+            </div>
+            <p className="text-sm font-medium">{provider.sub_city || provider.city || "—"}</p>
+          </div>
+        )}
+      </div>
+
+      {/* 7. Similar providers */}
+      {suggestions.length > 0 ? (
+        <div className="space-y-3 pt-2">
+          <div className="text-sm font-semibold">{t("قد يعجبك أيضاً", "You may also like")}</div>
+          <div
+            className={cn("flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory", isRTL && "flex-row-reverse")}
+            style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}
+          >
+            {suggestions.slice(0, 8).map((p) => (
+              <div key={p.id} className="shrink-0 w-[72vw] max-w-[280px] snap-center">
+                <ServiceProviderCard
+                  provider={p}
+                  variant="card"
+                  isFavorite={!!isFavorite?.(p.id)}
+                  onToggleFavorite={() => onToggleFavorite?.(p.id)}
+                  onDetails={undefined}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <Dialog open={rateOpen} onOpenChange={setRateOpen}>
+        <DialogContent className="sm:max-w-md" dir={isRTL ? "rtl" : "ltr"}>
+          <DialogHeader>
+            <DialogTitle>{userReview ? t("تعديل التقييم", "Edit review") : t("كتابة تقييم", "Leave a review")}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>{t("تقييمك", "Your rating")}</Label>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setRateStars(star)}
+                    className="p-1 transition-transform hover:scale-110"
+                  >
+                    <Star className={cn("h-8 w-8", rateStars >= star ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground/30")} />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="listing-style-review">{t("تعليق (اختياري)", "Comment (optional)")}</Label>
+              <Textarea
+                id="listing-style-review"
+                value={rateText}
+                onChange={(e) => setRateText(e.target.value)}
+                placeholder={t("اكتب تعليقك...", "Write your review...")}
+                maxLength={500}
+                className="min-h-[80px]"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRateOpen(false)}>{t("إلغاء", "Cancel")}</Button>
+            <Button disabled={rateStars < 1 || submitting} onClick={submitReview}>
+              {submitting ? t("جاري الحفظ...", "Saving...") : t("حفظ", "Save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export type ServiceDetailContentProps = {
   service: SheetService;
   city?: string | null;
@@ -471,6 +775,47 @@ export function ServiceDetailContent({
       .map((p) => getProviderWithRating(p));
   }, [activeProvider?.id, providers, ratings]);
 
+  // Listing-style single-service view when opened from Hub with a specific service id (buy-and-sell style)
+  if (initialProviderServiceId) {
+    if (loading) {
+      return (
+        <div className="flex flex-col flex-1 min-h-0 justify-center items-center py-16">
+          <div className="text-muted-foreground animate-pulse">جاري التحميل...</div>
+        </div>
+      );
+    }
+    if (activeProvider) {
+      return (
+        <>
+          <div className="px-4 space-y-6 pb-4 bg-muted/10">
+            <ServiceDetailListingStyle
+              provider={activeProvider}
+              service={service}
+              suggestions={suggestedProviders}
+              userId={userId}
+              onToggleFavorite={toggleFavoriteLocal}
+              isFavorite={isFavoriteLocal}
+              onReport={(id, reason) => void reportService(id, userId, reason)}
+            />
+          </div>
+          <ProviderActionBar
+            provider={activeProvider}
+            userId={userId}
+            onRequireAuth={() => toast.info("سجل دخولك للإبلاغ")}
+            onReport={(reason) => {
+              if (activeProvider?.id) return reportService(activeProvider.id, userId, reason);
+            }}
+          />
+        </>
+      );
+    }
+    return (
+      <div className="flex flex-col flex-1 min-h-0 justify-center items-center py-16">
+        <div className="text-muted-foreground">تعذر تحميل الخدمة</div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col flex-1 min-h-0" dir="rtl">
       <div className="px-4 py-3 shrink-0 border-b bg-background">
@@ -606,16 +951,27 @@ export function ServiceDetailSheet({
   onToggleFavorite,
   isFavorite,
 }: Props) {
+  const { isRTL } = useLanguage();
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="h-[95dvh] flex flex-col bg-background/95 backdrop-blur-sm" dir="rtl">
-        <ServiceDetailContent
-          service={service}
-          city={city}
-          initialProviderServiceId={initialProviderServiceId}
-          onToggleFavorite={onToggleFavorite}
-          isFavorite={isFavorite}
-        />
+      <DrawerContent className="max-h-[96vh] flex flex-col bg-background/95 backdrop-blur-sm" dir={isRTL ? "rtl" : "ltr"}>
+        <DrawerHeader className="pb-2 shrink-0">
+          <div className="flex items-center justify-between">
+            <DrawerTitle className="sr-only">{service.titleKey || service.categoryName || "Service details"}</DrawerTitle>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onOpenChange(false)} aria-label="Close">
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+        </DrawerHeader>
+        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 min-w-0" dir={isRTL ? "rtl" : "ltr"}>
+          <ServiceDetailContent
+            service={service}
+            city={city}
+            initialProviderServiceId={initialProviderServiceId}
+            onToggleFavorite={onToggleFavorite}
+            isFavorite={isFavorite}
+          />
+        </div>
       </DrawerContent>
     </Drawer>
   );

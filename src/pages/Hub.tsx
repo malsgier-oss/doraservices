@@ -53,6 +53,7 @@ import { ListingListSheet } from "@/components/hub/ListingListSheet";
 import { SearchFilters, type FilterState } from "@/components/hub/SearchFilters";
 import { AnimatedSection } from "@/components/hub/AnimatedSection";
 import { DealDetailSheet } from "@/components/hub/DealDetailSheet";
+import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
 import { useDeals, type Deal } from "@/hooks/useDeals";
 import { useListings, type Listing } from "@/hooks/useListings";
 import { useListing } from "@/hooks/useListing";
@@ -550,6 +551,9 @@ export default function Hub({ initialTab }: HubProps = {}) {
   const [listingListSheetOpen, setListingListSheetOpen] = useState(false);
   const [listingListCategory, setListingListCategory] = useState<string | null>(null);
   const [listingListSearch, setListingListSearch] = useState<string | null>(null);
+
+  const [serviceSheetOpen, setServiceSheetOpen] = useState(false);
+  const [selectedServiceForSheet, setSelectedServiceForSheet] = useState<ServiceRow | null>(null);
 
   const openListingDetail = (listing: Listing) => {
     // Ensure we never have two Drawers open at once
@@ -1080,7 +1084,16 @@ export default function Hub({ initialTab }: HubProps = {}) {
     const now = Date.now();
     if (now - lastOpenAtRef.current < 250) return;
     lastOpenAtRef.current = now;
-    if (service?.id) navigate(`/services/service/${service.id}`);
+    if (!service?.id) return;
+    setDealSheetOpen(false);
+    setSelectedDeal(null);
+    setListingSheetOpen(false);
+    setSelectedListing(null);
+    setListingListSheetOpen(false);
+    setListingListCategory(null);
+    setListingListSearch(null);
+    setSelectedServiceForSheet(service);
+    setServiceSheetOpen(true);
   };
 
   const handleQuickView = (service: ServiceRow) => {
@@ -2349,6 +2362,32 @@ export default function Hub({ initialTab }: HubProps = {}) {
           setListingSheetOpen(true);
         }}
       />
+
+      {/* Service detail sheet (buy-and-sell style, from Hub services tab) */}
+      {selectedServiceForSheet && (
+        <SafeBoundary
+          onError={() => {
+            setServiceSheetOpen(false);
+            setSelectedServiceForSheet(null);
+          }}
+        >
+          <ServiceDetailSheet
+            open={serviceSheetOpen}
+            onOpenChange={(open) => {
+              setServiceSheetOpen(open);
+              if (!open) setSelectedServiceForSheet(null);
+            }}
+            service={{
+              titleKey: selectedServiceForSheet.title,
+              category: normalizeCategory(selectedServiceForSheet.category),
+              categoryName: selectedServiceForSheet.category,
+              categoryNameAr: undefined,
+            }}
+            city={selectedServiceForSheet.city ?? selectedCityName ?? null}
+            initialProviderServiceId={selectedServiceForSheet.id}
+          />
+        </SafeBoundary>
+      )}
 
       {/* ListingListSheet (for deal card clicks) */}
       <ListingListSheet
