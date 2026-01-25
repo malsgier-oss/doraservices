@@ -29,7 +29,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 
-import { toast } from "@/hooks/use-toast";
+import { toast, useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
   Building2,
@@ -48,9 +48,11 @@ import {
   Clock,
   CheckCircle,
   XCircle,
+  Bell,
 } from "lucide-react";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
+import { usePushAndSync } from "@/hooks/usePushAndSync";
 
 function statusBadgeVariant(status?: string | null) {
   const s = (status || "").toLowerCase();
@@ -76,6 +78,77 @@ function extractStoragePathFromPublicUrl(publicUrl: string) {
 function isProviderLike(role: string | null | undefined) {
   const r = (role || "").toLowerCase();
   return r === "provider" || r === "business";
+}
+
+function NotificationsCard({ isRTL }: { isRTL: boolean }) {
+  const {
+    supported,
+    pushPermission,
+    isSubscribed,
+    requestPushSubscription,
+    turnOffPush,
+  } = usePushAndSync();
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+
+  if (!supported) return null;
+
+  const handleToggle = async (on: boolean) => {
+    setBusy(true);
+    try {
+      if (on) {
+        const ok = await requestPushSubscription();
+        toast({
+          title: ok
+            ? isRTL ? "تم تفعيل الإشعارات" : "Notifications enabled"
+            : isRTL ? "تعذر التفعيل" : "Could not enable",
+          variant: ok ? "default" : "destructive",
+        });
+      } else {
+        const ok = await turnOffPush();
+        toast({
+          title: ok
+            ? isRTL ? "تم إيقاف الإشعارات" : "Notifications disabled"
+            : isRTL ? "تعذر الإيقاف" : "Could not disable",
+          variant: ok ? "default" : "destructive",
+        });
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Bell className="h-4 w-4" />
+          {isRTL ? "الإشعارات" : "Notifications"}
+        </CardTitle>
+        <CardDescription>
+          {isRTL
+            ? "استقبل تذكيرات وعروضاً عندما تكون التطبيق مغلقاً."
+            : "Get reminders and updates when the app is closed."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-sm text-muted-foreground">
+            {pushPermission === "denied"
+              ? isRTL ? "الإشعارات معطّلة من المتصفح" : "Notifications blocked by browser"
+              : isSubscribed
+                ? isRTL ? "الإشعارات مفعّلة" : "Notifications on"
+                : isRTL ? "فعّل الإشعارات" : "Enable notifications"}
+          </span>
+          <Switch
+            checked={isSubscribed}
+            disabled={busy || pushPermission === "denied"}
+            onCheckedChange={handleToggle}
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function Profile() {
@@ -1022,6 +1095,8 @@ export default function Profile() {
                 </div>
               </CardContent>
             </Card>
+
+            <NotificationsCard isRTL={!!isRTL} />
 
             <Card className="border-destructive/40">
               <CardHeader className="pb-3">

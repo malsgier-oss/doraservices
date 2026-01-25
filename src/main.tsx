@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import { initSentry, captureException } from "@/observability/sentry";
 import { initAnalytics } from "@/observability/analytics";
+import { registerSW } from "virtual:pwa-register";
 
 const rootEl = document.getElementById("root");
 
@@ -143,6 +144,9 @@ if (!rootEl) {
   // Observability should be initialized as early as possible.
   initSentry();
   initAnalytics();
+
+  // Register service worker (push + background sync).
+  registerSW({ immediate: true });
 
   const supabaseUrl = import.meta.env.VITE_DORA_SUPABASE_URL as string | undefined;
   const supabaseAnonKey = import.meta.env.VITE_DORA_SUPABASE_ANON_KEY as string | undefined;

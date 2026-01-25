@@ -12,6 +12,9 @@ Prioritised ideas to make Dora feel more like a native app and work better on mo
 - **Code splitting** – Route-based lazy loading and `manualChunks` in Vite.
 - **Web Share** – Native share on mobile where supported (e.g. deal/service links).
 - **RTL / i18n** – Language context and RTL support for Arabic.
+- **Service worker** – `vite-plugin-pwa` (injectManifest) + custom `src/sw.ts`: precache, **push**, **background sync**.
+- **Push** – SW handles `push` and `notificationclick`. Client: `usePushAndSync`, Profile → Security → Notifications toggle. Optional `VITE_VAPID_PUBLIC_KEY` for subscription; backend must send payloads (e.g. Supabase Edge Function + web-push).
+- **Background sync** – Failed requests can be queued with `queueForSync()` from `@/lib/pushAndSync` or `usePushAndSync().queueForSync`. When back online, the SW retries from IndexedDB.
 
 ---
 
