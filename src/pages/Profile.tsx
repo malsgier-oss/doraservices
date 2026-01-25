@@ -674,7 +674,10 @@ export default function Profile() {
           <TabsList
             className={cn(
               "grid w-full rounded-2xl h-12",
-              showProviderTab ? "grid-cols-4" : "grid-cols-3",
+              buySellEnabled && showProviderTab && "grid-cols-5",
+              buySellEnabled && !showProviderTab && "grid-cols-4",
+              !buySellEnabled && showProviderTab && "grid-cols-4",
+              !buySellEnabled && !showProviderTab && "grid-cols-3",
             )}
           >
             <TabsTrigger value="account" className="rounded-xl">
@@ -683,6 +686,11 @@ export default function Profile() {
             <TabsTrigger value="role" className="rounded-xl">
               {isRTL ? "الدور" : "Role"}
             </TabsTrigger>
+            {buySellEnabled && (
+              <TabsTrigger value="listings" className="rounded-xl">
+                {isRTL ? "الإعلانات" : "Listings"}
+              </TabsTrigger>
+            )}
             {showProviderTab && (
               <TabsTrigger value="provider" className="rounded-xl">
                 {isRTL ? "المزود" : "Provider"}
@@ -804,6 +812,53 @@ export default function Profile() {
             </Card>
           </TabsContent>
 
+          {/* Listings - enable selling and my listings (when buy/sell is enabled) */}
+          {buySellEnabled && (
+            <TabsContent value="listings" className="mt-4 space-y-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <ShoppingBag className="h-4 w-4" />
+                    {isRTL ? "الإعلانات" : "Listings"}
+                  </CardTitle>
+                  <CardDescription>
+                    {isRTL ? "تفعيل البيع وإدارة إعلاناتك." : "Enable selling and manage your listings."}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
+                    <div className="min-w-0">
+                      <div className="font-medium">{isRTL ? "تفعيل البيع (إعلانات)" : "Enable selling (Listings)"}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {!buySellEnabled
+                          ? (isRTL ? "ميزة الشراء والبيع غير مفعلة حالياً." : "Buy & Sell is currently disabled.")
+                          : (isRTL ? "يفتح أدوات الإعلانات." : "Unlocks listing tools.")}
+                      </div>
+                    </div>
+                    <Switch
+                      checked={marketplaceEnabled}
+                      onCheckedChange={(v) => setMarketplaceEnabled(Boolean(v))}
+                      disabled={!buySellEnabled || (isProvider ? false : !marketplaceEnabled) || savingMarketplace}
+                      aria-label="marketplace"
+                    />
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-12 rounded-xl justify-start gap-2"
+                      onClick={() => navigate("/buy-sell/my-listings")}
+                      disabled={!buySellEnabled || (!marketplaceEnabled && !isProvider)}
+                    >
+                      <ShoppingBag className="h-4 w-4" />
+                      {isRTL ? "إعلاناتي" : "My Listings"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
           {/* Role */}
           <TabsContent value="role" className="mt-4 space-y-4">
             <Card>
@@ -813,43 +868,10 @@ export default function Profile() {
                   {isRTL ? "اختيار الدور" : "Choose your role"}
                 </CardTitle>
                 <CardDescription>
-                  {isRTL ? "يمكنك تفعيل البيع كـ مستخدم، أو التحول إلى مزود." : "Enable selling as a user, or become a provider."}
+                  {isRTL ? "التحول إلى مزود خدمة أو إدارة حالة مزودك." : "Become a provider or manage your provider status."}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* User marketplace */}
-                <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
-                  <div className="min-w-0">
-                    <div className="font-medium">{isRTL ? "تفعيل البيع (إعلانات)" : "Enable selling (Listings)"}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {!buySellEnabled
-                        ? (isRTL ? "ميزة الشراء والبيع غير مفعلة حالياً." : "Buy & Sell is currently disabled.")
-                        : (isRTL ? "يفتح أدوات الإعلانات." : "Unlocks listing tools.")}
-                    </div>
-                  </div>
-                  <Switch
-                    checked={marketplaceEnabled}
-                    onCheckedChange={(v) => setMarketplaceEnabled(Boolean(v))}
-                    disabled={!buySellEnabled || (isProvider ? false : !marketplaceEnabled) || savingMarketplace}
-                    aria-label="marketplace"
-                  />
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-12 rounded-xl justify-start gap-2"
-                    onClick={() => navigate("/buy-sell/my-listings")}
-                    disabled={!buySellEnabled || (!marketplaceEnabled && !isProvider)}
-                  >
-                    <ShoppingBag className="h-4 w-4" />
-                    {isRTL ? "إعلاناتي" : "My Listings"}
-                  </Button>
-                </div>
-
-                <Separator />
-
                 {/* Provider */}
                 <div className="flex flex-col gap-3 rounded-xl border border-border p-3">
                   <div className="flex items-center justify-between gap-3">
