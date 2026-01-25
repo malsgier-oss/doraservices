@@ -15,72 +15,14 @@ import { useCities } from "@/hooks/useCities";
 import { useSubCities } from "@/hooks/useSubCities";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { getCategoryIcon } from "@/lib/categoryIcons";
 import { cn, normalizeCategory } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 import { ImagePlus, Trash2 } from "lucide-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import {
-  Home,
-  Car,
-  Zap,
-  Briefcase,
-  Building2,
-  GraduationCap,
-  Heart,
-  PartyPopper,
-  Wrench,
-  Droplets,
-  Wind,
-  Fuel,
-  ClipboardCheck,
-  Sun,
-  Cog,
-  Scale,
-  Languages,
-  Camera,
-  UtensilsCrossed,
-  Stethoscope,
-  Activity,
-  Hammer,
-  Paintbrush,
-  Battery,
-  Calculator,
-  Sparkles,
-  MapPin,
-  LucideIcon,
-} from "lucide-react";
+import { MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getDigitsOnly } from "@/lib/phoneUtils";
-
-// Icon mapping for dynamic icons from database
-const ICON_MAP: Record<string, LucideIcon> = {
-  Home,
-  Car,
-  Zap,
-  Briefcase,
-  Building2,
-  GraduationCap,
-  Heart,
-  PartyPopper,
-  Wrench,
-  Droplets,
-  Wind,
-  Fuel,
-  ClipboardCheck,
-  Sun,
-  Cog,
-  Scale,
-  Languages,
-  Camera,
-  UtensilsCrossed,
-  Stethoscope,
-  Activity,
-  Hammer,
-  Paintbrush,
-  Battery,
-  Calculator,
-  Sparkles,
-};
 
 // Dora P0: store phone in services row so anonymous users can call/WhatsApp
 function normalizeLibyaPhoneForStorage(raw: string | null | undefined) {
@@ -484,7 +426,7 @@ function ServiceCreatorContent() {
               </SelectTrigger>
               <SelectContent className="bg-card border-border z-50">
                 {categories?.map((cat) => {
-                  const Icon = ICON_MAP[cat.icon] || Home;
+                  const Icon = getCategoryIcon(cat.icon);
                   const displayName = language === "ar" && cat.name_ar ? cat.name_ar : cat.name;
                   return (
                     <SelectItem key={cat.id} value={cat.id}>
@@ -562,7 +504,7 @@ function ServiceCreatorContent() {
               </Label>
               <div className="grid grid-cols-2 gap-2">
                 {subcategories.map((sub) => {
-                  const SubIcon = ICON_MAP[sub.icon] || Wrench;
+                  const SubIcon = getCategoryIcon(sub.icon);
                   const isSelected = formData.subcategory === sub.id;
                   const displayName = language === "ar" && sub.name_ar ? sub.name_ar : sub.name;
                   return (

@@ -2,9 +2,10 @@ import { useMemo } from "react";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { X, Wrench } from "lucide-react";
+import { X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+import { getCategoryIcon } from "@/lib/categoryIcons";
 import { useSubcategories } from "@/hooks/useSubcategories";
 import { HUB_CARD_BASE } from "@/components/hub/hubStyles";
 
@@ -87,7 +88,7 @@ export function CategoryBrowseSheet({
             ) : (
                 <div className="grid grid-cols-2 gap-4">
                 {list.map((s) => {
-                  const Icon = iconMap[s.icon] || Wrench;
+                  const Icon = getCategoryIcon(s.icon);
                   return (
                     <button
                       key={s.id}

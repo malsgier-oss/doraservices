@@ -33,6 +33,7 @@ import { useServiceFilters } from "@/hooks/useServiceFilters";
 import { useSimilarServices } from "@/hooks/useSimilarServices";
 import { TipChip } from "@/components/hub/TipChip";
 import { HubChipCard } from "@/components/hub/HubChipCard";
+import { HubCategoryCard } from "@/components/hub/HubCategoryCard";
 import { StatsBar } from "@/components/hub/StatsBar";
 import { ActivityFeed } from "@/components/hub/ActivityFeed";
 import { HubTabSwitcher } from "@/components/hub/HubTabSwitcher";
@@ -73,6 +74,7 @@ import { CategoryBrowseSheet } from "@/components/hub/CategoryBrowseSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { trackProviderEvent } from "@/lib/providerTelemetry";
 import { getTelLink, getWhatsAppLink } from "@/lib/phoneUtils";
+import { getCategoryIcon, HUB_ICON_MAP } from "@/lib/categoryIcons";
 import { cn, normalizeCategory } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -149,22 +151,6 @@ type GuideCard = {
   title: string;
   summaryLines: [string, string];
   bullets: string[];
-};
-
-const ICON_MAP: Record<string, LucideIcon> = {
-  Home,
-  Car,
-  Zap,
-  Briefcase,
-  Building2,
-  GraduationCap,
-  Heart,
-  PartyPopper,
-  Wrench,
-  Droplets,
-  Wind,
-  Fuel,
-  ClipboardCheck,
 };
 
 const CITY_STORAGE_KEY = "dora_city_id";
@@ -654,7 +640,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
     if (rows.length === 0) return fallback;
 
     const mapped: GuideCard[] = rows.map((r: any) => {
-      const Icon = ICON_MAP[String(r.icon_key || "")] || ClipboardCheck;
+      const Icon = getCategoryIcon(r.icon_key);
       const title = language === "ar" ? String(r.title_ar || "") : String(r.title_en || r.title_ar || "");
       const summary = language === "ar" ? (r.summary_lines_ar as string[]) : ((r.summary_lines_en as string[] | null) || (r.summary_lines_ar as string[]));
       const bullets = language === "ar" ? (r.bullets_ar as string[]) : ((r.bullets_en as string[] | null) || (r.bullets_ar as string[]));
@@ -759,7 +745,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
       const nameAr = String(sc?.name_ar || "").trim();
       if (!name && !nameAr) continue;
       const iconKey = String(sc?.icon || "");
-      const icon = ICON_MAP[iconKey] || Wrench;
+      const icon = getCategoryIcon(iconKey);
 
       const value = {
         id: String(sc.id),
@@ -785,7 +771,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
         id: String(firstSc.id),
         name: String(firstSc?.name || firstSc?.name_ar || "").trim() || (cat as any).name,
         name_ar: firstSc?.name_ar ?? (cat as any).name_ar ?? null,
-        icon: ICON_MAP[iconKey] || Wrench,
+        icon: getCategoryIcon(iconKey),
         color: (firstSc?.color ?? null) as string | null,
       };
       const k1 = keyOf((cat as any).name);
@@ -1613,7 +1599,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
                         } else if (chip.target_type === "subcategory" && chip.target_subcategory_id) {
                           const sc = (allSubcategories || []).find((s) => s.id === chip.target_subcategory_id);
                           if (!sc) return;
-                          const Icon = ICON_MAP[sc.icon] || Wrench;
+                          const Icon = getCategoryIcon(sc.icon);
                           openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color });
                         } else if (chip.target_type === "shelf" && chip.target_shelf_id) {
                           const el = chip.target_shelf_id === "featured-services"
@@ -1685,7 +1671,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
           banners={banners as any}
           publicUrlsById={publicUrlsById as any}
           allSubcategories={(allSubcategories || []) as any}
-          iconMap={ICON_MAP as any}
+          iconMap={HUB_ICON_MAP as any}
           onOpenCategory={openCategoryBrowse}
           onOpenSubcategory={openSubcategoryProviders as any}
           onScrollToShelf={(shelfId) => {
@@ -1719,20 +1705,18 @@ export default function Hub({ initialTab }: HubProps = {}) {
                     className="grid grid-cols-2 md:grid-cols-3 gap-3"
                     dir={isRTL ? "rtl" : "ltr"}
                   >
-                    {gridCategories.slice(0, 6).map((c) => {
-                      const Icon = ICON_MAP[c.icon] || Wrench;
-                      return (
-                        <HubChipCard
-                          key={c.id}
-                          label={c.name_ar || c.name}
-                          icon={Icon}
-                          iconColor={c.color ?? undefined}
-                          onClick={() => openCategoryBrowse(c.id)}
-                          isRTL={isRTL}
-                          fill
-                        />
-                      );
-                    })}
+                    {gridCategories.slice(0, 6).map((c) => (
+                      <HubCategoryCard
+                        key={c.id}
+                        label={c.name}
+                        labelAr={c.name_ar}
+                        language={language === "ar" ? "ar" : "en"}
+                        icon={getCategoryIcon(c.icon)}
+                        color={c.color}
+                        onClick={() => openCategoryBrowse(c.id)}
+                        subtitle={t("اضغط للبحث", "Browse")}
+                      />
+                    ))}
                   </div>
                 )}
               </HubSection>
@@ -1775,7 +1759,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
                 style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
               >
                 {featuredSubcats.slice(0, 6).map((sc) => {
-                  const Icon = ICON_MAP[sc.icon] || Wrench;
+                  const Icon = getCategoryIcon(sc.icon);
                   return (
                     <button
                       key={sc.id}
@@ -1928,27 +1912,19 @@ export default function Hub({ initialTab }: HubProps = {}) {
                       className={HUB_CARD_ROW_4}
                       style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
                     >
-                      {subcats.map((sc) => {
-                        const Icon = ICON_MAP[sc.icon] || Wrench;
-                        return (
-                          <div key={sc.id} className={HUB_CARD_SLOT_4}>
-                          <button
-                            className={`${HUB_CARD_BASE} bg-card min-h-[112px] w-full px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
-                            onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
-                          >
-                            <div
-                            className="h-14 w-14 rounded-full flex items-center justify-center shadow-sm"
-                            style={{ backgroundColor: (sc.color || "#888") + "1f" }}
-                            >
-                            <Icon className="h-7 w-7 text-foreground" strokeWidth={2.1} />
-                            </div>
-                          <div className="text-xs font-medium text-muted-foreground leading-snug line-clamp-2">
-                            {sc.name_ar || sc.name}
-                          </div>
-                          </button>
-                          </div>
-                        );
-                      })}
+                      {subcats.map((sc) => (
+                        <HubCategoryCard
+                          key={sc.id}
+                          label={sc.name}
+                          labelAr={sc.name_ar}
+                          language={language === "ar" ? "ar" : "en"}
+                          icon={getCategoryIcon(sc.icon)}
+                          color={sc.color}
+                          onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: getCategoryIcon(sc.icon), color: sc.color })}
+                          subtitle={t("اضغط لعرض المزودين", "View providers")}
+                          inScrollSlot
+                        />
+                      ))}
                     </div>
                   </HubSection>
                 );
@@ -1983,49 +1959,33 @@ export default function Hub({ initialTab }: HubProps = {}) {
                     className={HUB_CARD_ROW_4}
                     style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
                   >
-                    {subcats.map((s) => {
-                      const Icon = ICON_MAP[s.icon] || Wrench;
-                      return (
-                        <div key={s.id} className={HUB_CARD_SLOT_4}>
-                        <button
-                          className={`${HUB_CARD_BASE} bg-card min-h-[112px] w-full px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
-                          onClick={() => openSubcategoryProviders({ id: s.id, name: s.name, name_ar: s.name_ar, icon: Icon, color: s.color })}
-                        >
-                          <div
-                            className="h-14 w-14 rounded-full flex items-center justify-center shadow-sm"
-                            style={{ backgroundColor: (s.color || "#888") + "1f" }}
-                          >
-                            <Icon className="h-7 w-7 text-foreground" strokeWidth={2.1} />
-                          </div>
-                          <div className="text-xs font-medium text-muted-foreground leading-snug line-clamp-2">
-                            {s.name_ar || s.name}
-                          </div>
-                        </button>
-                        </div>
-                      );
-                    })}
+                    {subcats.map((s) => (
+                        <HubCategoryCard
+                          key={s.id}
+                          label={s.name}
+                          labelAr={s.name_ar}
+                          language={language === "ar" ? "ar" : "en"}
+                          icon={getCategoryIcon(s.icon)}
+                          color={s.color}
+                          onClick={() => openSubcategoryProviders({ id: s.id, name: s.name, name_ar: s.name_ar, icon: getCategoryIcon(s.icon), color: s.color })}
+                          subtitle={t("اضغط لعرض المزودين", "View providers")}
+                          inScrollSlot
+                        />
+                    ))}
 
-                    {catsFallback.map((c) => {
-                      const Icon = ICON_MAP[c.icon] || Wrench;
-                      return (
-                        <div key={c.id} className={HUB_CARD_SLOT_4}>
-                        <button
-                          className={`${HUB_CARD_BASE} bg-card min-h-[112px] w-full px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
+                    {catsFallback.map((c) => (
+                        <HubCategoryCard
+                          key={c.id}
+                          label={c.name}
+                          labelAr={c.name_ar}
+                          language={language === "ar" ? "ar" : "en"}
+                          icon={getCategoryIcon(c.icon)}
+                          color={c.color}
                           onClick={() => openCategoryBrowse(c.id)}
-                        >
-                          <div
-                            className="h-14 w-14 rounded-full flex items-center justify-center shadow-sm"
-                            style={{ backgroundColor: (c.color || "#888") + "1f" }}
-                          >
-                            <Icon className="h-7 w-7 text-foreground" strokeWidth={2.1} />
-                          </div>
-                          <div className="text-xs font-medium text-muted-foreground leading-snug line-clamp-2">
-                            {c.name_ar || c.name}
-                          </div>
-                        </button>
-                        </div>
-                      );
-                    })}
+                          subtitle={t("اضغط للبحث", "Browse")}
+                          inScrollSlot
+                        />
+                    ))}
                   </div>
                 </HubSection>
               );
@@ -2054,7 +2014,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
             banners={banners as any}
             publicUrlsById={publicUrlsById as any}
             allSubcategories={(allSubcategories || []) as any}
-            iconMap={ICON_MAP as any}
+            iconMap={HUB_ICON_MAP as any}
             onOpenCategory={openCategoryBrowse}
             onOpenSubcategory={openSubcategoryProviders as any}
             onScrollToShelf={(shelfId) => {
@@ -2106,20 +2066,18 @@ export default function Hub({ initialTab }: HubProps = {}) {
                   className="grid grid-cols-2 md:grid-cols-3 gap-3"
                   dir={isRTL ? "rtl" : "ltr"}
                 >
-                  {gridCategories.slice(0, 6).map((c) => {
-                    const Icon = ICON_MAP[c.icon] || Wrench;
-                    return (
-                      <HubChipCard
-                        key={c.id}
-                        label={c.name_ar || c.name}
-                        icon={Icon}
-                        iconColor={c.color ?? undefined}
-                        onClick={() => openCategoryBrowse(c.id)}
-                        isRTL={isRTL}
-                        fill
-                      />
-                    );
-                  })}
+                  {gridCategories.slice(0, 6).map((c) => (
+                    <HubCategoryCard
+                      key={c.id}
+                      label={c.name}
+                      labelAr={c.name_ar}
+                      language={language === "ar" ? "ar" : "en"}
+                      icon={getCategoryIcon(c.icon)}
+                      color={c.color}
+                      onClick={() => openCategoryBrowse(c.id)}
+                      subtitle={t("اضغط للبحث", "Browse")}
+                    />
+                  ))}
                 </div>
               )}
               </HubSection>
@@ -2167,7 +2125,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
                     style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
                   >
                     {featuredSubcats.slice(0, 6).map((sc) => {
-                      const Icon = ICON_MAP[sc.icon] || Wrench;
+                      const Icon = getCategoryIcon(sc.icon);
                       return (
                         <button
                           key={sc.id}
@@ -2357,27 +2315,19 @@ export default function Hub({ initialTab }: HubProps = {}) {
                         className={HUB_CARD_ROW_4}
                         style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
                       >
-                        {subcats.map((sc) => {
-                          const Icon = ICON_MAP[sc.icon] || Wrench;
-                          return (
-                            <div key={sc.id} className={HUB_CARD_SLOT_4}>
-                            <button
-                              className={`${HUB_CARD_BASE} bg-card min-h-[112px] w-full px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
-                              onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
-                            >
-                              <div
-                                className="h-14 w-14 rounded-full flex items-center justify-center shadow-sm"
-                                style={{ backgroundColor: (sc.color || "#888") + "1f" }}
-                              >
-                                <Icon className="h-7 w-7 text-foreground" strokeWidth={2.1} />
-                              </div>
-                              <div className="text-xs font-medium text-muted-foreground leading-snug line-clamp-2">
-                                {sc.name_ar || sc.name}
-                              </div>
-                            </button>
-                            </div>
-                          );
-                        })}
+                        {subcats.map((sc) => (
+                          <HubCategoryCard
+                            key={sc.id}
+                            label={sc.name}
+                            labelAr={sc.name_ar}
+                            language={language === "ar" ? "ar" : "en"}
+                            icon={getCategoryIcon(sc.icon)}
+                            color={sc.color}
+                            onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: getCategoryIcon(sc.icon), color: sc.color })}
+                            subtitle={t("اضغط لعرض المزودين", "View providers")}
+                            inScrollSlot
+                          />
+                        ))}
                       </div>
                     </HubSection>
                   );
@@ -2409,49 +2359,33 @@ export default function Hub({ initialTab }: HubProps = {}) {
                       className={HUB_CARD_ROW_4}
                       style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
                     >
-                      {subcats.map((s) => {
-                        const Icon = ICON_MAP[s.icon] || Wrench;
-                        return (
-                          <div key={s.id} className={HUB_CARD_SLOT_4}>
-                          <button
-                            className={`${HUB_CARD_BASE} bg-card min-h-[112px] w-full px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
-                            onClick={() => openSubcategoryProviders({ id: s.id, name: s.name, name_ar: s.name_ar, icon: Icon, color: s.color })}
-                          >
-                            <div
-                              className="h-14 w-14 rounded-full flex items-center justify-center shadow-sm"
-                              style={{ backgroundColor: (s.color || "#888") + "1f" }}
-                            >
-                              <Icon className="h-7 w-7 text-foreground" strokeWidth={2.1} />
-                            </div>
-                            <div className="text-xs font-medium text-muted-foreground leading-snug line-clamp-2">
-                              {s.name_ar || s.name}
-                            </div>
-                          </button>
-                          </div>
-                        );
-                      })}
+                      {subcats.map((s) => (
+                        <HubCategoryCard
+                          key={s.id}
+                          label={s.name}
+                          labelAr={s.name_ar}
+                          language={language === "ar" ? "ar" : "en"}
+                          icon={getCategoryIcon(s.icon)}
+                          color={s.color}
+                          onClick={() => openSubcategoryProviders({ id: s.id, name: s.name, name_ar: s.name_ar, icon: getCategoryIcon(s.icon), color: s.color })}
+                          subtitle={t("اضغط لعرض المزودين", "View providers")}
+                          inScrollSlot
+                        />
+                      ))}
 
-                      {catsFallback.map((c) => {
-                        const Icon = ICON_MAP[c.icon] || Wrench;
-                        return (
-                          <div key={c.id} className={HUB_CARD_SLOT_4}>
-                          <button
-                            className={`${HUB_CARD_BASE} bg-card min-h-[112px] w-full px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
-                            onClick={() => openCategoryBrowse(c.id)}
-                          >
-                            <div
-                              className="h-14 w-14 rounded-full flex items-center justify-center shadow-sm"
-                              style={{ backgroundColor: (c.color || "#888") + "1f" }}
-                            >
-                              <Icon className="h-7 w-7 text-foreground" strokeWidth={2.1} />
-                            </div>
-                            <div className="text-xs font-medium text-muted-foreground leading-snug line-clamp-2">
-                              {c.name_ar || c.name}
-                            </div>
-                          </button>
-                          </div>
-                        );
-                      })}
+                      {catsFallback.map((c) => (
+                        <HubCategoryCard
+                          key={c.id}
+                          label={c.name}
+                          labelAr={c.name_ar}
+                          language={language === "ar" ? "ar" : "en"}
+                          icon={getCategoryIcon(c.icon)}
+                          color={c.color}
+                          onClick={() => openCategoryBrowse(c.id)}
+                          subtitle={t("اضغط للبحث", "Browse")}
+                          inScrollSlot
+                        />
+                      ))}
                     </div>
                   </HubSection>
                 );
@@ -2591,7 +2525,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
             }
           }}
           category={browseCategory}
-          iconMap={ICON_MAP}
+          iconMap={HUB_ICON_MAP}
           onSelectSubcategory={(subcat) => {
             // Close/unmount browse sheet first; provider sheet opens via pendingSubcategory effect.
             setPendingSubcategory(subcat);
