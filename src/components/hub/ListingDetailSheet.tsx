@@ -292,7 +292,7 @@ export function ListingDetailSheet({ open, onOpenChange, listing, onSelectListin
                       const ok = window.confirm(t("تأكيد: حذف الإعلان نهائياً؟", "Delete this listing permanently?"));
                       if (!ok) return;
                       const { error } = await supabase.from("listings").delete().eq("id", listing.id);
-                      if (error) toast.error(t("فشل الحذف", "Failed to delete"));
+                      if (error) toast.error(error.message || t("فشل الحذف", "Failed to delete"));
                       else {
                         toast.success(t("تم الحذف", "Deleted"));
                         await queryClient.invalidateQueries({ queryKey: ["listings"] });
