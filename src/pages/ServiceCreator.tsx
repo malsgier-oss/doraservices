@@ -158,6 +158,50 @@ function ServiceCreatorContent() {
     }
   }, [profile, profileLoading, navigate, isRTL, user]);
 
+  // All hooks must run before any early return to avoid "Rendered more hooks than previous render" (React #310)
+  const onPickImages = useCallback((files: FileList | null) => {
+    if (!files) return;
+    const picked = Array.from(files).filter(Boolean);
+    if (picked.length === 0) return;
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    const validFiles: File[] = [];
+    for (const file of picked) {
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(isRTL ? `${file.name}: الحد الأقصى للحجم 5MB` : `${file.name}: Max file size is 5MB`);
+        continue;
+      }
+      if (!file.type.startsWith("image/")) {
+        toast.error(isRTL ? `${file.name}: يجب أن يكون ملف صورة` : `${file.name}: Must be an image file`);
+        continue;
+      }
+      validFiles.push(file);
+    }
+    if (validFiles.length === 0) return;
+    const next = [...imageFiles];
+    for (const f of validFiles) {
+      if (next.length >= 5) break;
+      next.push(f);
+    }
+    if (imageFiles.length + validFiles.length > 5) {
+      toast.error(isRTL ? "الخطة المجانية: حتى 5 صور" : "Free plan: up to 5 photos");
+    }
+    setImageFiles(next);
+  }, [imageFiles, isRTL]);
+
+  const removeImage = useCallback((idx: number) => {
+    setImageFiles((prev) => prev.filter((_, i) => i !== idx));
+  }, []);
+
+  const makeCover = useCallback((idx: number) => {
+    setImageFiles((prev) => {
+      if (idx <= 0 || idx >= prev.length) return prev;
+      const next = [...prev];
+      const [picked] = next.splice(idx, 1);
+      next.unshift(picked);
+      return next;
+    });
+  }, []);
+
   if (profileLoading) {
     return (
       <Layout>
@@ -334,60 +378,6 @@ function ServiceCreatorContent() {
   };
 
   const remainingSlots = Math.max(0, 5 - imageFiles.length);
-  const onPickImages = useCallback((files: FileList | null) => {
-    if (!files) return;
-    const picked = Array.from(files).filter(Boolean);
-
-    if (picked.length === 0) return;
-
-    // Validate file sizes and types
-    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-    const validFiles: File[] = [];
-
-    for (const file of picked) {
-      // Check file size
-      if (file.size > MAX_FILE_SIZE) {
-        toast.error(isRTL ? `${file.name}: الحد الأقصى للحجم 5MB` : `${file.name}: Max file size is 5MB`);
-        continue;
-      }
-
-      // Check MIME type
-      if (!file.type.startsWith("image/")) {
-        toast.error(isRTL ? `${file.name}: يجب أن يكون ملف صورة` : `${file.name}: Must be an image file`);
-        continue;
-      }
-
-      validFiles.push(file);
-    }
-
-    if (validFiles.length === 0) return;
-
-    const next = [...imageFiles];
-    for (const f of validFiles) {
-      if (next.length >= 5) break;
-      next.push(f);
-    }
-
-    if (imageFiles.length + validFiles.length > 5) {
-      toast.error(isRTL ? "الخطة المجانية: حتى 5 صور" : "Free plan: up to 5 photos");
-    }
-
-    setImageFiles(next);
-  }, [imageFiles, isRTL]);
-
-  const removeImage = useCallback((idx: number) => {
-    setImageFiles((prev) => prev.filter((_, i) => i !== idx));
-  }, []);
-
-  const makeCover = useCallback((idx: number) => {
-    setImageFiles((prev) => {
-      if (idx <= 0 || idx >= prev.length) return prev;
-      const next = [...prev];
-      const [picked] = next.splice(idx, 1);
-      next.unshift(picked);
-      return next;
-    });
-  }, []);
 
   return (
     <Layout>
