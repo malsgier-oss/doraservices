@@ -261,7 +261,11 @@ function ServiceCreatorContent() {
     }
 
     // IMPORTANT for P0: phone must exist to allow call/WhatsApp for guests
-    const storedPhone = normalizeLibyaPhoneForStorage(profile.phone);
+    // Use profile.phone with fallback to auth user_metadata (matches Profile page logic)
+    const rawPhone =
+      profile?.phone ??
+      (typeof (user as any)?.user_metadata?.phone === "string" ? (user as any).user_metadata.phone : null);
+    const storedPhone = normalizeLibyaPhoneForStorage(rawPhone);
     if (!storedPhone) {
       toast.error(isRTL ? "أضف رقم هاتفك في الملف الشخصي أولاً" : "Add your phone number in Profile first");
       navigate("/profile");
