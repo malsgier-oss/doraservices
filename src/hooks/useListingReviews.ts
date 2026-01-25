@@ -1,6 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+
+// #region agent log
+const _log = (payload: { location: string; message: string; data?: Record<string, unknown>; hypothesisId?: string }) => {
+  fetch("http://127.0.0.1:7242/ingest/9400dad2-6936-4b7c-930c-5ff551ab6c67", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, timestamp: Date.now(), sessionId: "debug-session" }),
+  }).catch(() => {});
+};
+// #endregion
 
 export interface ListingReview {
   id: string;
@@ -39,9 +49,18 @@ export function useListingReviews(listingId: string | null | undefined, enabled 
   const [rating, setRating] = useState<ListingRating>({ averageRating: 0, totalReviews: 0 });
   const [userReview, setUserReview] = useState<ListingReview | null>(null);
   const [loading, setLoading] = useState(true);
+  // #region agent log
+  const currentListingIdRef = useRef<string | null>(null);
+  // #endregion
 
   useEffect(() => {
+    // #region agent log
+    _log({ location: "useListingReviews.ts:effect", message: "effect_run", data: { listingId: listingId ?? null, enabled }, hypothesisId: "B" });
+    // #endregion
     if (enabled && listingId) {
+      // #region agent log
+      currentListingIdRef.current = listingId;
+      // #endregion
       fetchReviews();
     } else {
       setLoading(false);
@@ -50,6 +69,10 @@ export function useListingReviews(listingId: string | null | undefined, enabled 
 
   const fetchReviews = async () => {
     if (!listingId) return;
+    const fetchingFor = listingId;
+    // #region agent log
+    _log({ location: "useListingReviews.ts:fetchReviews", message: "fetch_start", data: { listingId: fetchingFor }, hypothesisId: "A" });
+    // #endregion
 
     setLoading(true);
     try {
@@ -63,6 +86,9 @@ export function useListingReviews(listingId: string | null | undefined, enabled 
       ]);
 
       if (reviewsRes.error) {
+        // #region agent log
+        _log({ location: "useListingReviews.ts:fetchReviews", message: "fetch_reviews_error", data: { listingId: fetchingFor, error: String(reviewsRes.error?.message) }, hypothesisId: "A" });
+        // #endregion
         console.error("Error fetching listing reviews:", reviewsRes.error);
         setLoading(false);
         return;
@@ -74,6 +100,27 @@ export function useListingReviews(listingId: string | null | undefined, enabled 
         reviewer_name: "User",
         reviewer_avatar: "",
       }));
+
+      // #region agent log
+      const currentAtComplete = currentListingIdRef.current;
+      const isStale = currentAtComplete !== fetchingFor;
+      _log({
+        location: "useListingReviews.ts:fetchReviews",
+        message: isStale ? "fetch_ignored_race" : "fetch_applied",
+        data: { responseFor: fetchingFor, currentListingId: currentAtComplete, reviewsCount: enriched.length, isStale },
+        hypothesisId: "A",
+      });
+      _log({
+        location: "useListingReviews.ts:fetchReviews",
+        message: "stats_source",
+        data: { listingId: fetchingFor, fromStats: !!statsRes.data, statsError: !!statsRes.error },
+        hypothesisId: "C",
+      });
+      if (isStale) {
+        setLoading(false);
+        return;
+      }
+      // #endregion
 
       setReviews(enriched);
 
@@ -99,6 +146,9 @@ export function useListingReviews(listingId: string | null | undefined, enabled 
         setUserReview(my || null);
       }
     } catch (e) {
+      // #region agent log
+      _log({ location: "useListingReviews.ts:fetchReviews", message: "fetch_exception", data: { listingId: fetchingFor, error: String(e) }, hypothesisId: "A" });
+      // #endregion
       console.error("Listing reviews fetch error:", e);
     } finally {
       setLoading(false);
