@@ -273,10 +273,6 @@ export default function Profile() {
   const isProvider = isProviderLike(currentRole);
   const isAdmin = currentRole === "admin";
 
-  // Dora principle: Profile pages stay focused on account/security/personal data.
-  // "Become provider" is available only for non-remixed users.
-  const showProviderTab = !isAdmin && !isProvider;
-
   const accountLocked = useMemo(() => {
     const st = (profile?.status || "").toLowerCase();
     return st === "suspended" || st === "deleted" || st === "inactive";
@@ -683,22 +679,14 @@ export default function Profile() {
                         : "Active"
                       : (profile.status || "").toString()}
                   </Badge>
-
                   <Badge variant="outline">
                     {isAdmin ? "Admin" : isProvider ? (isRTL ? "مزود" : "Provider") : isRTL ? "مستخدم" : "User"}
                   </Badge>
-
                   {cityLabel && (
                     <Badge variant="secondary" className="gap-1">
                       <MapPin className="h-4 w-4" />
                       {cityLabel}
                       {subCity ? ` • ${subCity}` : ""}
-                    </Badge>
-                  )}
-
-                  {providerStatus && (
-                    <Badge variant={statusBadgeVariant(providerStatus)}>
-                      {isRTL ? "المزود:" : "Provider:"} {providerStatus}
                     </Badge>
                   )}
                 </div>
@@ -744,32 +732,19 @@ export default function Profile() {
 
         {/* Tabs */}
         <Tabs defaultValue={defaultTab} className="w-full">
-          <TabsList
-            className={cn(
-              "grid w-full rounded-2xl h-12",
-              buySellEnabled && showProviderTab && "grid-cols-5",
-              buySellEnabled && !showProviderTab && "grid-cols-4",
-              !buySellEnabled && showProviderTab && "grid-cols-4",
-              !buySellEnabled && !showProviderTab && "grid-cols-3",
-            )}
-          >
-            <TabsTrigger value="account" className="rounded-xl">
+          <TabsList className="flex w-full flex-wrap gap-2 rounded-2xl h-auto p-2">
+            <TabsTrigger value="account" className="rounded-xl flex-1 min-w-0 shrink-0">
               {isRTL ? "الحساب" : "Account"}
             </TabsTrigger>
-            <TabsTrigger value="role" className="rounded-xl">
-              {isRTL ? "الدور" : "Role"}
-            </TabsTrigger>
             {buySellEnabled && (
-              <TabsTrigger value="listings" className="rounded-xl">
+              <TabsTrigger value="listings" className="rounded-xl flex-1 min-w-0 shrink-0">
                 {isRTL ? "الإعلانات" : "Listings"}
               </TabsTrigger>
             )}
-            {showProviderTab && (
-              <TabsTrigger value="provider" className="rounded-xl">
-                {isRTL ? "المزود" : "Provider"}
-              </TabsTrigger>
-            )}
-            <TabsTrigger value="security" className="rounded-xl">
+            <TabsTrigger value="role" className="rounded-xl flex-1 min-w-0 shrink-0">
+              {isRTL ? "الدور" : "Role"}
+            </TabsTrigger>
+            <TabsTrigger value="security" className="rounded-xl flex-1 min-w-0 shrink-0">
               {isRTL ? "الأمان" : "Security"}
             </TabsTrigger>
           </TabsList>
@@ -932,7 +907,7 @@ export default function Profile() {
             </TabsContent>
           )}
 
-          {/* Role */}
+          {/* Role: provider status or "Become a provider" (merged from old Provider tab) */}
           <TabsContent value="role" className="mt-4 space-y-4">
             <Card>
               <CardHeader className="pb-3">
@@ -945,126 +920,109 @@ export default function Profile() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Provider */}
-                <div className="flex flex-col gap-3 rounded-xl border border-border p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="font-medium">{isRTL ? "مزود خدمة" : "Provider"}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {isRTL ? "يتطلب موافقة الإدارة." : "Requires admin approval."}
+                {isProvider || providerStatus ? (
+                  /* Provider status / approval state */
+                  <div className="flex flex-col gap-3 rounded-xl border border-border p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-medium">{isRTL ? "مزود خدمة" : "Provider"}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {isRTL ? "يتطلب موافقة الإدارة." : "Requires admin approval."}
+                        </div>
                       </div>
+                      {providerStatus ? (
+                        <Badge
+                          variant={
+                            providerStatus === "approved"
+                              ? "default"
+                              : providerStatus === "pending"
+                                ? "secondary"
+                                : "destructive"
+                          }
+                          className="whitespace-nowrap"
+                        >
+                          {providerStatus === "approved" && (
+                            <>
+                              <CheckCircle className="h-3 w-3 me-1" />
+                              {isRTL ? "موافق عليه" : "Approved"}
+                            </>
+                          )}
+                          {providerStatus === "pending" && (
+                            <>
+                              <Clock className="h-3 w-3 me-1" />
+                              {isRTL ? "قيد المراجعة" : "Pending"}
+                            </>
+                          )}
+                          {providerStatus === "rejected" && (
+                            <>
+                              <XCircle className="h-3 w-3 me-1" />
+                              {isRTL ? "مرفوض" : "Rejected"}
+                            </>
+                          )}
+                        </Badge>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleRequestProvider}
+                          disabled={becomingProvider || isProvider}
+                        >
+                          {becomingProvider ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
+                          <span className="ms-2">{isRTL ? "تفعيل" : "Enable"}</span>
+                        </Button>
+                      )}
                     </div>
-                    {providerStatus ? (
-                      <Badge
-                        variant={
-                          providerStatus === "approved"
-                            ? "default"
-                            : providerStatus === "pending"
-                              ? "secondary"
-                              : "destructive"
-                        }
-                        className="whitespace-nowrap"
-                      >
-                        {providerStatus === "approved" && (
-                          <>
-                            <CheckCircle className="h-3 w-3 me-1" />
-                            {isRTL ? "موافق عليه" : "Approved"}
-                          </>
-                        )}
+                    {providerStatus && (
+                      <div className="text-xs text-muted-foreground pt-1 border-t border-border">
                         {providerStatus === "pending" && (
                           <>
-                            <Clock className="h-3 w-3 me-1" />
-                            {isRTL ? "قيد المراجعة" : "Pending"}
+                            {isRTL
+                              ? "طلبك قيد المراجعة من قبل الإدارة. الخدمات التي تضيفها ستكون مخفية حتى الموافقة."
+                              : "Your request is under review by admin. Services you add will be hidden until approval."}
+                          </>
+                        )}
+                        {providerStatus === "approved" && (
+                          <>
+                            {isRTL
+                              ? "حسابك معتمد كمزود. يمكنك الآن إنشاء وإدارة الخدمات."
+                              : "Your account is approved as a provider. You can now create and manage services."}
                           </>
                         )}
                         {providerStatus === "rejected" && (
                           <>
-                            <XCircle className="h-3 w-3 me-1" />
-                            {isRTL ? "مرفوض" : "Rejected"}
+                            {isRTL
+                              ? "للأسف، تم رفض طلبك. يرجى التواصل مع الدعم للمزيد من المعلومات."
+                              : "Your provider request was rejected. Please contact support for more information."}
                           </>
                         )}
-                      </Badge>
-                    ) : (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleRequestProvider}
-                        disabled={becomingProvider || isProvider}
-                      >
-                        {becomingProvider ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
-                        <span className="ms-2">{isRTL ? "تفعيل" : "Enable"}</span>
-                      </Button>
+                      </div>
                     )}
                   </div>
-                  {providerStatus && (
-                    <div className="text-xs text-muted-foreground pt-1 border-t border-border">
-                      {providerStatus === "pending" && (
-                        <>
-                          {isRTL
-                            ? "طلبك قيد المراجعة من قبل الإدارة. الخدمات التي تضيفها ستكون مخفية حتى الموافقة."
-                            : "Your request is under review by admin. Services you add will be hidden until approval."}
-                        </>
+                ) : (
+                  /* Become a provider CTA (non-provider users) */
+                  <div className="space-y-3">
+                    <Button
+                      onClick={handleRequestProvider}
+                      disabled={becomingProvider}
+                      className="h-12 rounded-xl w-full gap-2"
+                    >
+                      {becomingProvider ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Building2 className="h-4 w-4" />
                       )}
-                      {providerStatus === "approved" && (
-                        <>
-                          {isRTL
-                            ? "حسابك معتمد كمزود. يمكنك الآن إنشاء وإدارة الخدمات."
-                            : "Your account is approved as a provider. You can now create and manage services."}
-                        </>
-                      )}
-                      {providerStatus === "rejected" && (
-                        <>
-                          {isRTL
-                            ? "للأسف، تم رفض طلبك. يرجى التواصل مع الدعم للمزيد من المعلومات."
-                            : "Your provider request was rejected. Please contact support for more information."}
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-
+                      {isRTL ? "أريد أن أكون مزود" : "I want to be a provider"}
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      {isRTL
+                        ? "ستتم مراجعة طلبك من الإدارة قبل ظهور خدماتك للناس. بعد الموافقة، ستجد لوحة المزود في الشريط السفلي."
+                        : "Your request will be reviewed by admin before your services become visible. After approval, you'll find Dashboard in the bottom navigation."}
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
-
-          {/* Provider (upgrade only) */}
-          {showProviderTab && (
-            <TabsContent value="provider" className="mt-4 space-y-4">
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Building2 className="h-4 w-4" />
-                    {isRTL ? "أصبح مزود خدمة" : "Become a provider"}
-                  </CardTitle>
-                  <CardDescription>
-                    {isRTL
-                      ? "ستتم مراجعة طلبك من الإدارة قبل ظهور خدماتك للناس."
-                      : "Your request will be reviewed by admin before your services become visible."}
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="space-y-3">
-                  <Button
-                    onClick={handleRequestProvider}
-                    disabled={becomingProvider}
-                    className="h-12 rounded-xl w-full gap-2"
-                  >
-                    {becomingProvider ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Building2 className="h-4 w-4" />
-                    )}
-                    {isRTL ? "أريد أن أكون مزود" : "I want to be a provider"}
-                  </Button>
-                  <p className="text-xs text-muted-foreground">
-                    {isRTL
-                      ? "بعد الموافقة، ستجد لوحة المزود في الشريط السفلي."
-                      : "After approval, you'll find Dashboard in the bottom navigation."}
-                  </p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          )}
 
           {/* Security */}
           <TabsContent value="security" className="mt-4 space-y-4">
