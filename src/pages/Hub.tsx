@@ -1569,7 +1569,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
                       className="w-full justify-start h-11"
                       onClick={() => {
                         setQuery("");
-                        openCategoryBrowse(c.id);
+                        navigate(`/services/category/${c.id}`);
                       }}
                     >
                       {c.name_ar || c.name}
@@ -1595,7 +1595,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
                       className="rounded-full shrink-0 px-4 h-11"
                       onClick={() => {
                         if (chip.target_type === "category" && chip.target_category_id) {
-                          openCategoryBrowse(chip.target_category_id);
+                          navigate(`/services/category/${chip.target_category_id}`);
                         } else if (chip.target_type === "subcategory" && chip.target_subcategory_id) {
                           const sc = (allSubcategories || []).find((s) => s.id === chip.target_subcategory_id);
                           if (!sc) return;
@@ -1672,7 +1672,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
           publicUrlsById={publicUrlsById as any}
           allSubcategories={(allSubcategories || []) as any}
           iconMap={HUB_ICON_MAP as any}
-          onOpenCategory={openCategoryBrowse}
+          onOpenCategory={(id) => navigate(`/services/category/${id}`)}
           onOpenSubcategory={openSubcategoryProviders as any}
           onScrollToShelf={(shelfId) => {
             const el = shelfId === "featured-services"
@@ -1713,7 +1713,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
                         language={language === "ar" ? "ar" : "en"}
                         icon={getCategoryIcon(c.icon)}
                         color={c.color}
-                        onClick={() => openCategoryBrowse(c.id)}
+                        onClick={() => navigate(`/services/category/${c.id}`)}
                         subtitle={t("اضغط للبحث", "Browse")}
                       />
                     ))}
@@ -1905,7 +1905,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
                     id={`shelf-${shelf.id}`}
                     title={shelf.title_ar}
                     actionLabel={t("عرض الكل", "See all")}
-                    onAction={() => openCategoryBrowse(cat.id)}
+                    onAction={() => navigate(`/services/category/${cat.id}`)}
                   >
                     <div
                       dir={isRTL ? "rtl" : "ltr"}
@@ -1981,7 +1981,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
                           language={language === "ar" ? "ar" : "en"}
                           icon={getCategoryIcon(c.icon)}
                           color={c.color}
-                          onClick={() => openCategoryBrowse(c.id)}
+                          onClick={() => navigate(`/services/category/${c.id}`)}
                           subtitle={t("اضغط للبحث", "Browse")}
                           inScrollSlot
                         />
@@ -2015,7 +2015,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
             publicUrlsById={publicUrlsById as any}
             allSubcategories={(allSubcategories || []) as any}
             iconMap={HUB_ICON_MAP as any}
-            onOpenCategory={openCategoryBrowse}
+            onOpenCategory={(id) => navigate(`/services/category/${id}`)}
             onOpenSubcategory={openSubcategoryProviders as any}
             onScrollToShelf={(shelfId) => {
               const el = shelfId === "featured-services"
@@ -2074,7 +2074,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
                       language={language === "ar" ? "ar" : "en"}
                       icon={getCategoryIcon(c.icon)}
                       color={c.color}
-                      onClick={() => openCategoryBrowse(c.id)}
+                      onClick={() => navigate(`/services/category/${c.id}`)}
                       subtitle={t("اضغط للبحث", "Browse")}
                     />
                   ))}
@@ -2308,7 +2308,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
                       id={`shelf-${shelf.id}`}
                       title={shelf.title_ar}
                       actionLabel={t("عرض الكل", "View All")}
-                      onAction={() => openCategoryBrowse(cat.id)}
+                      onAction={() => navigate(`/services/category/${cat.id}`)}
                     >
                       <div
                         dir={isRTL ? "rtl" : "ltr"}
@@ -2381,7 +2381,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
                           language={language === "ar" ? "ar" : "en"}
                           icon={getCategoryIcon(c.icon)}
                           color={c.color}
-                          onClick={() => openCategoryBrowse(c.id)}
+                          onClick={() => navigate(`/services/category/${c.id}`)}
                           subtitle={t("اضغط للبحث", "Browse")}
                           inScrollSlot
                         />
