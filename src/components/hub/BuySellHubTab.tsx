@@ -283,28 +283,9 @@ export function BuySellHubTab({
 
   return (
     <div className="space-y-6">
-      {/* Sticky Category Bar (Strategy A: filter on Hub, no navigate on chip click) */}
-      <div className="sticky top-0 bg-background/95 backdrop-blur-sm z-40 -mx-4 px-4 py-3 border-b border-border/40 space-y-2">
-        <BuySellCategories
-          onCategoryClick={(catId) => {
-            const nextCategory = selectedBuySellCategory === catId ? null : catId;
-            onCategoryChange(nextCategory);
-          }}
-          compact
-          sticky={false}
-          filterOnly
-          selectedCategoryId={selectedBuySellCategory}
-        />
-        {selectedBuySellCategory && !hasSearch && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full text-muted-foreground text-xs"
-            onClick={() => onCategoryChange(null)}
-          >
-            {t("إزالة التصنيف", "Clear category filter")}
-          </Button>
-        )}
+      {/* Category bar: clicking a category goes to its dedicated page */}
+      <div className="sticky top-0 bg-background/95 backdrop-blur-sm z-40 -mx-4 px-4 py-3 border-b border-border/40">
+        <BuySellCategories compact sticky={false} filterOnly={false} />
       </div>
 
       <div className="px-4 space-y-6">
