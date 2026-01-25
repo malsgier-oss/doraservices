@@ -59,7 +59,7 @@ export function useListings(options: UseListingsOptions = {}) {
       const { data, error } = await query;
       if (error) {
         console.error("Error fetching listings:", error);
-        return [];
+        throw error;
       }
 
       return (data || []) as Listing[];

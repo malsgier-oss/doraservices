@@ -35,6 +35,7 @@ export default function MyListings() {
   const emptyText = useMemo(() => {
     if (tab === "active") return t("لا توجد إعلانات نشطة", "No active listings");
     if (tab === "sold") return t("لا توجد إعلانات مباعة", "No sold listings");
+    if (tab === "draft") return t("لا توجد مسودات", "No drafts");
     return t("لا توجد إعلانات مؤرشفة", "No archived listings");
   }, [tab, language]);
 
@@ -71,14 +72,17 @@ export default function MyListings() {
           </div>
         ) : (
           <Tabs value={tab} onValueChange={(v) => setTab(v as ListingStatus)}>
-            <TabsList className="w-full">
-              <TabsTrigger className="flex-1" value="active">
+            <TabsList className="w-full flex flex-wrap h-auto">
+              <TabsTrigger className="flex-1 min-w-0" value="active">
                 {t("نشطة", "Active")}
               </TabsTrigger>
-              <TabsTrigger className="flex-1" value="sold">
+              <TabsTrigger className="flex-1 min-w-0" value="draft">
+                {t("مسودة", "Draft")}
+              </TabsTrigger>
+              <TabsTrigger className="flex-1 min-w-0" value="sold">
                 {t("مباع", "Sold")}
               </TabsTrigger>
-              <TabsTrigger className="flex-1" value="archived">
+              <TabsTrigger className="flex-1 min-w-0" value="archived">
                 {t("مؤرشف", "Archived")}
               </TabsTrigger>
             </TabsList>
@@ -100,10 +104,10 @@ export default function MyListings() {
                 <div className={`${HUB_CARD_BASE} bg-card p-8 flex flex-col items-center justify-center gap-4 text-center`}>
                   <ShoppingBag className="h-12 w-12 text-muted-foreground/60" />
                   <p className="text-sm text-muted-foreground">{emptyText}</p>
-                  {tab === "active" ? (
+                  {(tab === "active" || tab === "draft") ? (
                     <Button variant="outline" size="sm" onClick={() => navigate("/buy-sell/create-listing")} className="gap-1.5">
                       <PlusCircle className="h-4 w-4" />
-                      {t("نشر إعلانك الأول", "Post your first listing")}
+                      {tab === "draft" ? t("إنشاء مسودة", "Create draft") : t("نشر إعلانك الأول", "Post your first listing")}
                     </Button>
                   ) : null}
                 </div>

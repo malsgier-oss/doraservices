@@ -28,7 +28,7 @@ export default function CategoryDetail() {
   }, [categoryId]);
 
   // Fetch listings for this category
-  const { data: listings, isLoading } = useListings({
+  const { data: listings, isLoading, isError, refetch } = useListings({
     category: categoryId,
     limit: 100,
   });
@@ -240,24 +240,38 @@ export default function CategoryDetail() {
               <p className="text-sm text-muted-foreground">{t("جاري التحميل...", "Loading...")}</p>
             </div>
           </div>
+        ) : isError ? (
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center space-y-3">
+              <p className="text-sm font-medium">{t("حدث خطأ ما", "Something went wrong")}</p>
+              <p className="text-xs text-muted-foreground">{t("تعذر تحميل الإعلانات", "Could not load listings")}</p>
+              <Button variant="outline" size="sm" onClick={() => refetch()}>
+                {t("إعادة المحاولة", "Retry")}
+              </Button>
+            </div>
+          </div>
         ) : filteredListings.length === 0 ? (
           <div className="flex items-center justify-center min-h-[400px]">
-            <div className="text-center">
-              <p className="text-lg font-medium mb-2">{t("لا توجد إعلانات", "No listings found")}</p>
-              <p className="text-sm text-muted-foreground mb-4">
+            <div className="text-center space-y-4">
+              <p className="text-lg font-medium">{t("لا توجد إعلانات", "No listings found")}</p>
+              <p className="text-sm text-muted-foreground">
                 {searchQuery
-                  ? t("حاول تغيير البحث", "Try adjusting your search")
-                  : t("لا توجد إعلانات في هذه الفئة", "No listings in this category")}
+                  ? t("حاول تغيير البحث أو نطاق السعر", "Try adjusting your search or price range")
+                  : t("لا توجد إعلانات في هذه الفئة. استكشف الكل أو انشر إعلانك.", "No listings in this category. Browse all or post your own.")}
               </p>
-              {searchQuery && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSearchQuery("")}
-                >
-                  {t("مسح البحث", "Clear search")}
+              <div className="flex flex-wrap gap-2 justify-center">
+                {searchQuery && (
+                  <Button variant="outline" size="sm" onClick={() => setSearchQuery("")}>
+                    {t("مسح البحث", "Clear search")}
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={() => navigate("/buy-sell/listings")}>
+                  {t("استكشف الكل", "Browse all")}
                 </Button>
-              )}
+                <Button variant="outline" size="sm" onClick={() => navigate("/buy-sell/create-listing")}>
+                  {t("نشر إعلان", "Post a listing")}
+                </Button>
+              </div>
             </div>
           </div>
         ) : (

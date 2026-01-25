@@ -12,6 +12,8 @@ type HubChipCardProps = {
   iconColor?: string;
   /** When true, card fills grid cell (w-full). Use for non-scrollable grid layout. */
   fill?: boolean;
+  /** When true, show selected state (ring). */
+  isSelected?: boolean;
 };
 
 export function HubChipCard({
@@ -21,6 +23,7 @@ export function HubChipCard({
   icon: Icon,
   iconColor,
   fill = false,
+  isSelected = false,
 }: HubChipCardProps) {
   const iconColorStyle = iconColor ? { color: iconColor } : undefined;
   const circleBg = iconColor
@@ -35,7 +38,8 @@ export function HubChipCard({
         HUB_CARD_BASE,
         "min-h-[110px] bg-card px-4 py-4 transition-colors hover:bg-muted/30 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
         fill ? "w-full min-w-0" : "shrink-0 w-[72vw] max-w-[320px] snap-start",
-        isRTL && "text-right"
+        isRTL && "text-right",
+        isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background"
       )}
       onClick={onClick}
       dir={isRTL ? "rtl" : "ltr"}

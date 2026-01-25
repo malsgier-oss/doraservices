@@ -24,18 +24,24 @@ export interface Deal {
 }
 
 export interface UseDealsOptions {
+  /** Not applied: businesses table has no city_id. Deals are shown for all cities until schema supports it. */
   cityId?: string | null;
   category?: string | null;
   featured?: boolean;
   businessId?: string | null;
+  search?: string | null;
   limit?: number;
 }
 
+function escapeForLike(s: string): string {
+  return s.replace(/[%_\\]/g, "\\$&");
+}
+
 export function useDeals(options: UseDealsOptions = {}) {
-  const { cityId, category, featured, businessId, limit = 20 } = options;
+  const { category, featured, businessId, search, limit = 20 } = options;
 
   return useQuery({
-    queryKey: ["deals", cityId, category, featured, businessId, limit],
+    queryKey: ["deals", category, featured, businessId, search, limit],
     queryFn: async (): Promise<Deal[]> => {
       let query = supabase
         .from("deals")
@@ -60,11 +66,17 @@ export function useDeals(options: UseDealsOptions = {}) {
         query = query.eq("business_id", businessId);
       }
 
+      const q = (search ?? "").trim();
+      if (q) {
+        const escaped = escapeForLike(q);
+        query = query.or(`title.ilike.%${escaped}%,description.ilike.%${escaped}%`);
+      }
+
       const { data, error } = await query;
 
       if (error) {
         console.error("Error fetching deals:", error);
-        return [];
+        throw error;
       }
 
       return (data || []) as Deal[];

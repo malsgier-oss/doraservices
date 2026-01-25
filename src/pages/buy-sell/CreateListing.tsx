@@ -61,6 +61,10 @@ function CreateListingContent() {
     return title.trim().length >= 3 && !!category && !!cityId && !submitting;
   }, [title, category, cityId, submitting]);
 
+  const canSaveDraft = useMemo(() => {
+    return title.trim().length >= 1 && !submitting;
+  }, [title, submitting]);
+
   const onPickPhotos = useCallback((fileList: FileList | null) => {
     if (!fileList) return;
     const files = Array.from(fileList).filter(Boolean);
@@ -167,7 +171,7 @@ function CreateListingContent() {
         category,
         price: numericPrice,
         currency: "LYD",
-        city_id: cityId,
+        city_id: cityId || null,
         location: location.trim() ? location.trim() : null,
         image_urls: null,
         status: "active",
@@ -213,6 +217,55 @@ function CreateListingContent() {
       }
 
       toast.success(t("تم نشر الإعلان", "Listing published"));
+      navigate("/buy-sell/my-listings", { replace: true });
+    } catch (err) {
+      const msg = typeof err === "object" && err && "message" in err ? String((err as any).message) : t("حدث خطأ", "Something went wrong");
+      toast.error(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    if (!user) {
+      const returnTo = encodeURIComponent("/buy-sell/create-listing");
+      navigate(`/auth?tab=login&returnTo=${returnTo}`);
+      return;
+    }
+    if (!canSaveDraft) return;
+    setSubmitting(true);
+    try {
+      if (title.trim().length > 100) {
+        toast.error(t("العنوان: حد أقصى 100 حرف", "Title: max 100 characters"));
+        setSubmitting(false);
+        return;
+      }
+      const numericPrice = price.trim() ? Number(price) : null;
+      if (price.trim() && Number.isNaN(numericPrice)) {
+        toast.error(t("السعر غير صالح", "Invalid price"));
+        setSubmitting(false);
+        return;
+      }
+      const listingId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+
+      const { error: insertError } = await supabase.from("listings").insert({
+        id: listingId,
+        user_id: user.id,
+        title: title.trim(),
+        description: description.trim() ? description.trim() : null,
+        category: category || "other",
+        price: numericPrice,
+        currency: "LYD",
+        city_id: cityId || null,
+        location: location.trim() ? location.trim() : null,
+        image_urls: null,
+        status: "draft",
+      });
+
+      if (insertError) throw insertError;
+
+      toast.success(t("تم حفظ المسودة", "Draft saved"));
       navigate("/buy-sell/my-listings", { replace: true });
     } catch (err) {
       const msg = typeof err === "object" && err && "message" in err ? String((err as any).message) : t("حدث خطأ", "Something went wrong");
@@ -358,10 +411,13 @@ function CreateListingContent() {
             </div>
           ) : null}
 
-          {/* Publish (end of form) */}
-          <div className="pt-2">
+          {/* Publish / Save draft (end of form) */}
+          <div className="pt-2 flex flex-col gap-2">
             <Button type="button" size="lg" className="w-full h-12" onClick={handleSubmit} disabled={!canSubmit}>
               {submitting ? t("جارٍ النشر...", "Publishing...") : t("نشر", "Publish")}
+            </Button>
+            <Button type="button" variant="outline" size="lg" className="w-full h-11" onClick={handleSaveDraft} disabled={!canSaveDraft}>
+              {submitting ? t("جاري الحفظ...", "Saving...") : t("حفظ كمسودة", "Save as draft")}
             </Button>
           </div>
           </div>

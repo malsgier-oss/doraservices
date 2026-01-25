@@ -6,6 +6,7 @@ import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DealCard } from "@/components/hub/DealCard";
 import { DealDetailSheet } from "@/components/hub/DealDetailSheet";
 import { HUB_CARD_BASE } from "@/components/hub/hubStyles";
@@ -42,6 +43,8 @@ export default function DealsBrowse() {
   const browseType: DealsBrowseType = isDealsBrowseType(type) ? type : "featured";
   const category = params.get("category");
   const q = params.get("q")?.trim() || "";
+  const sortParam = params.get("sort") as "newest" | "expiry-soon" | "popular" | null;
+  const sort = sortParam && ["newest", "expiry-soon", "popular"].includes(sortParam) ? sortParam : "newest";
   const cityId = getStoredCityId();
 
   const [searchInput, setSearchInput] = useState(q);
@@ -67,7 +70,7 @@ export default function DealsBrowse() {
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  const { data: deals, isLoading } = useDeals({
+  const { data: deals, isLoading, isError, refetch } = useDeals({
     cityId,
     category: category || null,
     featured: browseType === "featured" ? true : undefined,
@@ -114,8 +117,32 @@ export default function DealsBrowse() {
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     }
 
+    // Apply explicit sort param (can override browseType default)
+    if (sort === "newest") {
+      list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    } else if (sort === "expiry-soon") {
+      list.sort((a, b) => {
+        const aExp = a.expires_at ? new Date(a.expires_at).getTime() : Infinity;
+        const bExp = b.expires_at ? new Date(b.expires_at).getTime() : Infinity;
+        return aExp - bExp;
+      });
+    } else if (sort === "popular") {
+      list.sort((a, b) => {
+        const aScore = (a.views_count || 0) + (a.clicks_count || 0);
+        const bScore = (b.views_count || 0) + (b.clicks_count || 0);
+        return bScore - aScore;
+      });
+    }
+
     return list;
-  }, [browseType, deals, q]);
+  }, [browseType, deals, q, sort]);
+
+  const setSort = (value: string) => {
+    const next = new URLSearchParams(params);
+    if (value && value !== "newest") next.set("sort", value);
+    else next.delete("sort");
+    setParams(next, { replace: true });
+  };
 
   return (
     <Layout>
@@ -143,6 +170,19 @@ export default function DealsBrowse() {
           ) : null}
         </div>
 
+        {/* Sort */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={sort} onValueChange={setSort}>
+            <SelectTrigger className="w-[160px] h-9">
+              <SelectValue placeholder={t("ترتيب", "Sort")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">{t("الأحدث", "Newest")}</SelectItem>
+              <SelectItem value="expiry-soon">{t("ينتهي قريباً", "Expiring soon")}</SelectItem>
+              <SelectItem value="popular">{t("الأكثر مشاهدة", "Most popular")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
         {buySellLoading ? (
           <div className={`${HUB_CARD_BASE} bg-card p-6 text-sm text-muted-foreground text-center`}>
@@ -151,6 +191,14 @@ export default function DealsBrowse() {
         ) : !buySellEnabled ? (
           <div className={`${HUB_CARD_BASE} bg-card p-6 text-sm text-muted-foreground text-center`}>
             {t("ميزة الشراء والبيع غير مفعلة حالياً.", "Buy & Sell is currently disabled.")}
+          </div>
+        ) : isError ? (
+          <div className={`${HUB_CARD_BASE} bg-card p-8 flex flex-col items-center justify-center gap-4 text-center`}>
+            <p className="text-sm font-medium text-foreground">{t("حدث خطأ ما", "Something went wrong")}</p>
+            <p className="text-xs text-muted-foreground">{t("تعذر تحميل العروض", "Could not load deals")}</p>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              {t("إعادة المحاولة", "Retry")}
+            </Button>
           </div>
         ) : isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -165,12 +213,15 @@ export default function DealsBrowse() {
             ))}
           </div>
         ) : filteredDeals.length === 0 ? (
-          <div className={`${HUB_CARD_BASE} bg-card p-8 flex flex-col items-center justify-center gap-3 text-center`}>
+          <div className={`${HUB_CARD_BASE} bg-card p-8 flex flex-col items-center justify-center gap-4 text-center`}>
             <Tag className="h-12 w-12 text-muted-foreground/60" />
             <div className="space-y-1">
               <p className="text-sm font-medium text-foreground">{t("لا توجد نتائج", "No results found")}</p>
-              <p className="text-xs text-muted-foreground">{t("جرّب بحثاً أو تصنيفاً آخراً", "Try a different search or category")}</p>
+              <p className="text-xs text-muted-foreground">{t("جرّب بحثاً أو تصنيفاً آخراً أو تصفح الإعلانات", "Try a different search or category, or browse listings")}</p>
             </div>
+            <Button variant="outline" size="sm" onClick={() => navigate("/buy-sell/listings")}>
+              {t("استكشف الإعلانات", "Browse listings")}
+            </Button>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

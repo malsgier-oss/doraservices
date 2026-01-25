@@ -16,12 +16,18 @@ interface BuySellCategoriesProps {
   onCategoryClick?: (categoryId: string) => void;
   sticky?: boolean;
   compact?: boolean;
+  /** When true, category click only filters on Hub (no navigate). "More" still navigates. */
+  filterOnly?: boolean;
+  /** Currently selected category for highlight/clear when filterOnly. */
+  selectedCategoryId?: string | null;
 }
 
-export function BuySellCategories({ 
-  onCategoryClick, 
+export function BuySellCategories({
+  onCategoryClick,
   sticky = false,
-  compact = false 
+  compact = false,
+  filterOnly = false,
+  selectedCategoryId = null,
 }: BuySellCategoriesProps) {
   const { isRTL, language } = useLanguage();
   const navigate = useNavigate();
@@ -29,7 +35,9 @@ export function BuySellCategories({
 
   const handleCategoryClick = (categoryId: string) => {
     onCategoryClick?.(categoryId);
-    navigate(`/buy-sell/category/${categoryId}`);
+    if (!filterOnly) {
+      navigate(`/buy-sell/category/${categoryId}`);
+    }
   };
 
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
@@ -63,6 +71,7 @@ export function BuySellCategories({
               onClick={() => handleCategoryClick(cat.id)}
               isRTL={isRTL}
               fill
+              isSelected={filterOnly && selectedCategoryId === cat.id}
             />
           );
         })}
