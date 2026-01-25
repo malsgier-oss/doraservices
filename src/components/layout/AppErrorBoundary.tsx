@@ -32,12 +32,18 @@ export class AppErrorBoundary extends Component<Props, State> {
   render() {
     if (!this.state.hasError) return this.props.children;
 
+    const isChunkLoad = this.state.error?.name === "ChunkLoadError";
+
     return (
       <div className="min-h-screen bg-background px-6 py-16 text-center">
         <div className="mx-auto max-w-sm space-y-3">
-          <div className="text-2xl font-semibold text-foreground">Something went wrong</div>
+          <div className="text-2xl font-semibold text-foreground">
+            {isChunkLoad ? "New version available" : "Something went wrong"}
+          </div>
           <div className="text-sm text-muted-foreground">
-            The app hit an unexpected error. Please reload.
+            {isChunkLoad
+              ? "A new version of the app may be available. Please refresh the page."
+              : "The app hit an unexpected error. Please reload."}
           </div>
           <Button type="button" className="h-11 w-full" onClick={this.handleReload}>
             Reload

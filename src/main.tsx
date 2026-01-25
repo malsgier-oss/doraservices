@@ -146,7 +146,25 @@ if (!rootEl) {
   initAnalytics();
 
   // Register service worker (push + background sync).
-  registerSW({ immediate: true });
+  // When a new build is deployed, prompt the user to reload so they get fresh chunk URLs.
+  registerSW({
+    immediate: true,
+    onNeedRefresh() {
+      const bar = document.createElement("div");
+      bar.setAttribute("aria-live", "polite");
+      bar.style.cssText =
+        "position:fixed;inset:0 0 auto 0;z-index:9999;background:#0f172a;color:#f1f5f9;padding:10px 16px;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;font-family:system-ui;font-size:14px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.2);";
+      bar.innerHTML = `
+        <span>New version available.</span>
+        <button type="button" style="background:#3b82f6;color:#fff;border:0;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:500;">Reload</button>
+      `;
+      const btn = bar.querySelector("button");
+      if (btn) {
+        btn.addEventListener("click", () => window.location.reload());
+      }
+      document.body.appendChild(bar);
+    },
+  });
 
   const supabaseUrl = import.meta.env.VITE_DORA_SUPABASE_URL as string | undefined;
   const supabaseAnonKey = import.meta.env.VITE_DORA_SUPABASE_ANON_KEY as string | undefined;
