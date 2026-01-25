@@ -747,8 +747,9 @@ export default function Hub() {
     }>();
 
     const keyOf = (v: string) => String(v || "").trim().toLowerCase();
+    const allSubs = (allSubcategories || []) as any[];
 
-    for (const sc of (allSubcategories || []) as any[]) {
+    for (const sc of allSubs) {
       const name = String(sc?.name || "").trim();
       const nameAr = String(sc?.name_ar || "").trim();
       if (!name && !nameAr) continue;
@@ -767,8 +768,29 @@ export default function Hub() {
       if (name) map.set(keyOf(name), value);
       if (nameAr) map.set(keyOf(nameAr), value);
     }
+
+    // When service.category is a main-category name (no subcategory chosen), resolve to first subcategory of that category.
+    for (const cat of categories || []) {
+      const firstSc = allSubs
+        .filter((s: any) => s?.category_id === cat.id)
+        .sort((a: any, b: any) => (a?.display_order ?? 0) - (b?.display_order ?? 0))[0];
+      if (!firstSc) continue;
+      const iconKey = String(firstSc?.icon || "");
+      const value = {
+        id: String(firstSc.id),
+        name: String(firstSc?.name || firstSc?.name_ar || "").trim() || (cat as any).name,
+        name_ar: firstSc?.name_ar ?? (cat as any).name_ar ?? null,
+        icon: ICON_MAP[iconKey] || Wrench,
+        color: (firstSc?.color ?? null) as string | null,
+      };
+      const k1 = keyOf((cat as any).name);
+      const k2 = keyOf((cat as any).name_ar || "");
+      if (k1) map.set(k1, value);
+      if (k2) map.set(k2, value);
+    }
+
     return map;
-  }, [allSubcategories]);
+  }, [allSubcategories, categories]);
 
   useEffect(() => {
     let alive = true;
