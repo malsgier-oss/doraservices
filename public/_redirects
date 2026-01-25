@@ -1,1 +1,5 @@
+# SPA fallback: serve index.html for routes that are not files.
+# Ensure publish directory is the Vite build output (e.g. dist/) so /assets/* exist
+# and are served as static files before this rule. Hosts that apply this to /assets/*
+# can cause "text/html for JS" MIME errors — use public/_headers to force Content-Type.
 /* /index.html 200
