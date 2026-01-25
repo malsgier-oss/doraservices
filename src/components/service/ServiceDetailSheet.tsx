@@ -313,6 +313,8 @@ function ServiceDetailListingStyle({
 }) {
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
+  const carouselRef = useRef<HTMLDivElement | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
 
   const [images, setImages] = useState<string[]>([]);
   const [reviews, setReviews] = useState<{ user_id: string | null; rating?: number; content?: string | null }[]>([]);
@@ -413,20 +415,54 @@ function ServiceDetailListingStyle({
     .slice(0, 2);
 
   return (
-    <div className="space-y-6" dir={isRTL ? "rtl" : "ltr"}>
-      {/* 1. Image carousel */}
+    <div dir={isRTL ? "rtl" : "ltr"}>
+      {/* 1. Image carousel (same structure as ListingDetailSheet) */}
       {images.length > 0 ? (
-        <div className="relative -mx-4 -mt-2 mb-4">
-          <div className="flex overflow-x-auto hide-scrollbar snap-x snap-mandatory gap-2 px-2">
+        <div className="relative -mx-4 -mt-4 mb-6">
+          <div
+            ref={carouselRef}
+            className="flex overflow-x-auto hide-scrollbar snap-x snap-mandatory scroll-smooth"
+            style={{ WebkitOverflowScrolling: "touch" as React.CSSProperties["WebkitOverflowScrolling"], touchAction: "pan-x pan-y" }}
+            dir={isRTL ? "rtl" : "ltr"}
+            onScroll={() => {
+              const el = carouselRef.current;
+              if (!el) return;
+              const w = el.clientWidth || 1;
+              const left = Math.abs(el.scrollLeft);
+              const idx = Math.max(0, Math.min(images.length - 1, Math.round(left / w)));
+              setActiveIndex(idx);
+            }}
+          >
             {images.map((src, idx) => (
-              <div key={idx} className="shrink-0 w-[85vw] max-w-[400px] aspect-[16/9] rounded-xl overflow-hidden bg-muted snap-center">
-                <img src={src} alt="" className="w-full h-full object-cover" loading={idx === 0 ? "eager" : "lazy"} />
+              <div key={idx} className="w-full shrink-0 snap-center">
+                <div className="relative aspect-[16/9] w-full bg-muted overflow-hidden">
+                  <img src={src} alt="" className="w-full h-full object-cover" loading={idx === 0 ? "eager" : "lazy"} />
+                </div>
               </div>
             ))}
           </div>
+          <div className={cn("absolute top-3 text-white text-xs font-bold px-3 py-1.5 rounded-lg bg-black/60 backdrop-blur-md", isRTL ? "right-3" : "left-3")}>
+            {t("خدمة", "SERVICE")}
+          </div>
+          {images.length > 1 ? (
+            <div className={cn("absolute top-3 text-white text-xs font-semibold px-3 py-1.5 rounded-lg bg-black/60 backdrop-blur-md", isRTL ? "left-3" : "right-3")}>
+              {activeIndex + 1}/{images.length}
+            </div>
+          ) : null}
+          {images.length > 1 ? (
+            <div className="absolute bottom-3 left-0 right-0 flex items-center justify-center gap-1.5">
+              {images.map((_, i) => (
+                <div
+                  key={i}
+                  className={cn("h-2 rounded-full transition-all bg-white/70", i === activeIndex ? "w-6" : "w-2")}
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
+      <div className="px-4 space-y-6 pb-[calc(7.5rem+env(safe-area-inset-bottom))]">
       {/* 2. Price + Share */}
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
@@ -522,16 +558,17 @@ function ServiceDetailListingStyle({
         )}
       </div>
 
-      {/* 7. Similar providers */}
+      {/* 7. Similar providers (same as listing "You may also like") */}
       {suggestions.length > 0 ? (
         <div className="space-y-3 pt-2">
           <div className="text-sm font-semibold">{t("قد يعجبك أيضاً", "You may also like")}</div>
           <div
-            className={cn("flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory", isRTL && "flex-row-reverse")}
+            dir={isRTL ? "rtl" : "ltr"}
+            className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
             style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}
           >
             {suggestions.slice(0, 8).map((p) => (
-              <div key={p.id} className="shrink-0 w-[72vw] max-w-[280px] snap-center">
+              <div key={p.id} className="shrink-0 w-[72vw] max-w-[320px] snap-center">
                 <ServiceProviderCard
                   provider={p}
                   variant="card"
@@ -544,6 +581,9 @@ function ServiceDetailListingStyle({
           </div>
         </div>
       ) : null}
+
+      </div>
+      {/* end px-4 space-y-6 content wrapper */}
 
       <Dialog open={rateOpen} onOpenChange={setRateOpen}>
         <DialogContent className="sm:max-w-md" dir={isRTL ? "rtl" : "ltr"}>
@@ -787,18 +827,17 @@ export function ServiceDetailContent({
     if (activeProvider) {
       return (
         <>
-          <div className="px-4 space-y-6 pb-4 bg-muted/10">
-            <ServiceDetailListingStyle
-              provider={activeProvider}
-              service={service}
-              suggestions={suggestedProviders}
-              userId={userId}
-              onToggleFavorite={toggleFavoriteLocal}
-              isFavorite={isFavoriteLocal}
-              onReport={(id, reason) => void reportService(id, userId, reason)}
-            />
-          </div>
+          <ServiceDetailListingStyle
+            provider={activeProvider}
+            service={service}
+            suggestions={suggestedProviders}
+            userId={userId}
+            onToggleFavorite={toggleFavoriteLocal}
+            isFavorite={isFavoriteLocal}
+            onReport={(id, reason) => void reportService(id, userId, reason)}
+          />
           <ProviderActionBar
+            variant="listing"
             provider={activeProvider}
             userId={userId}
             onRequireAuth={() => toast.info("سجل دخولك للإبلاغ")}
@@ -954,7 +993,7 @@ export function ServiceDetailSheet({
   const { isRTL } = useLanguage();
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[96vh] flex flex-col bg-background/95 backdrop-blur-sm" dir={isRTL ? "rtl" : "ltr"}>
+      <DrawerContent className="max-h-[96vh] flex flex-col" dir={isRTL ? "rtl" : "ltr"}>
         <DrawerHeader className="pb-2 shrink-0">
           <div className="flex items-center justify-between">
             <DrawerTitle className="sr-only">{service.titleKey || service.categoryName || "Service details"}</DrawerTitle>
@@ -978,16 +1017,20 @@ export function ServiceDetailSheet({
 }
 
 function ProviderActionBar({
+  variant = "default",
   provider,
   userId,
   onRequireAuth,
   onReport,
 }: {
+  variant?: "default" | "listing";
   provider: ProviderData;
   userId: string | null;
   onRequireAuth: () => void;
   onReport: (reason: string) => Promise<string | number> | void;
 }) {
+  const { language, isRTL } = useLanguage();
+  const t = (ar: string, en: string) => (language === "ar" ? ar : en);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -1041,49 +1084,81 @@ function ProviderActionBar({
   };
 
   const allowWhatsapp = provider.allow_whatsapp !== false;
+  const canContact = !!provider.provider_phone;
+  const canWhatsApp = allowWhatsapp && !!provider.provider_phone?.replace(/\s/g, "");
+
+  const isListingStyle = variant === "listing";
+  const wrapperClass = isListingStyle
+    ? "border-t border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] space-y-2"
+    : "shrink-0 border-t bg-background/90 backdrop-blur px-4 py-3";
+  const wrapperStyle = isListingStyle ? undefined : { paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" };
 
   return (
-    <div
-      className="shrink-0 border-t bg-background/90 backdrop-blur px-4 py-3"
-      dir="rtl"
-      style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
-    >
-      <div className="flex gap-3 items-center">
-        <Button
-          className={cn(
-            "h-12 text-base rounded-xl shadow-lg shadow-primary/20",
-            allowWhatsapp ? "flex-1" : "flex-[1]"
-          )}
-          onClick={handleCall}
-        >
-          <Phone className="ml-2 h-4 w-4" /> اتصال
-        </Button>
-
-        {allowWhatsapp && (
+    <div className={wrapperClass} dir={isRTL ? "rtl" : "ltr"} style={wrapperStyle}>
+      {isListingStyle ? (
+        canContact ? (
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="lg"
+              className="flex-1 gap-2 h-12 rounded-xl font-semibold shadow-lg shadow-primary/20"
+              onClick={handleCall}
+            >
+              <Phone className="h-4 w-4" />
+              {t("اتصال", "Call")}
+            </Button>
+            {allowWhatsapp && (
+              <Button
+                type="button"
+                size="lg"
+                className={cn(
+                  "flex-1 gap-2 h-12 rounded-xl font-semibold bg-green-600 hover:bg-green-700 text-white dark:bg-green-700 dark:hover:bg-green-800",
+                  !canWhatsApp && "opacity-50"
+                )}
+                disabled={!canWhatsApp}
+                onClick={handleWhatsapp}
+              >
+                <MessageCircle className="h-4 w-4" />
+                {t("واتساب", "WhatsApp")}
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="text-sm text-muted-foreground text-center py-2">{t("رقم الهاتف غير متوفر حالياً", "Phone number not available")}</div>
+        )
+      ) : (
+        <div className="flex gap-3 items-center">
           <Button
-            variant="secondary"
-            className="h-12 text-base rounded-xl flex-1 bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400"
-            onClick={handleWhatsapp}
+            className={cn("h-12 text-base rounded-xl shadow-lg shadow-primary/20", allowWhatsapp ? "flex-1" : "flex-[1]")}
+            onClick={handleCall}
           >
-            <MessageCircle className="ml-2 h-4 w-4" /> واتساب
+            <Phone className="ml-2 h-4 w-4" /> اتصال
           </Button>
-        )}
-
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-12 w-12 rounded-xl"
-          onClick={() => {
-            if (!userId) return onRequireAuth();
-            setReportReason("");
-            setReportOpen(true);
-          }}
-          title="إبلاغ"
-          aria-label="report"
-        >
-          <Flag className="h-5 w-5" />
-        </Button>
-      </div>
+          {allowWhatsapp && (
+            <Button
+              variant="secondary"
+              className="h-12 text-base rounded-xl flex-1 bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400"
+              onClick={handleWhatsapp}
+            >
+              <MessageCircle className="ml-2 h-4 w-4" /> واتساب
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-12 w-12 rounded-xl"
+            onClick={() => {
+              if (!userId) return onRequireAuth();
+              setReportReason("");
+              setReportOpen(true);
+            }}
+            title="إبلاغ"
+            aria-label="report"
+          >
+            <Flag className="h-5 w-5" />
+          </Button>
+        </div>
+      )}
 
       <Dialog open={reportOpen} onOpenChange={setReportOpen}>
         <DialogContent className="max-w-[92vw] sm:max-w-md rounded-2xl">
