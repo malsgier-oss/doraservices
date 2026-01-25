@@ -641,11 +641,11 @@ function ServiceDetailListingStyle({
       <div className="flex gap-3 pt-2">
         <Button size="lg" variant="outline" className="flex-1 gap-2 rounded-xl" onClick={handleShare}>
           <Share2 className="h-4 w-4" />
-          {copied ? t("تم النسخ!", "Copied!") : t("مشاركة", "Share")}
+          <span className="hidden sm:inline">{t("مشاركة", "Share")}</span>
         </Button>
         <Button size="lg" variant="outline" className="flex-1 gap-2 rounded-xl" onClick={handleCopyLink}>
           <Copy className="h-4 w-4" />
-          {t("نسخ الرابط", "Copy Link")}
+          <span className="hidden sm:inline">{copied ? t("تم النسخ!", "Copied!") : t("نسخ الرابط", "Copy Link")}</span>
         </Button>
       </div>
 
