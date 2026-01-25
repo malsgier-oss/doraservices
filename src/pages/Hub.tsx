@@ -1325,24 +1325,24 @@ export default function Hub({ initialTab }: HubProps = {}) {
       {/* Sticky top: Header + Search/City + Chips */}
       <div
         ref={headerRef}
-        className="fixed top-0 left-0 right-0 w-full z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pt-[calc(env(safe-area-inset-top)+16px)] pb-4 border-b border-border/60 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+        className="fixed top-0 left-0 right-0 w-full z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pt-[calc(env(safe-area-inset-top)+12px)] pb-3 border-b border-border/60 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
       >
-        <div className="px-4 sm:px-6 space-y-6">
+        <div className="px-4 sm:px-6 space-y-4">
           {/* Header */}
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <div className={`text-2xl font-bold leading-tight bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text ${isRTL ? "text-right" : "text-left"}`}>
+              <div className={`text-xl font-bold leading-tight bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text ${isRTL ? "text-right" : "text-left"}`}>
                 {activeTab === "buy-sell" ? t("بيع وشراء", "Buy & Sell") : t("شن تحتاج اليوم؟", "What do you need today?")}
               </div>
-              <div className={`text-base text-muted-foreground font-medium mt-1 ${isRTL ? "text-right" : "text-left"}`}>
+              <div className={`text-sm text-muted-foreground mt-0.5 ${isRTL ? "text-right" : "text-left"}`}>
                 {activeTab === "buy-sell"
                   ? t("تصفح الإعلانات والعروض", "Browse listings and deals")
                   : t("ابحث وتواصل مباشرة", "Search and contact directly")}
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <LanguageToggle className="h-12 w-12 rounded-2xl bg-background/50 backdrop-blur-sm border border-border/60 hover:bg-background transition-all duration-300 shadow-sm" />
-              <ThemeToggle className="h-12 w-12 rounded-2xl bg-background/50 backdrop-blur-sm border border-border/60 hover:bg-background transition-all duration-300 shadow-sm" />
+            <div className="flex items-center gap-2">
+              <LanguageToggle className="h-10 w-10 rounded-xl bg-background/50 backdrop-blur-sm border border-border/60 hover:bg-background transition-all duration-300 shadow-sm" />
+              <ThemeToggle className="h-10 w-10 rounded-xl bg-background/50 backdrop-blur-sm border border-border/60 hover:bg-background transition-all duration-300 shadow-sm" />
               <Popover>
                 <PopoverTrigger asChild>
                   <button
@@ -1357,13 +1357,13 @@ export default function Hub({ initialTab }: HubProps = {}) {
                       }
                     }}
                     className={cn(
-                      "relative h-12 w-12 rounded-2xl flex items-center justify-center",
+                      "relative h-10 w-10 rounded-xl flex items-center justify-center",
                       "bg-background/50 backdrop-blur-sm border border-border/60",
                       "hover:bg-background hover:shadow-md transition-all duration-300",
                       "shadow-sm active:scale-95"
                     )}
                   >
-                    <Bell className="h-5 w-5" />
+                    <Bell className="h-4 w-4" />
                     {user && unreadCount && unreadCount > 0 && (
                       <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
                         {unreadCount > 9 ? "9+" : unreadCount}
@@ -1443,9 +1443,8 @@ export default function Hub({ initialTab }: HubProps = {}) {
           </div>
 
           {/* Search + City */}
-          <div className="space-y-4">
-            {/* Option 1: City inside search row */}
-            <div className={`flex items-center gap-3 ${isRTL ? "flex-row-reverse" : ""}`}
+          <div className="space-y-3">
+            <div className={`flex items-center gap-2 ${isRTL ? "flex-row-reverse" : ""}`}
             >
               <Popover>
                 <PopoverTrigger asChild>
@@ -1453,8 +1452,8 @@ export default function Hub({ initialTab }: HubProps = {}) {
                     type="button"
                     variant="secondary"
                     className={cn(
-                      "h-12 px-4 rounded-2xl shrink-0 justify-between gap-3 font-medium",
-                      "bg-background/50 backdrop-blur-sm border-border/60",
+                      "h-10 px-3 rounded-xl shrink-0 justify-between gap-2 font-medium text-sm",
+                      "bg-background/50 backdrop-blur-sm border border-border/60",
                       "hover:bg-background hover:shadow-md transition-all duration-300",
                       "shadow-sm"
                     )}
@@ -1486,8 +1485,8 @@ export default function Hub({ initialTab }: HubProps = {}) {
               </Popover>
 
               <div className="relative flex-1 group">
-                <div className={`absolute top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground/60 group-focus-within:text-primary transition-colors ${isRTL ? "right-4" : "left-4"}`}>
-                  <Search className="h-5 w-5" />
+                <div className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60 group-focus-within:text-primary transition-colors ${isRTL ? "right-3" : "left-3"}`}>
+                  <Search className="h-4 w-4" />
                 </div>
                 <Input
                   value={activeTab === "buy-sell" ? buySellSearchQuery : query}
@@ -1497,7 +1496,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
                     else setQuery(v);
                   }}
                   className={cn(
-                    "h-12 rounded-2xl pl-12 pr-12 text-base font-medium",
+                    "h-10 rounded-xl pl-10 pr-10 text-sm",
                     "bg-background/50 backdrop-blur-sm border-border/60",
                     "focus:border-primary focus:ring-2 focus:ring-primary/20 focus:bg-background",
                     "placeholder:text-muted-foreground/60 transition-all duration-300",
@@ -1584,7 +1583,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
           {/* Chips (admin-controlled, subcategories) - Services only */}
           {activeTab === "services" && chips.length > 0 && (
             <ScrollArea className="w-full">
-              <div className="flex gap-4 pb-3 px-2">
+              <div className="flex gap-3 pb-2 px-2">
                 {chips.map((chip) => {
                   const label = (language === "ar" ? chip.label_ar : chip.label_en) || chip.label_ar || chip.label_en || "";
                   if (!label) return null;
@@ -1592,7 +1591,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
                     <Button
                       key={chip.id}
                       variant="secondary"
-                      className="rounded-full shrink-0 px-4 h-11"
+                      className="rounded-full shrink-0 px-3 h-9 text-sm"
                       onClick={() => {
                         if (chip.target_type === "category" && chip.target_category_id) {
                           navigate(`/services/category/${chip.target_category_id}`);
