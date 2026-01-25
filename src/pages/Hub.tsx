@@ -521,7 +521,9 @@ const chunkArray = <T,>(array: T[], chunkSize: number): T[][] => {
   return chunks;
 };
 
-export default function Hub() {
+type HubProps = { initialTab?: "services" | "buy-sell" };
+
+export default function Hub({ initialTab }: HubProps = {}) {
   const navigate = useNavigate();
   const { language, isRTL } = useLanguage();
   const { user } = useAuth();
@@ -947,7 +949,9 @@ export default function Hub() {
   // Tab state for SERVICES / BUY & SELL
   const { isEnabled: buySellEnabled } = useBuySellEnabled();
   const [activeTab, setActiveTab] = useState<"services" | "buy-sell">(() => {
-    // Check URL hash on mount
+    // When route is /buy-sell, initialTab is passed from the Route; use it.
+    if (initialTab) return initialTab;
+    // Otherwise check URL hash on mount
     if (typeof window !== "undefined") {
       const hash = window.location.hash.slice(1);
       if (hash === "buy-sell" || hash === "services") {
@@ -957,6 +961,13 @@ export default function Hub() {
     return "services";
   });
 
+  // When pathname is /buy-sell, always show Buy & Sell (path-based tab).
+  useEffect(() => {
+    if (location.pathname === "/buy-sell") {
+      setActiveTab("buy-sell");
+    }
+  }, [location.pathname]);
+
   // If Buy & Sell is disabled, force Services tab.
   useEffect(() => {
     if (!buySellEnabled && activeTab === "buy-sell") {
@@ -964,14 +975,28 @@ export default function Hub() {
     }
   }, [activeTab, buySellEnabled]);
 
-  // Sync URL hash when tab changes
+  // Sync URL hash when tab changes (only when on / so hash is relevant)
   useEffect(() => {
+    if (location.pathname !== "/") return;
     if (buySellEnabled && activeTab) {
       window.location.hash = activeTab;
       // Avoid animated scroll (can feel like zoom on mobile)
       window.scrollTo({ top: 0, behavior: "auto" });
     }
-  }, [activeTab, buySellEnabled]);
+  }, [activeTab, buySellEnabled, location.pathname]);
+
+  // Tab change handler: when on / and switching to Buy & Sell, go to /buy-sell; when on /buy-sell and switching to Services, go to /
+  const handleTabChange = (tab: "services" | "buy-sell") => {
+    if (tab === "buy-sell" && location.pathname === "/") {
+      navigate("/buy-sell");
+      return;
+    }
+    if (tab === "services" && location.pathname === "/buy-sell") {
+      navigate("/");
+      return;
+    }
+    setActiveTab(tab);
+  };
 
   // Deep links: ?listing=, ?deal= — open corresponding sheet and switch to buy-sell
   useEffect(() => {
@@ -1612,14 +1637,14 @@ export default function Hub() {
       {buySellEnabled && (
         <HubTabSwitcher
           activeTab={activeTab}
-          onTabChange={setActiveTab}
+          onTabChange={handleTabChange}
           headerHeight={headerHeight}
         />
       )}
 
       {/* Everything below the fixed header scrolls normally */}
       {buySellEnabled ? (
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "services" | "buy-sell")}>
+        <Tabs value={activeTab} onValueChange={(v) => handleTabChange(v as "services" | "buy-sell")}>
           {/* SERVICES Tab */}
           <TabsContent value="services" className="mt-0 space-y-6">
             <FeaturedHero

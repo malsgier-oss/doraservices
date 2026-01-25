@@ -88,7 +88,7 @@ export default function CategoryDetail() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <h2 className="text-xl font-bold mb-2">{t("فئة غير موجودة", "Category not found")}</h2>
-          <Button onClick={() => navigate("/")} variant="outline">
+          <Button onClick={() => navigate("/buy-sell")} variant="outline">
             {t("العودة للصفحة الرئيسية", "Back to Home")}
           </Button>
         </div>
@@ -109,7 +109,7 @@ export default function CategoryDetail() {
               variant="ghost"
               size="icon"
               className="h-9 w-9"
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/buy-sell")}
             >
               {isRTL ? (
                 <ChevronRight className="h-5 w-5" />

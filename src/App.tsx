@@ -156,6 +156,7 @@ const AppRoutes = () => {
         <Route path="/onboarding" element={<Onboarding />} />
         {/* Hub is public */}
         <Route path="/" element={<Hub />} />
+        <Route path="/buy-sell" element={<Hub initialTab="buy-sell" />} />
         <Route
           path="/dashboard"
           element={
