@@ -21,6 +21,9 @@ import {
   MapPin,
   Tag,
   Shield,
+  ImageOff,
+  Copy,
+  Wrench,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -370,11 +373,24 @@ function ServiceDetailListingStyle({
   const hasPrice = provider.price != null && provider.price !== undefined;
   const priceText = hasPrice ? `${provider.price} ${t("د.ل", "LYD")}` : "";
 
+  const [copied, setCopied] = useState(false);
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({ title: provider.provider_name || "", text: provider.title || "" }).catch(() => {});
     } else {
-      toast.success(t("تم النسخ", "Copied!"));
+      handleCopyLink();
+    }
+  };
+
+  const handleCopyLink = async () => {
+    const url = `${typeof window !== "undefined" ? window.location.origin : ""}/services/service/${provider.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast.success(t("تم نسخ الرابط", "Link copied!"));
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error(t("فشل النسخ", "Failed to copy"));
     }
   };
 
@@ -457,6 +473,19 @@ function ServiceDetailListingStyle({
               ))}
             </div>
           ) : null}
+        </div>
+      ) : null}
+
+      {/* 1b. Hero placeholder when no images */}
+      {images.length === 0 ? (
+        <div className="relative -mx-4 -mt-4 mb-6">
+          <div className="relative aspect-[16/9] w-full bg-gradient-to-br from-muted via-muted/80 to-muted/60 overflow-hidden flex flex-col items-center justify-center">
+            <Wrench className="h-12 w-12 text-muted-foreground/50 mb-2" />
+            <span className="text-sm font-medium text-muted-foreground">{t("لا توجد صور", "No photos")}</span>
+          </div>
+          <div className={cn("absolute top-3 text-white text-xs font-bold px-3 py-1.5 rounded-lg bg-black/60 backdrop-blur-md", isRTL ? "right-3" : "left-3")}>
+            {t("خدمة", "SERVICE")}
+          </div>
         </div>
       ) : null}
 
@@ -608,6 +637,18 @@ function ServiceDetailListingStyle({
         </div>
       ) : null}
 
+      {/* 10. Share + Copy link row (match listing) */}
+      <div className="flex gap-3 pt-2">
+        <Button size="lg" variant="outline" className="flex-1 gap-2 rounded-xl" onClick={handleShare}>
+          <Share2 className="h-4 w-4" />
+          {copied ? t("تم النسخ!", "Copied!") : t("مشاركة", "Share")}
+        </Button>
+        <Button size="lg" variant="outline" className="flex-1 gap-2 rounded-xl" onClick={handleCopyLink}>
+          <Copy className="h-4 w-4" />
+          {t("نسخ الرابط", "Copy Link")}
+        </Button>
+      </div>
+
       </div>
       {/* end px-4 space-y-6 content wrapper */}
 
@@ -642,6 +683,7 @@ function ServiceDetailListingStyle({
                 maxLength={500}
                 className="min-h-[80px]"
               />
+              <p className="text-xs text-muted-foreground">{rateText.length}/500</p>
             </div>
           </div>
           <DialogFooter>
@@ -672,6 +714,8 @@ export function ServiceDetailContent({
   onToggleFavorite,
   isFavorite,
 }: ServiceDetailContentProps) {
+  const { language } = useLanguage();
+  const t = (ar: string, en: string) => (language === "ar" ? ar : en);
   const { providers, loading, error } = useSheetData(true, service, city);
 
   const [selectedProvider, setSelectedProvider] = useState<ProviderData | null>(null);
@@ -845,8 +889,9 @@ export function ServiceDetailContent({
   if (initialProviderServiceId) {
     if (loading) {
       return (
-        <div className="flex flex-col flex-1 min-h-0 justify-center items-center py-16">
-          <div className="text-muted-foreground animate-pulse">جاري التحميل...</div>
+        <div className="flex flex-col flex-1 min-h-0 justify-center items-center py-16 px-4">
+          <div className="w-10 h-10 border-2 border-primary/30 border-t-primary rounded-full animate-spin mb-4" />
+          <p className="text-sm font-medium text-muted-foreground">{t("جاري التحميل...", "Loading...")}</p>
         </div>
       );
     }
@@ -875,8 +920,8 @@ export function ServiceDetailContent({
       );
     }
     return (
-      <div className="flex flex-col flex-1 min-h-0 justify-center items-center py-16">
-        <div className="text-muted-foreground">تعذر تحميل الخدمة</div>
+      <div className="flex flex-col flex-1 min-h-0 justify-center items-center py-16 px-4 text-center">
+        <p className="text-sm font-medium text-muted-foreground">{t("تعذر تحميل الخدمة", "Could not load service")}</p>
       </div>
     );
   }
@@ -1242,6 +1287,8 @@ function ProviderDetailView({
   suggestions?: SuggestedProvider[];
   onOpenSuggestion?: (provider: SuggestedProvider) => void;
 }) {
+  const { language } = useLanguage();
+  const t = (ar: string, en: string) => (language === "ar" ? ar : en);
   const [images, setImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [descExpanded, setDescExpanded] = useState(false);
@@ -1596,7 +1643,7 @@ function ProviderDetailView({
                 style={{ touchAction: "manipulation" }}
               >
                 <div className="rounded-2xl border bg-card overflow-hidden shadow-sm active:scale-[0.99] transition-transform">
-                  <div className="h-[110px] bg-muted">
+                  <div className="h-[110px] bg-muted overflow-hidden">
                     {s.image_url ? (
                       <img
                         src={s.image_url}
@@ -1605,8 +1652,9 @@ function ProviderDetailView({
                         loading="lazy"
                       />
                     ) : (
-                      <div className="h-full w-full flex items-center justify-center text-muted-foreground text-sm">
-                        بدون صورة
+                      <div className="h-full w-full flex flex-col items-center justify-center bg-gradient-to-br from-muted to-muted/70 text-muted-foreground">
+                        <ImageOff className="h-8 w-8 mb-1 opacity-50" />
+                        <span className="text-xs font-medium">{t("بدون صورة", "No Photo")}</span>
                       </div>
                     )}
                   </div>

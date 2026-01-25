@@ -1,4 +1,4 @@
-import { MapPin, MessageCircle, Phone, Star, Sparkles } from "lucide-react";
+import { MapPin, MessageCircle, Phone, Star, Sparkles, ImageOff } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -97,8 +97,9 @@ function ProviderItem({
               />
             </>
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground bg-gradient-to-br from-muted to-muted/50">
-              {labels.noPhoto}
+            <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-muted-foreground bg-gradient-to-br from-muted to-muted/50">
+              <ImageOff className="h-8 w-8 opacity-50" />
+              <span className="text-xs font-medium">{labels.noPhoto}</span>
             </div>
           )}
           
