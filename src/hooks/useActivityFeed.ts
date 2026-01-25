@@ -28,7 +28,9 @@ export function useActivityFeed(cityId?: string | null) {
         .select("id,title,category,provider_name,provider_phone,allow_whatsapp,city,sub_city,image_url,created_at")
         .eq("is_active", true)
         .eq("is_visible", true)
+        .eq("is_paused", false)
         .eq("approval_status", "approved")
+        .is("deleted_at", null)
         .gte("created_at", new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString())
         .order("created_at", { ascending: false })
         .limit(6);
@@ -66,7 +68,9 @@ export function useActivityFeed(cityId?: string | null) {
         .select("id,title,category,provider_name,provider_phone,allow_whatsapp,city,sub_city,image_url,created_at,views_count")
         .eq("is_active", true)
         .eq("is_visible", true)
+        .eq("is_paused", false)
         .eq("approval_status", "approved")
+        .is("deleted_at", null)
         .gt("views_count", 0)
         .order("views_count", { ascending: false })
         .limit(4);

@@ -32,6 +32,7 @@ export function useSimilarServices(
         .eq("is_visible", true)
         .eq("is_paused", false)
         .eq("approval_status", "approved")
+        .is("deleted_at", null)
         .eq("category", category)
         .order("views_count", { ascending: false })
         .limit(limit + 1); // Get one extra to exclude the current service

@@ -79,14 +79,21 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           return `"${escaped}"`;
         };
 
-        // Normalize category value for exact matching with stored services.category
-        const categoryVal = service?.category ? normalizeCategory(service.category) : "";
-        const categoryOr = categoryVal ? `category.eq.${escOrValue(categoryVal)}` : "";
+        // Match services.category by primary name and, when available, name_ar (so services stored in either language show)
+        const primary = service?.category ? normalizeCategory(service.category) : "";
+        const alt = (service?.categoryNameAr && normalizeCategory(service.categoryNameAr) !== primary)
+          ? normalizeCategory(service.categoryNameAr)
+          : "";
+        const categoryValues = [primary, alt].filter(Boolean);
+        const categoryOr = categoryValues.length > 0
+          ? categoryValues.map((v) => `category.eq.${escOrValue(v)}`).join(",")
+          : "";
 
         // DEV: Log filter values for debugging (console only, no UI)
         if (import.meta.env?.DEV || import.meta.env?.MODE === "development") {
           console.log("[ServiceDetailSheet] Filter values:", {
-            category: categoryVal || "(empty)",
+            category: primary || "(empty)",
+            categoryAr: alt || "(none)",
             city: city || "(empty)",
             categoryFilter: categoryOr || "(none)",
           });
@@ -146,13 +153,15 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
               .eq("is_visible", true)
               .eq("is_active", true)
               .eq("is_paused", false)
-              .eq("approval_status", "approved");
+              .eq("approval_status", "approved")
+              .is("deleted_at", null);
           } else {
             q = q
               .or("is_visible.eq.true,is_visible.is.null")
               .or("is_active.eq.true,is_active.is.null")
               .or("is_paused.eq.false,is_paused.is.null")
-              .or("approval_status.eq.approved,approval_status.is.null");
+              .or("approval_status.eq.approved,approval_status.is.null")
+              .is("deleted_at", null);
           }
 
           // Filter by category name (matches services.category column exactly)
@@ -199,7 +208,7 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
           // DEV: Log empty result (console only, no UI)
           if ((!data || data.length === 0) && (import.meta.env?.DEV || import.meta.env?.MODE === "development")) {
             console.warn("[ServiceDetailSheet] No providers found with filters:", {
-              categoryFilter: categoryVal || "(none)",
+              categoryFilter: categoryOr || "(none)",
               cityFilter: cityOr || "(none)",
               allowCityFilter,
             });

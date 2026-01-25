@@ -28,6 +28,9 @@ export function useRecommendations(cityId?: string | null, userId?: string | nul
         .select("id,title,category,provider_name,provider_phone,allow_whatsapp,city,sub_city,image_url,views_count,created_at")
         .eq("is_active", true)
         .eq("is_visible", true)
+        .eq("is_paused", false)
+        .eq("approval_status", "approved")
+        .is("deleted_at", null)
         .order("views_count", { ascending: false })
         .limit(limit);
 

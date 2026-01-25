@@ -70,7 +70,7 @@ import { CategoryBrowseSheet } from "@/components/hub/CategoryBrowseSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { trackProviderEvent } from "@/lib/providerTelemetry";
 import { getTelLink, getWhatsAppLink } from "@/lib/phoneUtils";
-import { cn } from "@/lib/utils";
+import { cn, normalizeCategory } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications, useUnreadCount, useNotificationMutations } from "@/hooks/useNotifications";
@@ -1068,8 +1068,8 @@ export default function Hub() {
 
   const selectedSheetService = useMemo(() => {
     if (!selectedSubcategory) return null;
-    // Normalize category value: trim whitespace to match exactly what's stored in services.category
-    const normalizedCategory = (selectedSubcategory.name || "").trim();
+    // Use same normalization as ServiceCreator so provider list matches exactly
+    const normalizedCategory = normalizeCategory(selectedSubcategory.name || "");
     return {
       id: selectedSubcategory.id,
       titleKey: selectedSubcategory.name_ar || selectedSubcategory.name,

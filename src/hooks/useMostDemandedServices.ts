@@ -51,30 +51,39 @@ export function useMostDemandedServices(params: Params) {
           // Fall back to counter-based ranking if RPC is missing/misconfigured.
           // This keeps the Hub section alive even before events are flowing.
           try {
-            const base = supabase
-              .from("services")
-              // Keep this fallback compatible with older schemas that may not have
-              // click counters (call_clicks / whatsapp_clicks). We can still rank by
-              // views_count, which exists in the baseline schema.
-              .select(
-                "id,title,category,provider_name,provider_phone,allow_whatsapp,city,sub_city,image_url,views_count"
-              )
-              .eq("is_active", true)
-              .eq("is_visible", true)
-              .eq("is_paused", false)
-              .eq("approval_status", "approved")
-              .is("deleted_at", null)
+            const visibility = (q: ReturnType<typeof supabase.from>) =>
+              q
+                .eq("is_active", true)
+                .eq("is_visible", true)
+                .eq("is_paused", false)
+                .eq("approval_status", "approved")
+                .is("deleted_at", null);
+
+            const selectCols = "id,title,category,provider_name,provider_phone,allow_whatsapp,city,sub_city,image_url,views_count";
+            let base = visibility(
+              supabase.from("services").select(selectCols)
+            )
               .eq("exclude_from_demand", false)
               .limit(Math.max(12, limit));
 
-            const { data: fallbackData, error: fallbackError } = await base;
+            let result = await base;
+            if (result.error) {
+              const msg = String((result.error as any)?.message ?? "").toLowerCase();
+              const missingColumn = msg.includes("column") && msg.includes("does not exist");
+              if (missingColumn) {
+                base = visibility(
+                  supabase.from("services").select(selectCols)
+                ).limit(Math.max(12, limit));
+                result = await base;
+              }
+            }
 
-            if (fallbackError) {
-              // If schema doesn't have city/sub_city/counters, just bail quietly.
-              console.error("useMostDemandedServices fallback error:", fallbackError);
+            if (!mounted) return;
+            if (result.error) {
+              console.error("useMostDemandedServices fallback error:", result.error);
               setRows([]);
             } else {
-              const list = ((fallbackData as any[]) || []) as any[];
+              const list = ((result.data as any[]) || []) as any[];
               const scored = list
                 .map((r) => {
                   const views = Number(r?.views_count ?? 0) || 0;
@@ -88,7 +97,6 @@ export function useMostDemandedServices(params: Params) {
                     city: r.city ?? null,
                     sub_city: r.sub_city ?? null,
                     image_url: r.image_url ?? null,
-                    // With no click counters, fall back to views as a proxy.
                     demand_score: views,
                   } satisfies MostDemandedServiceRow;
                 })
@@ -99,7 +107,7 @@ export function useMostDemandedServices(params: Params) {
             }
           } catch (e) {
             console.error("useMostDemandedServices fallback exception:", e);
-            setRows([]);
+            if (mounted) setRows([]);
           }
         } else {
           setRows((((data as any[]) || []) as MostDemandedServiceRow[]) ?? []);
