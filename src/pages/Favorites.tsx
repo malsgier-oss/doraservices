@@ -55,6 +55,9 @@ export default function Favorites() {
   useEffect(() => {
     if (user) {
       fetchFavorites();
+    } else {
+      setLoading(false);
+      setFavorites([]);
     }
   }, [user]);
 
@@ -202,6 +205,32 @@ export default function Favorites() {
       <Layout showHeader={false}>
         <div className="min-h-screen flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Layout showHeader={false}>
+        <div className="container py-6">
+          <h1 className={cn("text-2xl font-bold text-foreground mb-6", isRTL ? "text-right" : "text-left")}>
+            {t.favorites?.title || (isRTL ? "المفضلة" : "Favorites")}
+          </h1>
+          <div className="text-center py-16">
+            <div className="w-20 h-20 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
+              <Heart className="h-10 w-10 text-muted-foreground" />
+            </div>
+            <h3 className="font-semibold text-foreground mb-1">
+              {isRTL ? "سجّل الدخول لعرض المفضلة" : "Sign in to view your favorites"}
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              {isRTL ? "ستظهر هنا الخدمات التي تضيفها إلى المفضلة" : "Services you add to favorites will appear here"}
+            </p>
+            <Button onClick={() => navigate("/auth?returnTo=/favorites")} className="rounded-full">
+              {isRTL ? "تسجيل الدخول" : "Sign in"}
+            </Button>
+          </div>
         </div>
       </Layout>
     );
@@ -355,6 +384,7 @@ export default function Favorites() {
             if (!open) {
               setSheetService(null);
               setInitialProviderServiceId(null);
+              fetchFavorites();
             }
           }}
           service={sheetService}
