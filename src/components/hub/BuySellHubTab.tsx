@@ -14,6 +14,14 @@ import { useDeals, type Deal } from "@/hooks/useDeals";
 import { useListings, type Listing } from "@/hooks/useListings";
 import { Award, Clock, Shield, ShoppingBag } from "lucide-react";
 
+/** Max cards visible per category before horizontal scroll. */
+const CARDS_VISIBLE = 4;
+
+const CARD_ROW_CLASS =
+  "flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory scroll-smooth -mx-4 px-4";
+const CARD_SLOT_CLASS =
+  "shrink-0 w-[72vw] sm:w-[48vw] max-w-[240px] snap-center";
+
 function BuySellCategorySection({
   cat,
   cityId,
@@ -64,10 +72,11 @@ function BuySellCategorySection({
         {isLoading ? (
           <div
             dir={isRTL ? "rtl" : "ltr"}
-            className="grid grid-cols-2 md:grid-cols-3 gap-3"
+            className={CARD_ROW_CLASS}
+            style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
           >
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={`skeleton-${i}`} className={`${HUB_CARD_BASE} bg-card overflow-hidden animate-pulse`}>
+            {Array.from({ length: CARDS_VISIBLE }).map((_, i) => (
+              <div key={`skeleton-${i}`} className={`${CARD_SLOT_CLASS} ${HUB_CARD_BASE} bg-card overflow-hidden animate-pulse`}>
                 <Skeleton className="aspect-[4/3] w-full" />
                 <div className="p-2.5 space-y-1">
                   <Skeleton className="h-3 w-2/3" />
@@ -86,25 +95,26 @@ function BuySellCategorySection({
         ) : (
           <div
             dir={isRTL ? "rtl" : "ltr"}
-            className="grid grid-cols-2 md:grid-cols-3 gap-3"
+            className={CARD_ROW_CLASS}
+            style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
           >
-            {items.map((item) =>
-              item.type === "listing" ? (
-                <ListingCard
-                  key={item.id}
-                  listing={item.listing}
-                  isRTL={isRTL}
-                  onClick={() => onListingClick(item.listing)}
-                />
-              ) : (
-                <DealCardHub
-                  key={item.id}
-                  deal={item.deal}
-                  isRTL={isRTL}
-                  onClick={() => onDealClick(item.deal)}
-                />
-              ),
-            )}
+            {items.map((item) => (
+              <div key={item.id} className={CARD_SLOT_CLASS}>
+                {item.type === "listing" ? (
+                  <ListingCard
+                    listing={item.listing}
+                    isRTL={isRTL}
+                    onClick={() => onListingClick(item.listing)}
+                  />
+                ) : (
+                  <DealCardHub
+                    deal={item.deal}
+                    isRTL={isRTL}
+                    onClick={() => onDealClick(item.deal)}
+                  />
+                )}
+              </div>
+            ))}
           </div>
         )}
       </HubSection>
