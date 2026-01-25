@@ -312,6 +312,7 @@ function ServiceCreatorContent() {
         is_active: true,
         is_visible: true,
         is_paused: false,
+        approval_status: "approved",
       })
         .select("id")
         .single();
