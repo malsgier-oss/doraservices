@@ -30,3 +30,77 @@ export const getBuySellCategoryLabel = (categoryId: string | null | undefined, l
   if (!category) return null;
   return language === "ar" ? category.nameAr : category.name;
 };
+
+export interface BuySellSubcategory {
+  id: string;
+  name: string;
+  nameAr: string;
+}
+
+export const BUY_SELL_SUBCATEGORIES: Record<string, BuySellSubcategory[]> = {
+  electronics: [
+    { id: "phones", name: "Phones", nameAr: "هواتف" },
+    { id: "laptops", name: "Laptops", nameAr: "لابتوب" },
+    { id: "tablets", name: "Tablets", nameAr: "تابلت" },
+    { id: "accessories", name: "Accessories", nameAr: "إكسسوارات" },
+    { id: "other", name: "Other", nameAr: "أخرى" },
+  ],
+  vehicles: [
+    { id: "cars", name: "Cars", nameAr: "سيارات" },
+    { id: "motorcycles", name: "Motorcycles", nameAr: "دراجات نارية" },
+    { id: "parts", name: "Parts", nameAr: "قطع غيار" },
+    { id: "other", name: "Other", nameAr: "أخرى" },
+  ],
+  home: [
+    { id: "furniture", name: "Furniture", nameAr: "أثاث" },
+    { id: "garden", name: "Garden", nameAr: "حديقة" },
+    { id: "kitchen", name: "Kitchen", nameAr: "مطبخ" },
+    { id: "decor", name: "Decor", nameAr: "ديكور" },
+    { id: "other", name: "Other", nameAr: "أخرى" },
+  ],
+  fashion: [
+    { id: "clothing", name: "Clothing", nameAr: "ملابس" },
+    { id: "shoes", name: "Shoes", nameAr: "أحذية" },
+    { id: "bags", name: "Bags", nameAr: "حقائب" },
+    { id: "accessories", name: "Accessories", nameAr: "إكسسوارات" },
+    { id: "other", name: "Other", nameAr: "أخرى" },
+  ],
+  sports: [
+    { id: "equipment", name: "Equipment", nameAr: "معدات" },
+    { id: "outdoor", name: "Outdoor", nameAr: "هواء الطلق" },
+    { id: "fitness", name: "Fitness", nameAr: "لياقة" },
+    { id: "other", name: "Other", nameAr: "أخرى" },
+  ],
+  games: [
+    { id: "consoles", name: "Consoles", nameAr: "كونسول" },
+    { id: "video-games", name: "Video Games", nameAr: "ألعاب فيديو" },
+    { id: "board-games", name: "Board Games", nameAr: "ألعاب لوحية" },
+    { id: "other", name: "Other", nameAr: "أخرى" },
+  ],
+  books: [
+    { id: "fiction", name: "Fiction", nameAr: "روايات" },
+    { id: "education", name: "Education", nameAr: "تعليمية" },
+    { id: "children", name: "Children", nameAr: "أطفال" },
+    { id: "other", name: "Other", nameAr: "أخرى" },
+  ],
+  other: [
+    { id: "general", name: "General", nameAr: "عام" },
+    { id: "other", name: "Other", nameAr: "أخرى" },
+  ],
+};
+
+export function getBuySellSubcategories(categoryId: string | null | undefined): BuySellSubcategory[] {
+  if (!categoryId) return [];
+  return BUY_SELL_SUBCATEGORIES[categoryId] ?? [];
+}
+
+export function getBuySellSubcategoryLabel(
+  categoryId: string | null | undefined,
+  subcategoryId: string | null | undefined,
+  language: "ar" | "en"
+): string | null {
+  const subcats = getBuySellSubcategories(categoryId);
+  const sub = subcats.find((s) => s.id === subcategoryId);
+  if (!sub) return null;
+  return language === "ar" ? sub.nameAr : sub.name;
+}

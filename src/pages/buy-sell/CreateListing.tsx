@@ -18,6 +18,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { BUY_SELL_CATEGORIES, getBuySellSubcategories } from "@/components/hub/buySellCategories";
+import { cn } from "@/lib/utils";
 
 const CITY_STORAGE_KEY = "dora_city_id";
 
@@ -29,7 +31,6 @@ function getStoredCityId(): string | null {
   }
 }
 
-const CATEGORIES = ["electronics", "vehicles", "home", "fashion", "sports", "games", "books", "other"] as const;
 const MAX_PHOTOS = 5;
 
 export default function CreateListing() {
@@ -54,13 +55,16 @@ function CreateListingContent() {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState<(typeof CATEGORIES)[number]>("other");
+  const [category, setCategory] = useState<string>("other");
+  const [subcategory, setSubcategory] = useState<string>("");
   const [price, setPrice] = useState<string>("");
   const [cityId, setCityId] = useState<string>(defaultCityId || "");
   const [location, setLocation] = useState<string>("");
   const [photos, setPhotos] = useState<{ file: File; previewUrl: string }[]>([]);
   const [allowWhatsApp, setAllowWhatsApp] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
+  const subcategories = getBuySellSubcategories(category);
 
   const canSubmit = useMemo(() => {
     return title.trim().length >= 3 && !!category && !!cityId && !submitting;
@@ -177,6 +181,7 @@ function CreateListingContent() {
         title: title.trim(),
         description: description.trim() ? description.trim() : null,
         category,
+        subcategory: subcategory.trim() ? subcategory : null,
         price: numericPrice,
         currency: "LYD",
         city_id: cityId || null,
@@ -268,6 +273,7 @@ function CreateListingContent() {
         title: title.trim(),
         description: description.trim() ? description.trim() : null,
         category: category || "other",
+        subcategory: subcategory.trim() ? subcategory : null,
         price: numericPrice,
         currency: "LYD",
         city_id: cityId || null,
@@ -321,19 +327,51 @@ function CreateListingContent() {
 
           <div className="space-y-2">
             <Label htmlFor="category-select">{t("التصنيف", "Category")}</Label>
-            <Select value={category} onValueChange={(v) => setCategory(v as any)}>
+            <Select
+              value={category}
+              onValueChange={(v) => {
+                setCategory(v);
+                setSubcategory("");
+              }}
+            >
               <SelectTrigger id="category-select" className="text-base" aria-label={t("التصنيف", "Category")}>
                 <SelectValue placeholder={t("اختر تصنيف", "Select category")} />
               </SelectTrigger>
               <SelectContent>
-                {CATEGORIES.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
+                {BUY_SELL_CATEGORIES.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id}>
+                    {language === "ar" ? cat.nameAr : cat.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+
+          {subcategories.length > 0 && (
+            <div className="space-y-2">
+              <Label>{t("النوع", "Type")}</Label>
+              <div className="flex flex-wrap gap-2">
+                {subcategories.map((sub) => {
+                  const isSelected = subcategory === sub.id;
+                  return (
+                    <button
+                      key={sub.id}
+                      type="button"
+                      onClick={() => setSubcategory(isSelected ? "" : sub.id)}
+                      className={cn(
+                        "px-3 py-2 rounded-lg text-sm font-medium border transition-colors",
+                        isSelected
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-background border-border hover:border-primary/50"
+                      )}
+                    >
+                      {language === "ar" ? sub.nameAr : sub.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Photos */}
           <div className="space-y-2">

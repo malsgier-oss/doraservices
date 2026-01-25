@@ -2,7 +2,7 @@ import React, { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useListings } from "@/hooks/useListings";
-import { BUY_SELL_CATEGORIES } from "@/components/hub/buySellCategories";
+import { BUY_SELL_CATEGORIES, getBuySellSubcategories } from "@/components/hub/buySellCategories";
 import { ListingCardShowcase } from "@/components/buy-sell/ListingCardShowcase";
 import { ListingDetailSheet } from "@/components/hub/ListingDetailSheet";
 import { Button } from "@/components/ui/button";
@@ -27,9 +27,14 @@ export default function CategoryDetail() {
     return BUY_SELL_CATEGORIES.find((c) => c.id === categoryId);
   }, [categoryId]);
 
-  // Fetch listings for this category
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
+
+  const subcategories = useMemo(() => getBuySellSubcategories(categoryId), [categoryId]);
+
+  // Fetch listings for this category (and optional subcategory)
   const { data: listings, isLoading, isError, refetch } = useListings({
     category: categoryId,
+    subcategory: selectedSubcategory ?? undefined,
     limit: 100,
   });
 
@@ -136,6 +141,33 @@ export default function CategoryDetail() {
             </div>
           </div>
 
+          {/* Subcategory chips */}
+          {subcategories.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              <Button
+                type="button"
+                variant={selectedSubcategory === null ? "default" : "outline"}
+                size="sm"
+                className="rounded-full h-9 text-xs"
+                onClick={() => setSelectedSubcategory(null)}
+              >
+                {t("الكل", "All")}
+              </Button>
+              {subcategories.map((sub) => (
+                <Button
+                  key={sub.id}
+                  type="button"
+                  variant={selectedSubcategory === sub.id ? "default" : "outline"}
+                  size="sm"
+                  className="rounded-full h-9 text-xs"
+                  onClick={() => setSelectedSubcategory(sub.id)}
+                >
+                  {language === "ar" ? sub.nameAr : sub.name}
+                </Button>
+              ))}
+            </div>
+          )}
+
           {/* Search + Filter Row */}
           <div className="flex gap-3">
             <div className="flex-1 relative">
@@ -160,6 +192,7 @@ export default function CategoryDetail() {
               size="icon"
               onClick={() => setShowFilters(!showFilters)}
               className="h-10 w-10"
+              aria-label={t("تصفية", "Filters")}
             >
               <Sliders className="h-4 w-4" />
             </Button>

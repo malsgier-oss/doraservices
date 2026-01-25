@@ -9,6 +9,7 @@ export interface Listing {
   title: string;
   description: string | null;
   category: string;
+  subcategory?: string | null;
   price: number | null;
   currency: string;
   city_id: string | null;
@@ -27,6 +28,7 @@ export interface Listing {
 export interface UseListingsOptions {
   cityId?: string | null;
   category?: string | null;
+  subcategory?: string | null;
   search?: string | null;
   status?: ListingStatus;
   limit?: number;
@@ -36,10 +38,10 @@ export interface UseListingsOptions {
 }
 
 export function useListings(options: UseListingsOptions = {}) {
-  const { cityId, category, search, status = "active", limit = 20, excludeId, enabled = true, userId } = options;
+  const { cityId, category, subcategory, search, status = "active", limit = 20, excludeId, enabled = true, userId } = options;
 
   return useQuery({
-    queryKey: ["listings", cityId, category, search, status, limit, excludeId, userId],
+    queryKey: ["listings", cityId, category, subcategory, search, status, limit, excludeId, userId],
     queryFn: async (): Promise<Listing[]> => {
       let query = supabase
         .from("listings")
@@ -51,6 +53,7 @@ export function useListings(options: UseListingsOptions = {}) {
 
       if (cityId) query = query.eq("city_id", cityId);
       if (category) query = query.eq("category", category);
+      if (subcategory) query = query.eq("subcategory", subcategory);
       if (excludeId) query = query.neq("id", excludeId);
       if (userId) query = query.eq("user_id", userId);
 
