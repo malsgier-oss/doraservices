@@ -143,9 +143,12 @@ export default function Profile() {
     }
   }, [buySellEnabled]);
 
-  // Auto-save marketplace_enabled when it changes
+  // Auto-save marketplace_enabled only when the user toggles it (not on initial load from profile)
+  const profileMarketplace = Boolean((profile as any)?.marketplace_enabled);
   useEffect(() => {
     if (!user || !profile) return;
+    // Skip save when value matches profile — avoids "Saved, listing preference updated" on every visit
+    if (marketplaceEnabled === profileMarketplace) return;
 
     const saveMarketplace = async () => {
       setSavingMarketplace(true);
@@ -161,7 +164,7 @@ export default function Profile() {
           description: error.message,
           variant: "destructive",
         });
-        setMarketplaceEnabled(false); // Revert on error
+        setMarketplaceEnabled(profileMarketplace); // Revert on error
       } else {
         toast({
           title: isRTL ? "تم الحفظ" : "Saved",
@@ -170,10 +173,9 @@ export default function Profile() {
       }
     };
 
-    // Debounce to prevent rapid saves
     const timer = setTimeout(saveMarketplace, 500);
     return () => clearTimeout(timer);
-  }, [marketplaceEnabled, user, profile, isRTL]);
+  }, [marketplaceEnabled, profileMarketplace, user, profile, isRTL]);
 
   // If city changes and the selected sub-city doesn't belong to the city, clear it.
   useEffect(() => {
