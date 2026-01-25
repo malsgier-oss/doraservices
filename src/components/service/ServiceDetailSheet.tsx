@@ -23,7 +23,6 @@ import {
   Shield,
   ImageOff,
   Copy,
-  Wrench,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -476,20 +475,7 @@ function ServiceDetailListingStyle({
         </div>
       ) : null}
 
-      {/* 1b. Hero placeholder when no images */}
-      {images.length === 0 ? (
-        <div className="relative -mx-4 -mt-4 mb-6">
-          <div className="relative aspect-[16/9] w-full bg-gradient-to-br from-muted via-muted/80 to-muted/60 overflow-hidden flex flex-col items-center justify-center">
-            <Wrench className="h-12 w-12 text-muted-foreground/50 mb-2" />
-            <span className="text-sm font-medium text-muted-foreground">{t("لا توجد صور", "No photos")}</span>
-          </div>
-          <div className={cn("absolute top-3 text-white text-xs font-bold px-3 py-1.5 rounded-lg bg-black/60 backdrop-blur-md", isRTL ? "right-3" : "left-3")}>
-            {t("خدمة", "SERVICE")}
-          </div>
-        </div>
-      ) : null}
-
-      <div className="px-4 space-y-6 pb-[calc(7.5rem+env(safe-area-inset-bottom))]">
+      <div className="px-4 space-y-5 pb-[calc(7.5rem+env(safe-area-inset-bottom))]">
       {/* 2. Price + Share — only when price is available */}
       {hasPrice ? (
         <div className="flex items-start justify-between gap-4">
@@ -615,7 +601,7 @@ function ServiceDetailListingStyle({
 
       {/* 9. Similar providers (same as listing "You may also like") */}
       {suggestions.length > 0 ? (
-        <div className="space-y-3 pt-2">
+        <div className="space-y-3">
           <div className="text-sm font-semibold">{t("قد يعجبك أيضاً", "You may also like")}</div>
           <div
             dir={isRTL ? "rtl" : "ltr"}
@@ -638,7 +624,7 @@ function ServiceDetailListingStyle({
       ) : null}
 
       {/* 10. Share + Copy link row (match listing) */}
-      <div className="flex gap-3 pt-2">
+      <div className="flex gap-3">
         <Button size="lg" variant="outline" className="flex-1 gap-2 rounded-xl" onClick={handleShare}>
           <Share2 className="h-4 w-4" />
           <span className="hidden sm:inline">{t("مشاركة", "Share")}</span>
