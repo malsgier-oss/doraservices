@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +28,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 
 export default function AdminReports() {
-  const [statusFilter, setStatusFilter] = useState("pending");
+  const [searchParams] = useSearchParams();
+  const urlStatus = searchParams.get("status");
+  const initialStatus =
+    urlStatus === "pending" || urlStatus === "resolved" || urlStatus === "dismissed" || urlStatus === "all"
+      ? urlStatus
+      : "pending";
+
+  const [statusFilter, setStatusFilter] = useState(initialStatus);
+
+  useEffect(() => {
+    if (initialStatus !== "pending") setStatusFilter(initialStatus);
+  }, [initialStatus]);
   const [resolveDialog, setResolveDialog] = useState<{ open: boolean; reportId: string | null }>({
     open: false,
     reportId: null,

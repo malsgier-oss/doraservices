@@ -1,7 +1,8 @@
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Users, Tag, AlertTriangle, ShieldAlert } from "lucide-react";
+import { Users, Tag, AlertTriangle, ShieldAlert, UserCheck, Store, KeyRound } from "lucide-react";
 import { useAdminStats, usePlatformSettings, useSettingsMutations } from "@/hooks/useAdmin";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -16,10 +17,13 @@ export default function AdminDashboard() {
   };
 
   const statCards = [
-    { label: "Total Users", value: stats?.totalUsers || 0, icon: Users, color: "text-primary" },
-    { label: "Active Deals", value: stats?.activeDeals || 0, icon: Tag, color: "text-primary" },
-    { label: "Suspended Users", value: stats?.suspendedProfiles || 0, icon: ShieldAlert, color: "text-destructive" },
-    { label: "Pending Reports", value: stats?.pendingReports || 0, icon: AlertTriangle, color: "text-yellow-500" },
+    { label: "Total Users", value: stats?.totalUsers || 0, icon: Users, color: "text-primary", to: "/admin/users" },
+    { label: "Active Deals", value: stats?.activeDeals || 0, icon: Tag, color: "text-primary", to: "/admin/deals?status=active" },
+    { label: "Suspended Users", value: stats?.suspendedProfiles || 0, icon: ShieldAlert, color: "text-destructive", to: "/admin/users?status=suspended" },
+    { label: "Pending Reports", value: stats?.pendingReports || 0, icon: AlertTriangle, color: "text-yellow-500", to: "/admin/reports?status=pending" },
+    { label: "Pending Providers", value: stats?.pendingProviders ?? 0, icon: UserCheck, color: "text-amber-500", to: "/admin/providers?providerStatus=pending" },
+    { label: "Pending Services", value: stats?.pendingServices ?? 0, icon: Store, color: "text-amber-500", to: "/admin/services?approval=pending" },
+    { label: "Pending Password Resets", value: stats?.pendingPasswordResets ?? 0, icon: KeyRound, color: "text-amber-500", to: "/admin/password-resets" },
   ];
 
   return (
@@ -29,24 +33,26 @@ export default function AdminDashboard() {
         <p className="text-muted-foreground mt-1">Overview of platform activity and quick controls</p>
       </div>
 
-      {/* Stats Grid */}
+      {/* Stats Grid — each card links to the relevant admin page */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
-          <Card key={stat.label}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.label}
-              </CardTitle>
-              <stat.icon className={`h-4 w-4 ${stat.color}`} />
-            </CardHeader>
-            <CardContent>
-              {statsLoading ? (
-                <Skeleton className="h-8 w-16" />
-              ) : (
-                <div className="text-2xl font-bold">{stat.value}</div>
-              )}
-            </CardContent>
-          </Card>
+          <Link key={stat.label} to={stat.to} className="block">
+            <Card className="transition-colors hover:bg-muted/50 h-full">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {stat.label}
+                </CardTitle>
+                <stat.icon className={`h-4 w-4 ${stat.color}`} />
+              </CardHeader>
+              <CardContent>
+                {statsLoading ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  <div className="text-2xl font-bold">{stat.value}</div>
+                )}
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
 

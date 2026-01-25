@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -41,9 +42,15 @@ import { format } from "date-fns";
 import { useCities } from "@/hooks/useCities";
 
 export default function AdminUsers() {
+  const [searchParams] = useSearchParams();
+  const urlVerified = searchParams.get("verified");
+  const initialVerified =
+    urlVerified === "unverified" || urlVerified === "verified" ? urlVerified : "all";
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [verifiedFilter, setVerifiedFilter] = useState<"all" | "unverified" | "verified">(initialVerified);
   const [suspendDialog, setSuspendDialog] = useState<{ open: boolean; userId: string | null }>({
     open: false,
     userId: null,
@@ -61,10 +68,15 @@ export default function AdminUsers() {
   const [bulkMode, setBulkMode] = useState<"soft" | "hard">("soft");
   const [bulkConfirm, setBulkConfirm] = useState("");
 
+  useEffect(() => {
+    if (initialVerified !== "all") setVerifiedFilter(initialVerified);
+  }, [initialVerified]);
+
   const { data: users, isLoading } = useAdminUsers({
     status: statusFilter,
     role: roleFilter,
     search: search,
+    verified: verifiedFilter,
   });
   const { data: cities } = useCities();
 
@@ -226,6 +238,19 @@ export default function AdminUsers() {
                 <SelectItem value="user">User</SelectItem>
                 <SelectItem value="provider">Business</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={verifiedFilter}
+              onValueChange={(v) => setVerifiedFilter(v as "all" | "unverified" | "verified")}
+            >
+              <SelectTrigger className="w-full sm:w-[150px]">
+                <SelectValue placeholder="Verification" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="unverified">Unverified</SelectItem>
+                <SelectItem value="verified">Verified</SelectItem>
               </SelectContent>
             </Select>
           </div>

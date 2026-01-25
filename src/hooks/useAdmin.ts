@@ -98,11 +98,17 @@ export function useAdminStats() {
         { count: activeDeals },
         { count: suspendedProfiles },
         { count: pendingReports },
+        { count: pendingProviders },
+        { count: pendingServices },
+        { count: pendingPasswordResets },
       ] = await Promise.all([
         supabase.from("profiles").select("*", { count: "exact", head: true }),
         supabase.from("deals").select("*", { count: "exact", head: true }).eq("status", "active"),
         supabase.from("profiles").select("*", { count: "exact", head: true }).eq("status", "suspended"),
         supabase.from("user_reports").select("*", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("profiles").select("*", { count: "exact", head: true }).eq("provider_status", "pending"),
+        supabase.from("services").select("*", { count: "exact", head: true }).or("approval_status.is.null,approval_status.eq.pending"),
+        supabase.from("password_reset_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
       ]);
 
       return {
@@ -110,13 +116,16 @@ export function useAdminStats() {
         activeDeals: activeDeals || 0,
         suspendedProfiles: suspendedProfiles || 0,
         pendingReports: pendingReports || 0,
+        pendingProviders: pendingProviders || 0,
+        pendingServices: pendingServices || 0,
+        pendingPasswordResets: pendingPasswordResets || 0,
       };
     },
   });
 }
 
 // Users Management
-export function useAdminUsers(filters?: { status?: string; role?: string; search?: string }) {
+export function useAdminUsers(filters?: { status?: string; role?: string; search?: string; verified?: "all" | "unverified" | "verified" }) {
   return useQuery({
     queryKey: ["admin", "users", filters],
     queryFn: async () => {
@@ -124,6 +133,14 @@ export function useAdminUsers(filters?: { status?: string; role?: string; search
 
       if (filters?.status && filters.status !== "all") {
         query = query.eq("status", filters.status);
+      }
+
+      if (filters?.verified && filters.verified !== "all") {
+        if (filters.verified === "verified") {
+          query = query.eq("is_verified", true);
+        } else {
+          query = query.or("is_verified.is.null,is_verified.eq.false");
+        }
       }
 
       if (filters?.search) {

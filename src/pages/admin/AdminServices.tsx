@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -62,12 +63,20 @@ type CityRow = {
 export default function AdminServices() {
   const queryClient = useQueryClient();
   const { data: categories } = useCategories();
+  const [searchParams] = useSearchParams();
+  const urlApproval = searchParams.get("approval");
+  const initialApproval =
+    urlApproval === "pending" || urlApproval === "approved" || urlApproval === "rejected" ? urlApproval : "all";
 
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [visibilityFilter, setVisibilityFilter] = useState<string>("all");
   const [featuredFilter, setFeaturedFilter] = useState<string>("all");
-  const [approvalFilter, setApprovalFilter] = useState<string>("all");
+  const [approvalFilter, setApprovalFilter] = useState<string>(initialApproval);
+
+  useEffect(() => {
+    if (initialApproval !== "all") setApprovalFilter(initialApproval);
+  }, [initialApproval]);
 
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [editOpen, setEditOpen] = useState(false);

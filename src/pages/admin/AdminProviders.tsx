@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -55,11 +56,20 @@ interface Provider {
 
 export default function AdminProviders() {
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const urlProvider = searchParams.get("providerStatus");
+  const initialProvider =
+    urlProvider === "pending" || urlProvider === "approved" || urlProvider === "rejected" ? urlProvider : "all";
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [providerStatusFilter, setProviderStatusFilter] = useState<string>("all");
+  const [providerStatusFilter, setProviderStatusFilter] = useState<string>(initialProvider);
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+
+  useEffect(() => {
+    if (initialProvider !== "all") setProviderStatusFilter(initialProvider);
+  }, [initialProvider]);
 
   const { data: providers, isLoading } = useQuery({
     queryKey: ["admin-providers", statusFilter, providerStatusFilter, search],
