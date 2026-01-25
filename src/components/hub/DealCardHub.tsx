@@ -3,31 +3,33 @@ import { memo } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getBuySellCategoryLabel } from "./buySellCategories";
 import { HubItemCard } from "./HubItemCard";
-import type { Listing } from "@/hooks/useListings";
+import type { Deal } from "@/hooks/useDeals";
 
-interface ListingCardProps {
-  listing: Listing;
+interface DealCardHubProps {
+  deal: Deal;
   onClick?: () => void;
   isRTL?: boolean;
 }
 
-const ListingCardContent = ({ listing, onClick, isRTL }: ListingCardProps) => {
+function DealCardHubContent({ deal, onClick, isRTL }: DealCardHubProps) {
   const { language } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
 
-  const imageUrls = (listing.image_urls || []).filter(Boolean);
-  const cover = imageUrls[0] ?? null;
-  const priceText =
-    listing.price !== null && listing.price !== undefined
-      ? `${listing.price} ${t("د.ل", listing.currency || "LYD")}`
-      : t("السعر عند التواصل", "Price on request");
-  const subtitle = getBuySellCategoryLabel(listing.category, language) ?? listing.category ?? "—";
+  if (!deal?.id) return null;
+
+  const discountText =
+    deal.discount_type === "percentage"
+      ? `${deal.discount}% ${t("خصم", "OFF")}`
+      : deal.discount_type === "fixed"
+        ? `${deal.discount} ${t("د.ل", "LYD")} ${t("خصم", "OFF")}`
+        : deal.discount || t("عرض", "Deal");
+  const subtitle = getBuySellCategoryLabel(deal.category, language) ?? deal.title ?? "—";
 
   return (
     <HubItemCard
-      imageUrl={cover}
-      priceText={priceText}
-      location={listing.location ?? "—"}
+      imageUrl={deal.image_url ?? null}
+      priceText={discountText}
+      location="—"
       subtitle={subtitle}
       onClick={onClick}
       isRTL={isRTL}
@@ -43,6 +45,6 @@ const ListingCardContent = ({ listing, onClick, isRTL }: ListingCardProps) => {
       }
     />
   );
-};
+}
 
-export const ListingCard = memo(ListingCardContent);
+export const DealCardHub = memo(DealCardHubContent);

@@ -21,6 +21,7 @@ import { HubSection } from "@/components/hub/HubSection";
 import { ServiceCardFeatured } from "@/components/hub/ServiceCardFeatured";
 import { FeaturedProvidersCard } from "@/components/hub/FeaturedProvidersCard";
 import { ServiceCardGroup } from "@/components/hub/ServiceCardGroup";
+import { HubItemCard } from "@/components/hub/HubItemCard";
 import { ServiceFilters } from "@/components/hub/ServiceFilters";
 import { ServiceGrid } from "@/components/hub/ServiceGrid";
 import { DiscoverySection } from "@/components/hub/DiscoverySection";
@@ -1741,42 +1742,42 @@ export default function Hub() {
 
           {/* Most demanded services (SYSTEM) */}
           <AnimatedSection direction="up" delay={500}>
-            <HubSection id="most-demanded-services" title={t("الأكثر طلباً", "Most demanded")} icon={TrendingUp}>
-            <div
-              dir={isRTL ? "rtl" : "ltr"}
-              className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory scroll-smooth"
-              style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y", scrollSnapType: "x mandatory" }}
+            <HubSection
+              id="most-demanded-services"
+              title={t("الأكثر طلباً", "Most demanded")}
+              icon={TrendingUp}
+              actionLabel={t("المزيد", "More")}
+              onAction={() => navigate("/services/trending")}
             >
+            <div dir={isRTL ? "rtl" : "ltr"} className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {mostDemandedLoading && mostDemandedRows.length === 0
-                ? Array.from({ length: 2 }).map((_, i) => (
-                    <div
-                      key={`demanded-placeholder-${i}`}
-                      className={`${HUB_CARD_BASE} bg-card shrink-0 w-[90vw] max-w-[700px] snap-start overflow-hidden`}
-                    >
-                      <div className="grid grid-cols-2 gap-3 p-4">
-                        {Array.from({ length: 4 }).map((_, j) => (
-                          <div key={j} className="aspect-[4/3] bg-muted rounded-xl" />
-                        ))}
+                ? Array.from({ length: 6 }).map((_, i) => (
+                    <div key={`demanded-placeholder-${i}`} className={`${HUB_CARD_BASE} bg-card overflow-hidden animate-pulse`}>
+                      <div className="aspect-[4/3] bg-muted/50 rounded-t-xl" />
+                      <div className="p-2.5 space-y-1">
+                        <div className="h-3 bg-muted/50 rounded w-2/3" />
+                        <div className="h-3 bg-muted/50 rounded w-1/2" />
                       </div>
                     </div>
                   ))
                 : mostDemandedRows.length === 0
                   ? (
-                      <div className={`${HUB_CARD_BASE} bg-card shrink-0 w-[90vw] max-w-[700px] snap-start p-4`}>
-                        <div className="font-semibold text-sm">{t("لا توجد بيانات بعد", "No data yet")}</div>
+                      <div className={`col-span-full ${HUB_CARD_BASE} bg-card p-6 text-center`}>
+                        <div className="font-semibold text-sm text-muted-foreground">{t("لا توجد بيانات بعد", "No data yet")}</div>
                         <div className="text-xs text-muted-foreground mt-1">
                           {t("سيظهر هذا القسم تلقائياً بعد تفاعل المستخدمين (مشاهدات/اتصالات)", "This will appear automatically once users interact (views/calls).")}
                         </div>
                       </div>
                     )
-                  : chunkArray(mostDemandedRows.slice(0, 8), 4).map((chunk, chunkIndex) => (
-                      <ServiceCardGroup
-                        key={`chunk-${chunkIndex}`}
-                        services={chunk}
-                        ratings={ratingsMap}
+                  : mostDemandedRows.slice(0, 8).map((svc) => (
+                      <HubItemCard
+                        key={svc.id}
+                        imageUrl={svc.image_url}
+                        priceText={t("اتصل للسعر", "Price on request")}
+                        location={[svc.city, svc.sub_city].filter(Boolean).join(" • ") || "—"}
+                        subtitle={svc.title}
                         isRTL={isRTL}
-                        onOpen={openServiceFromRow}
-                        labels={labels}
+                        onClick={() => openServiceFromRow(svc as ServiceRow)}
                       />
                     ))}
             </div>
@@ -2151,53 +2152,44 @@ export default function Hub() {
 
             {/* Most demanded services (SYSTEM) */}
             <AnimatedSection direction="up" delay={500}>
-              <HubSection id="most-demanded-services" title={t("الأكثر طلباً", "Most demanded")} icon={TrendingUp}>
-              <div className="relative">
-                <div
-                  dir={isRTL ? "rtl" : "ltr"}
-                  className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar snap-x snap-mandatory scroll-smooth"
-                  style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y", scrollSnapType: "x mandatory" }}
-                >
-                  {mostDemandedLoading && mostDemandedRows.length === 0
-                    ? Array.from({ length: 2 }).map((_, i) => (
-                        <div
-                          key={`demanded-placeholder-${i}`}
-                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[90vw] max-w-[700px] snap-start overflow-hidden animate-pulse`}
-                        >
-                          <div className="grid grid-cols-2 gap-3 p-4">
-                            {Array.from({ length: 4 }).map((_, j) => (
-                              <div key={j} className="aspect-[4/3] bg-muted/50 rounded-xl" />
-                            ))}
+              <HubSection
+                id="most-demanded-services"
+                title={t("الأكثر طلباً", "Most demanded")}
+                icon={TrendingUp}
+                actionLabel={t("المزيد", "More")}
+                onAction={() => navigate("/services/trending")}
+              >
+              <div dir={isRTL ? "rtl" : "ltr"} className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {mostDemandedLoading && mostDemandedRows.length === 0
+                  ? Array.from({ length: 6 }).map((_, i) => (
+                      <div key={`demanded-placeholder-${i}`} className={`${HUB_CARD_BASE} bg-card overflow-hidden animate-pulse`}>
+                        <div className="aspect-[4/3] bg-muted/50 rounded-t-xl" />
+                        <div className="p-2.5 space-y-1">
+                          <div className="h-3 bg-muted/50 rounded w-2/3" />
+                          <div className="h-3 bg-muted/50 rounded w-1/2" />
+                        </div>
+                      </div>
+                    ))
+                  : mostDemandedRows.length === 0
+                    ? (
+                        <div className={`col-span-full ${HUB_CARD_BASE} bg-card p-6 text-center`}>
+                          <div className="font-semibold text-sm text-muted-foreground">{t("لا توجد بيانات بعد", "No data yet")}</div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {t("سيظهر هذا القسم تلقائياً بعد تفاعل المستخدمين (مشاهدات/اتصالات)", "This will appear automatically once users interact (views/calls).")}
                           </div>
                         </div>
-                      ))
-                    : mostDemandedRows.length === 0
-                      ? (
-                          <div className={`${HUB_CARD_BASE} bg-card shrink-0 w-[90vw] max-w-[700px] snap-start p-6 text-center`}>
-                            <div className="mb-4">
-                              <svg className="h-12 w-12 mx-auto text-muted-foreground/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                              </svg>
-                            </div>
-                            <div className="font-semibold text-sm text-muted-foreground mb-2">{t("لا توجد بيانات بعد", "No data yet")}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {t("سيظهر هذا القسم تلقائياً بعد تفاعل المستخدمين (مشاهدات/اتصالات)", "This will appear automatically once users interact (views/calls).")}
-                            </div>
-                          </div>
-                        )
-                      : chunkArray(mostDemandedRows.slice(0, 8), 4).map((chunk, chunkIndex) => (
-                          <ServiceCardGroup
-                            key={`chunk-${chunkIndex}`}
-                            services={chunk}
-                            ratings={ratingsMap}
-                            isRTL={isRTL}
-                            onOpen={openServiceFromRow}
-                            labels={labels}
-                          />
-                        ))}
-                </div>
-                {/* Gradient fade effect */}
-                <div className="absolute top-0 bottom-4 right-0 w-12 bg-gradient-to-l from-background to-transparent pointer-events-none" />
+                      )
+                    : mostDemandedRows.slice(0, 8).map((svc) => (
+                        <HubItemCard
+                          key={svc.id}
+                          imageUrl={svc.image_url}
+                          priceText={t("اتصل للسعر", "Price on request")}
+                          location={[svc.city, svc.sub_city].filter(Boolean).join(" • ") || "—"}
+                          subtitle={svc.title}
+                          isRTL={isRTL}
+                          onClick={() => openServiceFromRow(svc as ServiceRow)}
+                        />
+                      ))}
               </div>
               </HubSection>
             </AnimatedSection>
