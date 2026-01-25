@@ -1,6 +1,14 @@
 export const HUB_CARD_BASE =
   "rounded-2xl bg-card shadow-[0_8px_32px_rgba(15,23,42,0.12)] ring-1 ring-black/5 dark:ring-white/10 transition-all duration-300 hover:shadow-[0_12px_40px_rgba(15,23,42,0.15)] hover:-translate-y-0.5 active:scale-[0.98]";
 
+/** Horizontal scroll row: max 4 cards visible, scroll for more (matches Buy & Sell category sections). */
+export const HUB_CARD_ROW_4 =
+  "flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory scroll-smooth -mx-4 px-4";
+
+/** Slot width for 4-cards layout: ~4 visible on desktop, fewer on small screens. */
+export const HUB_CARD_SLOT_4 =
+  "shrink-0 w-[72vw] sm:w-[48vw] max-w-[240px] snap-center";
+
 export const HUB_SECTION_SPACING = "space-y-6";
 
 export const HUB_CONTAINER_PADDING = "px-4 space-y-8";

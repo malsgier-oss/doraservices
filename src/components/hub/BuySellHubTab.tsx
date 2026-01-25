@@ -8,7 +8,7 @@ import { ListingCard } from "@/components/hub/ListingCard";
 import { DealCardHub } from "@/components/hub/DealCardHub";
 import { HeroSection } from "@/components/hub/HeroSection";
 import { SectionDivider } from "@/components/hub/SectionDivider";
-import { HUB_CARD_BASE } from "@/components/hub/hubStyles";
+import { HUB_CARD_BASE, HUB_CARD_ROW_4, HUB_CARD_SLOT_4 } from "@/components/hub/hubStyles";
 import { BUY_SELL_CATEGORIES, type BuySellCategory } from "@/components/hub/buySellCategories";
 import { useDeals, type Deal } from "@/hooks/useDeals";
 import { useListings, type Listing } from "@/hooks/useListings";
@@ -16,11 +16,6 @@ import { Award, Clock, Shield, ShoppingBag } from "lucide-react";
 
 /** Max cards visible per category before horizontal scroll. */
 const CARDS_VISIBLE = 4;
-
-const CARD_ROW_CLASS =
-  "flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory scroll-smooth -mx-4 px-4";
-const CARD_SLOT_CLASS =
-  "shrink-0 w-[72vw] sm:w-[48vw] max-w-[240px] snap-center";
 
 function BuySellCategorySection({
   cat,
@@ -72,11 +67,11 @@ function BuySellCategorySection({
         {isLoading ? (
           <div
             dir={isRTL ? "rtl" : "ltr"}
-            className={CARD_ROW_CLASS}
+            className={HUB_CARD_ROW_4}
             style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
           >
             {Array.from({ length: CARDS_VISIBLE }).map((_, i) => (
-              <div key={`skeleton-${i}`} className={`${CARD_SLOT_CLASS} ${HUB_CARD_BASE} bg-card overflow-hidden animate-pulse`}>
+              <div key={`skeleton-${i}`} className={`${HUB_CARD_SLOT_4} ${HUB_CARD_BASE} bg-card overflow-hidden animate-pulse`}>
                 <Skeleton className="aspect-[4/3] w-full" />
                 <div className="p-2.5 space-y-1">
                   <Skeleton className="h-3 w-2/3" />
@@ -95,11 +90,11 @@ function BuySellCategorySection({
         ) : (
           <div
             dir={isRTL ? "rtl" : "ltr"}
-            className={CARD_ROW_CLASS}
+            className={HUB_CARD_ROW_4}
             style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
           >
             {items.map((item) => (
-              <div key={item.id} className={CARD_SLOT_CLASS}>
+              <div key={item.id} className={HUB_CARD_SLOT_4}>
                 {item.type === "listing" ? (
                   <ListingCard
                     listing={item.listing}

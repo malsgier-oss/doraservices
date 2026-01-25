@@ -55,7 +55,7 @@ import { DealDetailSheet } from "@/components/hub/DealDetailSheet";
 import { useDeals, type Deal } from "@/hooks/useDeals";
 import { useListings, type Listing } from "@/hooks/useListings";
 import { useListing } from "@/hooks/useListing";
-import { HUB_CARD_BASE } from "@/components/hub/hubStyles";
+import { HUB_CARD_BASE, HUB_CARD_ROW_4, HUB_CARD_SLOT_4 } from "@/components/hub/hubStyles";
 
 import { useCategories } from "@/hooks/useCategories";
 import { useCities } from "@/hooks/useCities";
@@ -1712,7 +1712,7 @@ export default function Hub() {
               <HubSection id="featured-services" title={t("الخدمات المميزة", "Featured services")} icon={Star}>
               <div
                 dir={isRTL ? "rtl" : "ltr"}
-                className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
+                className={HUB_CARD_ROW_4}
                 style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
               >
                 {featuredSubcats.slice(0, 6).map((sc) => {
@@ -1720,7 +1720,7 @@ export default function Hub() {
                   return (
                     <button
                       key={sc.id}
-                      className={`${HUB_CARD_BASE} bg-card shrink-0 w-[66vw] max-w-[320px] snap-center p-4 text-left transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
+                      className={`${HUB_CARD_SLOT_4} ${HUB_CARD_BASE} bg-card p-4 text-left transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
                       onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
                     >
                       <div className={`flex items-center gap-4 ${isRTL ? "text-right" : "text-left"}`} dir={isRTL ? "rtl" : "ltr"}>
@@ -1754,10 +1754,14 @@ export default function Hub() {
               actionLabel={t("المزيد", "More")}
               onAction={() => navigate("/services/trending")}
             >
-            <div dir={isRTL ? "rtl" : "ltr"} className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div
+              dir={isRTL ? "rtl" : "ltr"}
+              className={HUB_CARD_ROW_4}
+              style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+            >
               {mostDemandedLoading && mostDemandedRows.length === 0
-                ? Array.from({ length: 6 }).map((_, i) => (
-                    <div key={`demanded-placeholder-${i}`} className={`${HUB_CARD_BASE} bg-card overflow-hidden animate-pulse`}>
+                ? Array.from({ length: 4 }).map((_, i) => (
+                    <div key={`demanded-placeholder-${i}`} className={`${HUB_CARD_SLOT_4} ${HUB_CARD_BASE} bg-card overflow-hidden animate-pulse`}>
                       <div className="aspect-[4/3] bg-muted/50 rounded-t-xl" />
                       <div className="p-2.5 space-y-1">
                         <div className="h-3 bg-muted/50 rounded w-2/3" />
@@ -1767,7 +1771,7 @@ export default function Hub() {
                   ))
                 : mostDemandedRows.length === 0
                   ? (
-                      <div className={`col-span-full ${HUB_CARD_BASE} bg-card p-6 text-center`}>
+                      <div className={`${HUB_CARD_BASE} bg-card p-6 text-center min-w-full`}>
                         <div className="font-semibold text-sm text-muted-foreground">{t("لا توجد بيانات بعد", "No data yet")}</div>
                         <div className="text-xs text-muted-foreground mt-1">
                           {t("سيظهر هذا القسم تلقائياً بعد تفاعل المستخدمين (مشاهدات/اتصالات)", "This will appear automatically once users interact (views/calls).")}
@@ -1775,15 +1779,16 @@ export default function Hub() {
                       </div>
                     )
                   : mostDemandedRows.slice(0, 8).map((svc) => (
-                      <HubItemCard
-                        key={svc.id}
-                        imageUrl={svc.image_url}
-                        priceText={t("اتصل للسعر", "Price on request")}
-                        location={[svc.city, svc.sub_city].filter(Boolean).join(" • ") || "—"}
-                        subtitle={svc.title}
-                        isRTL={isRTL}
-                        onClick={() => openServiceFromRow(svc as ServiceRow)}
-                      />
+                      <div key={svc.id} className={HUB_CARD_SLOT_4}>
+                        <HubItemCard
+                          imageUrl={svc.image_url}
+                          priceText={t("اتصل للسعر", "Price on request")}
+                          location={[svc.city, svc.sub_city].filter(Boolean).join(" • ") || "—"}
+                          subtitle={svc.title}
+                          isRTL={isRTL}
+                          onClick={() => openServiceFromRow(svc as ServiceRow)}
+                        />
+                      </div>
                     ))}
             </div>
             </HubSection>
@@ -1807,14 +1812,14 @@ export default function Hub() {
             <HubSection id="guides" title={t("نصائح قبل ما تتصل", "Tips before you call")} icon={BookOpen}>
             <div
               dir={isRTL ? "rtl" : "ltr"}
-              className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
+              className={HUB_CARD_ROW_4}
               style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
             >
               {guidesLoading && guidesCards.length === 0
                 ? Array.from({ length: 4 }).map((_, i) => (
                     <div
                       key={`guide-placeholder-${i}`}
-                      className={`${HUB_CARD_BASE} bg-muted/30 shrink-0 w-[64vw] max-w-[280px] min-h-[92px] snap-center p-3`}
+                      className={`${HUB_CARD_SLOT_4} ${HUB_CARD_BASE} bg-muted/30 min-h-[92px] p-3`}
                     >
                       <div className="h-4 w-32 rounded bg-muted" />
                       <div className="mt-2 h-3 w-40 rounded bg-muted" />
@@ -1822,15 +1827,16 @@ export default function Hub() {
                     </div>
                   ))
                 : guidesCards.slice(0, 4).map((g) => (
-                    <TipChip
-                      key={g.id}
-                      title={g.title}
-                      line1={g.summaryLines[0]}
-                      line2={g.summaryLines[1]}
-                      Icon={g.icon}
-                      onClick={() => openGuide(g.id)}
-                      isRTL={isRTL}
-                    />
+                    <div key={g.id} className={HUB_CARD_SLOT_4}>
+                      <TipChip
+                        title={g.title}
+                        line1={g.summaryLines[0]}
+                        line2={g.summaryLines[1]}
+                        Icon={g.icon}
+                        onClick={() => openGuide(g.id)}
+                        isRTL={isRTL}
+                      />
+                    </div>
                   ))}
             </div>
             </HubSection>
@@ -1860,16 +1866,15 @@ export default function Hub() {
                   >
                     <div
                       dir={isRTL ? "rtl" : "ltr"}
-                      className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
-                      style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+                      className={HUB_CARD_ROW_4}
+                      style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
                     >
                       {subcats.map((sc) => {
                         const Icon = ICON_MAP[sc.icon] || Wrench;
                         return (
+                          <div key={sc.id} className={HUB_CARD_SLOT_4}>
                           <button
-                            key={sc.id}
-                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[44%] md:w-[28%] min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
-                            style={{ scrollSnapAlign: "start" }}
+                            className={`${HUB_CARD_BASE} bg-card min-h-[112px] w-full px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
                             onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
                           >
                             <div
@@ -1882,6 +1887,7 @@ export default function Hub() {
                             {sc.name_ar || sc.name}
                           </div>
                           </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -1915,16 +1921,15 @@ export default function Hub() {
                 <HubSection key={shelf.id} id={`shelf-${shelf.id}`} title={shelf.title_ar}>
                   <div
                     dir={isRTL ? "rtl" : "ltr"}
-                    className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
-                    style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any }}
+                    className={HUB_CARD_ROW_4}
+                    style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
                   >
                     {subcats.map((s) => {
                       const Icon = ICON_MAP[s.icon] || Wrench;
                       return (
+                        <div key={s.id} className={HUB_CARD_SLOT_4}>
                         <button
-                          key={s.id}
-                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[34%] md:w-[22%] min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
-                          style={{ scrollSnapAlign: "start" }}
+                          className={`${HUB_CARD_BASE} bg-card min-h-[112px] w-full px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
                           onClick={() => openSubcategoryProviders({ id: s.id, name: s.name, name_ar: s.name_ar, icon: Icon, color: s.color })}
                         >
                           <div
@@ -1937,16 +1942,16 @@ export default function Hub() {
                             {s.name_ar || s.name}
                           </div>
                         </button>
+                        </div>
                       );
                     })}
 
                     {catsFallback.map((c) => {
                       const Icon = ICON_MAP[c.icon] || Wrench;
                       return (
+                        <div key={c.id} className={HUB_CARD_SLOT_4}>
                         <button
-                          key={c.id}
-                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[34%] md:w-[22%] min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
-                          style={{ scrollSnapAlign: "start" }}
+                          className={`${HUB_CARD_BASE} bg-card min-h-[112px] w-full px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
                           onClick={() => openCategoryBrowse(c.id)}
                         >
                           <div
@@ -1959,6 +1964,7 @@ export default function Hub() {
                             {c.name_ar || c.name}
                           </div>
                         </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -2114,7 +2120,7 @@ export default function Hub() {
                 <div className="relative">
                   <div
                     dir={isRTL ? "rtl" : "ltr"}
-                    className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar snap-x snap-mandatory scroll-smooth"
+                    className={HUB_CARD_ROW_4}
                     style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
                   >
                     {featuredSubcats.slice(0, 6).map((sc) => {
@@ -2122,7 +2128,7 @@ export default function Hub() {
                       return (
                         <button
                           key={sc.id}
-                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[70vw] max-w-[340px] snap-center p-5 text-left group`}
+                          className={`${HUB_CARD_SLOT_4} ${HUB_CARD_BASE} bg-card p-5 text-left group`}
                           onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
                         >
                           <div className={`flex items-center gap-4 ${isRTL ? "text-right" : "text-left"}`} dir={isRTL ? "rtl" : "ltr"}>
@@ -2164,10 +2170,14 @@ export default function Hub() {
                 actionLabel={t("المزيد", "More")}
                 onAction={() => navigate("/services/trending")}
               >
-              <div dir={isRTL ? "rtl" : "ltr"} className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div
+                dir={isRTL ? "rtl" : "ltr"}
+                className={HUB_CARD_ROW_4}
+                style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+              >
                 {mostDemandedLoading && mostDemandedRows.length === 0
-                  ? Array.from({ length: 6 }).map((_, i) => (
-                      <div key={`demanded-placeholder-${i}`} className={`${HUB_CARD_BASE} bg-card overflow-hidden animate-pulse`}>
+                  ? Array.from({ length: 4 }).map((_, i) => (
+                      <div key={`demanded-placeholder-${i}`} className={`${HUB_CARD_SLOT_4} ${HUB_CARD_BASE} bg-card overflow-hidden animate-pulse`}>
                         <div className="aspect-[4/3] bg-muted/50 rounded-t-xl" />
                         <div className="p-2.5 space-y-1">
                           <div className="h-3 bg-muted/50 rounded w-2/3" />
@@ -2177,7 +2187,7 @@ export default function Hub() {
                     ))
                   : mostDemandedRows.length === 0
                     ? (
-                        <div className={`col-span-full ${HUB_CARD_BASE} bg-card p-6 text-center`}>
+                        <div className={`${HUB_CARD_BASE} bg-card p-6 text-center min-w-full`}>
                           <div className="font-semibold text-sm text-muted-foreground">{t("لا توجد بيانات بعد", "No data yet")}</div>
                           <div className="text-xs text-muted-foreground mt-1">
                             {t("سيظهر هذا القسم تلقائياً بعد تفاعل المستخدمين (مشاهدات/اتصالات)", "This will appear automatically once users interact (views/calls).")}
@@ -2185,15 +2195,16 @@ export default function Hub() {
                         </div>
                       )
                     : mostDemandedRows.slice(0, 8).map((svc) => (
-                        <HubItemCard
-                          key={svc.id}
-                          imageUrl={svc.image_url}
-                          priceText={t("اتصل للسعر", "Price on request")}
-                          location={[svc.city, svc.sub_city].filter(Boolean).join(" • ") || "—"}
-                          subtitle={svc.title}
-                          isRTL={isRTL}
-                          onClick={() => openServiceFromRow(svc as ServiceRow)}
-                        />
+                        <div key={svc.id} className={HUB_CARD_SLOT_4}>
+                          <HubItemCard
+                            imageUrl={svc.image_url}
+                            priceText={t("اتصل للسعر", "Price on request")}
+                            location={[svc.city, svc.sub_city].filter(Boolean).join(" • ") || "—"}
+                            subtitle={svc.title}
+                            isRTL={isRTL}
+                            onClick={() => openServiceFromRow(svc as ServiceRow)}
+                          />
+                        </div>
                       ))}
               </div>
               </HubSection>
@@ -2246,14 +2257,14 @@ export default function Hub() {
               <HubSection id="guides" title={t("نصائح قبل ما تتصل", "Tips before you call")} icon={BookOpen}>
               <div
                 dir={isRTL ? "rtl" : "ltr"}
-                className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
+                className={HUB_CARD_ROW_4}
                 style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
               >
                 {guidesLoading && guidesCards.length === 0
                   ? Array.from({ length: 4 }).map((_, i) => (
                       <div
                         key={`guide-placeholder-${i}`}
-                        className={`${HUB_CARD_BASE} bg-muted/30 shrink-0 w-[64vw] max-w-[280px] min-h-[92px] snap-center p-3`}
+                        className={`${HUB_CARD_SLOT_4} ${HUB_CARD_BASE} bg-muted/30 min-h-[92px] p-3`}
                       >
                         <div className="h-4 w-32 rounded bg-muted" />
                         <div className="mt-2 h-3 w-40 rounded bg-muted" />
@@ -2261,15 +2272,16 @@ export default function Hub() {
                       </div>
                     ))
                   : guidesCards.slice(0, 4).map((g) => (
-                      <TipChip
-                        key={g.id}
-                        title={g.title}
-                        line1={g.summaryLines[0]}
-                        line2={g.summaryLines[1]}
-                        Icon={g.icon}
-                        onClick={() => openGuide(g.id)}
-                        isRTL={isRTL}
-                      />
+                      <div key={g.id} className={HUB_CARD_SLOT_4}>
+                        <TipChip
+                          title={g.title}
+                          line1={g.summaryLines[0]}
+                          line2={g.summaryLines[1]}
+                          Icon={g.icon}
+                          onClick={() => openGuide(g.id)}
+                          isRTL={isRTL}
+                        />
+                      </div>
                     ))}
               </div>
               </HubSection>
@@ -2299,16 +2311,15 @@ export default function Hub() {
                     >
                       <div
                         dir={isRTL ? "rtl" : "ltr"}
-                        className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
-                        style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+                        className={HUB_CARD_ROW_4}
+                        style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
                       >
                         {subcats.map((sc) => {
                           const Icon = ICON_MAP[sc.icon] || Wrench;
                           return (
+                            <div key={sc.id} className={HUB_CARD_SLOT_4}>
                             <button
-                              key={sc.id}
-                              className={`${HUB_CARD_BASE} bg-card shrink-0 w-[44%] md:w-[28%] min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
-                              style={{ scrollSnapAlign: "start" }}
+                              className={`${HUB_CARD_BASE} bg-card min-h-[112px] w-full px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
                               onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
                             >
                               <div
@@ -2321,6 +2332,7 @@ export default function Hub() {
                                 {sc.name_ar || sc.name}
                               </div>
                             </button>
+                            </div>
                           );
                         })}
                       </div>
@@ -2351,16 +2363,15 @@ export default function Hub() {
                   <HubSection key={shelf.id} id={`shelf-${shelf.id}`} title={shelf.title_ar}>
                     <div
                       dir={isRTL ? "rtl" : "ltr"}
-                      className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
-                      style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any }}
+                      className={HUB_CARD_ROW_4}
+                      style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
                     >
                       {subcats.map((s) => {
                         const Icon = ICON_MAP[s.icon] || Wrench;
                         return (
+                          <div key={s.id} className={HUB_CARD_SLOT_4}>
                           <button
-                            key={s.id}
-                            className={`${HUB_CARD_BASE} bg-card shrink-0 w-[34%] md:w-[22%] min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
-                            style={{ scrollSnapAlign: "start" }}
+                            className={`${HUB_CARD_BASE} bg-card min-h-[112px] w-full px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
                             onClick={() => openSubcategoryProviders({ id: s.id, name: s.name, name_ar: s.name_ar, icon: Icon, color: s.color })}
                           >
                             <div
@@ -2373,16 +2384,16 @@ export default function Hub() {
                               {s.name_ar || s.name}
                             </div>
                           </button>
+                          </div>
                         );
                       })}
 
                       {catsFallback.map((c) => {
                         const Icon = ICON_MAP[c.icon] || Wrench;
                         return (
+                          <div key={c.id} className={HUB_CARD_SLOT_4}>
                           <button
-                            key={c.id}
-                            className={`${HUB_CARD_BASE} bg-card shrink-0 w-[34%] md:w-[22%] min-h-[112px] px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
-                            style={{ scrollSnapAlign: "start" }}
+                            className={`${HUB_CARD_BASE} bg-card min-h-[112px] w-full px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
                             onClick={() => openCategoryBrowse(c.id)}
                           >
                             <div
@@ -2395,6 +2406,7 @@ export default function Hub() {
                               {c.name_ar || c.name}
                             </div>
                           </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -2406,9 +2418,9 @@ export default function Hub() {
 
             {/* Footer links */}
             <div className="pt-4 pb-2 border-t text-sm text-muted-foreground space-y-3">
-              <div className="flex flex-wrap gap-x-4 gap-y-2">
-                <a className="hover:text-foreground" href="/about">{t("من نحن", "About Us")}</a>
-                <a className="hover:text-foreground" href="/help">{t("مركز المساعدة", "Help Center")}</a>
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              <a className="hover:text-foreground" href="/about">{t("من نحن", "About Us")}</a>
+              <a className="hover:text-foreground" href="/help">{t("مركز المساعدة", "Help Center")}</a>
                 <a className="hover:text-foreground" href="/become-provider">{t("انضم كمزود خدمة", "Become a Provider")}</a>
               </div>
               <div className="flex gap-4 text-xs">
