@@ -367,10 +367,8 @@ function ServiceDetailListingStyle({
   }, [provider.id]);
 
   const userReview = userId ? reviews.find((r) => r.user_id === userId) : null;
-  const priceText =
-    provider.price != null && provider.price !== undefined
-      ? `${provider.price} ${t("د.ل", "LYD")}`
-      : t("السعر عند التواصل", "Price on request");
+  const hasPrice = provider.price != null && provider.price !== undefined;
+  const priceText = hasPrice ? `${provider.price} ${t("د.ل", "LYD")}` : "";
 
   const handleShare = () => {
     if (navigator.share) {
@@ -463,72 +461,100 @@ function ServiceDetailListingStyle({
       ) : null}
 
       <div className="px-4 space-y-6 pb-[calc(7.5rem+env(safe-area-inset-bottom))]">
-      {/* 2. Price + Share */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <p className="text-sm text-muted-foreground">{t("السعر", "Price")}</p>
-          <div className="text-3xl font-bold text-foreground">{priceText}</div>
+      {/* 2. Price + Share — only when price is available */}
+      {hasPrice ? (
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <p className="text-sm text-muted-foreground">{t("السعر", "Price")}</p>
+            <div className="text-3xl font-bold text-foreground">{priceText}</div>
+          </div>
+          <Button size="lg" variant="outline" className="gap-2 shrink-0 rounded-xl" onClick={handleShare}>
+            <Share2 className="h-4 w-4" />
+            <span className="hidden sm:inline">{t("مشاركة", "Share")}</span>
+          </Button>
         </div>
-        <Button size="lg" variant="outline" className="gap-2 shrink-0 rounded-xl" onClick={handleShare}>
-          <Share2 className="h-4 w-4" />
-          <span className="hidden sm:inline">{t("مشاركة", "Share")}</span>
-        </Button>
-      </div>
+      ) : null}
 
-      {/* 3. Title */}
-      <h1 className="text-2xl font-bold text-foreground leading-tight">
-        {provider.title || service.titleKey || provider.provider_name || ""}
-      </h1>
-
-      {/* 4. Provider card (Seller-style) */}
-      <div className="bg-muted/40 rounded-2xl p-5 border border-border/50 space-y-3">
-        <div className="text-sm font-semibold text-muted-foreground">{t("المزود", "Provider")}</div>
+      {/* 3. Title + Share when no price */}
+      {!hasPrice ? (
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Avatar className="h-12 w-12">
+          <h1 className="text-2xl font-bold text-foreground leading-tight flex-1 min-w-0">
+            {provider.title || service.titleKey || provider.provider_name || ""}
+          </h1>
+          <Button size="lg" variant="outline" className="gap-2 shrink-0 rounded-xl" onClick={handleShare}>
+            <Share2 className="h-4 w-4" />
+            <span className="hidden sm:inline">{t("مشاركة", "Share")}</span>
+          </Button>
+        </div>
+      ) : null}
+
+      {/* 4. Title — only when we have price (otherwise already shown above with Share) */}
+      {hasPrice ? (
+        <h1 className="text-2xl font-bold text-foreground leading-tight">
+          {provider.title || service.titleKey || provider.provider_name || ""}
+        </h1>
+      ) : null}
+
+      {/* 5. Provider card (Seller-style) — avatar, name, verified only; reviews moved to separate section */}
+      <div className="bg-muted/40 rounded-2xl p-5 border border-border/50">
+        <div className="text-sm font-semibold text-muted-foreground mb-3">{t("المزود", "Provider")}</div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <Avatar className="h-12 w-12 shrink-0">
               <AvatarImage src={(provider as any).provider_avatar || undefined} />
               <AvatarFallback className="bg-primary/10 text-primary font-semibold">{initials}</AvatarFallback>
             </Avatar>
-            <div className="space-y-0.5">
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <p className="font-semibold text-foreground">{provider.provider_name || t("مزود", "Provider")}</p>
-                <Shield className="h-4 w-4 text-green-600 dark:text-green-400" />
-              </div>
-              <div className="flex items-center gap-1.5 text-xs">
-                {(provider.rating_count ?? 0) > 0 ? (
-                  <>
-                    <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                    <span className="font-medium">{Number(provider.rating ?? 0).toFixed(1)}</span>
-                    <span className="text-muted-foreground">({provider.rating_count} {t("تقييم", "reviews")})</span>
-                  </>
-                ) : (
-                  <span className="text-muted-foreground">{t("لا توجد تقييمات بعد", "No reviews yet")}</span>
-                )}
+                <p className="font-semibold text-foreground truncate">{provider.provider_name || t("مزود", "Provider")}</p>
+                <Shield className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
               </div>
             </div>
           </div>
           <Badge variant="secondary" className="shrink-0">{t("موثوق", "Verified")}</Badge>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full rounded-xl"
-          onClick={() => {
-            if (userReview) {
-              setRateStars(typeof userReview.rating === "number" ? userReview.rating : 5);
-              setRateText(typeof userReview.content === "string" ? userReview.content : "");
-            } else {
-              setRateStars(5);
-              setRateText("");
-            }
-            setRateOpen(true);
-          }}
-        >
-          {userReview ? t("تعديل التقييم", "Edit review") : t("كتابة تقييم", "Leave a review")}
-        </Button>
       </div>
 
-      {/* 5. Description */}
+      {/* 6. Reviews — dedicated section for rating and “Leave a review” */}
+      <div className="bg-muted/40 rounded-2xl p-5 border border-border/50 space-y-3">
+        <div className="text-sm font-semibold text-muted-foreground">{t("التقييمات", "Reviews")}</div>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            {(provider.rating_count ?? 0) > 0 ? (
+              <>
+                <div className="flex items-center gap-1 font-semibold text-amber-700 dark:text-amber-400">
+                  <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
+                  <span>{Number(provider.rating ?? 0).toFixed(1)}</span>
+                </div>
+                <span className="text-sm text-muted-foreground">
+                  ({provider.rating_count} {t("تقييم", "reviews")})
+                </span>
+              </>
+            ) : (
+              <span className="text-sm text-muted-foreground">{t("لا توجد تقييمات بعد", "No reviews yet")}</span>
+            )}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl"
+            onClick={() => {
+              if (userReview) {
+                setRateStars(typeof userReview.rating === "number" ? userReview.rating : 5);
+                setRateText(typeof userReview.content === "string" ? userReview.content : "");
+              } else {
+                setRateStars(5);
+                setRateText("");
+              }
+              setRateOpen(true);
+            }}
+          >
+            {userReview ? t("تعديل التقييم", "Edit review") : t("كتابة تقييم", "Leave a review")}
+          </Button>
+        </div>
+      </div>
+
+      {/* 7. Description */}
       {provider.description?.trim() ? (
         <div className="space-y-3">
           <h3 className="text-sm font-semibold">{t("الوصف", "Description")}</h3>
@@ -536,7 +562,7 @@ function ServiceDetailListingStyle({
         </div>
       ) : null}
 
-      {/* 6. Details grid */}
+      {/* 8. Details grid */}
       <div className="grid grid-cols-2 gap-3">
         {(service.categoryName || provider.category) && (
           <div className="bg-muted/30 rounded-lg p-3 space-y-1">
@@ -558,7 +584,7 @@ function ServiceDetailListingStyle({
         )}
       </div>
 
-      {/* 7. Similar providers (same as listing "You may also like") */}
+      {/* 9. Similar providers (same as listing "You may also like") */}
       {suggestions.length > 0 ? (
         <div className="space-y-3 pt-2">
           <div className="text-sm font-semibold">{t("قد يعجبك أيضاً", "You may also like")}</div>
