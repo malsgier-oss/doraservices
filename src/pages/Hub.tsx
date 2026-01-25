@@ -14,7 +14,6 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 
 import { MobileNav } from "@/components/layout/MobileNav";
-import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { FeaturedHero } from "@/components/hub/FeaturedHero";
@@ -1048,11 +1047,6 @@ export default function Hub({ initialTab }: HubProps = {}) {
     setActiveSheet("browse");
   }
 
-  // 2) Provider list sheet (for a selected subcategory)
-  const serviceSheetOpen = activeSheet === "providers";
-  const [initialProviderServiceId, setInitialProviderServiceId] = useState<string | null>(null);
-  const [startInProviderView, setStartInProviderView] = useState(false);
-  
   // Search filters state
   const [searchFilters, setSearchFilters] = useState<FilterState>({
     priceRange: [0, 10000],
@@ -1076,64 +1070,17 @@ export default function Hub({ initialTab }: HubProps = {}) {
 
   // View mode (grid/list)
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [selectedSubcategory, setSelectedSubcategory] = useState<{
-    id: string;
-    name: string;
-    name_ar?: string | null;
-    icon: LucideIcon;
-    color: string | null;
-  } | null>(null);
 
-  const selectedSheetService = useMemo(() => {
-    if (!selectedSubcategory) return null;
-    // Use same normalization as ServiceCreator so provider list matches exactly
-    const normalizedCategory = normalizeCategory(selectedSubcategory.name || "");
-    return {
-      id: selectedSubcategory.id,
-      titleKey: selectedSubcategory.name_ar || selectedSubcategory.name,
-      descKey: "",
-      // IMPORTANT: ServiceDetailSheet filters services.category by this value.
-      // Must match exactly what's saved in services.category (subcategory.name from ServiceCreator).
-      category: normalizedCategory,
-      categoryName: selectedSubcategory.name,
-      categoryNameAr: selectedSubcategory.name_ar || undefined,
-      color: selectedSubcategory.color || "#888888",
-      icon: selectedSubcategory.icon,
-    };
-  }, [selectedSubcategory]);
-
-  function openSubcategoryProviders(subcat: { id: string; name: string; name_ar?: string | null; icon: LucideIcon; color: string | null }, providerServiceId?: string | null) {
-    // DEV: Log subcategory being opened
-    if (import.meta.env?.DEV || import.meta.env?.MODE === "development") {
-      console.log("[Hub] Opening subcategory:", {
-        id: subcat.id,
-        name: subcat.name,
-        name_ar: subcat.name_ar || "(none)",
-        cityId: cityId || "(none)",
-        cityName: selectedCityName || "(none)",
-      });
-    }
-    setSelectedSubcategory(subcat);
-    setInitialProviderServiceId(providerServiceId || null);
-    setStartInProviderView(!!providerServiceId);
-    setActiveSheet("providers");
+  function openSubcategoryProviders(subcat: { id: string; name: string; name_ar?: string | null; icon: LucideIcon; color: string | null; category_id?: string }) {
+    const cid = (subcat as { category_id?: string }).category_id;
+    if (cid) navigate(`/services/category/${cid}?sub=${subcat.id}`);
   }
 
   const openServiceFromRow = (service: ServiceRow) => {
     const now = Date.now();
     if (now - lastOpenAtRef.current < 250) return;
     lastOpenAtRef.current = now;
-
-    const subcat = subcatByName.get(String(service.category || "").trim().toLowerCase());
-    if (!subcat) {
-      toast({
-        title: t("تعذر فتح الخدمة", "Could not open"),
-        description: t("هذه الخدمة غير مرتبطة بتصنيف معروف", "This service category is not linked to a known subcategory"),
-        variant: "destructive",
-      });
-      return;
-    }
-    openSubcategoryProviders(subcat, service.id);
+    if (service?.id) navigate(`/services/service/${service.id}`);
   };
 
   const handleQuickView = (service: ServiceRow) => {
@@ -1150,24 +1097,6 @@ export default function Hub({ initialTab }: HubProps = {}) {
 
   // When selecting a subcategory from the browse sheet, we must close/unmount the browse Drawer
   // before mounting the provider Drawer. Otherwise mobile browsers can crash.
-  const [pendingSubcategory, setPendingSubcategory] = useState<{
-    id: string;
-    name: string;
-    name_ar?: string | null;
-    icon: LucideIcon;
-    color: string | null;
-  } | null>(null);
-
-  useEffect(() => {
-    if (activeSheet !== "none") return;
-    if (!pendingSubcategory) return;
-
-    // Browse sheet is unmounted now; safe to open providers.
-    openSubcategoryProviders(pendingSubcategory, null);
-    setPendingSubcategory(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSheet, pendingSubcategory]);
-
   // Shelves data (category shelves load subcategories)
   const [subcatsByShelfId, setSubcatsByShelfId] = useState<Record<string, SubcategoryRow[]>>({});
 
@@ -1596,10 +1525,10 @@ export default function Hub({ initialTab }: HubProps = {}) {
                         if (chip.target_type === "category" && chip.target_category_id) {
                           navigate(`/services/category/${chip.target_category_id}`);
                         } else if (chip.target_type === "subcategory" && chip.target_subcategory_id) {
-                          const sc = (allSubcategories || []).find((s) => s.id === chip.target_subcategory_id);
+                          const sc = (allSubcategories || []).find((s: any) => s.id === chip.target_subcategory_id) as { id: string; name: string; name_ar?: string | null; icon: string; color: string | null; category_id?: string } | undefined;
                           if (!sc) return;
                           const Icon = getCategoryIcon(sc.icon);
-                          openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color });
+                          openSubcategoryProviders({ ...sc, icon: Icon });
                         } else if (chip.target_type === "shelf" && chip.target_shelf_id) {
                           const el = chip.target_shelf_id === "featured-services"
                             ? document.getElementById("featured-services")
@@ -1763,7 +1692,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
                     <button
                       key={sc.id}
                       className={`${HUB_CARD_SLOT_4} ${HUB_CARD_BASE} bg-card p-4 text-left transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
-                      onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
+                      onClick={() => openSubcategoryProviders({ ...sc, icon: Icon })}
                     >
                       <div className={`flex items-center gap-4 ${isRTL ? "text-right" : "text-left"}`} dir={isRTL ? "rtl" : "ltr"}>
                         <div
@@ -1919,7 +1848,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
                           language={language === "ar" ? "ar" : "en"}
                           icon={getCategoryIcon(sc.icon)}
                           color={sc.color}
-                          onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: getCategoryIcon(sc.icon), color: sc.color })}
+                          onClick={() => openSubcategoryProviders({ ...sc, icon: getCategoryIcon(sc.icon) })}
                           subtitle={t("اضغط لعرض المزودين", "View providers")}
                           inScrollSlot
                         />
@@ -1966,7 +1895,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
                           language={language === "ar" ? "ar" : "en"}
                           icon={getCategoryIcon(s.icon)}
                           color={s.color}
-                          onClick={() => openSubcategoryProviders({ id: s.id, name: s.name, name_ar: s.name_ar, icon: getCategoryIcon(s.icon), color: s.color })}
+                          onClick={() => openSubcategoryProviders({ ...s, icon: getCategoryIcon(s.icon) })}
                           subtitle={t("اضغط لعرض المزودين", "View providers")}
                           inScrollSlot
                         />
@@ -2129,7 +2058,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
                         <button
                           key={sc.id}
                           className={`${HUB_CARD_SLOT_4} ${HUB_CARD_BASE} bg-card p-5 text-left group`}
-                          onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
+                          onClick={() => openSubcategoryProviders({ ...sc, icon: Icon })}
                         >
                           <div className={`flex items-center gap-4 ${isRTL ? "text-right" : "text-left"}`} dir={isRTL ? "rtl" : "ltr"}>
                             <div
@@ -2322,7 +2251,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
                             language={language === "ar" ? "ar" : "en"}
                             icon={getCategoryIcon(sc.icon)}
                             color={sc.color}
-                            onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: getCategoryIcon(sc.icon), color: sc.color })}
+                            onClick={() => openSubcategoryProviders({ ...sc, icon: getCategoryIcon(sc.icon) })}
                             subtitle={t("اضغط لعرض المزودين", "View providers")}
                             inScrollSlot
                           />
@@ -2366,7 +2295,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
                           language={language === "ar" ? "ar" : "en"}
                           icon={getCategoryIcon(s.icon)}
                           color={s.color}
-                          onClick={() => openSubcategoryProviders({ id: s.id, name: s.name, name_ar: s.name_ar, icon: getCategoryIcon(s.icon), color: s.color })}
+                          onClick={() => openSubcategoryProviders({ ...s, icon: getCategoryIcon(s.icon) })}
                           subtitle={t("اضغط لعرض المزودين", "View providers")}
                           inScrollSlot
                         />
@@ -2526,45 +2455,14 @@ export default function Hub({ initialTab }: HubProps = {}) {
           category={browseCategory}
           iconMap={HUB_ICON_MAP}
           onSelectSubcategory={(subcat) => {
-            // Close/unmount browse sheet first; provider sheet opens via pendingSubcategory effect.
-            setPendingSubcategory(subcat);
+            const cid = browseCategoryId;
             setActiveSheet("none");
             setBrowseCategoryId(null);
+            if (cid && (subcat as { id?: string }).id) {
+              navigate(`/services/category/${cid}?sub=${(subcat as { id: string }).id}`);
+            }
           }}
         />
-      )}
-
-      {activeSheet === "providers" && selectedSheetService && (
-        <SafeBoundary
-          onError={(err) => {
-            console.error("ServiceDetailSheet crashed:", err);
-            toast({
-              title: t("تعذر فتح التفاصيل", "Could not open details"),
-              description: t(
-                "حدث خطأ أثناء فتح تفاصيل الخدمة. تم إغلاق النافذة لتجنب تعليق التطبيق.",
-                "An error occurred while opening details. The sheet was closed to keep the app stable."
-              ),
-              variant: "destructive",
-            });
-            setActiveSheet("none");
-            setInitialProviderServiceId(null);
-            setStartInProviderView(false);
-          }}
-        >
-          <ServiceDetailSheet
-            open={true}
-            onOpenChange={(open) => {
-              if (!open) {
-                setActiveSheet("none");
-                setInitialProviderServiceId(null);
-                setStartInProviderView(false);
-              }
-            }}
-            city={selectedCityName}
-            service={selectedSheetService}
-            initialProviderServiceId={initialProviderServiceId}
-          />
-        </SafeBoundary>
       )}
 
       {/* Quick View Modal */}

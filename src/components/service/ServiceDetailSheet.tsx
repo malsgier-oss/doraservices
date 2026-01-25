@@ -61,7 +61,7 @@ function pickOneRandom<T>(arr: T[], seed: number): T | null {
 }
 
 // --- Hook: Robust Data Fetching (Restored Logic) ---
-function useSheetData(open: boolean, service: SheetService, city?: string | null) {
+export function useSheetData(open: boolean, service: SheetService, city?: string | null) {
   const [providers, setProviders] = useState<ProviderData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<unknown | null>(null);
@@ -286,17 +286,23 @@ function useSheetData(open: boolean, service: SheetService, city?: string | null
   return { providers, loading, error };
 }
 
-// --- Main Component ---
-export function ServiceDetailSheet({
-  open,
-  onOpenChange,
+export type ServiceDetailContentProps = {
+  service: SheetService;
+  city?: string | null;
+  initialProviderServiceId?: string | null;
+  onToggleFavorite?: (providerId: string) => void;
+  isFavorite?: (providerId: string) => boolean;
+};
+
+// --- Shared inner content (used by sheet and by ServiceDetailPage) ---
+export function ServiceDetailContent({
   service,
   city,
   initialProviderServiceId,
   onToggleFavorite,
   isFavorite,
-}: Props) {
-  const { providers, loading, error } = useSheetData(open, service, city);
+}: ServiceDetailContentProps) {
+  const { providers, loading, error } = useSheetData(true, service, city);
 
   const [selectedProvider, setSelectedProvider] = useState<ProviderData | null>(null);
   const viewedServiceIdsRef = useRef<Set<string>>(new Set());
@@ -321,14 +327,13 @@ export function ServiceDetailSheet({
         if (alive) setUserId(null);
       }
     };
-    if (open) run();
+    run();
     return () => {
       alive = false;
     };
-  }, [open]);
+  }, []);
 
   useEffect(() => {
-    if (!open) return;
     if (onToggleFavorite || isFavorite) return;
     if (!userId) {
       setFavIds(new Set());
@@ -361,7 +366,7 @@ export function ServiceDetailSheet({
     return () => {
       alive = false;
     };
-  }, [open, providers, userId, onToggleFavorite, isFavorite]);
+  }, [providers, userId, onToggleFavorite, isFavorite]);
 
   const isFavoriteLocal = (providerId: string) => {
     if (isFavorite) return !!isFavorite(providerId);
@@ -433,7 +438,6 @@ export function ServiceDetailSheet({
   }, [initialProviderServiceId, providers]);
 
   useEffect(() => {
-    if (!open) return;
     const id = selectedProvider?.id;
     if (!id) return;
     if (viewedServiceIdsRef.current.has(id)) return;
@@ -446,7 +450,7 @@ export function ServiceDetailSheet({
         // ignore
       }
     })();
-  }, [open, selectedProvider?.id]);
+  }, [selectedProvider?.id]);
 
   const getProviderWithRating = (p: ProviderData) => {
     const r = ratings.get(p.id);
@@ -468,35 +472,34 @@ export function ServiceDetailSheet({
   }, [activeProvider?.id, providers, ratings]);
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="h-[95dvh] flex flex-col bg-background/95 backdrop-blur-sm" dir="rtl">
-        <DrawerHeader className="px-4 py-3 shrink-0 border-b bg-background">
-          <div className="flex items-center gap-2">
-            {selectedProvider && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 -mr-2"
-                onClick={() => setSelectedProvider(null)}
-              >
-                <ChevronRight className="h-5 w-5" />
-              </Button>
-            )}
-            <DrawerTitle className="text-base font-semibold truncate flex-1 text-right">
-              {selectedProvider
-                ? selectedProvider.provider_name
-                : service.categoryNameAr || service.titleKey || "المزودين"}
-            </DrawerTitle>
-
-            {!selectedProvider && !loading && (
-              <div className="text-xs text-muted-foreground font-normal">
-                {providers.length} نتيجة
-              </div>
-            )}
+    <div className="flex flex-col flex-1 min-h-0" dir="rtl">
+      <div className="px-4 py-3 shrink-0 border-b bg-background">
+        <div className="flex items-center gap-2">
+          {selectedProvider && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 -mr-2"
+              onClick={() => setSelectedProvider(null)}
+            >
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+          )}
+          <div className="text-base font-semibold truncate flex-1 text-right">
+            {selectedProvider
+              ? selectedProvider.provider_name
+              : service.categoryNameAr || service.titleKey || "المزودين"}
           </div>
-        </DrawerHeader>
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto bg-muted/10 p-4">
+          {!selectedProvider && !loading && (
+            <div className="text-xs text-muted-foreground font-normal">
+              {providers.length} نتيجة
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div ref={scrollRef} className="flex-1 overflow-y-auto bg-muted/10 p-4 min-h-0">
           {activeProvider ? (
             <ProviderDetailView
               provider={activeProvider}
@@ -578,17 +581,41 @@ export function ServiceDetailSheet({
           )}
         </div>
 
-        {activeProvider && (
-          <ProviderActionBar
-            provider={activeProvider}
-            userId={userId}
-            onRequireAuth={() => toast.info("سجل دخولك للإبلاغ")}
-            onReport={(reason) => {
-              if (!activeProvider?.id) return;
-              return reportService(activeProvider.id, userId, reason);
-            }}
-          />
-        )}
+      {activeProvider && (
+        <ProviderActionBar
+          provider={activeProvider}
+          userId={userId}
+          onRequireAuth={() => toast.info("سجل دخولك للإبلاغ")}
+          onReport={(reason) => {
+            if (!activeProvider?.id) return;
+            return reportService(activeProvider.id, userId, reason);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// --- Drawer wrapper (used by callers that still use the sheet) ---
+export function ServiceDetailSheet({
+  open,
+  onOpenChange,
+  service,
+  city,
+  initialProviderServiceId,
+  onToggleFavorite,
+  isFavorite,
+}: Props) {
+  return (
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerContent className="h-[95dvh] flex flex-col bg-background/95 backdrop-blur-sm" dir="rtl">
+        <ServiceDetailContent
+          service={service}
+          city={city}
+          initialProviderServiceId={initialProviderServiceId}
+          onToggleFavorite={onToggleFavorite}
+          isFavorite={isFavorite}
+        />
       </DrawerContent>
     </Drawer>
   );

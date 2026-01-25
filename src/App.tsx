@@ -26,6 +26,7 @@ const CategoryDetail = React.lazy(() => import("./pages/buy-sell/CategoryDetail"
 const TrendingServicesPage = React.lazy(() => import("./pages/services/TrendingServicesPage"));
 const RecommendationsPage = React.lazy(() => import("./pages/services/RecommendationsPage"));
 const ServiceCategoryDetail = React.lazy(() => import("./pages/services/ServiceCategoryDetail"));
+const ServiceDetailPage = React.lazy(() => import("./pages/services/ServiceDetailPage"));
 const Favorites = React.lazy(() => import("./pages/Favorites"));
 const ServiceCreator = React.lazy(() => import("./pages/ServiceCreator"));
 const Profile = React.lazy(() => import("./pages/Profile"));
@@ -189,6 +190,7 @@ const AppRoutes = () => {
         <Route path="/services/trending" element={<TrendingServicesPage />} />
         <Route path="/services/recommendations" element={<RecommendationsPage />} />
         <Route path="/services/category/:categoryId" element={<ServiceCategoryDetail />} />
+        <Route path="/services/service/:id" element={<ServiceDetailPage />} />
 
         {/* Public site pages */}
         <Route path="/:slug(about|contact|help|become-provider|terms|privacy)" element={<SitePage />} />

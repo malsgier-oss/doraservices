@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Sparkles } from "lucide-react";
 
@@ -7,12 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ServiceCardCompact } from "@/components/hub/ServiceCardCompact";
 import { HUB_CARD_BASE } from "@/components/hub/hubStyles";
-import { ServiceDetailSheet, type SheetService } from "@/components/service/ServiceDetailSheet";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRecommendations } from "@/hooks/useRecommendations";
 import { useCities } from "@/hooks/useCities";
-import { useAllSubcategories } from "@/hooks/useSubcategories";
 import { useServiceRatings } from "@/hooks/useReviews";
 import { getTelLink, getWhatsAppLink } from "@/lib/phoneUtils";
 
@@ -31,7 +29,6 @@ export default function RecommendationsPage() {
   const { language, isRTL } = useLanguage();
   const { user } = useAuth();
   const { data: cities } = useCities();
-  const { data: allSubcategories } = useAllSubcategories();
 
   const cityId = getStoredCityId();
   const selectedCityName = useMemo(() => {
@@ -42,18 +39,6 @@ export default function RecommendationsPage() {
   const serviceIds = services?.map((s) => s.id) || [];
   const { ratings } = useServiceRatings(serviceIds);
 
-  const subcatByName = useMemo(() => {
-    const m = new Map<string, any>();
-    for (const sc of allSubcategories || []) {
-      if (sc.name) m.set(sc.name.trim().toLowerCase(), sc);
-      if (sc.name_ar) m.set(String(sc.name_ar).trim().toLowerCase(), sc);
-    }
-    return m;
-  }, [allSubcategories]);
-
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [sheetService, setSheetService] = useState<SheetService | null>(null);
-  const [initialProviderServiceId, setInitialProviderServiceId] = useState<string | null>(null);
   const lastOpenAtRef = useRef(0);
 
   const getRating = (serviceId: string) => {
@@ -69,19 +54,7 @@ export default function RecommendationsPage() {
     const now = Date.now();
     if (now - lastOpenAtRef.current < 250) return;
     lastOpenAtRef.current = now;
-
-    const key = String(service.category || "").trim().toLowerCase();
-    const subcat = subcatByName.get(key);
-    if (!subcat) return;
-
-    setSheetService({
-      titleKey: subcat.name_ar || subcat.name,
-      category: String(subcat.name || "").trim(),
-      categoryName: subcat.name,
-      categoryNameAr: subcat.name_ar || undefined,
-    });
-    setInitialProviderServiceId(service.id);
-    setSheetOpen(true);
+    if (service?.id) navigate(`/services/service/${service.id}`);
   };
 
   const handleCall = (service: any) => {
@@ -172,22 +145,6 @@ export default function RecommendationsPage() {
           </div>
         )}
       </div>
-
-      {sheetService ? (
-        <ServiceDetailSheet
-          open={sheetOpen}
-          onOpenChange={(open) => {
-            setSheetOpen(open);
-            if (!open) {
-              setSheetService(null);
-              setInitialProviderServiceId(null);
-            }
-          }}
-          city={selectedCityName}
-          service={sheetService}
-          initialProviderServiceId={initialProviderServiceId}
-        />
-      ) : null}
     </Layout>
   );
 }

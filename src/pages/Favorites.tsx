@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Heart, Loader2, Phone, Trash2, Filter, Home } from "lucide-react";
+import { Heart, Loader2, Phone, Trash2, Filter } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,9 +16,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
-import { LucideIcon } from "lucide-react";
-
 interface FavoriteService {
   id: string;
   service_id: string;
@@ -29,16 +26,6 @@ interface FavoriteService {
   provider_phone: string;
 }
 
-type SheetService = {
-  id: string;
-  titleKey: string;
-  descKey: string;
-  category: string;
-  categoryName?: string;
-  icon: LucideIcon;
-  color: string;
-};
-
 export default function Favorites() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -46,11 +33,6 @@ export default function Favorites() {
   const [favorites, setFavorites] = useState<FavoriteService[]>([]);
   const [loading, setLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
-
-  // Provider detail sheet opener (used when tapping a favorite card)
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [sheetService, setSheetService] = useState<SheetService | null>(null);
-  const [initialProviderServiceId, setInitialProviderServiceId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -171,21 +153,7 @@ export default function Favorites() {
   };
 
   const openProviderDetailFromFavorite = (fav: FavoriteService) => {
-    const categoryLabel =
-      t.categories[fav.service_category as keyof typeof t.categories] || fav.service_category;
-
-    setSheetService({
-      id: fav.service_id,
-      titleKey: fav.service_category,
-      descKey: "",
-      category: fav.service_category,
-
-      categoryName: categoryLabel,
-      icon: Home,
-      color: "bg-primary/10",
-    });
-    setInitialProviderServiceId(fav.service_id);
-    setSheetOpen(true);
+    if (fav?.service_id) navigate(`/services/service/${fav.service_id}`);
   };
 
   // Get unique categories from favorites
@@ -375,22 +343,6 @@ export default function Favorites() {
           )}
         </div>
       </div>
-
-      {sheetService && (
-        <ServiceDetailSheet
-          open={sheetOpen}
-          onOpenChange={(open) => {
-            setSheetOpen(open);
-            if (!open) {
-              setSheetService(null);
-              setInitialProviderServiceId(null);
-              fetchFavorites();
-            }
-          }}
-          service={sheetService}
-          initialProviderServiceId={initialProviderServiceId || undefined}
-        />
-      )}
     </Layout>
   );
 }

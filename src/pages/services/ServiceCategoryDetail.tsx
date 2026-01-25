@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ServiceCardCompact } from "@/components/hub/ServiceCardCompact";
 import { HUB_CARD_BASE } from "@/components/hub/hubStyles";
-import { ServiceDetailSheet, type SheetService } from "@/components/service/ServiceDetailSheet";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCategories } from "@/hooks/useCategories";
 import { useSubcategories } from "@/hooks/useSubcategories";
@@ -44,6 +43,8 @@ type ServiceRow = {
 
 export default function ServiceCategoryDetail() {
   const { categoryId } = useParams<{ categoryId: string }>();
+  const [searchParams] = useSearchParams();
+  const subFromUrl = searchParams.get("sub");
   const navigate = useNavigate();
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
@@ -56,7 +57,10 @@ export default function ServiceCategoryDetail() {
   const { data: subcategories = [] } = useSubcategories(categoryId ?? undefined);
   const subcats = useMemo(() => (subcategories || []).filter((s) => s.is_active !== false), [subcategories]);
 
-  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string | null>(null);
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string | null>(subFromUrl);
+  useEffect(() => {
+    setSelectedSubcategoryId(subFromUrl);
+  }, [subFromUrl]);
   const cityId = getStoredCityId();
   const { data: cities } = useCities();
   const selectedCityName = useMemo(
@@ -221,26 +225,13 @@ export default function ServiceCategoryDetail() {
     };
   };
 
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [sheetService, setSheetService] = useState<SheetService | null>(null);
-  const [initialProviderServiceId, setInitialProviderServiceId] = useState<string | null>(null);
   const lastOpenAtRef = useRef(0);
 
   const handleOpenService = (service: ServiceRow) => {
     const now = Date.now();
     if (now - lastOpenAtRef.current < 250) return;
     lastOpenAtRef.current = now;
-    const key = normalizeCategory(service.category || "").toLowerCase();
-    const subcat = subcatByName.get(key);
-    if (!subcat) return;
-    setSheetService({
-      titleKey: subcat.name_ar || subcat.name,
-      category: normalizeCategory(subcat.name || ""),
-      categoryName: subcat.name,
-      categoryNameAr: subcat.name_ar || undefined,
-    });
-    setInitialProviderServiceId(service.id);
-    setSheetOpen(true);
+    if (service?.id) navigate(`/services/service/${service.id}`);
   };
 
   const handleCall = (service: ServiceRow) => {
@@ -393,22 +384,6 @@ export default function ServiceCategoryDetail() {
           </div>
         )}
       </div>
-
-      {sheetService && (
-        <ServiceDetailSheet
-          open={sheetOpen}
-          onOpenChange={(open) => {
-            setSheetOpen(open);
-            if (!open) {
-              setSheetService(null);
-              setInitialProviderServiceId(null);
-            }
-          }}
-          city={selectedCityName}
-          service={sheetService}
-          initialProviderServiceId={initialProviderServiceId}
-        />
-      )}
     </div>
   );
 }
