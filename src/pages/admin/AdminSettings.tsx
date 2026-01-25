@@ -100,6 +100,24 @@ export default function AdminSettings() {
 
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
+              <Label>Services Tab</Label>
+              <p className="text-sm text-muted-foreground">
+                Show / hide the Services tab on the Hub (service categories, featured providers, etc.)
+              </p>
+            </div>
+            <Switch
+              checked={(localSettings.services_enabled ?? "true") !== "false"}
+              onCheckedChange={() => {
+                const cur = (localSettings.services_enabled ?? "true") !== "false";
+                const newValue = cur ? "false" : "true";
+                setLocalSettings((prev) => ({ ...prev, services_enabled: newValue }));
+                updateSetting.mutate({ key: "services_enabled", value: newValue });
+              }}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
               <Label>User Registration</Label>
               <p className="text-sm text-muted-foreground">
                 Allow new user signups

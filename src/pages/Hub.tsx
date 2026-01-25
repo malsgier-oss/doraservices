@@ -38,6 +38,7 @@ import { ActivityFeed } from "@/components/hub/ActivityFeed";
 import { HubTabSwitcher } from "@/components/hub/HubTabSwitcher";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
+import { useServicesEnabled } from "@/hooks/useServicesEnabled";
 import { FeaturedDeals } from "@/components/hub/FeaturedDeals";
 import { DealCard } from "@/components/hub/DealCard";
 import { BuySellCategories, BUY_SELL_CATEGORIES } from "@/components/hub/BuySellCategories";
@@ -948,6 +949,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
 
   // Tab state for SERVICES / BUY & SELL
   const { isEnabled: buySellEnabled } = useBuySellEnabled();
+  const { isEnabled: servicesEnabled } = useServicesEnabled();
   const [activeTab, setActiveTab] = useState<"services" | "buy-sell">(() => {
     // When route is /buy-sell, initialTab is passed from the Route; use it.
     if (initialTab) return initialTab;
@@ -968,12 +970,15 @@ export default function Hub({ initialTab }: HubProps = {}) {
     }
   }, [location.pathname]);
 
-  // If Buy & Sell is disabled, force Services tab.
+  // If Buy & Sell is disabled, force Services tab; if Services is disabled, force Buy & Sell tab.
   useEffect(() => {
     if (!buySellEnabled && activeTab === "buy-sell") {
       setActiveTab("services");
     }
-  }, [activeTab, buySellEnabled]);
+    if (!servicesEnabled && buySellEnabled && activeTab === "services") {
+      setActiveTab("buy-sell");
+    }
+  }, [activeTab, buySellEnabled, servicesEnabled]);
 
   // Sync URL hash when tab changes (only when on / so hash is relevant)
   useEffect(() => {
@@ -1643,9 +1648,38 @@ export default function Hub({ initialTab }: HubProps = {}) {
       )}
 
       {/* Everything below the fixed header scrolls normally */}
-      {buySellEnabled ? (
+      {buySellEnabled && !servicesEnabled ? (
+        /* Services hidden: show only Buy & Sell */
+        <BuySellHubTab
+          cityId={cityId}
+          buySellMode={buySellMode}
+          onBuySellModeChange={setBuySellMode}
+          selectedBuySellCategory={selectedBuySellCategory}
+          onCategoryChange={setSelectedBuySellCategory}
+          buySellSearchQuery={buySellSearchQuery}
+          onSearchChange={setBuySellSearchQuery}
+          openListingDetail={openListingDetail}
+          openDealDetail={openDealDetail}
+          navigate={navigate}
+        />
+      ) : buySellEnabled && servicesEnabled ? (
         <Tabs value={activeTab} onValueChange={(v) => handleTabChange(v as "services" | "buy-sell")}>
-          {/* SERVICES Tab */}
+          {/* BUY & SELL Tab (first/left) */}
+          <TabsContent value="buy-sell" className="mt-0">
+            <BuySellHubTab
+              cityId={cityId}
+              buySellMode={buySellMode}
+              onBuySellModeChange={setBuySellMode}
+              selectedBuySellCategory={selectedBuySellCategory}
+              onCategoryChange={setSelectedBuySellCategory}
+              buySellSearchQuery={buySellSearchQuery}
+              onSearchChange={setBuySellSearchQuery}
+              openListingDetail={openListingDetail}
+              openDealDetail={openDealDetail}
+              navigate={navigate}
+            />
+          </TabsContent>
+          {/* SERVICES Tab (second/right) */}
           <TabsContent value="services" className="mt-0 space-y-6">
             <FeaturedHero
           banners={banners as any}
@@ -2012,22 +2046,6 @@ export default function Hub({ initialTab }: HubProps = {}) {
             </div>
           </div>
           </div>
-          </TabsContent>
-
-          {/* BUY & SELL Tab */}
-          <TabsContent value="buy-sell" className="mt-0">
-            <BuySellHubTab
-              cityId={cityId}
-              buySellMode={buySellMode}
-              onBuySellModeChange={setBuySellMode}
-              selectedBuySellCategory={selectedBuySellCategory}
-              onCategoryChange={setSelectedBuySellCategory}
-              buySellSearchQuery={buySellSearchQuery}
-              onSearchChange={setBuySellSearchQuery}
-              openListingDetail={openListingDetail}
-              openDealDetail={openDealDetail}
-              navigate={navigate}
-            />
           </TabsContent>
         </Tabs>
       ) : (
