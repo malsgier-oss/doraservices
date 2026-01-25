@@ -167,7 +167,7 @@ export function DealDetailSheet({
           </div>
         </DrawerHeader>
 
-        <div className="overflow-y-auto pb-8" dir={isRTL ? "rtl" : "ltr"}>
+        <div className="overflow-y-auto pb-[calc(2rem+env(safe-area-inset-bottom,0px))]" dir={isRTL ? "rtl" : "ltr"}>
           {/* Hero Image */}
           {deal.image_url && (
             <div className="relative aspect-[16/9] w-full bg-muted overflow-hidden -mx-4 -mt-4 mb-4">

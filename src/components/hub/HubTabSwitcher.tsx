@@ -9,12 +9,17 @@ interface HubTabSwitcherProps {
   activeTab: "services" | "buy-sell";
   onTabChange: (tab: "services" | "buy-sell") => void;
   className?: string;
+  /** Measured height of the fixed header; used for sticky top offset. Falls back to 88px if not provided. */
+  headerHeight?: number;
 }
+
+const FALLBACK_HEADER_OFFSET_PX = 88;
 
 export function HubTabSwitcher({
   activeTab,
   onTabChange,
   className,
+  headerHeight = FALLBACK_HEADER_OFFSET_PX,
 }: HubTabSwitcherProps) {
   const { isEnabled, isLoading } = useBuySellEnabled();
   const { data: stats } = useBuySellStats();
@@ -27,13 +32,15 @@ export function HubTabSwitcher({
 
   const dealsCount = stats?.activeDeals || 0;
   const totalCount = dealsCount;
+  const stickyTop = `calc(env(safe-area-inset-top, 0px) + ${headerHeight}px)`;
 
   return (
     <div
       className={cn(
-        "sticky top-[calc(env(safe-area-inset-top)+88px)] z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border/60",
+        "sticky z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border/60",
         className
       )}
+      style={{ top: stickyTop }}
     >
       <div className="px-4 py-3">
         <Tabs value={activeTab} onValueChange={(v) => onTabChange(v as "services" | "buy-sell")}>

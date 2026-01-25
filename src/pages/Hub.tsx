@@ -5,6 +5,7 @@ import { Award, Bell, CheckCheck, ChevronDown, Search, Shield, MapPin, Clock, Us
 import type { LucideIcon } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
+import { MOBILE_NAV_HEIGHT_PX } from "@/constants/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -1295,7 +1296,10 @@ export default function Hub() {
 
 
   return (
-    <div className={`min-h-screen bg-background pb-[calc(5rem+env(safe-area-inset-bottom))] overflow-x-hidden relative ${isRTL ? "rtl" : ""}`}>
+    <div
+      className={`min-h-screen bg-background overflow-x-hidden relative ${isRTL ? "rtl" : ""}`}
+      style={{ paddingBottom: `calc(${MOBILE_NAV_HEIGHT_PX}px + env(safe-area-inset-bottom, 0px))` }}
+    >
       {/* Subtle background pattern */}
       <div className="absolute inset-0 opacity-[0.02] pointer-events-none">
         <div className="absolute inset-0 bg-gradient-to-br from-primary via-transparent to-primary/50" />
@@ -1307,7 +1311,7 @@ export default function Hub() {
         ref={headerRef}
         className="fixed top-0 left-0 right-0 w-full z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pt-[calc(env(safe-area-inset-top)+16px)] pb-4 border-b border-border/60 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
       >
-        <div className="px-6 space-y-6">
+        <div className="px-4 sm:px-6 space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
@@ -1609,6 +1613,7 @@ export default function Hub() {
         <HubTabSwitcher
           activeTab={activeTab}
           onTabChange={setActiveTab}
+          headerHeight={headerHeight}
         />
       )}
 
@@ -2472,11 +2477,11 @@ export default function Hub() {
           onClick={() => navigate("/buy-sell/create-listing")}
           className={cn(
             "fixed z-50 rounded-full shadow-lg bg-primary text-primary-foreground h-14 px-5 flex items-center gap-2 font-semibold",
-            "bottom-[calc(5.25rem+env(safe-area-inset-bottom))]",
             isRTL ? "left-4" : "right-4",
             "hover:scale-105 active:scale-95 transition-all duration-300",
             "ring-4 ring-primary/20 hover:ring-primary/30"
           )}
+          style={{ bottom: `calc(${MOBILE_NAV_HEIGHT_PX}px + env(safe-area-inset-bottom, 0px) + 8px)` }}
         >
           <Tag className="h-5 w-5" />
           {t("بيع الآن", "Sell")}
@@ -2485,10 +2490,10 @@ export default function Hub() {
 
       {/* Quick Access Floating Button (Services Tab) */}
       {activeTab === "services" && (
-        <div className={cn(
-          "fixed z-40 bottom-[calc(6rem+env(safe-area-inset-bottom))] flex flex-col gap-3",
-          isRTL ? "left-4" : "right-4"
-        )}>
+        <div
+          className={cn("fixed z-40 flex flex-col gap-3", isRTL ? "left-4" : "right-4")}
+          style={{ bottom: `calc(${MOBILE_NAV_HEIGHT_PX}px + env(safe-area-inset-bottom, 0px) + 8px)` }}
+        >
           {/* Quick Search Button */}
           <button
             type="button"

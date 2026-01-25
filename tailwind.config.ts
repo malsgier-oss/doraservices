@@ -104,6 +104,9 @@ export default {
           ring: "hsl(var(--sidebar-ring))",
         },
       },
+      minHeight: {
+        dvh: "100dvh",
+      },
       borderRadius: {
         lg: "0.75rem",
         md: "0.5rem",

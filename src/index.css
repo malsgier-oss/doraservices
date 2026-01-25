@@ -6,6 +6,7 @@
 
 @layer base {
   :root {
+    --mobile-nav-height: 62px;
     --background: 25 50% 97%;
     --foreground: 20 10% 15%;
 

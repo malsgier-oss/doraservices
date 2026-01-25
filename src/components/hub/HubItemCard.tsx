@@ -86,15 +86,15 @@ function HubItemCardContent({
           </div>
         </div>
 
-        {/* Heart top-right on image (span to avoid nesting buttons) */}
+        {/* Heart top-right on image (≥44px tap area for mobile) */}
         <span
           role="button"
           tabIndex={0}
           aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
           className={cn(
-            "absolute top-1.5 right-1.5 w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center cursor-pointer",
+            "absolute top-2 right-2 min-w-[44px] min-h-[44px] w-11 h-11 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center cursor-pointer",
             "text-white hover:bg-black/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
-            isRTL && "right-auto left-1.5",
+            isRTL && "right-auto left-2",
           )}
           onClick={(e) => {
             e.stopPropagation();
