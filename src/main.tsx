@@ -38,9 +38,38 @@ const removeAppShell = () => {
   }
 };
 
-const showFatal = (message: string) => {
+/** Treats "Unexpected end of script", failed dynamic import, or ChunkLoadError as chunk load failure. */
+const isChunkLoadError = (err: unknown): boolean => {
+  if (err == null) return false;
+  const msg = typeof err === "object" && err !== null && "message" in err
+    ? String((err as Error).message)
+    : String(err);
+  const name = typeof err === "object" && err !== null && "name" in err
+    ? String((err as Error).name)
+    : "";
+  if (name === "ChunkLoadError") return true;
+  const s = msg.toLowerCase();
+  if (/unexpected end of script/i.test(s)) return true;
+  if (/failed to fetch dynamically imported module/i.test(s)) return true;
+  if (/loading chunk [\d]+ failed/i.test(s)) return true;
+  return false;
+};
+
+const showFatal = (message: string, options?: { chunkLoad?: boolean }) => {
   const safeMessage = message || "Unexpected error";
-  const html = `
+  const chunkLoad = options?.chunkLoad === true;
+
+  const html = chunkLoad
+    ? `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;font-family:system-ui;">
+      <div style="max-width:360px;text-align:center;">
+        <div style="font-size:20px;font-weight:600;margin-bottom:8px;">New version available</div>
+        <div style="font-size:14px;color:#666;line-height:1.4;margin-bottom:16px;">A new version of the app may be available or a piece of the app failed to load. Please refresh the page.</div>
+        <button type="button" onclick="window.location.reload()" style="background:#0f172a;color:#fff;border:0;padding:10px 20px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;">Reload</button>
+      </div>
+    </div>
+  `
+    : `
     <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;font-family:system-ui;">
       <div style="max-width:360px;text-align:center;">
         <div style="font-size:20px;font-weight:600;margin-bottom:8px;">App failed to load</div>
@@ -183,15 +212,17 @@ If you're on Cloudflare Pages, add these as build-time environment variables for
   }
 
   window.addEventListener("error", (event) => {
-    captureException(event.error || event.message);
-    showFatal(event.error?.message || event.message || "Unexpected error");
+    const err = event.error || event.message;
+    captureException(err);
+    const message = err instanceof Error ? err.message : String(err);
+    showFatal(message || "Unexpected error", { chunkLoad: isChunkLoadError(err) });
   });
 
   window.addEventListener("unhandledrejection", (event) => {
     const reason = (event as PromiseRejectionEvent).reason;
     captureException(reason);
     const message = reason instanceof Error ? reason.message : "Unexpected error";
-    showFatal(message);
+    showFatal(message, { chunkLoad: isChunkLoadError(reason) });
   });
 
   try {
@@ -209,11 +240,11 @@ If you're on Cloudflare Pages, add these as build-time environment variables for
       .catch((error) => {
         captureException(error);
         const message = error instanceof Error ? error.message : "Unexpected error";
-        showFatal(message);
+        showFatal(message, { chunkLoad: isChunkLoadError(error) });
       });
   } catch (error) {
     captureException(error);
     const message = error instanceof Error ? error.message : "Unexpected error";
-    showFatal(message);
+    showFatal(message, { chunkLoad: isChunkLoadError(error) });
   }
 }
