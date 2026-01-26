@@ -15,8 +15,8 @@ export function MobileNav() {
 
   const preloadRoute = (to: string) => {
     // Keep this intentionally tiny: only preload the next screen chunk.
+    // Profile is not prefetched to avoid caching a truncated chunk that causes "Unexpected end of script" on nav.
     if (to === "/favorites") void import("@/pages/Favorites");
-    if (to === "/profile") void import("@/pages/Profile");
     if (to === "/provider-dashboard") void import("@/pages/ProviderDashboard");
     if (to === "/dashboard") void import("@/pages/Dashboard");
     if (to.startsWith("/admin")) void import("@/pages/admin/AdminLayout");

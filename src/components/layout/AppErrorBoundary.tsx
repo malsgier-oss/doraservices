@@ -32,7 +32,10 @@ export class AppErrorBoundary extends Component<Props, State> {
   render() {
     if (!this.state.hasError) return this.props.children;
 
-    const isChunkLoad = this.state.error?.name === "ChunkLoadError";
+    const err = this.state.error;
+    const isChunkLoad =
+      err?.name === "ChunkLoadError" ||
+      (err instanceof SyntaxError && /unexpected end of script/i.test(err.message));
 
     return (
       <div className="min-h-screen bg-background px-6 py-16 text-center">

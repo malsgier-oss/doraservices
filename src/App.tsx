@@ -30,7 +30,7 @@ const ServiceCategoryDetail = lazyWithRetry(() => import("./pages/services/Servi
 const ServiceDetailPage = lazyWithRetry(() => import("./pages/services/ServiceDetailPage"));
 const Favorites = lazyWithRetry(() => import("./pages/Favorites"));
 const ServiceCreator = lazyWithRetry(() => import("./pages/ServiceCreator"));
-const Profile = lazyWithRetry(() => import("./pages/Profile"));
+const Profile = lazyWithRetry(() => import("./pages/Profile"), { retries: 3, delay: 800 });
 const Auth = lazyWithRetry(() => import("./pages/Auth"));
 const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
 const ProviderDashboard = lazyWithRetry(() => import("./pages/ProviderDashboard"));
