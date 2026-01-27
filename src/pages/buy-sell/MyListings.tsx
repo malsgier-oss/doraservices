@@ -9,9 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HUB_CARD_BASE } from "@/components/hub/hubStyles";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { useListings, type Listing, type ListingStatus } from "@/hooks/useListings";
+import { useListings, type ListingStatus } from "@/hooks/useListings";
 import { ListingCard } from "@/components/hub/ListingCard";
-import { ListingDetailSheet } from "@/components/hub/ListingDetailSheet";
 import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
 
 export default function MyListings() {
@@ -28,9 +27,6 @@ export default function MyListings() {
     limit: 200,
     enabled: !!user,
   });
-
-  const [selected, setSelected] = useState<Listing | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
 
   const emptyText = useMemo(() => {
     if (tab === "active") return t("لا توجد إعلانات نشطة", "No active listings");
@@ -118,10 +114,7 @@ export default function MyListings() {
                       key={l.id}
                       listing={l}
                       isRTL={isRTL}
-                      onClick={() => {
-                        setSelected(l);
-                        setSheetOpen(true);
-                      }}
+                      onClick={() => navigate(`/listings/${l.id}`)}
                     />
                   ))}
                 </div>
@@ -130,21 +123,6 @@ export default function MyListings() {
           </Tabs>
         )}
       </div>
-
-      {buySellEnabled ? (
-        <ListingDetailSheet
-          open={sheetOpen}
-          listing={selected}
-          onOpenChange={(open) => {
-            setSheetOpen(open);
-            if (!open) setSelected(null);
-          }}
-          onSelectListing={(l) => {
-            setSelected(l);
-            setSheetOpen(true);
-          }}
-        />
-      ) : null}
     </Layout>
   );
 }

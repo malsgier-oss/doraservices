@@ -9,9 +9,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { HUB_CARD_BASE } from "@/components/hub/hubStyles";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useListings, type Listing } from "@/hooks/useListings";
+import { useListings } from "@/hooks/useListings";
 import { ListingCard } from "@/components/hub/ListingCard";
-import { ListingDetailSheet } from "@/components/hub/ListingDetailSheet";
 import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
 
 const CITY_STORAGE_KEY = "dora_city_id";
@@ -99,9 +98,6 @@ export default function ListingsBrowse() {
     else next.delete("maxPrice");
     setParams(next, { replace: true });
   };
-
-  const [selected, setSelected] = useState<Listing | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
 
   return (
     <Layout>
@@ -214,30 +210,12 @@ export default function ListingsBrowse() {
                 key={listing.id}
                 listing={listing}
                 isRTL={isRTL}
-                onClick={() => {
-                  setSelected(listing);
-                  setSheetOpen(true);
-                }}
+                onClick={() => navigate(`/listings/${listing.id}`)}
               />
             ))}
           </div>
         )}
       </div>
-
-      {buySellEnabled ? (
-        <ListingDetailSheet
-          open={sheetOpen}
-          listing={selected}
-          onOpenChange={(open) => {
-            setSheetOpen(open);
-            if (!open) setSelected(null);
-          }}
-          onSelectListing={(l) => {
-            setSelected(l);
-            setSheetOpen(true);
-          }}
-        />
-      ) : null}
     </Layout>
   );
 }
