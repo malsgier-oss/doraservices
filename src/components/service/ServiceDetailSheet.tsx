@@ -316,6 +316,7 @@ function ServiceDetailListingStyle({
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
   const carouselRef = useRef<HTMLDivElement | null>(null);
+  const scrollRAF = useRef<number | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
   const [images, setImages] = useState<string[]>([]);
@@ -438,12 +439,16 @@ function ServiceDetailListingStyle({
             style={{ WebkitOverflowScrolling: "touch" as React.CSSProperties["WebkitOverflowScrolling"], touchAction: "pan-x pan-y" }}
             dir={isRTL ? "rtl" : "ltr"}
             onScroll={() => {
-              const el = carouselRef.current;
-              if (!el) return;
-              const w = el.clientWidth || 1;
-              const left = Math.abs(el.scrollLeft);
-              const idx = Math.max(0, Math.min(images.length - 1, Math.round(left / w)));
-              setActiveIndex(idx);
+              if (scrollRAF.current) return;
+              scrollRAF.current = requestAnimationFrame(() => {
+                scrollRAF.current = null;
+                const el = carouselRef.current;
+                if (!el) return;
+                const w = el.clientWidth || 1;
+                const left = Math.abs(el.scrollLeft);
+                const idx = Math.max(0, Math.min(images.length - 1, Math.round(left / w)));
+                setActiveIndex(idx);
+              });
             }}
           >
             {images.map((src, idx) => (
@@ -454,11 +459,11 @@ function ServiceDetailListingStyle({
               </div>
             ))}
           </div>
-          <div className={cn("absolute top-3 text-white text-xs font-bold px-3 py-1.5 rounded-lg bg-black/60 backdrop-blur-md", isRTL ? "right-3" : "left-3")}>
+          <div className={cn("absolute top-3 text-white text-xs font-bold px-3 py-1.5 rounded-lg bg-black/70", isRTL ? "right-3" : "left-3")}>
             {t("خدمة", "SERVICE")}
           </div>
           {images.length > 1 ? (
-            <div className={cn("absolute top-3 text-white text-xs font-semibold px-3 py-1.5 rounded-lg bg-black/60 backdrop-blur-md", isRTL ? "left-3" : "right-3")}>
+            <div className={cn("absolute top-3 text-white text-xs font-semibold px-3 py-1.5 rounded-lg bg-black/70", isRTL ? "left-3" : "right-3")}>
               {activeIndex + 1}/{images.length}
             </div>
           ) : null}
@@ -467,7 +472,7 @@ function ServiceDetailListingStyle({
               {images.map((_, i) => (
                 <div
                   key={i}
-                  className={cn("h-2 rounded-full transition-all bg-white/70", i === activeIndex ? "w-6" : "w-2")}
+                  className={cn("h-2 rounded-full transition-[width] duration-200 bg-white/70", i === activeIndex ? "w-6" : "w-2")}
                 />
               ))}
             </div>
@@ -945,7 +950,7 @@ export function ServiceDetailContent({
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden bg-muted/10 p-4 min-h-0 max-w-full">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden bg-muted/10 p-4 min-h-0 max-w-full" style={{ willChange: 'transform', transform: 'translateZ(0)' }}>
           {activeProvider ? (
             <ProviderDetailView
               provider={activeProvider}
@@ -1067,7 +1072,7 @@ export function ServiceDetailSheet({
             </Button>
           </div>
         </DrawerHeader>
-        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 w-full max-w-full" dir={isRTL ? "rtl" : "ltr"}>
+        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 w-full max-w-full" dir={isRTL ? "rtl" : "ltr"} style={{ willChange: 'transform', transform: 'translateZ(0)' }}>
           <ServiceDetailContent
             service={service}
             city={city}
@@ -1158,8 +1163,8 @@ function ProviderActionBar({
 
   const isListingStyle = variant === "listing";
   const wrapperClass = isListingStyle
-    ? "border-t border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] space-y-2"
-    : "shrink-0 border-t bg-background/90 backdrop-blur px-4 py-3";
+    ? "border-t border-border/60 bg-background px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] space-y-2"
+    : "shrink-0 border-t bg-background px-4 py-3";
   const wrapperStyle = isListingStyle ? undefined : { paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" };
 
   return (
@@ -1647,7 +1652,7 @@ function ProviderDetailView({
           >
             <p
               className={cn(
-                "text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap transition-all duration-150",
+                "text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap",
                 // FIX: expanded should show full text (no clamp)
                 descExpanded ? "" : "line-clamp-2"
               )}
