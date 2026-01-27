@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useListings } from "@/hooks/useListings";
 import { BUY_SELL_CATEGORIES, getBuySellSubcategories } from "@/components/hub/buySellCategories";
@@ -18,7 +18,6 @@ interface FilterState {
 export default function CategoryDetail() {
   const { categoryId } = useParams<{ categoryId: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
 
@@ -312,9 +311,7 @@ export default function CategoryDetail() {
                 key={listing.id}
                 listing={listing}
                 onClick={() => {
-                  navigate(`listing/${listing.id}`, {
-                    state: { backgroundLocation: location },
-                  });
+                  navigate(`listing/${listing.id}`);
                 }}
               />
             ))}
