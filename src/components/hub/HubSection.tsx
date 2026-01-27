@@ -37,7 +37,7 @@ export function HubSection({
             </div>
           )}
           <div>
-            <h2 className="text-lg font-bold text-foreground leading-tight">{title}</h2>
+            <h2 className="text-lg font-bold text-foreground leading-tight text-right">{title}</h2>
             {typeof count === "number" && count > 0 && (
               <span className="text-sm text-muted-foreground font-medium">({count})</span>
             )}
