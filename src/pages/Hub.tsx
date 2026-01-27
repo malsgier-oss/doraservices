@@ -920,60 +920,41 @@ export default function Hub({ initialTab }: HubProps = {}) {
     return categories.filter((c) => (c.name_ar || c.name).toLowerCase().includes(ql)).slice(0, 10);
   }, [categories, queryTrim]);
 
-  // Tab state for SERVICES / BUY & SELL
+  // Tab state for SERVICES / BUY & SELL (controlled by route pathname)
   const { isEnabled: buySellEnabled } = useBuySellEnabled();
   const { isEnabled: servicesEnabled } = useServicesEnabled();
-  const [activeTab, setActiveTab] = useState<"services" | "buy-sell">(() => {
-    // When route is /buy-sell, initialTab is passed from the Route; use it.
-    if (initialTab) return initialTab;
-    // Otherwise check URL hash on mount
-    if (typeof window !== "undefined") {
-      const hash = window.location.hash.slice(1);
-      if (hash === "buy-sell" || hash === "services") {
-        return hash as "services" | "buy-sell";
-      }
+  
+  // Derive active tab from pathname (route-controlled)
+  const activeTab = useMemo<"services" | "buy-sell">(() => {
+    const pathname = location.pathname;
+    // /buy-sell or /listings routes -> buy-sell tab
+    if (pathname.startsWith("/buy-sell") || pathname.startsWith("/listings")) {
+      return "buy-sell";
     }
+    // /services or / -> services tab
     return "services";
-  });
-
-  // When pathname is /buy-sell, always show Buy & Sell (path-based tab).
-  useEffect(() => {
-    if (location.pathname === "/buy-sell") {
-      setActiveTab("buy-sell");
-    }
   }, [location.pathname]);
 
-  // If Buy & Sell is disabled, force Services tab; if Services is disabled, force Buy & Sell tab.
+  // Note: activeTab is now derived from pathname, no need for pathname sync effect
+
+  // If Buy & Sell is disabled but user is on /buy-sell, redirect to /services.
+  // If Services is disabled but user is on /services, redirect to /buy-sell.
   useEffect(() => {
     if (!buySellEnabled && activeTab === "buy-sell") {
-      setActiveTab("services");
+      navigate("/services", { replace: true });
     }
     if (!servicesEnabled && buySellEnabled && activeTab === "services") {
-      setActiveTab("buy-sell");
+      navigate("/buy-sell", { replace: true });
     }
-  }, [activeTab, buySellEnabled, servicesEnabled]);
+  }, [activeTab, buySellEnabled, servicesEnabled, navigate]);
 
-  // Sync URL hash when tab changes (only when on / so hash is relevant)
-  useEffect(() => {
-    if (location.pathname !== "/") return;
-    if (buySellEnabled && activeTab) {
-      window.location.hash = activeTab;
-      // Avoid animated scroll (can feel like zoom on mobile)
-      window.scrollTo({ top: 0, behavior: "auto" });
-    }
-  }, [activeTab, buySellEnabled, location.pathname]);
-
-  // Tab change handler: when on / and switching to Buy & Sell, go to /buy-sell; when on /buy-sell and switching to Services, go to /
+  // Tab change handler: navigate to the correct route
   const handleTabChange = (tab: "services" | "buy-sell") => {
-    if (tab === "buy-sell" && location.pathname === "/") {
+    if (tab === "buy-sell") {
       navigate("/buy-sell");
-      return;
+    } else {
+      navigate("/services");
     }
-    if (tab === "services" && location.pathname === "/buy-sell") {
-      navigate("/");
-      return;
-    }
-    setActiveTab(tab);
   };
 
   // Deep links: ?listing=, ?deal= — open corresponding sheet and switch to buy-sell
@@ -982,17 +963,15 @@ export default function Hub({ initialTab }: HubProps = {}) {
     const { listingId, dealId } = deepLinkParams;
     if (listingId && deepLinkListing && !deepLinkHandledRef.current) {
       deepLinkHandledRef.current = true;
-      setActiveTab("buy-sell");
       openListingDetail(deepLinkListing);
-      navigate("/", { replace: true });
+      navigate("/buy-sell", { replace: true });
       return;
     }
     if (dealId && deepLinkDeal && !deepLinkHandledRef.current) {
       deepLinkHandledRef.current = true;
-      setActiveTab("buy-sell");
       openDealDetail(deepLinkDeal);
       setDeepLinkDeal(null);
-      navigate("/", { replace: true });
+      navigate("/buy-sell", { replace: true });
       return;
     }
     if (!listingId && !dealId) {
