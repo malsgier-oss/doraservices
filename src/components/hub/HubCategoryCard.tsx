@@ -36,15 +36,15 @@ export function HubCategoryCard({
     <button
       type="button"
       onClick={onClick}
-      className={`${HUB_CARD_BASE} bg-card min-h-[120px] w-full px-3 py-4 flex flex-col items-center justify-center gap-3 text-center transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation hover:scale-105`}
+      className={`${HUB_CARD_BASE} bg-card min-h-[100px] w-full px-3 py-3 flex flex-col items-center justify-center gap-2 text-center transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation hover:scale-105`}
     >
       <div
-        className="h-16 w-16 rounded-full flex items-center justify-center shadow-md"
+        className="h-12 w-12 rounded-full flex items-center justify-center shadow-md"
         style={{ backgroundColor: hex + "1f" }}
       >
-        <Icon className="h-8 w-8" style={{ color: hex }} strokeWidth={2.2} />
+        <Icon className="h-6 w-6" style={{ color: hex }} strokeWidth={2.2} />
       </div>
-      <div className="space-y-1">
+      <div className="space-y-0.5">
         <div className="text-sm font-semibold text-foreground leading-snug line-clamp-2">
           {displayLabel}
         </div>

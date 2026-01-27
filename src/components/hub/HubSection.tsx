@@ -28,7 +28,7 @@ export function HubSection({
   children,
 }: HubSectionProps) {
   return (
-    <section id={id} className={cn("space-y-5", className)}>
+    <section id={id} className={cn("space-y-5 pt-2", className)}>
       <div dir="rtl" className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           {Icon && (

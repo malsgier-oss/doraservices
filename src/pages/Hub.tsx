@@ -1600,7 +1600,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
                   </div>
                 ) : (
                   <div
-                    className="grid grid-cols-2 md:grid-cols-3 gap-3"
+                    className="grid grid-cols-2 md:grid-cols-3 gap-2"
                     dir={isRTL ? "rtl" : "ltr"}
                   >
                     {gridCategories.slice(0, 6).map((c) => (
@@ -1961,7 +1961,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
                 </div>
               ) : (
                 <div
-                  className="grid grid-cols-2 md:grid-cols-3 gap-3"
+                  className="grid grid-cols-2 md:grid-cols-3 gap-2"
                   dir={isRTL ? "rtl" : "ltr"}
                 >
                   {gridCategories.slice(0, 6).map((c) => (
