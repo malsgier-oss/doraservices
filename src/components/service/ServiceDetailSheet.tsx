@@ -369,7 +369,7 @@ function ServiceDetailListingStyle({
   }, [provider.id]);
 
   const userReview = userId ? reviews.find((r) => r.user_id === userId) : null;
-  const hasPrice = provider.price != null && provider.price !== undefined;
+  const hasPrice = provider.price != null && provider.price !== undefined && provider.price > 0;
   const priceText = hasPrice ? `${provider.price} ${t("د.ل", "LYD")}` : "";
 
   const [copied, setCopied] = useState(false);
@@ -428,7 +428,7 @@ function ServiceDetailListingStyle({
     .slice(0, 2);
 
   return (
-    <div dir={isRTL ? "rtl" : "ltr"}>
+    <div dir={isRTL ? "rtl" : "ltr"} className="overflow-x-hidden max-w-full w-full">
       {/* 1. Image carousel (same structure as ListingDetailSheet) */}
       {images.length > 0 ? (
         <div className="relative -mx-4 -mt-4 mb-6">
@@ -476,39 +476,30 @@ function ServiceDetailListingStyle({
       ) : null}
 
       <div className="px-4 space-y-5 pb-[calc(7.5rem+env(safe-area-inset-bottom))]">
-      {/* 2. Price + Share — only when price is available */}
+      {/* 2. Share + Copy link row (under photo) */}
+      <div className="flex gap-3">
+        <Button size="lg" variant="outline" className="flex-1 gap-2 rounded-xl" onClick={handleShare}>
+          <Share2 className="h-4 w-4" />
+          {t("مشاركة", "Share")}
+        </Button>
+        <Button size="lg" variant="outline" className="flex-1 gap-2 rounded-xl" onClick={handleCopyLink}>
+          <Copy className="h-4 w-4" />
+          {copied ? t("تم النسخ!", "Copied!") : t("نسخ الرابط", "Copy Link")}
+        </Button>
+      </div>
+
+      {/* 3. Price — only when price is available */}
       {hasPrice ? (
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">{t("السعر", "Price")}</p>
-            <div className="text-3xl font-bold text-foreground">{priceText}</div>
-          </div>
-          <Button size="lg" variant="outline" className="gap-2 shrink-0 rounded-xl" onClick={handleShare}>
-            <Share2 className="h-4 w-4" />
-            <span className="hidden sm:inline">{t("مشاركة", "Share")}</span>
-          </Button>
+        <div className="space-y-1">
+          <p className="text-sm text-muted-foreground">{t("السعر", "Price")}</p>
+          <div className="text-3xl font-bold text-foreground">{priceText}</div>
         </div>
       ) : null}
 
-      {/* 3. Title + Share when no price */}
-      {!hasPrice ? (
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="text-2xl font-bold text-foreground leading-tight flex-1 min-w-0">
-            {provider.title || service.titleKey || provider.provider_name || ""}
-          </h1>
-          <Button size="lg" variant="outline" className="gap-2 shrink-0 rounded-xl" onClick={handleShare}>
-            <Share2 className="h-4 w-4" />
-            <span className="hidden sm:inline">{t("مشاركة", "Share")}</span>
-          </Button>
-        </div>
-      ) : null}
-
-      {/* 4. Title — only when we have price (otherwise already shown above with Share) */}
-      {hasPrice ? (
-        <h1 className="text-2xl font-bold text-foreground leading-tight">
-          {provider.title || service.titleKey || provider.provider_name || ""}
-        </h1>
-      ) : null}
+      {/* 4. Title */}
+      <h1 className="text-2xl font-bold text-foreground leading-tight">
+        {provider.title || service.titleKey || provider.provider_name || ""}
+      </h1>
 
       {/* 5. Provider card (Seller-style) — avatar, name, verified only; reviews moved to separate section */}
       <div className="bg-muted/40 rounded-2xl p-5 border border-border/50">
@@ -599,16 +590,16 @@ function ServiceDetailListingStyle({
         )}
       </div>
 
-      {/* 9. Similar providers (same as listing "You may also like") */}
+      {/* 9. Related services carousel */}
       {suggestions.length > 0 ? (
         <div className="space-y-3">
-          <div className="text-sm font-semibold">{t("قد يعجبك أيضاً", "You may also like")}</div>
+          <div className="text-sm font-semibold">{t("خدمات مشابهة", "Related Services")}</div>
           <div
             dir={isRTL ? "rtl" : "ltr"}
             className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
             style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}
           >
-            {suggestions.slice(0, 8).map((p) => (
+            {suggestions.slice(0, 4).map((p) => (
               <div key={p.id} className="shrink-0 w-[72vw] max-w-[320px] snap-center">
                 <ServiceProviderCard
                   provider={p}
@@ -623,17 +614,29 @@ function ServiceDetailListingStyle({
         </div>
       ) : null}
 
-      {/* 10. Share + Copy link row (match listing) */}
-      <div className="flex gap-3">
-        <Button size="lg" variant="outline" className="flex-1 gap-2 rounded-xl" onClick={handleShare}>
-          <Share2 className="h-4 w-4" />
-          <span className="hidden sm:inline">{t("مشاركة", "Share")}</span>
-        </Button>
-        <Button size="lg" variant="outline" className="flex-1 gap-2 rounded-xl" onClick={handleCopyLink}>
-          <Copy className="h-4 w-4" />
-          <span className="hidden sm:inline">{copied ? t("تم النسخ!", "Copied!") : t("نسخ الرابط", "Copy Link")}</span>
-        </Button>
-      </div>
+      {/* 10. Other suggested services carousel */}
+      {suggestions.length > 4 ? (
+        <div className="space-y-3">
+          <div className="text-sm font-semibold">{t("خدمات أخرى مقترحة", "Other Suggested Services")}</div>
+          <div
+            dir={isRTL ? "rtl" : "ltr"}
+            className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
+            style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}
+          >
+            {suggestions.slice(4, 12).map((p) => (
+              <div key={p.id} className="shrink-0 w-[72vw] max-w-[320px] snap-center">
+                <ServiceProviderCard
+                  provider={p}
+                  variant="card"
+                  isFavorite={!!isFavorite?.(p.id)}
+                  onToggleFavorite={() => onToggleFavorite?.(p.id)}
+                  onDetails={undefined}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       </div>
       {/* end px-4 space-y-6 content wrapper */}
@@ -901,6 +904,8 @@ export function ServiceDetailContent({
             onReport={(reason) => {
               if (activeProvider?.id) return reportService(activeProvider.id, userId, reason);
             }}
+            isFavorite={isFavoriteLocal(activeProvider.id)}
+            onToggleFavorite={() => toggleFavoriteLocal(activeProvider.id)}
           />
         </>
       );
@@ -913,8 +918,8 @@ export function ServiceDetailContent({
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0" dir="rtl">
-      <div className="px-4 py-3 shrink-0 border-b bg-background">
+    <div className="flex flex-col flex-1 min-h-0 overflow-x-hidden max-w-full" dir="rtl">
+      <div className="px-4 py-3 shrink-0 border-b bg-background w-full">
         <div className="flex items-center gap-2">
           {selectedProvider && (
             <Button
@@ -940,7 +945,7 @@ export function ServiceDetailContent({
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto bg-muted/10 p-4 min-h-0">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden bg-muted/10 p-4 min-h-0 max-w-full">
           {activeProvider ? (
             <ProviderDetailView
               provider={activeProvider}
@@ -1031,6 +1036,8 @@ export function ServiceDetailContent({
             if (!activeProvider?.id) return;
             return reportService(activeProvider.id, userId, reason);
           }}
+          isFavorite={isFavoriteLocal(activeProvider.id)}
+          onToggleFavorite={() => toggleFavoriteLocal(activeProvider.id)}
         />
       )}
     </div>
@@ -1050,16 +1057,17 @@ export function ServiceDetailSheet({
   const { isRTL } = useLanguage();
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[96vh] flex flex-col" dir={isRTL ? "rtl" : "ltr"}>
-        <DrawerHeader className="pb-2 shrink-0">
-          <div className="flex items-center justify-between">
+      <DrawerContent className="max-h-[96vh] flex flex-col overflow-x-hidden" dir={isRTL ? "rtl" : "ltr"}>
+        <DrawerHeader className="pb-2 shrink-0 w-full px-4">
+          <div className="flex items-center justify-between w-full">
             <DrawerTitle className="sr-only">{service.titleKey || service.categoryName || "Service details"}</DrawerTitle>
+            <div className="flex-1" />
             <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onOpenChange(false)} aria-label="Close">
               <X className="h-5 w-5" />
             </Button>
           </div>
         </DrawerHeader>
-        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 min-w-0" dir={isRTL ? "rtl" : "ltr"}>
+        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 w-full max-w-full" dir={isRTL ? "rtl" : "ltr"}>
           <ServiceDetailContent
             service={service}
             city={city}
@@ -1079,12 +1087,16 @@ function ProviderActionBar({
   userId,
   onRequireAuth,
   onReport,
+  isFavorite,
+  onToggleFavorite,
 }: {
   variant?: "default" | "listing";
   provider: ProviderData;
   userId: string | null;
   onRequireAuth: () => void;
   onReport: (reason: string) => Promise<string | number> | void;
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
 }) {
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
@@ -1151,7 +1163,7 @@ function ProviderActionBar({
   const wrapperStyle = isListingStyle ? undefined : { paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" };
 
   return (
-    <div className={wrapperClass} dir={isRTL ? "rtl" : "ltr"} style={wrapperStyle}>
+    <div className={cn(wrapperClass, "fixed bottom-0 left-0 right-0 z-50")} dir={isRTL ? "rtl" : "ltr"} style={wrapperStyle}>
       {isListingStyle ? (
         canContact ? (
           <div className="flex gap-2">
@@ -1179,9 +1191,43 @@ function ProviderActionBar({
                 {t("واتساب", "WhatsApp")}
               </Button>
             )}
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className={cn(
+                "h-12 w-12 rounded-xl shrink-0",
+                isFavorite && "border-red-200 bg-red-50 text-red-500 hover:text-red-600 dark:border-red-800 dark:bg-red-950"
+              )}
+              onClick={() => {
+                if (!userId) return onRequireAuth();
+                onToggleFavorite?.();
+              }}
+              aria-label={isFavorite ? t("إزالة من المفضلة", "Remove from favorites") : t("إضافة للمفضلة", "Add to favorites")}
+            >
+              <Heart className={cn("h-5 w-5", isFavorite && "fill-current")} />
+            </Button>
           </div>
         ) : (
-          <div className="text-sm text-muted-foreground text-center py-2">{t("رقم الهاتف غير متوفر حالياً", "Phone number not available")}</div>
+          <div className="flex gap-2 items-center">
+            <div className="flex-1 text-sm text-muted-foreground text-center py-2">{t("رقم الهاتف غير متوفر حالياً", "Phone number not available")}</div>
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className={cn(
+                "h-12 w-12 rounded-xl shrink-0",
+                isFavorite && "border-red-200 bg-red-50 text-red-500 hover:text-red-600 dark:border-red-800 dark:bg-red-950"
+              )}
+              onClick={() => {
+                if (!userId) return onRequireAuth();
+                onToggleFavorite?.();
+              }}
+              aria-label={isFavorite ? t("إزالة من المفضلة", "Remove from favorites") : t("إضافة للمفضلة", "Add to favorites")}
+            >
+              <Heart className={cn("h-5 w-5", isFavorite && "fill-current")} />
+            </Button>
+          </div>
         )
       ) : (
         <div className="flex gap-3 items-center">
@@ -1200,6 +1246,21 @@ function ProviderActionBar({
               <MessageCircle className="ml-2 h-4 w-4" /> واتساب
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="icon"
+            className={cn(
+              "h-12 w-12 rounded-xl",
+              isFavorite && "border-red-200 bg-red-50 text-red-500 hover:text-red-600 dark:border-red-800 dark:bg-red-950"
+            )}
+            onClick={() => {
+              if (!userId) return onRequireAuth();
+              onToggleFavorite?.();
+            }}
+            aria-label={isFavorite ? "إزالة من المفضلة" : "إضافة للمفضلة"}
+          >
+            <Heart className={cn("h-5 w-5", isFavorite && "fill-current")} />
+          </Button>
           <Button
             variant="outline"
             size="icon"
@@ -1435,7 +1496,7 @@ function ProviderDetailView({
   };
 
   return (
-    <div className="pb-24 animate-in slide-in-from-right-4 duration-300">
+    <div className="pb-24 animate-in slide-in-from-right-4 duration-300 overflow-x-hidden max-w-full">
       {/* 1. Image Gallery */}
       <div className="-mx-4 -mt-4 mb-4">
         <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory pb-4 px-2 pt-3 hide-scrollbar">

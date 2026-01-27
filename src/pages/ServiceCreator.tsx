@@ -69,6 +69,7 @@ function ServiceCreatorContent() {
     cityId: "",
     subCity: "",
     allowWhatsApp: true,
+    price: "",
   });
 
   // Preview URLs (cleanup on change/unmount)
@@ -241,6 +242,7 @@ function ServiceCreatorContent() {
       const providerName = (profile.full_name || "").trim() || (isRTL ? "مقدم الخدمة" : "Provider");
 
       // ✅ Insert directly to ensure provider_phone/provider_name/city/sub_city are stored for anonymous browsing
+      const priceValue = formData.price ? parseFloat(formData.price) : 0;
       const { data: created, error } = await supabase
         .from("services")
         .insert({
@@ -248,7 +250,7 @@ function ServiceCreatorContent() {
         title: formData.serviceName.trim(),
         description: formData.bio?.trim() || null,
         category: categoryToUse || "",
-        price: 0,
+        price: isNaN(priceValue) ? 0 : priceValue,
         city: cityValue,
         sub_city: formData.subCity || profile.sub_city || null,
         provider_name: providerName,
@@ -554,6 +556,35 @@ function ServiceCreatorContent() {
               maxLength={1000}
             />
             <p className="text-xs text-muted-foreground">{formData.bio.length}/1000</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="price-input" className={cn(isRTL ? "text-right block" : "text-left block")}>
+              {isRTL ? "السعر (اختياري)" : "Price (optional)"}
+            </Label>
+            <div className="relative">
+              <Input
+                id="price-input"
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.price}
+                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                placeholder={isRTL ? "أدخل السعر" : "Enter price"}
+                className={cn("rounded-xl h-12", isRTL ? "text-right pr-16" : "text-left pl-16")}
+                dir={isRTL ? "rtl" : "ltr"}
+                aria-label={isRTL ? "السعر" : "Price"}
+              />
+              <span className={cn(
+                "absolute top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium",
+                isRTL ? "left-4" : "right-4"
+              )}>
+                {isRTL ? "د.ل" : "LYD"}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {isRTL ? "اترك فارغاً إذا لم يكن هناك سعر محدد" : "Leave empty if no fixed price"}
+            </p>
           </div>
 
           <div className={cn("flex items-center justify-between gap-3 rounded-xl border p-4", isRTL ? "flex-row-reverse" : "")}>
