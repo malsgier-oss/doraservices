@@ -1050,13 +1050,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
     if (now - lastOpenAtRef.current < 250) return;
     lastOpenAtRef.current = now;
     if (!service?.id) return;
-    setDealSheetOpen(false);
-    setSelectedDeal(null);
-    setListingListSheetOpen(false);
-    setListingListCategory(null);
-    setListingListSearch(null);
-    setSelectedServiceForSheet(service);
-    setServiceSheetOpen(true);
+    navigate(`/services/${service.id}`);
   };
 
   const handleQuickView = (service: ServiceRow) => {

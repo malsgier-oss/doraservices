@@ -530,7 +530,7 @@ export function ListingDetailSheet({ open, onOpenChange, listing, listingId, cat
         </div>
 
         {/* Bottom contact bar - Fixed Premium Action Bar (matching Service Detail Sheet) */}
-        <div className="border-t border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] space-y-2" dir={isRTL ? "rtl" : "ltr"}>
+        <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] space-y-2" dir={isRTL ? "rtl" : "ltr"}>
           {canContact ? (
             <div className="flex gap-2">
               <Button
