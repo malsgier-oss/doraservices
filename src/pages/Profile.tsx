@@ -7,14 +7,13 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useCities } from "@/hooks/useCities";
 import { useSubCities } from "@/hooks/useSubCities";
 
-import { cleanPhoneForStorage, isValidLibyanPhone } from "@/lib/phoneUtils";
+// Phone utilities (kept for potential future use)
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,13 +25,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 
 import { toast, useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
-  Building2,
   Camera,
   KeyRound,
   Loader2,
@@ -43,12 +40,8 @@ import {
   Trash2,
   User2,
   X,
-  LayoutDashboard,
-  ShoppingBag,
-  Clock,
-  CheckCircle,
-  XCircle,
   Bell,
+  Store,
 } from "lucide-react";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
@@ -175,11 +168,12 @@ export default function Profile() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
 
-  const [becomingProvider, setBecomingProvider] = useState(false);
   const [marketplaceEnabled, setMarketplaceEnabled] = useState(false);
   const [savingMarketplace, setSavingMarketplace] = useState(false);
-  const [termsDialogOpen, setTermsDialogOpen] = useState(false);
-  const [termsAgreed, setTermsAgreed] = useState(false);
+
+  // Marketplace Controls state
+  const [providerMode, setProviderMode] = useState(false);
+  const [savingProviderMode, setSavingProviderMode] = useState(false);
 
   // Route guard
   useEffect(() => {
@@ -207,6 +201,7 @@ export default function Profile() {
     setSubCity(profile.sub_city || "");
     setPhone((profile.phone || (typeof (user as any)?.user_metadata?.phone === "string" ? (user as any).user_metadata.phone : "")) as string); // fallback to auth metadata
     setMarketplaceEnabled(Boolean((profile as any).marketplace_enabled));
+    setProviderMode(Boolean((profile as any).provider_mode));
   }, [profile, user]);
 
   // If buy/sell is disabled platform-wide, disable marketplace locally (user can't enable listings).
@@ -250,6 +245,41 @@ export default function Profile() {
     return () => clearTimeout(timer);
   }, [marketplaceEnabled, profileMarketplace, user, profile, isRTL]);
 
+  // Auto-save provider_mode only when the user toggles it (not on initial load from profile)
+  const profileProviderMode = Boolean((profile as any)?.provider_mode);
+  useEffect(() => {
+    if (!user || !profile) return;
+    // Skip save when value matches profile
+    if (providerMode === profileProviderMode) return;
+
+    const saveProviderMode = async () => {
+      setSavingProviderMode(true);
+      const { error } = await supabase
+        .from("profiles")
+        .update({ provider_mode: providerMode })
+        .eq("user_id", user.id);
+      setSavingProviderMode(false);
+
+      if (error) {
+        toast({
+          title: isRTL ? "فشل الحفظ" : "Failed to save",
+          description: error.message,
+          variant: "destructive",
+        });
+        setProviderMode(profileProviderMode); // Revert on error
+      } else {
+        toast({
+          title: isRTL ? "تم الحفظ" : "Saved",
+          description: isRTL ? "تم تحديث وضع المزود" : "Provider mode updated",
+        });
+        await refreshProfile?.();
+      }
+    };
+
+    const timer = setTimeout(saveProviderMode, 500);
+    return () => clearTimeout(timer);
+  }, [providerMode, profileProviderMode, user, profile, isRTL, refreshProfile]);
+
   // If city changes and the selected sub-city doesn't belong to the city, clear it.
   useEffect(() => {
     if (!subCity) return;
@@ -267,8 +297,6 @@ export default function Profile() {
     return language === "ar" ? c.name_ar || c.name : c.name || c.name_ar;
   }, [cities, cityId, language]);
 
-  const providerStatus = profile?.provider_status || null;
-
   const currentRole = (profile?.role || "user").toString().toLowerCase();
   const isProvider = isProviderLike(currentRole);
   const isAdmin = currentRole === "admin";
@@ -278,15 +306,7 @@ export default function Profile() {
     return st === "suspended" || st === "deleted" || st === "inactive";
   }, [profile?.status]);
 
-  const showWelcome = useMemo(() => {
-    const q = new URLSearchParams(location.search);
-    return q.get("welcome") === "1";
-  }, [location.search]);
-
-  const defaultTab = useMemo(() => {
-    if (showWelcome) return "role";
-    return "account";
-  }, [showWelcome]);
+  const defaultTab = "account";
 
   const canEditPhone = useMemo(() => {
     // Editing phone can break login (phone->internal email mapping).
@@ -358,7 +378,8 @@ export default function Profile() {
     }
 
     // Post-signup welcome flow: after profile completion, send the user to Hub.
-    if (showWelcome) {
+    const q = new URLSearchParams(location.search);
+    if (q.get("welcome") === "1") {
       navigate("/", { replace: true });
     }
   };
@@ -496,59 +517,6 @@ export default function Profile() {
       setAvatarBusy(false);
     }
   };
-
-  const handleRequestProvider = () => {
-    setTermsAgreed(false);
-    setTermsDialogOpen(true);
-  };
-
-  const handleBecomeProvider = async () => {
-    if (!user) return;
-    if (!termsAgreed) {
-      toast({
-        title: isRTL ? "يجب الموافقة على الشروط" : "Terms agreement required",
-        description: isRTL ? "يرجى الموافقة على الشروط والأحكام أولاً" : "Please agree to the terms and conditions first",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setBecomingProvider(true);
-    setTermsDialogOpen(false);
-    try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          // Dora P0: admin-controlled trust.
-          // User can request to become a provider, but approval is required.
-          role: "provider",
-          provider_status: "pending",
-        })
-        .eq("user_id", user.id);
-
-      if (error) {
-        toast({
-          title: isRTL ? "فشل التفعيل" : "Activation failed",
-          description: error.message,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      await refreshProfile?.();
-
-      toast({
-        title: isRTL ? "تم إرسال طلب المزود" : "Provider request sent",
-        description: isRTL
-          ? "حسابك تحت المراجعة. يمكنك إضافة خدمات لكنها لن تظهر للناس حتى الموافقة."
-          : "You're under review. You can add services, but they won't be visible until approved.",
-      });
-    } finally {
-      setBecomingProvider(false);
-      setTermsAgreed(false);
-    }
-  };
-
 
   const handleSoftDelete = async () => {
     if (!user || !profile) return;
@@ -736,14 +704,6 @@ export default function Profile() {
             <TabsTrigger value="account" className="rounded-xl flex-1 min-w-0 shrink-0">
               {isRTL ? "الحساب" : "Account"}
             </TabsTrigger>
-            {buySellEnabled && (
-              <TabsTrigger value="listings" className="rounded-xl flex-1 min-w-0 shrink-0">
-                {isRTL ? "الإعلانات" : "Listings"}
-              </TabsTrigger>
-            )}
-            <TabsTrigger value="role" className="rounded-xl flex-1 min-w-0 shrink-0">
-              {isRTL ? "الدور" : "Role"}
-            </TabsTrigger>
             <TabsTrigger value="security" className="rounded-xl flex-1 min-w-0 shrink-0">
               {isRTL ? "الأمان" : "Security"}
             </TabsTrigger>
@@ -858,171 +818,64 @@ export default function Profile() {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
 
-          {/* Listings - enable selling and my listings (when buy/sell is enabled) */}
-          {buySellEnabled && (
-            <TabsContent value="listings" className="mt-4 space-y-4">
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <ShoppingBag className="h-4 w-4" />
-                    {isRTL ? "الإعلانات" : "Listings"}
-                  </CardTitle>
-                  <CardDescription>
-                    {isRTL ? "تفعيل البيع وإدارة إعلاناتك." : "Enable selling and manage your listings."}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
+            {/* Marketplace Controls */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Store className="h-4 w-4" />
+                  {isRTL ? "إعدادات السوق" : "Marketplace Controls"}
+                </CardTitle>
+                <CardDescription>
+                  {isRTL ? "تفعيل ميزات المزود والإعلانات" : "Enable provider and listings features"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Provider Mode Toggle */}
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
+                  <div className="min-w-0">
+                    <div className="font-medium">{isRTL ? "وضع المزود" : "Provider Mode"}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {isRTL ? "تفعيل ميزات مزود الخدمة" : "Enable service provider features"}
+                    </div>
+                  </div>
+                  <Switch
+                    checked={providerMode}
+                    onCheckedChange={(v) => setProviderMode(Boolean(v))}
+                    disabled={savingProviderMode}
+                    aria-label="provider-mode"
+                  />
+                </div>
+
+                {/* Activate Listings Toggle */}
+                {buySellEnabled && (
                   <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
                     <div className="min-w-0">
-                      <div className="font-medium">{isRTL ? "تفعيل البيع (إعلانات)" : "Enable selling (Listings)"}</div>
+                      <div className="font-medium">{isRTL ? "تفعيل الإعلانات" : "Activate Listings"}</div>
                       <div className="text-xs text-muted-foreground">
-                        {!buySellEnabled
-                          ? (isRTL ? "ميزة الشراء والبيع غير مفعلة حالياً." : "Buy & Sell is currently disabled.")
-                          : (isRTL ? "يفتح أدوات الإعلانات." : "Unlocks listing tools.")}
+                        {isRTL ? "تفعيل إدارة إعلانات البيع والشراء" : "Enable Buy & Sell listings management"}
                       </div>
                     </div>
                     <Switch
                       checked={marketplaceEnabled}
                       onCheckedChange={(v) => setMarketplaceEnabled(Boolean(v))}
-                      disabled={!buySellEnabled || (isProvider ? false : !marketplaceEnabled) || savingMarketplace}
-                      aria-label="marketplace"
+                      disabled={savingMarketplace}
+                      aria-label="listings-active"
                     />
                   </div>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-12 rounded-xl justify-start gap-2"
-                      onClick={() => navigate("/buy-sell/my-listings")}
-                      disabled={!buySellEnabled || (!marketplaceEnabled && !isProvider)}
-                    >
-                      <ShoppingBag className="h-4 w-4" />
-                      {isRTL ? "إعلاناتي" : "My Listings"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          )}
+                )}
 
-          {/* Role: provider status or "Become a provider" (merged from old Provider tab) */}
-          <TabsContent value="role" className="mt-4 space-y-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <LayoutDashboard className="h-4 w-4" />
-                  {isRTL ? "اختيار الدور" : "Choose your role"}
-                </CardTitle>
-                <CardDescription>
-                  {isRTL ? "التحول إلى مزود خدمة أو إدارة حالة مزودك." : "Become a provider or manage your provider status."}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {isProvider || providerStatus ? (
-                  /* Provider status / approval state */
-                  <div className="flex flex-col gap-3 rounded-xl border border-border p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="font-medium">{isRTL ? "مزود خدمة" : "Provider"}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {isRTL ? "يتطلب موافقة الإدارة." : "Requires admin approval."}
-                        </div>
-                      </div>
-                      {providerStatus ? (
-                        <Badge
-                          variant={
-                            providerStatus === "approved"
-                              ? "default"
-                              : providerStatus === "pending"
-                                ? "secondary"
-                                : "destructive"
-                          }
-                          className="whitespace-nowrap"
-                        >
-                          {providerStatus === "approved" && (
-                            <>
-                              <CheckCircle className="h-3 w-3 me-1" />
-                              {isRTL ? "موافق عليه" : "Approved"}
-                            </>
-                          )}
-                          {providerStatus === "pending" && (
-                            <>
-                              <Clock className="h-3 w-3 me-1" />
-                              {isRTL ? "قيد المراجعة" : "Pending"}
-                            </>
-                          )}
-                          {providerStatus === "rejected" && (
-                            <>
-                              <XCircle className="h-3 w-3 me-1" />
-                              {isRTL ? "مرفوض" : "Rejected"}
-                            </>
-                          )}
-                        </Badge>
-                      ) : (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={handleRequestProvider}
-                          disabled={becomingProvider || isProvider}
-                        >
-                          {becomingProvider ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
-                          <span className="ms-2">{isRTL ? "تفعيل" : "Enable"}</span>
-                        </Button>
-                      )}
-                    </div>
-                    {providerStatus && (
-                      <div className="text-xs text-muted-foreground pt-1 border-t border-border">
-                        {providerStatus === "pending" && (
-                          <>
-                            {isRTL
-                              ? "طلبك قيد المراجعة من قبل الإدارة. الخدمات التي تضيفها ستكون مخفية حتى الموافقة."
-                              : "Your request is under review by admin. Services you add will be hidden until approval."}
-                          </>
-                        )}
-                        {providerStatus === "approved" && (
-                          <>
-                            {isRTL
-                              ? "حسابك معتمد كمزود. يمكنك الآن إنشاء وإدارة الخدمات."
-                              : "Your account is approved as a provider. You can now create and manage services."}
-                          </>
-                        )}
-                        {providerStatus === "rejected" && (
-                          <>
-                            {isRTL
-                              ? "للأسف، تم رفض طلبك. يرجى التواصل مع الدعم للمزيد من المعلومات."
-                              : "Your provider request was rejected. Please contact support for more information."}
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  /* Become a provider CTA (non-provider users) */
-                  <div className="space-y-3">
-                    <Button
-                      onClick={handleRequestProvider}
-                      disabled={becomingProvider}
-                      className="h-12 rounded-xl w-full gap-2"
-                    >
-                      {becomingProvider ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Building2 className="h-4 w-4" />
-                      )}
-                      {isRTL ? "أريد أن أكون مزود" : "I want to be a provider"}
-                    </Button>
-                    <p className="text-xs text-muted-foreground">
-                      {isRTL
-                        ? "ستتم مراجعة طلبك من الإدارة قبل ظهور خدماتك للناس. بعد الموافقة، ستجد لوحة المزود في الشريط السفلي."
-                        : "Your request will be reviewed by admin before your services become visible. After approval, you'll find Dashboard in the bottom navigation."}
-                    </p>
+                {/* Status indicators */}
+                {(providerMode || marketplaceEnabled) && (
+                  <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t border-border">
+                    {providerMode && <div>• {isRTL ? "المزود: مفعل" : "Provider: Active"}</div>}
+                    {marketplaceEnabled && <div>• {isRTL ? "الإعلانات: مفعلة" : "Listings: Active"}</div>}
                   </div>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
+
 
           {/* Security */}
           <TabsContent value="security" className="mt-4 space-y-4">
@@ -1125,103 +978,6 @@ export default function Profile() {
           </TabsContent>
         </Tabs>
       </div>
-
-      {/* Terms of Use Dialog for Provider Request */}
-      <Dialog open={termsDialogOpen} onOpenChange={setTermsDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{isRTL ? "الشروط والأحكام" : "Terms of Use"}</DialogTitle>
-            <DialogDescription>
-              {isRTL
-                ? "يرجى قراءة الشروط والأحكام والموافقة عليها قبل أن تصبح مزود خدمة."
-                : "Please read and agree to the terms and conditions before becoming a provider."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className={`prose max-w-none text-sm ${isRTL ? "text-right" : "text-left"}`}>
-              <p className="whitespace-pre-wrap">
-                {isRTL
-                  ? `الشروط والأحكام لمزودي الخدمة
-
-1. الموافقة على الشروط
-   باستخدامك لمنصة دورا كمزود خدمة، فإنك توافق على الالتزام بهذه الشروط والأحكام.
-
-2. المسؤولية
-   أنت مسؤول عن جميع الخدمات التي تقدمها والتفاعلات مع العملاء.
-
-3. السلوك المهني
-   يجب أن تتصرف بشكل مهني واحترافي في جميع التفاعلات مع العملاء.
-
-4. الموافقة الإدارية
-   طلبك كمزود خدمة سيتم مراجعته من قبل الإدارة. الخدمات التي تضيفها ستكون مخفية حتى الموافقة.
-
-5. دقة المعلومات
-   يجب أن تكون جميع المعلومات التي تقدمها دقيقة وصحيحة.
-
-6. انتهاك الشروط
-   قد يؤدي انتهاك هذه الشروط إلى تعليق أو إلغاء حسابك.
-
-بالموافقة على هذه الشروط، فإنك تقر بأنك قرأت وفهمت جميع البنود أعلاه.`
-                  : `Terms of Use for Service Providers
-
-1. Agreement to Terms
-   By using Dora platform as a service provider, you agree to comply with these terms and conditions.
-
-2. Responsibility
-   You are responsible for all services you provide and interactions with customers.
-
-3. Professional Conduct
-   You must act professionally and respectfully in all interactions with customers.
-
-4. Admin Approval
-   Your provider request will be reviewed by administration. Services you add will be hidden until approval.
-
-5. Information Accuracy
-   All information you provide must be accurate and truthful.
-
-6. Violation of Terms
-   Violation of these terms may result in suspension or cancellation of your account.
-
-By agreeing to these terms, you acknowledge that you have read and understood all the above provisions.`}
-              </p>
-            </div>
-
-            <div className="flex items-start gap-3 p-4 rounded-lg border">
-              <Checkbox
-                id="terms-agree"
-                checked={termsAgreed}
-                onCheckedChange={(checked) => setTermsAgreed(checked === true)}
-                className="mt-1"
-              />
-              <label
-                htmlFor="terms-agree"
-                className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-              >
-                {isRTL
-                  ? "أوافق على الشروط والأحكام وأريد أن أصبح مزود خدمة"
-                  : "I agree to the terms and conditions and want to become a provider"}
-              </label>
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setTermsDialogOpen(false)} disabled={becomingProvider}>
-              {isRTL ? "إلغاء" : "Cancel"}
-            </Button>
-            <Button onClick={handleBecomeProvider} disabled={!termsAgreed || becomingProvider}>
-              {becomingProvider ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className={cn("ms-2")}>{isRTL ? "جاري المعالجة..." : "Processing..."}</span>
-                </>
-              ) : (
-                <>{isRTL ? "موافق ومتابعة" : "Agree & Continue"}</>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Keep bottom navigation visible on Profile (mobile-first). */}
       <MobileNav />

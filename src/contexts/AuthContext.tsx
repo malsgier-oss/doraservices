@@ -32,6 +32,10 @@ interface Profile {
   availability_status?: string | null;
   availability_updated_at?: string | null;
 
+  // Marketplace Controls
+  provider_mode?: boolean;
+  marketplace_enabled?: boolean;
+
   created_at: string;
   updated_at: string;
 }

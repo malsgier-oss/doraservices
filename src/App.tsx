@@ -37,6 +37,7 @@ const Auth = lazyWithRetry(() => import("./pages/Auth"));
 const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
 const ProviderDashboard = lazyWithRetry(() => import("./pages/ProviderDashboard"));
 const Dashboard = lazyWithRetry(() => import("./pages/Dashboard"));
+const ListingsPanel = lazyWithRetry(() => import("./pages/ListingsPanel"));
 const ServiceEditor = lazyWithRetry(() => import("./pages/ServiceEditor"));
 const PendingVerification = lazyWithRetry(() => import("./pages/PendingVerification"));
 const PendingConfirmation = lazyWithRetry(() => import("./pages/PendingConfirmation"));
@@ -174,6 +175,14 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/listings-panel"
+          element={
+            <ProtectedRoute>
+              <ListingsPanel />
             </ProtectedRoute>
           }
         />

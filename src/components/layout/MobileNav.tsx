@@ -17,26 +17,22 @@ export function MobileNav() {
     // Keep this intentionally tiny: only preload the next screen chunk.
     // Profile is not prefetched to avoid caching a truncated chunk that causes "Unexpected end of script" on nav.
     if (to === "/favorites") void import("@/pages/Favorites");
-    if (to === "/provider-dashboard") void import("@/pages/ProviderDashboard");
-    if (to === "/dashboard") void import("@/pages/Dashboard");
+    if (to === "/listings-panel") void import("@/pages/ListingsPanel");
     if (to.startsWith("/admin")) void import("@/pages/admin/AdminLayout");
   };
 
   const role = (profile?.role || "user").toString();
   const admin = isAdmin(role);
-  const providerApproved = (role || "").toLowerCase() === "provider" && (profile?.provider_status || "").toLowerCase() === "approved";
-  const marketplaceEnabled = !!(profile as any)?.marketplace_enabled;
-
-  const dashboardTo = providerApproved ? "/provider-dashboard" : "/dashboard";
-  const dashboardIcon = providerApproved ? LayoutDashboard : LayoutDashboard;
-  const dashboardLabel = providerApproved
-    ? (isRTL ? "لوحة المزود" : "Provider")
-    : (isRTL ? "لوحة التحكم" : "Dashboard");
+  
+  // Marketplace Controls: show Listings Panel if either toggle is on
+  const providerMode = !!(profile as any)?.provider_mode;
+  const listingsActive = !!(profile as any)?.marketplace_enabled;
+  const showListingsPanel = providerMode || listingsActive;
 
   const navItems = [
     { to: "/", icon: Home, label: t.nav.home },
-    ...(providerApproved || marketplaceEnabled
-      ? [{ to: dashboardTo, icon: dashboardIcon, label: dashboardLabel }]
+    ...(showListingsPanel
+      ? [{ to: "/listings-panel", icon: LayoutDashboard, label: isRTL ? "لوحة الإعلانات" : "Listings Panel" }]
       : []),
     ...(admin
       ? [{ to: "/admin", icon: Shield, label: isRTL ? "لوحة التحكم" : "Admin" }]

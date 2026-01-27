@@ -36,8 +36,11 @@ export function ProviderRoute({ children }: ProviderRouteProps) {
   }
 
   const role = profile?.role as any;
+  // Check provider_mode toggle - when enabled, user has provider access (auto-confirmed)
+  const providerMode = !!(profile as any)?.provider_mode;
 
-  if (!isAdmin(role) && !isProviderLike(role)) {
+  // Allow access if: admin, provider_mode is on, or has provider-like role (legacy support)
+  if (!isAdmin(role) && !providerMode && !isProviderLike(role)) {
     return <Navigate to="/profile" state={{ from: location }} replace />;
   }
 
