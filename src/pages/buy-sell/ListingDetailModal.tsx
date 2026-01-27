@@ -16,17 +16,25 @@ export default function ListingDetailModal() {
   
   // Safe typed access to backgroundLocation state
   const state = location.state as { backgroundLocation?: typeof location } | null;
-  const hasBackground = !!state?.backgroundLocation;
+  const backgroundLocation = state?.backgroundLocation;
+  
+  // Only treat as overlay if:
+  // 1. backgroundLocation exists AND
+  // 2. backgroundLocation pathname is DIFFERENT from current pathname (not stale state)
+  // 3. backgroundLocation is NOT pointing to a listing route (it should be the category page behind)
+  const isValidOverlay = backgroundLocation && 
+    backgroundLocation.pathname !== location.pathname &&
+    !backgroundLocation.pathname.includes('/listing/');
   
   // #region agent log
-  console.log('[DEBUG] ListingDetailModal render:', {hasBackground, stateRaw: location.state, stateType: typeof location.state, backgroundLocationExists: !!state?.backgroundLocation, pathname: location.pathname});
-  fetch('http://127.0.0.1:7242/ingest/9400dad2-6936-4b7c-930c-5ff551ab6c67',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ListingDetailModal.tsx:20',message:'ListingDetailModal render',data:{hasBackground,stateRaw:location.state,stateType:typeof location.state,backgroundLocationExists:!!state?.backgroundLocation,pathname:location.pathname},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B'})}).catch(()=>{});
+  console.log('[DEBUG] ListingDetailModal render:', {isValidOverlay, backgroundPathname: backgroundLocation?.pathname, currentPathname: location.pathname, stateRaw: location.state});
+  fetch('http://127.0.0.1:7242/ingest/9400dad2-6936-4b7c-930c-5ff551ab6c67',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ListingDetailModal.tsx:20',message:'ListingDetailModal render',data:{isValidOverlay,backgroundPathname:backgroundLocation?.pathname,currentPathname:location.pathname},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B'})}).catch(()=>{});
   // #endregion
 
   const { data: listing, isLoading } = useListing(listingId);
 
   const handleClose = () => {
-    if (hasBackground) {
+    if (isValidOverlay) {
       // Go back to category page (preserves history)
       navigate(-1);
     } else {
@@ -35,11 +43,11 @@ export default function ListingDetailModal() {
     }
   };
 
-  // Direct URL access - render full page
-  if (!hasBackground) {
+  // Direct URL access OR stale state - render full page
+  if (!isValidOverlay) {
     // #region agent log
-    console.log('[DEBUG] Rendering FULL PAGE (ListingDetailPageContent):', {listingId, categorySlug});
-    fetch('http://127.0.0.1:7242/ingest/9400dad2-6936-4b7c-930c-5ff551ab6c67',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ListingDetailModal.tsx:38',message:'Rendering FULL PAGE (ListingDetailPageContent)',data:{listingId,categorySlug},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
+    console.log('[DEBUG] Rendering FULL PAGE (ListingDetailPageContent):', {listingId, categorySlug, isValidOverlay});
+    fetch('http://127.0.0.1:7242/ingest/9400dad2-6936-4b7c-930c-5ff551ab6c67',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ListingDetailModal.tsx:38',message:'Rendering FULL PAGE (ListingDetailPageContent)',data:{listingId,categorySlug,isValidOverlay},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
     // #endregion
     return (
       <ListingDetailPageContent
@@ -50,8 +58,8 @@ export default function ListingDetailModal() {
   }
 
   // #region agent log
-  console.log('[DEBUG] Rendering DRAWER (ListingDetailSheet):', {listingId, categorySlug, hasBackground});
-  fetch('http://127.0.0.1:7242/ingest/9400dad2-6936-4b7c-930c-5ff551ab6c67',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ListingDetailModal.tsx:49',message:'Rendering DRAWER (ListingDetailSheet)',data:{listingId,categorySlug,hasBackground},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+  console.log('[DEBUG] Rendering DRAWER (ListingDetailSheet):', {listingId, categorySlug, isValidOverlay});
+  fetch('http://127.0.0.1:7242/ingest/9400dad2-6936-4b7c-930c-5ff551ab6c67',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ListingDetailModal.tsx:49',message:'Rendering DRAWER (ListingDetailSheet)',data:{listingId,categorySlug,isValidOverlay},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
   // #endregion
 
   // Overlay from category page - render drawer
