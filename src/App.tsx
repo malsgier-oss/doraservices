@@ -191,7 +191,7 @@ const AppRoutes = () => {
         <Route path="/services/trending" element={<TrendingServicesPage />} />
         <Route path="/services/recommendations" element={<RecommendationsPage />} />
         <Route path="/services/category/:categoryId" element={<ServiceCategoryDetail />} />
-        <Route path="/services/service/:id" element={<ServiceDetailPage />} />
+        <Route path="/services/:id" element={<ServiceDetailPage />} />
 
         {/* Public site pages */}
         <Route path="/:slug(about|contact|help|become-provider|terms|privacy)" element={<SitePage />} />

@@ -231,7 +231,7 @@ export default function ServiceCategoryDetail() {
     const now = Date.now();
     if (now - lastOpenAtRef.current < 250) return;
     lastOpenAtRef.current = now;
-    if (service?.id) navigate(`/services/service/${service.id}`);
+    if (service?.id) navigate(`/services/${service.id}`);
   };
 
   const handleCall = (service: ServiceRow) => {

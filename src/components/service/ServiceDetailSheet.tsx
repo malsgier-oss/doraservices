@@ -383,7 +383,7 @@ function ServiceDetailListingStyle({
   };
 
   const handleCopyLink = async () => {
-    const url = `${typeof window !== "undefined" ? window.location.origin : ""}/services/service/${provider.id}`;
+    const url = `${typeof window !== "undefined" ? window.location.origin : ""}/services/${provider.id}`;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);

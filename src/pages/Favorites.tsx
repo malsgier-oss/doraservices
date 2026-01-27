@@ -153,7 +153,7 @@ export default function Favorites() {
   };
 
   const openProviderDetailFromFavorite = (fav: FavoriteService) => {
-    if (fav?.service_id) navigate(`/services/service/${fav.service_id}`);
+    if (fav?.service_id) navigate(`/services/${fav.service_id}`);
   };
 
   // Get unique categories from favorites
