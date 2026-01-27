@@ -921,8 +921,8 @@ export default function Hub({ initialTab }: HubProps = {}) {
   }, [categories, queryTrim]);
 
   // Tab state for SERVICES / BUY & SELL (controlled by route pathname)
-  const { isEnabled: buySellEnabled } = useBuySellEnabled();
-  const { isEnabled: servicesEnabled } = useServicesEnabled();
+  const { isEnabled: buySellEnabled, isLoading: buySellLoading } = useBuySellEnabled();
+  const { isEnabled: servicesEnabled, isLoading: servicesLoading } = useServicesEnabled();
   
   // Derive active tab from pathname (route-controlled)
   const activeTab = useMemo<"services" | "buy-sell">(() => {
@@ -939,14 +939,16 @@ export default function Hub({ initialTab }: HubProps = {}) {
 
   // If Buy & Sell is disabled but user is on /buy-sell, redirect to /services.
   // If Services is disabled but user is on /services, redirect to /buy-sell.
+  // Only redirect after settings have loaded to avoid false redirects.
   useEffect(() => {
+    if (buySellLoading || servicesLoading) return;
     if (!buySellEnabled && activeTab === "buy-sell") {
       navigate("/services", { replace: true });
     }
     if (!servicesEnabled && buySellEnabled && activeTab === "services") {
       navigate("/buy-sell", { replace: true });
     }
-  }, [activeTab, buySellEnabled, servicesEnabled, navigate]);
+  }, [activeTab, buySellEnabled, servicesEnabled, buySellLoading, servicesLoading, navigate]);
 
   // Tab change handler: navigate to the correct route
   const handleTabChange = (tab: "services" | "buy-sell") => {
