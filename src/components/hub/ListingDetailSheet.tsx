@@ -31,10 +31,12 @@ interface ListingDetailSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   listing: Listing | null;
+  listingId?: string;      // For loading state when listing not yet fetched
+  categorySlug?: string;   // For route-based URL construction
   onSelectListing?: (listing: Listing) => void;
 }
 
-export function ListingDetailSheet({ open, onOpenChange, listing, onSelectListing }: ListingDetailSheetProps) {
+export function ListingDetailSheet({ open, onOpenChange, listing, listingId, categorySlug, onSelectListing }: ListingDetailSheetProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { language, isRTL } = useLanguage();
@@ -90,9 +92,19 @@ export function ListingDetailSheet({ open, onOpenChange, listing, onSelectListin
     return t("السعر عند التواصل", "Price on request");
   }, [listing, language]);
 
+  // Build shareable URL - use route-based URL when categorySlug is available
+  const getShareUrl = () => {
+    if (!listing) return "";
+    if (categorySlug) {
+      return `${window.location.origin}/buy-sell/category/${categorySlug}/listing/${listing.id}`;
+    }
+    // Fallback to current URL (works when opened via route)
+    return window.location.href;
+  };
+
   const handleShare = async () => {
     if (!listing) return;
-    const url = `${window.location.origin}/?listing=${listing.id}`;
+    const url = getShareUrl();
     const title = listing.title;
     const text = listing.description || title;
 
@@ -109,7 +121,7 @@ export function ListingDetailSheet({ open, onOpenChange, listing, onSelectListin
 
   const handleCopyLink = async () => {
     if (!listing) return;
-    const url = `${window.location.origin}/?listing=${listing.id}`;
+    const url = getShareUrl();
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);

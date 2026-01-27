@@ -1,10 +1,9 @@
 import React, { useState, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useListings } from "@/hooks/useListings";
 import { BUY_SELL_CATEGORIES, getBuySellSubcategories } from "@/components/hub/buySellCategories";
 import { ListingCardShowcase } from "@/components/buy-sell/ListingCardShowcase";
-import { ListingDetailSheet } from "@/components/hub/ListingDetailSheet";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Search, Sliders } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,6 +18,7 @@ interface FilterState {
 export default function CategoryDetail() {
   const { categoryId } = useParams<{ categoryId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { language, isRTL } = useLanguage();
   const t = (ar: string, en: string) => (language === "ar" ? ar : en);
 
@@ -45,8 +45,6 @@ export default function CategoryDetail() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
-  const [detailSheetOpen, setDetailSheetOpen] = useState(false);
 
   // Filter and sort listings
   const filteredListings = useMemo(() => {
@@ -314,8 +312,9 @@ export default function CategoryDetail() {
                 key={listing.id}
                 listing={listing}
                 onClick={() => {
-                  setSelectedListing(listing);
-                  setDetailSheetOpen(true);
+                  navigate(`listing/${listing.id}`, {
+                    state: { backgroundLocation: location },
+                  });
                 }}
               />
             ))}
@@ -323,12 +322,6 @@ export default function CategoryDetail() {
         )}
       </div>
 
-      {/* Detail Sheet */}
-      <ListingDetailSheet
-        open={detailSheetOpen}
-        onOpenChange={setDetailSheetOpen}
-        listing={selectedListing}
-      />
     </div>
   );
 }

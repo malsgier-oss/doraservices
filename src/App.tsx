@@ -24,6 +24,7 @@ const ListingsBrowse = lazyWithRetry(() => import("./pages/buy-sell/ListingsBrow
 const MyListings = lazyWithRetry(() => import("./pages/buy-sell/MyListings"));
 const EditListing = lazyWithRetry(() => import("./pages/buy-sell/EditListing"));
 const CategoryDetail = lazyWithRetry(() => import("./pages/buy-sell/CategoryDetail"));
+const ListingDetailModal = lazyWithRetry(() => import("./pages/buy-sell/ListingDetailModal"));
 const TrendingServicesPage = lazyWithRetry(() => import("./pages/services/TrendingServicesPage"));
 const RecommendationsPage = lazyWithRetry(() => import("./pages/services/RecommendationsPage"));
 const ServiceCategoryDetail = lazyWithRetry(() => import("./pages/services/ServiceCategoryDetail"));
@@ -151,10 +152,16 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
 }
 
 const AppRoutes = () => {
+  const location = useLocation();
+  // Safe typed access to backgroundLocation state for modal routing
+  const state = location.state as { backgroundLocation?: typeof location } | null;
+  const backgroundLocation = state?.backgroundLocation;
+
   return (
     <OnboardingGate>
       <React.Suspense fallback={<RouteFallback />}>
-        <Routes>
+        {/* Normal routes - use backgroundLocation if modal is open */}
+        <Routes location={backgroundLocation || location}>
         {/* Onboarding */}
         <Route path="/onboarding" element={<Onboarding />} />
         {/* Hub is public */}
@@ -170,6 +177,8 @@ const AppRoutes = () => {
         />
         <Route path="/buy-sell/deals/:type" element={<DealsBrowse />} />
         <Route path="/buy-sell/category/:categoryId" element={<CategoryDetail />} />
+        {/* Listing detail route for deep links (renders as standalone page) */}
+        <Route path="/buy-sell/category/:categoryId/listing/:listingId" element={<ListingDetailModal />} />
         <Route path="/buy-sell/listings" element={<ListingsBrowse />} />
         <Route path="/buy-sell/create-listing" element={<CreateListing />} />
         <Route
@@ -312,6 +321,13 @@ const AppRoutes = () => {
 
         <Route path="*" element={<NotFound />} />
         </Routes>
+
+        {/* Modal routes - render on top when backgroundLocation exists */}
+        {backgroundLocation && (
+          <Routes>
+            <Route path="/buy-sell/category/:categoryId/listing/:listingId" element={<ListingDetailModal />} />
+          </Routes>
+        )}
       </React.Suspense>
     </OnboardingGate>
   );
