@@ -4,7 +4,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Copy, Share2, MapPin, Tag, X, Phone, MessageCircle, PencilLine, Archive, Trash2, CheckCircle2, Star, Shield } from "lucide-react";
+import { Copy, Share2, MapPin, Tag, X, Phone, MessageCircle, PencilLine, Archive, Trash2, CheckCircle2, Star, Shield, Heart } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import type { Listing } from "@/hooks/useListings";
 import { useAuth } from "@/contexts/AuthContext";
@@ -46,7 +46,62 @@ export function ListingDetailSheet({ open, onOpenChange, listing, listingId, cat
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewContent, setReviewContent] = useState("");
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
   const { user } = useAuth();
+
+  // Check if listing is favorited
+  useEffect(() => {
+    if (!user || !listing) {
+      setIsFavorite(false);
+      return;
+    }
+    let alive = true;
+    const checkFavorite = async () => {
+      try {
+        const { data } = await supabase
+          .from("saved_listings")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("listing_id", listing.id)
+          .maybeSingle();
+        if (alive) setIsFavorite(!!data);
+      } catch {
+        if (alive) setIsFavorite(false);
+      }
+    };
+    checkFavorite();
+    return () => { alive = false; };
+  }, [user, listing?.id]);
+
+  const toggleFavorite = async () => {
+    if (!user) {
+      toast.info(t("سجل دخولك لحفظ المفضلة", "Sign in to save favorites"));
+      return;
+    }
+    if (!listing) return;
+
+    const wasF = isFavorite;
+    setIsFavorite(!wasF);
+
+    try {
+      if (wasF) {
+        const { error } = await supabase
+          .from("saved_listings")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("listing_id", listing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("saved_listings")
+          .insert({ user_id: user.id, listing_id: listing.id });
+        if (error) throw error;
+      }
+    } catch {
+      setIsFavorite(wasF);
+      toast.error(t("تعذر تحديث المفضلة", "Failed to update favorites"));
+    }
+  };
 
   const images = (listing?.image_urls || []).filter(Boolean);
   const cover = images[0] || null;
@@ -217,23 +272,27 @@ export function ListingDetailSheet({ open, onOpenChange, listing, listingId, cat
             </div>
           ) : null}
 
-          <div className="px-4 space-y-6 pb-[calc(7.5rem+env(safe-area-inset-bottom))]">
-            {/* Price and Share */}
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">{t("السعر", "Price")}</p>
-                <div className="text-3xl font-bold text-foreground">{priceText}</div>
-              </div>
-              <Button size="lg" variant="outline" className="gap-2 shrink-0 rounded-xl" onClick={handleShare}>
+          <div className="px-4 space-y-5 pb-[calc(7.5rem+env(safe-area-inset-bottom))]">
+            {/* 1. Share + Copy buttons row (matching Service Detail Sheet) */}
+            <div className="flex gap-3">
+              <Button size="lg" variant="outline" className="flex-1 gap-2 rounded-xl" onClick={handleShare}>
                 <Share2 className="h-4 w-4" />
-                <span className="hidden sm:inline">{copied ? t("تم النسخ!", "Copied!") : t("مشاركة", "Share")}</span>
+                {t("مشاركة", "Share")}
+              </Button>
+              <Button size="lg" variant="outline" className="flex-1 gap-2 rounded-xl" onClick={handleCopyLink}>
+                <Copy className="h-4 w-4" />
+                {copied ? t("تم النسخ!", "Copied!") : t("نسخ الرابط", "Copy Link")}
               </Button>
             </div>
 
-            {/* Title */}
-            <div>
-              <h1 className="text-2xl font-bold text-foreground leading-tight">{listing.title}</h1>
+            {/* 2. Price */}
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">{t("السعر", "Price")}</p>
+              <div className="text-3xl font-bold text-foreground">{priceText}</div>
             </div>
+
+            {/* 3. Title */}
+            <h1 className="text-2xl font-bold text-foreground leading-tight">{listing.title}</h1>
 
             {/* Owner management */}
             {isOwner ? (
@@ -320,32 +379,21 @@ export function ListingDetailSheet({ open, onOpenChange, listing, listingId, cat
               </div>
             ) : null}
 
-            {/* Seller Info Card - Premium */}
-            <div className="bg-muted/40 rounded-2xl p-5 border border-border/50 space-y-3">
-              <div className="text-sm font-semibold text-muted-foreground">{t("البائع", "Seller")}</div>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-12 w-12">
+            {/* 5. Seller Info Card (avatar, name, verified badge only) */}
+            <div className="bg-muted/40 rounded-2xl p-5 border border-border/50">
+              <div className="text-sm font-semibold text-muted-foreground mb-3">{t("البائع", "Seller")}</div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Avatar className="h-12 w-12 shrink-0">
                     <AvatarImage src={seller?.avatar_url || undefined} />
                     <AvatarFallback className="bg-primary/10 text-primary font-semibold">
                       {sellerInitials}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="space-y-0.5">
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="font-semibold text-foreground">{sellerName}</p>
-                      <Shield className="h-4 w-4 text-green-600 dark:text-green-400" />
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs">
-                      {!reviewsLoading && rating.totalReviews > 0 ? (
-                        <>
-                          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                          <span className="font-medium text-foreground">{rating.averageRating}</span>
-                          <span className="text-muted-foreground">({rating.totalReviews} {t("تقييم", "reviews")})</span>
-                        </>
-                      ) : (
-                        <span className="text-muted-foreground">{t("لا توجد تقييمات بعد", "No reviews yet")}</span>
-                      )}
+                      <p className="font-semibold text-foreground truncate">{sellerName}</p>
+                      <Shield className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
                     </div>
                   </div>
                 </div>
@@ -353,11 +401,42 @@ export function ListingDetailSheet({ open, onOpenChange, listing, listingId, cat
                   {t("موثوق", "Verified")}
                 </Badge>
               </div>
-              {!isOwner && (
-                <Button variant="outline" size="sm" className="w-full rounded-xl" onClick={() => { setReviewRating(userReview?.rating ?? 0); setReviewContent(userReview?.content ?? ""); setReviewDialogOpen(true); }}>
-                  {userReview ? t("تعديل التقييم", "Edit review") : t("كتابة تقييم", "Leave a review")}
-                </Button>
-              )}
+            </div>
+
+            {/* 6. Reviews Section (separate card with rating + "Leave a review") */}
+            <div className="bg-muted/40 rounded-2xl p-5 border border-border/50 space-y-3">
+              <div className="text-sm font-semibold text-muted-foreground">{t("التقييمات", "Reviews")}</div>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  {!reviewsLoading && rating.totalReviews > 0 ? (
+                    <>
+                      <div className="flex items-center gap-1 font-semibold text-amber-700 dark:text-amber-400">
+                        <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
+                        <span>{rating.averageRating}</span>
+                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        ({rating.totalReviews} {t("تقييم", "reviews")})
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">{t("لا توجد تقييمات بعد", "No reviews yet")}</span>
+                  )}
+                </div>
+                {!isOwner && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl"
+                    onClick={() => {
+                      setReviewRating(userReview?.rating ?? 0);
+                      setReviewContent(userReview?.content ?? "");
+                      setReviewDialogOpen(true);
+                    }}
+                  >
+                    {userReview ? t("تعديل التقييم", "Edit review") : t("كتابة تقييم", "Leave a review")}
+                  </Button>
+                )}
+              </div>
             </div>
 
             {/* Description */}
@@ -442,21 +521,10 @@ export function ListingDetailSheet({ open, onOpenChange, listing, listingId, cat
                 </div>
               </div>
             ) : null}
-
-            <div className="flex gap-3 pt-2">
-              <Button size="lg" variant="outline" className="flex-1 gap-2 rounded-xl" onClick={handleShare}>
-                <Share2 className="h-4 w-4" />
-                {copied ? t("تم النسخ!", "Copied!") : t("مشاركة", "Share")}
-              </Button>
-              <Button size="lg" className="flex-1 gap-2 rounded-xl" onClick={handleCopyLink}>
-                <Copy className="h-4 w-4" />
-                {t("نسخ الرابط", "Copy Link")}
-              </Button>
-            </div>
           </div>
         </div>
 
-        {/* Bottom contact bar - Fixed Premium Action Bar */}
+        {/* Bottom contact bar - Fixed Premium Action Bar (matching Service Detail Sheet) */}
         <div className="border-t border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] space-y-2" dir={isRTL ? "rtl" : "ltr"}>
           {canContact ? (
             <div className="flex gap-2">
@@ -471,7 +539,7 @@ export function ListingDetailSheet({ open, onOpenChange, listing, listingId, cat
                 <Phone className="h-4 w-4" />
                 {t("اتصال", "Call")}
               </Button>
-              {allowWhatsApp ? (
+              {allowWhatsApp && (
                 <Button
                   type="button"
                   size="lg"
@@ -487,10 +555,38 @@ export function ListingDetailSheet({ open, onOpenChange, listing, listingId, cat
                   <MessageCircle className="h-4 w-4" />
                   {t("واتساب", "WhatsApp")}
                 </Button>
-              ) : null}
+              )}
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                className={cn(
+                  "h-12 w-12 rounded-xl shrink-0",
+                  isFavorite && "border-red-200 bg-red-50 text-red-500 hover:text-red-600 dark:border-red-800 dark:bg-red-950"
+                )}
+                onClick={toggleFavorite}
+                aria-label={isFavorite ? t("إزالة من المفضلة", "Remove from favorites") : t("إضافة للمفضلة", "Add to favorites")}
+              >
+                <Heart className={cn("h-5 w-5", isFavorite && "fill-current")} />
+              </Button>
             </div>
           ) : (
-            <div className="text-sm text-muted-foreground text-center py-2">{t("رقم الهاتف غير متوفر حالياً", "Phone number not available")}</div>
+            <div className="flex gap-2 items-center">
+              <div className="flex-1 text-sm text-muted-foreground text-center py-2">{t("رقم الهاتف غير متوفر حالياً", "Phone number not available")}</div>
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                className={cn(
+                  "h-12 w-12 rounded-xl shrink-0",
+                  isFavorite && "border-red-200 bg-red-50 text-red-500 hover:text-red-600 dark:border-red-800 dark:bg-red-950"
+                )}
+                onClick={toggleFavorite}
+                aria-label={isFavorite ? t("إزالة من المفضلة", "Remove from favorites") : t("إضافة للمفضلة", "Add to favorites")}
+              >
+                <Heart className={cn("h-5 w-5", isFavorite && "fill-current")} />
+              </Button>
+            </div>
           )}
         </div>
       </DrawerContent>
