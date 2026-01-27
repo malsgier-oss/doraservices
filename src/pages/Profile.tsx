@@ -238,12 +238,13 @@ export default function Profile() {
           title: isRTL ? "تم الحفظ" : "Saved",
           description: isRTL ? "تم تحديث تفضيلات الإعلانات" : "Listing preference updated",
         });
+        await refreshProfile?.();
       }
     };
 
     const timer = setTimeout(saveMarketplace, 500);
     return () => clearTimeout(timer);
-  }, [marketplaceEnabled, profileMarketplace, user, profile, isRTL]);
+  }, [marketplaceEnabled, profileMarketplace, user, profile, isRTL, refreshProfile]);
 
   // Auto-save provider_mode only when the user toggles it (not on initial load from profile)
   const profileProviderMode = Boolean((profile as any)?.provider_mode);
@@ -704,6 +705,9 @@ export default function Profile() {
             <TabsTrigger value="account" className="rounded-xl flex-1 min-w-0 shrink-0">
               {isRTL ? "الحساب" : "Account"}
             </TabsTrigger>
+            <TabsTrigger value="marketplace" className="rounded-xl flex-1 min-w-0 shrink-0">
+              {isRTL ? "السوق" : "Marketplace"}
+            </TabsTrigger>
             <TabsTrigger value="security" className="rounded-xl flex-1 min-w-0 shrink-0">
               {isRTL ? "الأمان" : "Security"}
             </TabsTrigger>
@@ -818,8 +822,10 @@ export default function Profile() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
 
-            {/* Marketplace Controls */}
+          {/* Marketplace */}
+          <TabsContent value="marketplace" className="mt-4 space-y-4">
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -875,7 +881,6 @@ export default function Profile() {
               </CardContent>
             </Card>
           </TabsContent>
-
 
           {/* Security */}
           <TabsContent value="security" className="mt-4 space-y-4">
