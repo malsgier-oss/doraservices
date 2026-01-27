@@ -29,7 +29,7 @@ export function HubSection({
 }: HubSectionProps) {
   return (
     <section id={id} className={cn("space-y-5", className)}>
-      <div className="flex items-center justify-between gap-3">
+      <div dir="rtl" className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           {Icon && (
             <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10">
@@ -37,7 +37,7 @@ export function HubSection({
             </div>
           )}
           <div>
-            <h2 className="text-lg font-bold text-foreground leading-tight text-right">{title}</h2>
+            <h2 className="text-lg font-bold text-foreground leading-tight">{title}</h2>
             {typeof count === "number" && count > 0 && (
               <span className="text-sm text-muted-foreground font-medium">({count})</span>
             )}
@@ -55,7 +55,7 @@ export function HubSection({
                 onClick={onAction}
               >
                 {actionLabel}
-                <svg className="ml-1 h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="ms-1 h-3 w-3 rtl:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </Button>
