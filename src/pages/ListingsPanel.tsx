@@ -454,8 +454,9 @@ export default function ListingsPanel() {
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="grid grid-cols-3 text-xs text-muted-foreground font-medium pb-2 border-b">
+              <div className="grid grid-cols-4 text-xs text-muted-foreground font-medium pb-2 border-b">
                 <span>{t("الخدمة", "Service")}</span>
+                <span className="text-center">{t("مشاهدات", "Views")}</span>
                 <span className="text-center">{t("مكالمات", "Calls")}</span>
                 <span className="text-center">{t("مفضلة", "Favorites")}</span>
               </div>
@@ -463,9 +464,10 @@ export default function ListingsPanel() {
               {serviceStats.map((service: any) => (
                 <div
                   key={service.id}
-                  className="grid grid-cols-3 items-center py-2 border-b border-dashed last:border-0"
+                  className="grid grid-cols-4 items-center py-2 border-b border-dashed last:border-0"
                 >
                   <span className="text-sm font-medium truncate pr-2">{service.title}</span>
+                  <span className="text-center text-sm font-medium">{service.views || 0}</span>
                   <span className="text-center text-sm font-medium">{service.calls}</span>
                   <span className="text-center text-sm font-medium">{service.favorites}</span>
                 </div>
@@ -582,6 +584,7 @@ export default function ListingsPanel() {
                   listing={l}
                   isRTL={isRTL}
                   onClick={() => navigate(`/listings/${l.id}`)}
+                  showStats
                 />
               ))}
             </div>

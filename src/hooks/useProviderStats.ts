@@ -56,10 +56,10 @@ export function useServiceStats(providerId?: string) {
 
       if (callError) throw callError;
 
-      // Get favorite counts per service
+      // Get services with views count
       const { data: services, error: servicesError } = await supabase
         .from("services")
-        .select("id, title")
+        .select("id, title, views_count")
         .eq("user_id", id);
 
       if (servicesError) throw servicesError;
@@ -75,6 +75,7 @@ export function useServiceStats(providerId?: string) {
         title: service.title,
         calls: callCounts[service.id] || 0,
         favorites: 0,
+        views: service.views_count || 0,
       }));
     },
     enabled: !!id,

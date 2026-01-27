@@ -2374,7 +2374,16 @@ export default function Hub({ initialTab }: HubProps = {}) {
       {activeTab === "buy-sell" && (buySellMode === "all" || buySellMode === "listings") ? (
         <button
           type="button"
-          onClick={() => navigate("/buy-sell/create-listing")}
+          onClick={() => {
+            if (!user) {
+              toast({
+                title: t("سجل لنشر إعلانك", "Sign up to publish your listing"),
+              });
+              navigate("/auth?tab=signup&returnTo=" + encodeURIComponent("/buy-sell/create-listing"));
+              return;
+            }
+            navigate("/buy-sell/create-listing");
+          }}
           className={cn(
             "fixed z-50 rounded-full shadow-lg bg-primary text-primary-foreground h-14 px-5 flex items-center gap-2 font-semibold",
             isRTL ? "left-4" : "right-4",

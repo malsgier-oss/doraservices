@@ -23,6 +23,12 @@ export interface Listing {
   contact_phone?: string | null;
   /** When false, hide WhatsApp button for this listing */
   allow_whatsapp?: boolean | null;
+  /** Stats: number of views */
+  views_count?: number;
+  /** Stats: number of call button clicks */
+  call_count?: number;
+  /** Stats: number of WhatsApp button clicks */
+  whatsapp_count?: number;
 }
 
 export interface UseListingsOptions {
