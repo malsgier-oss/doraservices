@@ -48,7 +48,6 @@ import { TrendingDeals } from "@/components/hub/TrendingDeals";
 import { NewListings } from "@/components/hub/NewListings";
 import { ListingCard } from "@/components/hub/ListingCard";
 import { ListingCardGroup } from "@/components/hub/ListingCardGroup";
-import { ListingDetailSheet } from "@/components/hub/ListingDetailSheet";
 import { ListingListSheet } from "@/components/hub/ListingListSheet";
 import { SearchFilters, type FilterState } from "@/components/hub/SearchFilters";
 import { AnimatedSection } from "@/components/hub/AnimatedSection";
@@ -524,8 +523,6 @@ export default function Hub({ initialTab }: HubProps = {}) {
     // Ensure we never have two Drawers open at once
     setDealSheetOpen(false);
     setSelectedDeal(null);
-    setListingSheetOpen(false);
-    setSelectedListing(null);
     setBuySellCategoryDrawerOpen(false);
     setSelectedCategoryForDrawer(null);
     // Open ListingListSheet with deal's category
@@ -543,10 +540,6 @@ export default function Hub({ initialTab }: HubProps = {}) {
   const [buySellCategoryDrawerOpen, setBuySellCategoryDrawerOpen] = useState(false);
   const [selectedCategoryForDrawer, setSelectedCategoryForDrawer] = useState<string | null>(null);
 
-  // Listing detail state
-  const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
-  const [listingSheetOpen, setListingSheetOpen] = useState(false);
-
   // ListingListSheet state (for deal card clicks)
   const [listingListSheetOpen, setListingListSheetOpen] = useState(false);
   const [listingListCategory, setListingListCategory] = useState<string | null>(null);
@@ -556,16 +549,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
   const [selectedServiceForSheet, setSelectedServiceForSheet] = useState<ServiceRow | null>(null);
 
   const openListingDetail = (listing: Listing) => {
-    // Ensure we never have two Drawers open at once
-    setDealSheetOpen(false);
-    setSelectedDeal(null);
-    setBuySellCategoryDrawerOpen(false);
-    setSelectedCategoryForDrawer(null);
-    setListingListSheetOpen(false);
-    setListingListCategory(null);
-    setListingListSearch(null);
-    setSelectedListing(listing);
-    setListingSheetOpen(true);
+    if (listing?.id) navigate(`/listings/${listing.id}`);
   };
 
   const location = useLocation();
@@ -1087,8 +1071,6 @@ export default function Hub({ initialTab }: HubProps = {}) {
     if (!service?.id) return;
     setDealSheetOpen(false);
     setSelectedDeal(null);
-    setListingSheetOpen(false);
-    setSelectedListing(null);
     setListingListSheetOpen(false);
     setListingListCategory(null);
     setListingListSearch(null);
@@ -2349,19 +2331,6 @@ export default function Hub({ initialTab }: HubProps = {}) {
           </div>
         </div>
       )}
-
-      <ListingDetailSheet
-        open={listingSheetOpen}
-        listing={selectedListing}
-        onOpenChange={(open) => {
-          setListingSheetOpen(open);
-          if (!open) setSelectedListing(null);
-        }}
-        onSelectListing={(l) => {
-          setSelectedListing(l);
-          setListingSheetOpen(true);
-        }}
-      />
 
       {/* Service detail sheet (buy-and-sell style, from Hub services tab) */}
       {selectedServiceForSheet && (

@@ -25,6 +25,7 @@ const MyListings = lazyWithRetry(() => import("./pages/buy-sell/MyListings"));
 const EditListing = lazyWithRetry(() => import("./pages/buy-sell/EditListing"));
 const CategoryDetail = lazyWithRetry(() => import("./pages/buy-sell/CategoryDetail"));
 const ListingDetailModal = lazyWithRetry(() => import("./pages/buy-sell/ListingDetailModal"));
+const ListingDetailPage = lazyWithRetry(() => import("./pages/buy-sell/ListingDetailPage"));
 const TrendingServicesPage = lazyWithRetry(() => import("./pages/services/TrendingServicesPage"));
 const RecommendationsPage = lazyWithRetry(() => import("./pages/services/RecommendationsPage"));
 const ServiceCategoryDetail = lazyWithRetry(() => import("./pages/services/ServiceCategoryDetail"));
@@ -197,6 +198,7 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
+        <Route path="/listings/:id" element={<ListingDetailPage />} />
         <Route path="/services/trending" element={<TrendingServicesPage />} />
         <Route path="/services/recommendations" element={<RecommendationsPage />} />
         <Route path="/services/category/:categoryId" element={<ServiceCategoryDetail />} />
