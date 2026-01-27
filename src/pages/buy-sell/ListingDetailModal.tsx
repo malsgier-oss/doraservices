@@ -1,12 +1,13 @@
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useListing } from "@/hooks/useListing";
 import { ListingDetailSheet } from "@/components/hub/ListingDetailSheet";
+import ListingDetailPageContent from "./ListingDetailPageContent";
 
 /**
  * Route-backed listing detail modal.
  * 
- * When accessed with backgroundLocation state (from CategoryDetail), renders as overlay.
- * When accessed directly (deep link), renders sheet as standalone.
+ * When accessed with backgroundLocation state (from CategoryDetail), renders as drawer overlay.
+ * When accessed directly (deep link), renders as full page.
  */
 export default function ListingDetailModal() {
   const { categoryId: categorySlug, listingId } = useParams<{ categoryId: string; listingId: string }>();
@@ -29,6 +30,17 @@ export default function ListingDetailModal() {
     }
   };
 
+  // Direct URL access - render full page
+  if (!hasBackground) {
+    return (
+      <ListingDetailPageContent
+        listingId={listingId}
+        categorySlug={categorySlug}
+      />
+    );
+  }
+
+  // Overlay from category page - render drawer
   return (
     <ListingDetailSheet
       open={true}
