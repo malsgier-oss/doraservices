@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useListings, type Listing } from "@/hooks/useListings";
 import { ListingCard } from "@/components/hub/ListingCard";
-import { getBuySellCategoryLabel } from "@/components/hub/buySellCategories";
+import { getBuySellCategoryLabel } from "@/components/hub/buySellCategoriesData";
 
 interface ListingListSheetProps {
   open: boolean;

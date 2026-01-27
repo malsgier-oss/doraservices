@@ -20,7 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { BUY_SELL_CATEGORIES, getBuySellSubcategories } from "@/components/hub/buySellCategories";
+import { BUY_SELL_CATEGORIES, getBuySellSubcategories } from "@/components/hub/buySellCategoriesData";
 import { cn } from "@/lib/utils";
 
 const MAX_PHOTOS = 5;

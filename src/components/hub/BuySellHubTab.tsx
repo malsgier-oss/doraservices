@@ -9,7 +9,7 @@ import { DealCardHub } from "@/components/hub/DealCardHub";
 import { HeroSection } from "@/components/hub/HeroSection";
 import { SectionDivider } from "@/components/hub/SectionDivider";
 import { HUB_CARD_BASE, HUB_CARD_ROW_4, HUB_CARD_SLOT_4 } from "@/components/hub/hubStyles";
-import { BUY_SELL_CATEGORIES, type BuySellCategory } from "@/components/hub/buySellCategories";
+import { BUY_SELL_CATEGORIES, type BuySellCategory } from "@/components/hub/buySellCategoriesData";
 import { useDeals, type Deal } from "@/hooks/useDeals";
 import { useListings, type Listing } from "@/hooks/useListings";
 import { Award, Clock, Shield, ShoppingBag, Search } from "lucide-react";

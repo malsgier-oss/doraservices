@@ -1,7 +1,7 @@
 import { Tag, Eye, Phone, MessageCircle } from "lucide-react";
 import { memo } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { getBuySellCategoryLabel } from "./buySellCategories";
+import { getBuySellCategoryLabel } from "./buySellCategoriesData";
 import { HubItemCard } from "./HubItemCard";
 import type { Listing } from "@/hooks/useListings";
 import { cn } from "@/lib/utils";

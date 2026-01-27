@@ -2,7 +2,7 @@ import React, { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useListings } from "@/hooks/useListings";
-import { BUY_SELL_CATEGORIES, getBuySellSubcategories } from "@/components/hub/buySellCategories";
+import { BUY_SELL_CATEGORIES, getBuySellSubcategories } from "@/components/hub/buySellCategoriesData";
 import { ListingCardShowcase } from "@/components/buy-sell/ListingCardShowcase";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Search, Sliders } from "lucide-react";

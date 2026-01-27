@@ -1,5 +1,5 @@
 import { useLanguage } from "@/contexts/LanguageContext";
-import { BUY_SELL_CATEGORIES } from "@/components/hub/buySellCategories";
+import { BUY_SELL_CATEGORIES } from "@/components/hub/buySellCategoriesData";
 import { HubCategoryCard } from "@/components/hub/HubCategoryCard";
 import { HubChipCard } from "@/components/hub/HubChipCard";
 import { useNavigate } from "react-router-dom";

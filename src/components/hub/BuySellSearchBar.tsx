@@ -3,7 +3,7 @@ import { Search, X, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { BUY_SELL_CATEGORIES } from "@/components/hub/buySellCategories";
+import { BUY_SELL_CATEGORIES } from "@/components/hub/buySellCategoriesData";
 
 interface BuySellSearchBarProps {
   value: string;
