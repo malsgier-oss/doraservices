@@ -301,8 +301,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const updateProfileBasics = async (overrides: EnsureOverrides) => {
-    if (!user) return { error: new Error("Not signed in") };
-    const profile = await ensureProfile(user, overrides);
+    // After OTP verification there can be a brief race where `user` in context is still null.
+    // In that case, pull a fresh user from Supabase before attempting profile writes.
+    let authUser = user;
+    if (!authUser) {
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data?.user) return { error: new Error("Not signed in") };
+      authUser = data.user;
+    }
+
+    const profile = await ensureProfile(authUser, overrides);
     if (!profile) return { error: new Error("Failed to update profile") };
     setProfile(profile);
     return { error: null };
