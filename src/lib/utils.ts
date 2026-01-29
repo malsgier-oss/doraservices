@@ -48,7 +48,4 @@ export function isValidLibyanPhone(input: string) {
  * Turn a phone into an internal email used for Supabase Email/Password auth.
  * Example: 0912345678 -> 0912345678@dora.ly
  */
-export function phoneToInternalEmail(phoneOrDirtyInput: string) {
-  const cleaned = cleanPhoneForStorage(phoneOrDirtyInput);
-  return `${cleaned}@dora.ly`;
 }
