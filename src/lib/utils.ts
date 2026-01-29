@@ -14,7 +14,7 @@ export function normalizeCategory(value: string): string {
 }
 
 /**
- * Cleans phone number for storage + internal login:
+ * Cleans a Libyan phone number for storage.
  * - keeps digits only
  * - supports +218 / 218 / 00218
  * - returns Libyan local mobile format: 09XXXXXXXX
@@ -42,10 +42,4 @@ export function isValidLibyanPhone(input: string) {
   const p = cleanPhoneForStorage(input);
   // 09 + 8 digits = 10 total
   return /^09\d{8}$/.test(p);
-}
-
-/**
- * Turn a phone into an internal email used for Supabase Email/Password auth.
- * Example: 0912345678 -> 0912345678@dora.ly
- */
 }
