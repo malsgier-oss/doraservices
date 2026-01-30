@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, MemoryRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -345,6 +345,21 @@ const AppRoutes = () => {
   );
 };
 
+/** In tests, use MemoryRouter with configurable initialEntries. See routes-smoke.test.tsx */
+declare global {
+  interface Window {
+    __TEST_ROUTER_INITIAL_ENTRIES?: string[];
+  }
+}
+
+const RouterWrapper = ({ children }: { children: React.ReactNode }) => {
+  const initialEntries = typeof window !== "undefined" ? window.__TEST_ROUTER_INITIAL_ENTRIES : undefined;
+  if (initialEntries) {
+    return <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>;
+  }
+  return <BrowserRouter>{children}</BrowserRouter>;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -353,7 +368,7 @@ const App = () => (
           <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
+          <RouterWrapper>
             <AppErrorBoundary>
               <AppRoutes />
               <RouteAnalytics />
@@ -361,7 +376,7 @@ const App = () => (
                 <PendingRatingPrompt />
               </React.Suspense>
             </AppErrorBoundary>
-          </BrowserRouter>
+          </RouterWrapper>
           </TooltipProvider>
         </ThemeProvider>
       </LanguageProvider>

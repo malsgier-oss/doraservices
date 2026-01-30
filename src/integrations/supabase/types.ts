@@ -1,6 +1,6 @@
 // Minimal "safe" Supabase Database types.
-// This repo's previous generated file was corrupted and failed to parse.
-// Regenerating via Supabase CLI requires project access; until then, keep typings permissive but structured.
+// To regenerate: run `npx supabase link` then `SUPABASE_PROJECT_REF=<id> npm run supabase:types`
+// Or: `npx supabase gen types typescript --project-id <ref> > src/integrations/supabase/types.generated.ts`
 
 export type Json =
   | string
