@@ -142,8 +142,16 @@ const preventZoomAndSelection = () => {
     lastTouchEnd = now;
   }, { passive: false });
 
-  // Prevent text selection via context menu
+  // Prevent text selection via context menu (allow in inputs for copy/paste)
   document.addEventListener("contextmenu", (e) => {
+    const target = e.target as HTMLElement;
+    if (
+      target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.isContentEditable
+    ) {
+      return true;
+    }
     e.preventDefault();
     return false;
   });

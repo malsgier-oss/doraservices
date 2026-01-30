@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -44,102 +44,184 @@ export function normalizeLibyaPhoneForStorage(raw: string | null | undefined) {
   return d;
 }
 
+async function fetchAllServices(): Promise<Service[]> {
+  const { data: servicesData, error: servicesError } = await supabase
+    .from("services")
+    .select("*")
+    .is("deleted_at", null)
+    .eq("is_active", true)
+    .order("created_at", { ascending: false });
+
+  if (servicesError) {
+    console.error("Error fetching services:", servicesError);
+    throw servicesError;
+  }
+
+  const rows = ((servicesData || []) as Record<string, unknown>[]).filter((s) => {
+    const isVisible = s.is_visible ?? true;
+    const isPaused = s.is_paused ?? false;
+    const approval = (s.approval_status ?? "approved").toString().toLowerCase();
+    return !!isVisible && !isPaused && approval === "approved";
+  });
+
+  const userIds = Array.from(new Set(rows.map((s) => s.user_id).filter(Boolean))) as string[];
+  let profileMap = new Map<string, Record<string, unknown>>();
+
+  if (userIds.length > 0) {
+    const { data: profiles, error: profilesError } = await supabase
+      .from("profiles")
+      .select("user_id, full_name, avatar_url, phone, city, sub_city")
+      .in("user_id", userIds);
+
+    if (!profilesError && profiles?.length) {
+      profileMap = new Map(profiles.map((p) => [p.user_id, p]));
+    }
+  }
+
+  return rows.map((service) => {
+    const p = service.user_id ? profileMap.get(service.user_id as string) : null;
+    return {
+      ...service,
+      provider_name: (p?.full_name as string) || service.provider_name || "Provider",
+      provider_avatar: (p?.avatar_url as string) || service.provider_avatar || "",
+      provider_phone: (p?.phone as string) || service.provider_phone || "",
+      city: (p?.city as string) || service.city || null,
+      sub_city: (p?.sub_city as string) || service.sub_city || null,
+    } as Service;
+  });
+}
+
+async function fetchMyServices(userId: string): Promise<Service[]> {
+  const { data, error } = await supabase
+    .from("services")
+    .select("*")
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching my services:", error);
+    throw error;
+  }
+
+  return (data || []) as Service[];
+}
+
 export function useServices() {
   const { user } = useAuth();
-  const [services, setServices] = useState<Service[]>([]);
-  const [myServices, setMyServices] = useState<Service[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const fetchAllServices = async () => {
-    setLoading(true);
+  const allServicesQuery = useQuery({
+    queryKey: ["services", "all"],
+    queryFn: fetchAllServices,
+    staleTime: 2 * 60 * 1000,
+  });
 
-    const { data: servicesData, error: servicesError } = await supabase
-      .from("services")
-      .select("*")
-      .is("deleted_at", null)
-      .eq("is_active", true)
-      .order("created_at", { ascending: false });
+  const myServicesQuery = useQuery({
+    queryKey: ["services", "my", user?.id],
+    queryFn: () => fetchMyServices(user!.id),
+    enabled: !!user,
+    staleTime: 2 * 60 * 1000,
+  });
 
-    if (servicesError) {
-      console.error("Error fetching services:", servicesError);
-      setServices([]);
-      setLoading(false);
-      return;
-    }
+  const createServiceMutation = useMutation({
+    mutationFn: async (serviceData: {
+      title: string;
+      description?: string;
+      category: string;
+      price: number;
+      image_url?: string;
+    }) => {
+      if (!user) throw new Error("Not authenticated");
 
-    // IMPORTANT:
-    // Treat NULL as the legacy/default value for older rows.
-    // Some rows may have NULL for is_visible / is_paused / approval_status.
-    // If we filter strictly at the query level, the Hub can appear empty.
-    const rows = ((servicesData || []) as any[]).filter((s) => {
-      const isVisible = s.is_visible ?? true;
-      const isPaused = s.is_paused ?? false;
-      const approval = (s.approval_status ?? "approved").toString().toLowerCase();
-      return !!isVisible && !isPaused && approval === "approved";
-    });
+      let provider: {
+        full_name: string | null;
+        phone: string | null;
+        city: string | null;
+        sub_city: string | null;
+        avatar_url: string | null;
+      } | null = null;
 
-    // Optional enrichment from profiles (may fail for guests due to RLS).
-    // IMPORTANT: never overwrite service-level provider_phone/name with empty values.
-    const userIds = Array.from(new Set(rows.map((s) => s.user_id).filter(Boolean))) as string[];
-    let profileMap = new Map<string, any>();
-
-    if (userIds.length > 0) {
-      const { data: profiles, error: profilesError } = await supabase
+      const { data: p } = await supabase
         .from("profiles")
-        .select("user_id, full_name, avatar_url, phone, city, sub_city")
-        .in("user_id", userIds);
+        .select("full_name, phone, city, sub_city, avatar_url, provider_status")
+        .eq("user_id", user.id)
+        .single();
+      if (p) provider = p as typeof provider;
 
-      if (profilesError) {
-        // Guest browsing or restrictive RLS: this is expected.
-        profileMap = new Map();
-      } else {
-        profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
-      }
-    }
+      const storedPhone = normalizeLibyaPhoneForStorage(provider?.phone);
+      const providerStatus = ((provider as { provider_status?: string })?.provider_status || "").toLowerCase();
+      const isApprovedProvider = providerStatus === "approved";
 
-    const enrichedServices: Service[] = rows.map((service) => {
-      const p = service.user_id ? profileMap.get(service.user_id) : null;
-      return {
-        ...service,
-        provider_name: p?.full_name || service.provider_name || "Provider",
-        provider_avatar: p?.avatar_url || service.provider_avatar || "",
-        // keep DB value if present
-        provider_phone: p?.phone || service.provider_phone || "",
-        city: p?.city || service.city || null,
-        sub_city: p?.sub_city || service.sub_city || null,
-      };
-    });
+      const { data, error } = await supabase
+        .from("services")
+        .insert({
+          user_id: user.id,
+          title: serviceData.title,
+          description: serviceData.description || null,
+          category: serviceData.category,
+          price: serviceData.price,
+          image_url: serviceData.image_url || null,
+          provider_name: provider?.full_name || null,
+          provider_avatar: provider?.avatar_url || null,
+          provider_phone: storedPhone || null,
+          city: provider?.city || null,
+          sub_city: provider?.sub_city || null,
+          approval_status: isApprovedProvider ? "approved" : "pending",
+          is_visible: isApprovedProvider,
+          is_active: true,
+          is_paused: false,
+          allow_whatsapp: true,
+        })
+        .select()
+        .single();
 
-    setServices(enrichedServices);
-    setLoading(false);
-  };
+      if (error) throw error;
+      return data as Service;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["services", "my", user?.id] });
+      void queryClient.invalidateQueries({ queryKey: ["services", "all"] });
+    },
+  });
 
-  const fetchMyServices = async () => {
-    if (!user) return;
+  const updateServiceMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<Service> }) => {
+      const { data, error } = await supabase
+        .from("services")
+        .update(updates)
+        .eq("id", id)
+        .select()
+        .single();
 
-    const { data, error } = await supabase
-      .from("services")
-      .select("*")
-      .eq("user_id", user.id)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as Service;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["services", "my", user?.id] });
+      void queryClient.invalidateQueries({ queryKey: ["services", "all"] });
+    },
+  });
 
-    if (error) {
-      console.error("Error fetching my services:", error);
-    } else {
-      setMyServices((data || []) as any);
-    }
-  };
+  const deleteServiceMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("services")
+        .update({
+          deleted_at: new Date().toISOString(),
+          is_active: false,
+          is_visible: false,
+          is_paused: true,
+        })
+        .eq("id", id);
 
-  useEffect(() => {
-    fetchAllServices();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (user) void fetchMyServices();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["services", "my", user?.id] });
+      void queryClient.invalidateQueries({ queryKey: ["services", "all"] });
+    },
+  });
 
   const createService = async (serviceData: {
     title: string;
@@ -148,106 +230,41 @@ export function useServices() {
     price: number;
     image_url?: string;
   }) => {
-    if (!user) return { error: new Error("Not authenticated") };
-
-    // Dora P0: denormalize provider fields into the service row.
-    let provider: {
-      full_name: string | null;
-      phone: string | null;
-      city: string | null;
-      sub_city: string | null;
-      avatar_url: string | null;
-    } | null = null;
-
     try {
-      const { data: p, error: pErr } = await supabase
-        .from("profiles")
-        .select("full_name, phone, city, sub_city, avatar_url, provider_status, status")
-        .eq("user_id", user.id)
-        .single();
-      if (!pErr) provider = p as any;
-    } catch {
-      // ignore
+      const data = await createServiceMutation.mutateAsync(serviceData);
+      return { data, error: null };
+    } catch (err) {
+      return { data: null, error: err };
     }
-
-    const storedPhone = normalizeLibyaPhoneForStorage(provider?.phone);
-
-    // Dora P0: services should not be visible until provider/service is approved.
-    // - Approved providers: default approved + visible
-    // - Pending/rejected providers: default pending + hidden
-    const providerStatus = ((provider as any)?.provider_status || "").toLowerCase();
-    const isApprovedProvider = providerStatus === "approved";
-
-    const { data, error } = await supabase
-      .from("services")
-      .insert({
-        user_id: user.id,
-        title: serviceData.title,
-        description: serviceData.description || null,
-        category: serviceData.category,
-        price: serviceData.price,
-        image_url: serviceData.image_url || null,
-        provider_name: provider?.full_name || null,
-        provider_avatar: provider?.avatar_url || null,
-        provider_phone: storedPhone || null,
-        city: provider?.city || null,
-        sub_city: provider?.sub_city || null,
-        approval_status: isApprovedProvider ? "approved" : "pending",
-        is_visible: isApprovedProvider,
-        is_active: true,
-        is_paused: false,
-        allow_whatsapp: true,
-      })
-      .select()
-      .single();
-
-    if (!error && data) {
-      setMyServices((prev) => [data as any, ...prev]);
-      await fetchAllServices();
-    }
-
-    return { data, error };
   };
 
   const updateService = async (id: string, updates: Partial<Service>) => {
-    const { data, error } = await supabase.from("services").update(updates).eq("id", id).select().single();
-
-    if (!error && data) {
-      setMyServices((prev) => prev.map((s) => (s.id === id ? (data as any) : s)));
-      await fetchAllServices();
+    try {
+      const data = await updateServiceMutation.mutateAsync({ id, updates });
+      return { data, error: null };
+    } catch (err) {
+      return { data: null, error: err };
     }
-
-    return { data, error };
   };
 
   const deleteService = async (id: string) => {
-    // Dora P0: soft-delete (do not hard-delete rows).
-    const { error } = await supabase
-      .from("services")
-      .update({
-        deleted_at: new Date().toISOString(),
-        is_active: false,
-        is_visible: false,
-        is_paused: true,
-      })
-      .eq("id", id);
-
-    if (!error) {
-      setMyServices((prev) => prev.filter((s) => s.id !== id));
-      await fetchAllServices();
+    try {
+      await deleteServiceMutation.mutateAsync(id);
+      return { error: null };
+    } catch (err) {
+      return { error: err };
     }
-
-    return { error };
   };
 
   return {
-    services,
-    myServices,
-    loading,
+    services: allServicesQuery.data ?? [],
+    myServices: myServicesQuery.data ?? [],
+    loading: allServicesQuery.isLoading,
+    isLoading: myServicesQuery.isLoading,
     createService,
     updateService,
     deleteService,
-    refreshServices: fetchAllServices,
-    refreshMyServices: fetchMyServices,
+    refreshServices: () => queryClient.invalidateQueries({ queryKey: ["services", "all"] }),
+    refreshMyServices: () => queryClient.invalidateQueries({ queryKey: ["services", "my", user?.id] }),
   };
 }
