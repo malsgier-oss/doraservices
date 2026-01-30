@@ -37,11 +37,6 @@ interface ListingDetailSheetProps {
 }
 
 export function ListingDetailSheet({ open, onOpenChange, listing, listingId, categorySlug, onSelectListing }: ListingDetailSheetProps) {
-  // #region agent log
-  console.log('[DEBUG] ListingDetailSheet MOUNTED (DRAWER):', {open, listingId, categorySlug});
-  fetch('http://127.0.0.1:7242/ingest/9400dad2-6936-4b7c-930c-5ff551ab6c67',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ListingDetailSheet.tsx:40',message:'ListingDetailSheet MOUNTED (DRAWER)',data:{open,listingId,categorySlug},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C,E'})}).catch(()=>{});
-  // #endregion
-
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { language, isRTL } = useLanguage();

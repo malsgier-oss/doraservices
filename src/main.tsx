@@ -10,7 +10,7 @@ const prefetchInitialRoute = () => {
   try {
     const path = window.location?.pathname || "/";
     // Prefetch only the initial screen chunk to reduce Suspense time.
-    if (path === "/") void import("./pages/Hub");
+    if (path === "/" || path === "/services" || path === "/buy-sell") void import("./pages/Hub");
     else if (path === "/auth") void import("./pages/Auth");
     else if (path === "/favorites") void import("./pages/Favorites");
     else if (path === "/profile") void import("./pages/Profile");
@@ -211,18 +211,30 @@ If you're on Cloudflare Pages, add these as build-time environment variables for
     throw new Error("Missing Supabase env vars");
   }
 
+  // Track whether the app has mounted. After mount, only chunk-load errors are fatal;
+  // runtime errors are reported to Sentry and left to React error boundaries.
+  let appMounted = false;
+
   window.addEventListener("error", (event) => {
     const err = event.error || event.message;
     captureException(err);
-    const message = err instanceof Error ? err.message : String(err);
-    showFatal(message || "Unexpected error", { chunkLoad: isChunkLoadError(err) });
+    const chunkLoad = isChunkLoadError(err);
+    const isStartup = !appMounted;
+    if (chunkLoad || isStartup) {
+      const message = err instanceof Error ? err.message : String(err);
+      showFatal(message || "Unexpected error", { chunkLoad });
+    }
   });
 
   window.addEventListener("unhandledrejection", (event) => {
     const reason = (event as PromiseRejectionEvent).reason;
     captureException(reason);
-    const message = reason instanceof Error ? reason.message : "Unexpected error";
-    showFatal(message, { chunkLoad: isChunkLoadError(reason) });
+    const chunkLoad = isChunkLoadError(reason);
+    const isStartup = !appMounted;
+    if (chunkLoad || isStartup) {
+      const message = reason instanceof Error ? reason.message : "Unexpected error";
+      showFatal(message, { chunkLoad });
+    }
   });
 
   try {
@@ -236,6 +248,7 @@ If you're on Cloudflare Pages, add these as build-time environment variables for
     void import("./App.tsx")
       .then(({ default: App }) => {
         createRoot(rootEl).render(<App />);
+        appMounted = true;
       })
       .catch((error) => {
         captureException(error);

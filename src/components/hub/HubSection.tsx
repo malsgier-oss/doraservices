@@ -3,6 +3,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 type HubSectionProps = {
   id?: string;
@@ -27,9 +28,10 @@ export function HubSection({
   className,
   children,
 }: HubSectionProps) {
+  const { isRTL } = useLanguage();
   return (
     <section id={id} className={cn("space-y-5 pt-2", className)}>
-      <div dir="rtl" className="flex items-center justify-between gap-3">
+      <div dir={isRTL ? "rtl" : "ltr"} className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           {Icon && (
             <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10">

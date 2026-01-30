@@ -48,11 +48,6 @@ interface ListingDetailPageContentProps {
 }
 
 export default function ListingDetailPageContent({ listingId, categorySlug }: ListingDetailPageContentProps) {
-  // #region agent log
-  console.log('[DEBUG] ListingDetailPageContent MOUNTED:', {listingId, categorySlug});
-  fetch('http://127.0.0.1:7242/ingest/9400dad2-6936-4b7c-930c-5ff551ab6c67',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ListingDetailPageContent.tsx:51',message:'ListingDetailPageContent MOUNTED',data:{listingId,categorySlug},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
-  // #endregion
-
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { language, isRTL } = useLanguage();

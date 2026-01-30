@@ -6,6 +6,7 @@ import type { LucideIcon } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 import { MOBILE_NAV_HEIGHT_PX } from "@/constants/layout";
+import { DEFAULT_GUIDES_AR, DEFAULT_GUIDES_EN, type GuideCard } from "@/constants/hubGuides";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -40,14 +41,12 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
 import { useServicesEnabled } from "@/hooks/useServicesEnabled";
 import { FeaturedDeals } from "@/components/hub/FeaturedDeals";
-import { DealCard } from "@/components/hub/DealCard";
 import { BuySellCategories, BUY_SELL_CATEGORIES } from "@/components/hub/BuySellCategories";
 import { BuySellHubTab } from "@/components/hub/BuySellHubTab";
 import { BuySellCategoryDrawer } from "@/components/hub/BuySellCategoryDrawer";
 import { TrendingDeals } from "@/components/hub/TrendingDeals";
 import { NewListings } from "@/components/hub/NewListings";
 import { ListingCard } from "@/components/hub/ListingCard";
-import { ListingCardGroup } from "@/components/hub/ListingCardGroup";
 import { ListingListSheet } from "@/components/hub/ListingListSheet";
 import { SearchFilters, type FilterState } from "@/components/hub/SearchFilters";
 import { AnimatedSection } from "@/components/hub/AnimatedSection";
@@ -81,6 +80,7 @@ import { useNotifications, useUnreadCount, useNotificationMutations } from "@/ho
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 /**
  * Safety net: prevent a whole-app white screen if ServiceDetailSheet crashes.
@@ -144,151 +144,7 @@ type AnnouncementRow = {
   end_at?: string | null;
 };
 
-type GuideCard = {
-  id: string;
-  icon: LucideIcon;
-  title: string;
-  summaryLines: [string, string];
-  bullets: string[];
-};
-
 const CITY_STORAGE_KEY = "dora_city_id";
-
-// PHASE 1 (UI scaffolding): Global guides are static for now.
-// In Phase 3 we will move this to admin-controlled content.
-const DEFAULT_GUIDES_AR: GuideCard[] = [
-  {
-    id: "guide-electricity",
-    icon: Zap,
-    title: "قبل ما تتصل بالكهربائي",
-    summaryLines: [
-      "هل المشكلة من العداد أو داخل البيت؟",
-      "اسأل عن المعاينة قبل بدء التصليح",
-    ],
-    bullets: [
-      "هل المشكلة من العداد أو داخل البيت؟",
-      "اسأل لو في معاينة قبل بدء الشغل",
-      "حدّد مكان المشكلة بدقة",
-      "اسأل لو السعر تقريبي أو نهائي",
-      "اتفق على الوقت قبل ما يطلع الفني",
-    ],
-  },
-  {
-    id: "guide-plumbing",
-    icon: Droplets,
-    title: "تبي سباك؟",
-    summaryLines: [
-      "صوّر المشكلة قبل ما تتصل",
-      "اسأل لو السعر شامل القطعة",
-    ],
-    bullets: [
-      "صوّر المشكلة قبل ما تتصل",
-      "اسأل لو السعر شامل القطعة",
-      "خليك واضح: تسريب ولا انسداد؟",
-      "اتفق على سعر تقريبي قبل الزيارة",
-      "اسأل عن مدة الشغل والضمان",
-    ],
-  },
-  {
-    id: "guide-ac",
-    icon: Wind,
-    title: "صيانة التكييف",
-    summaryLines: [
-      "تنظيف أو فريون؟ الفرق كبير بالسعر",
-      "اسأل عن الضمان بعد الشغل",
-    ],
-    bullets: [
-      "تنظيف أو فريون؟ الفرق كبير بالسعر",
-      "اسأل عن الضمان بعد الشغل",
-      "اسأل هل السعر شامل زيارة وفحص",
-      "حدد نوع التكييف وقدرته (مثلاً 1.5 طن)",
-      "اتفق لو في قطع غيار قبل التركيب",
-    ],
-  },
-  {
-    id: "guide-general",
-    icon: ClipboardCheck,
-    title: "كيف تختار فني صح",
-    summaryLines: [
-      "خليك واضح من أول مكالمة",
-      "لا تدفع كامل المبلغ قبل الشغل",
-    ],
-    bullets: [
-      "خليك واضح من أول مكالمة",
-      "لا تدفع كامل المبلغ قبل الشغل",
-      "اسأل عن مدة التنفيذ قبل ما يجي",
-      "اتفق على السعر أو الحد الأعلى",
-      "خلي كلامك بسيط ومحدد",
-    ],
-  },
-];
-
-const DEFAULT_GUIDES_EN: GuideCard[] = [
-  {
-    id: "guide-electricity",
-    icon: Zap,
-    title: "Before you call an electrician",
-    summaryLines: [
-      "Is it the meter or inside the home?",
-      "Ask if there is an inspection fee",
-    ],
-    bullets: [
-      "Is it the meter or inside the home?",
-      "Ask if there is an inspection fee",
-      "Describe the problem location clearly",
-      "Confirm if the price is estimate or final",
-      "Agree on timing before the visit",
-    ],
-  },
-  {
-    id: "guide-plumbing",
-    icon: Droplets,
-    title: "Need a plumber?",
-    summaryLines: [
-      "Take a photo before you call",
-      "Ask if the part is included",
-    ],
-    bullets: [
-      "Take a photo before you call",
-      "Ask if the part is included",
-      "Be clear: leak or blockage?",
-      "Agree on an estimate before the visit",
-      "Ask about duration and warranty",
-    ],
-  },
-  {
-    id: "guide-ac",
-    icon: Wind,
-    title: "AC service",
-    summaryLines: [
-      "Cleaning vs freon changes the price",
-      "Ask about warranty",
-    ],
-    bullets: [
-      "Cleaning vs freon changes the price",
-      "Ask about warranty",
-      "Ask if the visit/inspection is included",
-      "Confirm the brand and unit size",
-      "Agree on timing",
-    ],
-  },
-  {
-    id: "guide-general",
-    icon: ClipboardCheck,
-    title: "Choose a technician wisely",
-    summaryLines: [
-      "Be clear from the first call",
-      "Don’t pay the full amount upfront",
-    ],
-    bullets: [
-      "Be clear from the first call",
-      "Don’t pay the full amount upfront",
-      "Confirm what is included in the price",
-      "Ask about expected time",
-      "Keep messages/photos as reference",
-    ],
-  },
-];
 
 function useSelectedCityId() {
   const [cityId, setCityId] = useState<string | null>(() => {
@@ -330,173 +186,6 @@ async function fetchShelfSubcategories(params: { categoryId: string; limit: numb
 }
 
 
-
-// Buy/Sell Sections Components
-function BuySellDealsSection({
-  cityId,
-  category,
-  search,
-  onDealClick,
-}: {
-  cityId?: string | null;
-  category?: string | null;
-  search?: string | null;
-  onDealClick: (deal: Deal) => void;
-}) {
-  const { data: deals, isLoading } = useDeals({ cityId, category, limit: 12 });
-  const { language, isRTL } = useLanguage();
-  const t = (ar: string, en: string) => (language === "ar" ? ar : en);
-
-  const q = (search || "").trim().toLowerCase();
-  const filteredDeals = q
-    ? (deals || []).filter((d) => `${d.title} ${(d.description || "")}`.toLowerCase().includes(q))
-    : (deals || []);
-
-  if (isLoading) {
-    return (
-      <HubSection title={t("العروض النشطة", "Active Deals")} icon={Tag}>
-        <div
-          dir={isRTL ? "rtl" : "ltr"}
-          className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
-          style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
-        >
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={`deal-loading-${i}`} className={`${HUB_CARD_BASE} bg-card shrink-0 w-[72vw] max-w-[320px] snap-center overflow-hidden`}>
-              <Skeleton className="aspect-[4/3] w-full" />
-              <div className="p-4">
-                <Skeleton className="h-4 w-24 mb-2" />
-                <Skeleton className="h-4 w-36" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </HubSection>
-    );
-  }
-
-  if (filteredDeals.length === 0) {
-    const msg = category
-      ? (isRTL ? "لا توجد عروض في هذا التصنيف" : "No deals in this category")
-      : (isRTL ? "لا توجد عروض متاحة حالياً" : "No active deals available");
-    return (
-      <HubSection title={t("العروض النشطة", "Active Deals")} icon={Tag}>
-        <div className={`${HUB_CARD_BASE} bg-card p-6 flex flex-col items-center justify-center gap-3 text-center`}>
-          <Tag className="h-10 w-10 text-muted-foreground/60" />
-          <p className="text-sm text-muted-foreground">{msg}</p>
-        </div>
-      </HubSection>
-    );
-  }
-
-  return (
-    <HubSection title={t("العروض النشطة", "Active Deals")} icon={Tag}>
-      <div
-        dir={isRTL ? "rtl" : "ltr"}
-        className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
-        style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
-      >
-        {filteredDeals.map((deal) => (
-          <div key={deal.id} className="shrink-0 w-[72vw] max-w-[320px] snap-center">
-            <DealCard
-              deal={deal}
-              onClick={() => onDealClick(deal)}
-              isRTL={isRTL}
-            />
-          </div>
-        ))}
-      </div>
-    </HubSection>
-  );
-}
-
-function BuySellListingsSection({
-  cityId,
-  category,
-  search,
-  onListingClick,
-  onEmptyAction,
-}: {
-  cityId?: string | null;
-  category?: string | null;
-  search?: string | null;
-  onListingClick: (listing: Listing) => void;
-  onEmptyAction?: () => void;
-}) {
-  const { data: listings, isLoading } = useListings({ cityId, category, search, limit: 12 });
-  const { language, isRTL } = useLanguage();
-  const t = (ar: string, en: string) => (language === "ar" ? ar : en);
-
-  if (isLoading) {
-    return (
-      <HubSection title={t("إعلانات للبيع", "Listings")} icon={Tag}>
-        <div
-          dir={isRTL ? "rtl" : "ltr"}
-          className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory scroll-smooth -mx-4 px-4"
-          style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y", scrollSnapType: "x mandatory" }}
-        >
-          {Array.from({ length: 2 }).map((_, i) => (
-            <div key={`listing-loading-${i}`} className={`${HUB_CARD_BASE} bg-card shrink-0 w-[90vw] max-w-[700px] snap-start overflow-hidden`}>
-              <div className="grid grid-cols-2 gap-3 p-4">
-                {Array.from({ length: 4 }).map((_, j) => (
-                  <div key={`listing-loading-${i}-${j}`} className="rounded-xl overflow-hidden">
-                    <Skeleton className="aspect-[4/3] w-full" />
-                    <div className="p-2.5">
-                      <Skeleton className="h-3 w-16 mb-1" />
-                      <Skeleton className="h-3 w-12" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </HubSection>
-    );
-  }
-
-  if (!listings || listings.length === 0) {
-    const msg = category
-      ? t("لا توجد إعلانات في هذا التصنيف", "No listings in this category")
-      : t("لا توجد إعلانات حالياً", "No listings right now");
-    return (
-      <HubSection title={t("إعلانات للبيع", "Listings")} icon={Tag}>
-        <div className={`${HUB_CARD_BASE} bg-card p-6 flex flex-col items-center justify-center gap-3 text-center`}>
-          <ShoppingBag className="h-10 w-10 text-muted-foreground/60" />
-          <p className="text-sm text-muted-foreground">{msg}</p>
-          {onEmptyAction ? (
-            <Button variant="outline" size="sm" onClick={onEmptyAction}>
-              {t("نشر إعلانك الأول", "Post your first listing")}
-            </Button>
-          ) : null}
-        </div>
-      </HubSection>
-    );
-  }
-
-  const labels = {
-    noPhoto: t("لا توجد صورة", "No photo"),
-  };
-
-  return (
-    <HubSection title={t("إعلانات للبيع", "Listings")} icon={Tag}>
-      <div
-        dir={isRTL ? "rtl" : "ltr"}
-        className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory scroll-smooth -mx-4 px-4"
-        style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y", scrollSnapType: "x mandatory" }}
-      >
-        {chunkArray(listings.slice(0, 8), 4).map((chunk, chunkIndex) => (
-          <ListingCardGroup
-            key={`chunk-${chunkIndex}`}
-            listings={chunk}
-            isRTL={isRTL}
-            onOpen={onListingClick}
-            labels={labels}
-          />
-        ))}
-      </div>
-    </HubSection>
-  );
-}
 
 // Helper function to chunk array into groups
 const chunkArray = <T,>(array: T[], chunkSize: number): T[][] => {
@@ -1534,6 +1223,14 @@ export default function Hub({ initialTab }: HubProps = {}) {
       {/* Everything below the fixed header scrolls normally */}
       {buySellEnabled && !servicesEnabled ? (
         /* Services hidden: show only Buy & Sell */
+        <ErrorBoundary
+          fallback={
+            <div className="flex flex-col items-center justify-center min-h-[50vh] p-6 text-center">
+              <p className="text-muted-foreground mb-4">{t("حدث خطأ في هذه الصفحة. حاول التحديث.", "Something went wrong on this tab. Try refreshing.")}</p>
+              <Button variant="outline" onClick={() => window.location.reload()}>{t("تحديث", "Reload")}</Button>
+            </div>
+          }
+        >
         <BuySellHubTab
           cityId={cityId}
           buySellMode={buySellMode}
@@ -1546,10 +1243,19 @@ export default function Hub({ initialTab }: HubProps = {}) {
           openDealDetail={openDealDetail}
           navigate={navigate}
         />
+        </ErrorBoundary>
       ) : buySellEnabled && servicesEnabled ? (
         <Tabs value={activeTab} onValueChange={(v) => handleTabChange(v as "services" | "buy-sell")}>
           {/* BUY & SELL Tab (first/left) */}
           <TabsContent value="buy-sell" className="mt-0">
+            <ErrorBoundary
+              fallback={
+                <div className="flex flex-col items-center justify-center min-h-[50vh] p-6 text-center">
+                  <p className="text-muted-foreground mb-4">{t("حدث خطأ في هذه الصفحة. حاول التحديث.", "Something went wrong on this tab. Try refreshing.")}</p>
+                  <Button variant="outline" onClick={() => window.location.reload()}>{t("تحديث", "Reload")}</Button>
+                </div>
+              }
+            >
             <BuySellHubTab
               cityId={cityId}
               buySellMode={buySellMode}
@@ -1562,9 +1268,18 @@ export default function Hub({ initialTab }: HubProps = {}) {
               openDealDetail={openDealDetail}
               navigate={navigate}
             />
+            </ErrorBoundary>
           </TabsContent>
           {/* SERVICES Tab (second/right) */}
           <TabsContent value="services" className="mt-0 space-y-6">
+            <ErrorBoundary
+              fallback={
+                <div className="flex flex-col items-center justify-center min-h-[50vh] p-6 text-center">
+                  <p className="text-muted-foreground mb-4">{t("حدث خطأ في هذه الصفحة. حاول التحديث.", "Something went wrong on this tab. Try refreshing.")}</p>
+                  <Button variant="outline" onClick={() => window.location.reload()}>{t("تحديث", "Reload")}</Button>
+                </div>
+              }
+            >
             <FeaturedHero
           banners={banners as any}
           publicUrlsById={publicUrlsById as any}
@@ -1904,9 +1619,18 @@ export default function Hub({ initialTab }: HubProps = {}) {
             </div>
           </div>
           </div>
+            </ErrorBoundary>
           </TabsContent>
         </Tabs>
       ) : (
+        <ErrorBoundary
+          fallback={
+            <div className="flex flex-col items-center justify-center min-h-[50vh] p-6 text-center">
+              <p className="text-muted-foreground mb-4">{t("حدث خطأ في هذه الصفحة. حاول التحديث.", "Something went wrong on this tab. Try refreshing.")}</p>
+              <Button variant="outline" onClick={() => window.location.reload()}>{t("تحديث", "Reload")}</Button>
+            </div>
+          }
+        >
         <div className="space-y-8">
           <FeaturedHero
             banners={banners as any}
@@ -2305,6 +2029,7 @@ export default function Hub({ initialTab }: HubProps = {}) {
             </div>
           </div>
         </div>
+        </ErrorBoundary>
       )}
 
       {/* Service detail sheet (buy-and-sell style, from Hub services tab) */}

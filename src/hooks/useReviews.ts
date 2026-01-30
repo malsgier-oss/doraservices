@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -193,13 +193,9 @@ export function useServiceRatings(serviceIds: string[]) {
   const [ratings, setRatings] = useState<Map<string, ServiceRating>>(new Map());
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (serviceIds.length > 0) {
-      fetchRatings();
-    }
-  }, [serviceIds.join(",")]);
+  const serviceIdsKey = JSON.stringify(serviceIds);
 
-  const fetchRatings = async () => {
+  const fetchRatings = useCallback(async () => {
     if (serviceIds.length === 0) return;
 
     setLoading(true);
@@ -234,7 +230,13 @@ export function useServiceRatings(serviceIds: string[]) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [serviceIdsKey]);
+
+  useEffect(() => {
+    if (serviceIds.length > 0) {
+      fetchRatings();
+    }
+  }, [serviceIds.length, fetchRatings]);
 
   return { ratings, loading, refreshRatings: fetchRatings };
 }

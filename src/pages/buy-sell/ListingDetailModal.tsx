@@ -25,11 +25,6 @@ export default function ListingDetailModal() {
   const isValidOverlay = backgroundLocation && 
     backgroundLocation.pathname !== location.pathname &&
     !backgroundLocation.pathname.includes('/listing/');
-  
-  // #region agent log
-  console.log('[DEBUG] ListingDetailModal render:', {isValidOverlay, backgroundPathname: backgroundLocation?.pathname, currentPathname: location.pathname, stateRaw: location.state});
-  fetch('http://127.0.0.1:7242/ingest/9400dad2-6936-4b7c-930c-5ff551ab6c67',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ListingDetailModal.tsx:20',message:'ListingDetailModal render',data:{isValidOverlay,backgroundPathname:backgroundLocation?.pathname,currentPathname:location.pathname},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B'})}).catch(()=>{});
-  // #endregion
 
   const { data: listing, isLoading } = useListing(listingId);
 
@@ -45,10 +40,6 @@ export default function ListingDetailModal() {
 
   // Direct URL access OR stale state - render full page
   if (!isValidOverlay) {
-    // #region agent log
-    console.log('[DEBUG] Rendering FULL PAGE (ListingDetailPageContent):', {listingId, categorySlug, isValidOverlay});
-    fetch('http://127.0.0.1:7242/ingest/9400dad2-6936-4b7c-930c-5ff551ab6c67',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ListingDetailModal.tsx:38',message:'Rendering FULL PAGE (ListingDetailPageContent)',data:{listingId,categorySlug,isValidOverlay},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
     return (
       <ListingDetailPageContent
         listingId={listingId}
@@ -56,11 +47,6 @@ export default function ListingDetailModal() {
       />
     );
   }
-
-  // #region agent log
-  console.log('[DEBUG] Rendering DRAWER (ListingDetailSheet):', {listingId, categorySlug, isValidOverlay});
-  fetch('http://127.0.0.1:7242/ingest/9400dad2-6936-4b7c-930c-5ff551ab6c67',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ListingDetailModal.tsx:49',message:'Rendering DRAWER (ListingDetailSheet)',data:{listingId,categorySlug,isValidOverlay},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
 
   // Overlay from category page - render drawer
   return (
