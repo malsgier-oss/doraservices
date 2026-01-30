@@ -1,9 +1,12 @@
 // DORA_HUB_PATCH_v4 (ticker+banner-loop+no-all-cities+sticky-fullwidth)
 import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { Bell, CheckCheck, ChevronDown, Search, Wrench, Home, Car, Zap, Briefcase, Building2, GraduationCap, PartyPopper, Droplets, Wind, Fuel, ClipboardCheck, X } from "lucide-react";
+import { Award, Bell, CheckCheck, ChevronDown, Search, Shield, MapPin, Clock, Users, Wrench, Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper, Droplets, Wind, Fuel, ClipboardCheck, X, LayoutGrid, Star, TrendingUp, BookOpen, Sparkles, Store, Tag, ShoppingBag } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
 
+import { MOBILE_NAV_HEIGHT_PX } from "@/constants/layout";
+import { DEFAULT_GUIDES_AR, DEFAULT_GUIDES_EN, type GuideCard } from "@/constants/hubGuides";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,15 +15,47 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 
 import { MobileNav } from "@/components/layout/MobileNav";
-import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { FeaturedHero } from "@/components/hub/FeaturedHero";
 import { HubSection } from "@/components/hub/HubSection";
 import { ServiceCardFeatured } from "@/components/hub/ServiceCardFeatured";
-import { ServiceCardCompact } from "@/components/hub/ServiceCardCompact";
+import { FeaturedProvidersCard } from "@/components/hub/FeaturedProvidersCard";
+import { ServiceCardGroup } from "@/components/hub/ServiceCardGroup";
+import { HubItemCard } from "@/components/hub/HubItemCard";
+import { ServiceFilters } from "@/components/hub/ServiceFilters";
+import { ServiceGrid } from "@/components/hub/ServiceGrid";
+import { DiscoverySection } from "@/components/hub/DiscoverySection";
+import { ServiceQuickView } from "@/components/hub/ServiceQuickView";
+import { ViewToggle } from "@/components/hub/ViewToggle";
+import { LoadMoreButton } from "@/components/hub/LoadMoreButton";
+import { useServiceFilters } from "@/hooks/useServiceFilters";
+import { useSimilarServices } from "@/hooks/useSimilarServices";
 import { TipChip } from "@/components/hub/TipChip";
-import { HUB_CARD_BASE } from "@/components/hub/hubStyles";
+import { HubChipCard } from "@/components/hub/HubChipCard";
+import { HubCategoryCard } from "@/components/hub/HubCategoryCard";
+import { StatsBar } from "@/components/hub/StatsBar";
+import { ActivityFeed } from "@/components/hub/ActivityFeed";
+import { HubTabSwitcher } from "@/components/hub/HubTabSwitcher";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
+import { useServicesEnabled } from "@/hooks/useServicesEnabled";
+import { FeaturedDeals } from "@/components/hub/FeaturedDeals";
+import { BuySellCategories, BUY_SELL_CATEGORIES } from "@/components/hub/BuySellCategories";
+import { BuySellHubTab } from "@/components/hub/BuySellHubTab";
+import { BuySellCategoryDrawer } from "@/components/hub/BuySellCategoryDrawer";
+import { TrendingDeals } from "@/components/hub/TrendingDeals";
+import { NewListings } from "@/components/hub/NewListings";
+import { ListingCard } from "@/components/hub/ListingCard";
+import { ListingListSheet } from "@/components/hub/ListingListSheet";
+import { SearchFilters, type FilterState } from "@/components/hub/SearchFilters";
+import { AnimatedSection } from "@/components/hub/AnimatedSection";
+import { DealDetailSheet } from "@/components/hub/DealDetailSheet";
+import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
+import { useDeals, type Deal } from "@/hooks/useDeals";
+import { useListings, type Listing } from "@/hooks/useListings";
+import { useListing } from "@/hooks/useListing";
+import { HUB_CARD_BASE, HUB_CARD_ROW_4, HUB_CARD_SLOT_4 } from "@/components/hub/hubStyles";
 
 import { useCategories } from "@/hooks/useCategories";
 import { useCities } from "@/hooks/useCities";
@@ -35,11 +70,17 @@ import { useGuides } from "@/hooks/useGuides";
 import { useServiceRatings } from "@/hooks/useReviews";
 import { CategoryBrowseSheet } from "@/components/hub/CategoryBrowseSheet";
 import { supabase } from "@/integrations/supabase/client";
+import { trackProviderEvent } from "@/lib/providerTelemetry";
+import { getTelLink, getWhatsAppLink } from "@/lib/phoneUtils";
+import { getCategoryIcon, HUB_ICON_MAP } from "@/lib/categoryIcons";
+import { cn, normalizeCategory } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications, useUnreadCount, useNotificationMutations } from "@/hooks/useNotifications";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 /**
  * Safety net: prevent a whole-app white screen if ServiceDetailSheet crashes.
@@ -76,6 +117,10 @@ type ServiceRow = {
   city: string | null;
   sub_city: string | null;
   image_url: string | null;
+  is_featured?: boolean | null;
+  is_verified?: boolean | null;
+  price?: number | null;
+  description?: string | null;
 };
 
 type SubcategoryRow = {
@@ -99,167 +144,7 @@ type AnnouncementRow = {
   end_at?: string | null;
 };
 
-type GuideCard = {
-  id: string;
-  icon: LucideIcon;
-  title: string;
-  summaryLines: [string, string];
-  bullets: string[];
-};
-
-const ICON_MAP: Record<string, LucideIcon> = {
-  Home,
-  Car,
-  Zap,
-  Briefcase,
-  Building2,
-  GraduationCap,
-  Heart,
-  PartyPopper,
-  Wrench,
-  Droplets,
-  Wind,
-  Fuel,
-  ClipboardCheck,
-};
-
 const CITY_STORAGE_KEY = "dora_city_id";
-
-// PHASE 1 (UI scaffolding): Global guides are static for now.
-// In Phase 3 we will move this to admin-controlled content.
-const DEFAULT_GUIDES_AR: GuideCard[] = [
-  {
-    id: "guide-electricity",
-    icon: Zap,
-    title: "قبل ما تتصل بالكهربائي",
-    summaryLines: [
-      "هل المشكلة من العداد أو داخل البيت؟",
-      "اسأل عن المعاينة قبل بدء التصليح",
-    ],
-    bullets: [
-      "هل المشكلة من العداد أو داخل البيت؟",
-      "اسأل لو في معاينة قبل بدء الشغل",
-      "حدّد مكان المشكلة بدقة",
-      "اسأل لو السعر تقريبي أو نهائي",
-      "اتفق على الوقت قبل ما يطلع الفني",
-    ],
-  },
-  {
-    id: "guide-plumbing",
-    icon: Droplets,
-    title: "تبي سباك؟",
-    summaryLines: [
-      "صوّر المشكلة قبل ما تتصل",
-      "اسأل لو السعر شامل القطعة",
-    ],
-    bullets: [
-      "صوّر المشكلة قبل ما تتصل",
-      "اسأل لو السعر شامل القطعة",
-      "خليك واضح: تسريب ولا انسداد؟",
-      "اتفق على سعر تقريبي قبل الزيارة",
-      "اسأل عن مدة الشغل والضمان",
-    ],
-  },
-  {
-    id: "guide-ac",
-    icon: Wind,
-    title: "صيانة التكييف",
-    summaryLines: [
-      "تنظيف أو فريون؟ الفرق كبير بالسعر",
-      "اسأل عن الضمان بعد الشغل",
-    ],
-    bullets: [
-      "تنظيف أو فريون؟ الفرق كبير بالسعر",
-      "اسأل عن الضمان بعد الشغل",
-      "اسأل هل السعر شامل زيارة وفحص",
-      "حدد نوع التكييف وقدرته (مثلاً 1.5 طن)",
-      "اتفق لو في قطع غيار قبل التركيب",
-    ],
-  },
-  {
-    id: "guide-general",
-    icon: ClipboardCheck,
-    title: "كيف تختار فني صح",
-    summaryLines: [
-      "خليك واضح من أول مكالمة",
-      "لا تدفع كامل المبلغ قبل الشغل",
-    ],
-    bullets: [
-      "خليك واضح من أول مكالمة",
-      "لا تدفع كامل المبلغ قبل الشغل",
-      "اسأل عن مدة التنفيذ قبل ما يجي",
-      "اتفق على السعر أو الحد الأعلى",
-      "خلي كلامك بسيط ومحدد",
-    ],
-  },
-];
-
-const DEFAULT_GUIDES_EN: GuideCard[] = [
-  {
-    id: "guide-electricity",
-    icon: Zap,
-    title: "Before you call an electrician",
-    summaryLines: [
-      "Is it the meter or inside the home?",
-      "Ask if there is an inspection fee",
-    ],
-    bullets: [
-      "Is it the meter or inside the home?",
-      "Ask if there is an inspection fee",
-      "Describe the problem location clearly",
-      "Confirm if the price is estimate or final",
-      "Agree on timing before the visit",
-    ],
-  },
-  {
-    id: "guide-plumbing",
-    icon: Droplets,
-    title: "Need a plumber?",
-    summaryLines: [
-      "Take a photo before you call",
-      "Ask if the part is included",
-    ],
-    bullets: [
-      "Take a photo before you call",
-      "Ask if the part is included",
-      "Be clear: leak or blockage?",
-      "Agree on an estimate before the visit",
-      "Ask about duration and warranty",
-    ],
-  },
-  {
-    id: "guide-ac",
-    icon: Wind,
-    title: "AC service",
-    summaryLines: [
-      "Cleaning vs freon changes the price",
-      "Ask about warranty",
-    ],
-    bullets: [
-      "Cleaning vs freon changes the price",
-      "Ask about warranty",
-      "Ask if the visit/inspection is included",
-      "Confirm the brand and unit size",
-      "Agree on timing",
-    ],
-  },
-  {
-    id: "guide-general",
-    icon: ClipboardCheck,
-    title: "Choose a technician wisely",
-    summaryLines: [
-      "Be clear from the first call",
-      "Don’t pay the full amount upfront",
-    ],
-    bullets: [
-      "Be clear from the first call",
-      "Don’t pay the full amount upfront",
-      "Confirm what is included in the price",
-      "Ask about expected time",
-      "Keep messages/photos as reference",
-    ],
-  },
-];
 
 function useSelectedCityId() {
   const [cityId, setCityId] = useState<string | null>(() => {
@@ -302,10 +187,92 @@ async function fetchShelfSubcategories(params: { categoryId: string; limit: numb
 
 
 
-export default function Hub() {
+// Helper function to chunk array into groups
+const chunkArray = <T,>(array: T[], chunkSize: number): T[][] => {
+  const chunks: T[][] = [];
+  for (let i = 0; i < array.length; i += chunkSize) {
+    chunks.push(array.slice(i, i + chunkSize));
+  }
+  return chunks;
+};
+
+type HubProps = { initialTab?: "services" | "buy-sell" };
+
+export default function Hub({ initialTab }: HubProps = {}) {
+  const navigate = useNavigate();
   const { language, isRTL } = useLanguage();
   const { user } = useAuth();
   const { toast } = useToast();
+
+  // Deal detail state
+  const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
+  const [dealSheetOpen, setDealSheetOpen] = useState(false);
+
+  const openDealDetail = (deal: Deal) => {
+    // Ensure we never have two Drawers open at once
+    setDealSheetOpen(false);
+    setSelectedDeal(null);
+    setBuySellCategoryDrawerOpen(false);
+    setSelectedCategoryForDrawer(null);
+    // Open ListingListSheet with deal's category
+    setListingListCategory(deal.category || null);
+    setListingListSearch(null);
+    setListingListSheetOpen(true);
+  };
+
+  // Buy/Sell category filter state
+  const [selectedBuySellCategory, setSelectedBuySellCategory] = useState<string | null>(null);
+  const [buySellSearchQuery, setBuySellSearchQuery] = useState<string>("");
+  const [buySellMode, setBuySellMode] = useState<"all" | "listings">("all");
+
+  // Buy/Sell category drawer state
+  const [buySellCategoryDrawerOpen, setBuySellCategoryDrawerOpen] = useState(false);
+  const [selectedCategoryForDrawer, setSelectedCategoryForDrawer] = useState<string | null>(null);
+
+  // ListingListSheet state (for deal card clicks)
+  const [listingListSheetOpen, setListingListSheetOpen] = useState(false);
+  const [listingListCategory, setListingListCategory] = useState<string | null>(null);
+  const [listingListSearch, setListingListSearch] = useState<string | null>(null);
+
+  const [serviceSheetOpen, setServiceSheetOpen] = useState(false);
+  const [selectedServiceForSheet, setSelectedServiceForSheet] = useState<ServiceRow | null>(null);
+
+  const openListingDetail = (listing: Listing) => {
+    if (listing?.id) navigate(`/listings/${listing.id}`);
+  };
+
+  const location = useLocation();
+  const deepLinkParams = useMemo(() => {
+    const p = new URLSearchParams(location.search);
+    return {
+      listingId: p.get("listing")?.trim() || null,
+      dealId: p.get("deal")?.trim() || null,
+    };
+  }, [location.search]);
+
+  const { data: deepLinkListing } = useListing(deepLinkParams.listingId, !!deepLinkParams.listingId);
+  const [deepLinkDeal, setDeepLinkDeal] = useState<Deal | null>(null);
+  const deepLinkHandledRef = useRef(false);
+
+  useEffect(() => {
+    if (!deepLinkParams.dealId) {
+      setDeepLinkDeal(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("deals")
+        .select("*")
+        .eq("id", deepLinkParams.dealId)
+        .eq("status", "active")
+        .is("archived_at", null)
+        .maybeSingle();
+      if (cancelled || error) return;
+      setDeepLinkDeal((data as Deal) || null);
+    })();
+    return () => { cancelled = true; };
+  }, [deepLinkParams.dealId]);
 
   const { data: notifications } = useNotifications();
   const { data: unreadCount } = useUnreadCount();
@@ -349,7 +316,7 @@ export default function Hub() {
     if (rows.length === 0) return fallback;
 
     const mapped: GuideCard[] = rows.map((r: any) => {
-      const Icon = ICON_MAP[String(r.icon_key || "")] || ClipboardCheck;
+      const Icon = getCategoryIcon(r.icon_key);
       const title = language === "ar" ? String(r.title_ar || "") : String(r.title_en || r.title_ar || "");
       const summary = language === "ar" ? (r.summary_lines_ar as string[]) : ((r.summary_lines_en as string[] | null) || (r.summary_lines_ar as string[]));
       const bullets = language === "ar" ? (r.bullets_ar as string[]) : ((r.bullets_en as string[] | null) || (r.bullets_ar as string[]));
@@ -387,6 +354,7 @@ export default function Hub() {
 
   // Featured services/providers shelf (horizontal cards)
   const [featuredServices, setFeaturedServices] = useState<ServiceRow[]>([]);
+  const lastOpenAtRef = useRef<number>(0);
 
   const ratingServiceIds = useMemo(() => {
     const ids = new Set<string>();
@@ -410,6 +378,32 @@ export default function Hub() {
     };
   };
 
+  // Create ratings Map for FeaturedProvidersCard
+  const ratingsMap = useMemo(() => {
+    const map = new Map<string, { value: number; count: number }>();
+    for (const [serviceId, row] of serviceRatings.entries()) {
+      map.set(serviceId, {
+        value: Number(row.averageRating || 0),
+        count: Number(row.totalReviews || 0),
+      });
+    }
+    return map;
+  }, [serviceRatings]);
+
+  // Helper function to chunk array into groups of 4
+  const chunkArray = <T,>(array: T[], chunkSize: number): T[][] => {
+    const chunks: T[][] = [];
+    for (let i = 0; i < array.length; i += chunkSize) {
+      chunks.push(array.slice(i, i + chunkSize));
+    }
+    return chunks;
+  };
+
+  // Group featured services into chunks of 4
+  const featuredServicesChunks = useMemo(() => {
+    return chunkArray(featuredServices, 4);
+  }, [featuredServices]);
+
   const subcatByName = useMemo(() => {
     const map = new Map<string, {
       id: string;
@@ -419,27 +413,57 @@ export default function Hub() {
       color: string | null;
     }>();
 
-    for (const sc of (allSubcategories || []) as any[]) {
+    const keyOf = (v: string) => String(v || "").trim().toLowerCase();
+    const allSubs = (allSubcategories || []) as any[];
+
+    for (const sc of allSubs) {
       const name = String(sc?.name || "").trim();
-      if (!name) continue;
+      const nameAr = String(sc?.name_ar || "").trim();
+      if (!name && !nameAr) continue;
       const iconKey = String(sc?.icon || "");
-      const icon = ICON_MAP[iconKey] || Wrench;
-      map.set(name, {
+      const icon = getCategoryIcon(iconKey);
+
+      const value = {
         id: String(sc.id),
-        name,
+        name: name || nameAr,
         name_ar: sc?.name_ar ?? null,
         icon,
         color: (sc?.color ?? null) as string | null,
-      });
+      };
+
+      // Key by both EN + AR so services.category can be either.
+      if (name) map.set(keyOf(name), value);
+      if (nameAr) map.set(keyOf(nameAr), value);
     }
+
+    // When service.category is a main-category name (no subcategory chosen), resolve to first subcategory of that category.
+    for (const cat of categories || []) {
+      const firstSc = allSubs
+        .filter((s: any) => s?.category_id === cat.id)
+        .sort((a: any, b: any) => (a?.display_order ?? 0) - (b?.display_order ?? 0))[0];
+      if (!firstSc) continue;
+      const iconKey = String(firstSc?.icon || "");
+      const value = {
+        id: String(firstSc.id),
+        name: String(firstSc?.name || firstSc?.name_ar || "").trim() || (cat as any).name,
+        name_ar: firstSc?.name_ar ?? (cat as any).name_ar ?? null,
+        icon: getCategoryIcon(iconKey),
+        color: (firstSc?.color ?? null) as string | null,
+      };
+      const k1 = keyOf((cat as any).name);
+      const k2 = keyOf((cat as any).name_ar || "");
+      if (k1) map.set(k1, value);
+      if (k2) map.set(k2, value);
+    }
+
     return map;
-  }, [allSubcategories]);
+  }, [allSubcategories, categories]);
 
   useEffect(() => {
     let alive = true;
 
     const escOrValue = (v: string) => {
-      const escaped = v.replace(/\\/g, "\\\\").replace(/\"/g, '\\"');
+      const escaped = v.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
       return `"${escaped}"`;
     };
 
@@ -448,7 +472,7 @@ export default function Hub() {
         // Base featured query
         let q = supabase
           .from("services")
-          .select("id,title,category,provider_name,provider_phone,allow_whatsapp,city,sub_city,image_url")
+          .select("id,title,category,provider_name,provider_phone,allow_whatsapp,city,sub_city,image_url,is_featured,price")
           .eq("is_featured", true)
           .eq("is_active", true)
           .eq("is_visible", true)
@@ -585,6 +609,67 @@ export default function Hub() {
     return categories.filter((c) => (c.name_ar || c.name).toLowerCase().includes(ql)).slice(0, 10);
   }, [categories, queryTrim]);
 
+  // Tab state for SERVICES / BUY & SELL (controlled by route pathname)
+  const { isEnabled: buySellEnabled, isLoading: buySellLoading } = useBuySellEnabled();
+  const { isEnabled: servicesEnabled, isLoading: servicesLoading } = useServicesEnabled();
+  
+  // Derive active tab from pathname (route-controlled)
+  const activeTab = useMemo<"services" | "buy-sell">(() => {
+    const pathname = location.pathname;
+    // /buy-sell or /listings routes -> buy-sell tab
+    if (pathname.startsWith("/buy-sell") || pathname.startsWith("/listings")) {
+      return "buy-sell";
+    }
+    // /services or / -> services tab
+    return "services";
+  }, [location.pathname]);
+
+  // Note: activeTab is now derived from pathname, no need for pathname sync effect
+
+  // If Buy & Sell is disabled but user is on /buy-sell, redirect to /services.
+  // If Services is disabled but user is on /services, redirect to /buy-sell.
+  // Only redirect after settings have loaded to avoid false redirects.
+  useEffect(() => {
+    if (buySellLoading || servicesLoading) return;
+    if (!buySellEnabled && activeTab === "buy-sell") {
+      navigate("/services", { replace: true });
+    }
+    if (!servicesEnabled && buySellEnabled && activeTab === "services") {
+      navigate("/buy-sell", { replace: true });
+    }
+  }, [activeTab, buySellEnabled, servicesEnabled, buySellLoading, servicesLoading, navigate]);
+
+  // Tab change handler: navigate to the correct route
+  const handleTabChange = (tab: "services" | "buy-sell") => {
+    if (tab === "buy-sell") {
+      navigate("/buy-sell");
+    } else {
+      navigate("/services");
+    }
+  };
+
+  // Deep links: ?listing=, ?deal= — open corresponding sheet and switch to buy-sell
+  useEffect(() => {
+    if (!buySellEnabled) return;
+    const { listingId, dealId } = deepLinkParams;
+    if (listingId && deepLinkListing && !deepLinkHandledRef.current) {
+      deepLinkHandledRef.current = true;
+      openListingDetail(deepLinkListing);
+      navigate("/buy-sell", { replace: true });
+      return;
+    }
+    if (dealId && deepLinkDeal && !deepLinkHandledRef.current) {
+      deepLinkHandledRef.current = true;
+      openDealDetail(deepLinkDeal);
+      setDeepLinkDeal(null);
+      navigate("/buy-sell", { replace: true });
+      return;
+    }
+    if (!listingId && !dealId) {
+      deepLinkHandledRef.current = false;
+    }
+  }, [buySellEnabled, deepLinkParams, deepLinkListing, deepLinkDeal, navigate]);
+
   // Bottom sheets
   // IMPORTANT: Do NOT mount two Drawers at the same time.
   // On mobile, Radix/shadcn Drawers can crash (minified React error) when
@@ -620,84 +705,57 @@ export default function Hub() {
     setActiveSheet("browse");
   }
 
-  // 2) Provider list sheet (for a selected subcategory)
-  const serviceSheetOpen = activeSheet === "providers";
-  const [initialProviderServiceId, setInitialProviderServiceId] = useState<string | null>(null);
-  const [selectedSubcategory, setSelectedSubcategory] = useState<{
-    id: string;
-    name: string;
-    name_ar?: string | null;
-    icon: LucideIcon;
-    color: string | null;
-  } | null>(null);
+  // Search filters state
+  const [searchFilters, setSearchFilters] = useState<FilterState>({
+    priceRange: [0, 10000],
+    minRating: 0,
+    sortBy: "relevance",
+  });
 
-  const selectedSheetService = useMemo(() => {
-    if (!selectedSubcategory) return null;
-    // Normalize category value: trim whitespace to match exactly what's stored in services.category
-    const normalizedCategory = (selectedSubcategory.name || "").trim();
-    return {
-      id: selectedSubcategory.id,
-      titleKey: selectedSubcategory.name_ar || selectedSubcategory.name,
-      descKey: "",
-      // IMPORTANT: ServiceDetailSheet filters services.category by this value.
-      // Must match exactly what's saved in services.category (subcategory.name from ServiceCreator).
-      category: normalizedCategory,
-      categoryName: selectedSubcategory.name,
-      categoryNameAr: selectedSubcategory.name_ar || undefined,
-      color: selectedSubcategory.color || "#888888",
-      icon: selectedSubcategory.icon,
-    };
-  }, [selectedSubcategory]);
+  // Premium service filters
+  const {
+    filters: serviceFilters,
+    updateFilters: updateServiceFilters,
+    clearFilters: clearServiceFilters,
+    hasActiveFilters: hasActiveServiceFilters,
+  } = useServiceFilters({
+    city: cityId || null,
+  });
 
-  function openSubcategoryProviders(subcat: { id: string; name: string; name_ar?: string | null; icon: LucideIcon; color: string | null }, providerServiceId?: string | null) {
-    // DEV: Log subcategory being opened
-    if (import.meta.env?.DEV || import.meta.env?.MODE === "development") {
-      console.log("[Hub] Opening subcategory:", {
-        id: subcat.id,
-        name: subcat.name,
-        name_ar: subcat.name_ar || "(none)",
-        cityId: cityId || "(none)",
-        cityName: selectedCityName || "(none)",
-      });
-    }
-    setSelectedSubcategory(subcat);
-    setInitialProviderServiceId(providerServiceId || null);
-    setActiveSheet("providers");
+  // Quick view state
+  const [quickViewService, setQuickViewService] = useState<ServiceRow | null>(null);
+  const [quickViewOpen, setQuickViewOpen] = useState(false);
+
+  // View mode (grid/list)
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  function openSubcategoryProviders(subcat: { id: string; name: string; name_ar?: string | null; icon: LucideIcon; color: string | null; category_id?: string }) {
+    const cid = (subcat as { category_id?: string }).category_id;
+    if (cid) navigate(`/services/category/${cid}?sub=${subcat.id}`);
   }
 
   const openServiceFromRow = (service: ServiceRow) => {
-    const subcat = subcatByName.get(String(service.category || "").trim());
-    if (!subcat) {
-      toast({
-        title: t("تعذر فتح الخدمة", "Could not open"),
-        description: t("هذه الخدمة غير مرتبطة بتصنيف معروف", "This service category is not linked to a known subcategory"),
-        variant: "destructive",
-      });
-      return;
+    const now = Date.now();
+    if (now - lastOpenAtRef.current < 250) return;
+    lastOpenAtRef.current = now;
+    if (!service?.id) return;
+    navigate(`/services/${service.id}`);
+  };
+
+  const handleQuickView = (service: ServiceRow) => {
+    setQuickViewService(service);
+    setQuickViewOpen(true);
+  };
+
+  const handleQuickViewFull = () => {
+    if (quickViewService) {
+      setQuickViewOpen(false);
+      openServiceFromRow(quickViewService);
     }
-    openSubcategoryProviders(subcat, service.id);
   };
 
   // When selecting a subcategory from the browse sheet, we must close/unmount the browse Drawer
   // before mounting the provider Drawer. Otherwise mobile browsers can crash.
-  const [pendingSubcategory, setPendingSubcategory] = useState<{
-    id: string;
-    name: string;
-    name_ar?: string | null;
-    icon: LucideIcon;
-    color: string | null;
-  } | null>(null);
-
-  useEffect(() => {
-    if (activeSheet !== "none") return;
-    if (!pendingSubcategory) return;
-
-    // Browse sheet is unmounted now; safe to open providers.
-    openSubcategoryProviders(pendingSubcategory);
-    setPendingSubcategory(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSheet, pendingSubcategory]);
-
   // Shelves data (category shelves load subcategories)
   const [subcatsByShelfId, setSubcatsByShelfId] = useState<Record<string, SubcategoryRow[]>>({});
 
@@ -763,47 +821,45 @@ export default function Hub() {
   };
 
   const getContactState = (service: ServiceRow) => {
-    const tel = service.provider_phone?.replace(/\s+/g, "") || "";
-    const whatsapp = service.provider_phone?.replace(/[^\d]/g, "") || "";
+    const telLink = getTelLink(String(service.provider_phone || ""));
+    const waLink = getWhatsAppLink(String(service.provider_phone || ""));
     const allowWhatsapp = service.allow_whatsapp !== false;
     return {
-      tel,
-      whatsapp,
-      canCall: Boolean(tel),
-      canWhatsApp: Boolean(whatsapp) && allowWhatsapp,
+      telLink,
+      waLink,
+      canCall: telLink !== "tel:",
+      canWhatsApp: waLink !== "https://wa.me/" && allowWhatsapp,
       allowWhatsapp,
     };
   };
 
-  const trackServiceEvent = (serviceId: string, type: "call" | "whatsapp") => {
-    if (!serviceId) return;
-    void (async () => {
-      try {
-        await supabase.rpc("record_service_event", { p_service_id: serviceId, p_event_type: type } as any);
-      } catch {
-        // Best-effort telemetry only.
-      }
-    })();
-  };
-
   const handleCall = (service: ServiceRow) => {
-    const { tel } = getContactState(service);
-    if (!tel) {
+    const { telLink } = getContactState(service);
+    if (telLink === "tel:") {
       toast({ title: t("رقم الهاتف غير متوفر", "Phone number not available"), variant: "destructive" });
       return;
     }
-    trackServiceEvent(service.id, "call");
-    window.open(`tel:${tel}`, "_self");
+    void trackProviderEvent(service.id, "call");
+    try {
+      window.location.href = telLink;
+    } catch {
+      window.open(telLink, "_self");
+    }
   };
 
   const handleWhatsApp = (service: ServiceRow) => {
-    const { whatsapp, allowWhatsapp } = getContactState(service);
-    if (!whatsapp || !allowWhatsapp) {
+    const { waLink, allowWhatsapp } = getContactState(service);
+    if (waLink === "https://wa.me/" || !allowWhatsapp) {
       toast({ title: t("واتساب غير متوفر", "WhatsApp not available"), variant: "destructive" });
       return;
     }
-    trackServiceEvent(service.id, "whatsapp");
-    window.open(`https://wa.me/${whatsapp}`, "_blank");
+    void trackProviderEvent(service.id, "whatsapp");
+    try {
+      const w = window.open(waLink, "_blank", "noopener,noreferrer");
+      if (!w) window.location.href = waLink;
+    } catch {
+      window.location.href = waLink;
+    }
   };
 
   // City label (no "All cities" option; auto-picks first city)
@@ -816,6 +872,7 @@ export default function Hub() {
 
   // Measure the fixed header height so content below doesn't get hidden under it.
   useLayoutEffect(() => {
+    if (typeof window === "undefined") return;
     const el = headerRef.current;
     if (!el) return;
 
@@ -825,6 +882,11 @@ export default function Hub() {
     };
 
     measure();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
 
     const ro = new ResizeObserver(() => measure());
     ro.observe(el);
@@ -838,22 +900,37 @@ export default function Hub() {
 
 
   return (
-    <div className={`min-h-screen bg-background pb-[calc(5rem+env(safe-area-inset-bottom))] overflow-x-hidden ${isRTL ? "rtl" : ""}`}>
+    <div
+      className={`min-h-screen bg-background overflow-x-hidden relative ${isRTL ? "rtl" : ""}`}
+      style={{ paddingBottom: `calc(${MOBILE_NAV_HEIGHT_PX}px + env(safe-area-inset-bottom, 0px))` }}
+    >
+      {/* Subtle background pattern */}
+      <div className="absolute inset-0 opacity-[0.02] pointer-events-none">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary via-transparent to-primary/50" />
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
+      </div>
       {/* Sticky top: Header + Search/City + Chips */}
       <div
         ref={headerRef}
-        className="fixed top-0 left-0 right-0 w-full z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pt-[calc(env(safe-area-inset-top)+16px)] pb-4 border-b border-border/60 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+        className="fixed top-0 left-0 right-0 w-full z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pt-[calc(env(safe-area-inset-top)+12px)] pb-3 border-b border-border/60 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
       >
-        <div className="px-4 space-y-4">
+        <div className="px-4 sm:px-6 space-y-4">
           {/* Header */}
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <div className={`text-xl font-semibold leading-tight ${isRTL ? "text-right" : "text-left"}`}>{t("شن تحتاج اليوم؟", "What do you need today?")}</div>
-              <div className={`text-sm text-muted-foreground ${isRTL ? "text-right" : "text-left"}`}>{t("ابحث وتواصل مباشرة", "Search and contact directly")}</div>
+              <div className={`text-xl font-bold leading-tight bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text ${isRTL ? "text-right" : "text-left"}`}>
+                {activeTab === "buy-sell" ? t("بيع وشراء", "Buy & Sell") : t("شن تحتاج اليوم؟", "What do you need today?")}
+              </div>
+              <div className={`text-sm text-muted-foreground mt-0.5 ${isRTL ? "text-right" : "text-left"}`}>
+                {activeTab === "buy-sell"
+                  ? t("تصفح الإعلانات والعروض", "Browse listings and deals")
+                  : t("ابحث وتواصل مباشرة", "Search and contact directly")}
+              </div>
             </div>
             <div className="flex items-center gap-2">
-              <LanguageToggle className="h-11 w-11" />
-              <ThemeToggle className="h-11 w-11" />
+              <LanguageToggle className="h-10 w-10 rounded-xl bg-background/50 backdrop-blur-sm border border-border/60 hover:bg-background transition-all duration-300 shadow-sm" />
+              <ThemeToggle className="h-10 w-10 rounded-xl bg-background/50 backdrop-blur-sm border border-border/60 hover:bg-background transition-all duration-300 shadow-sm" />
               <Popover>
                 <PopoverTrigger asChild>
                   <button
@@ -867,9 +944,14 @@ export default function Hub() {
                         });
                       }
                     }}
-                    className="relative h-11 w-11 rounded-full hover:bg-muted transition-colors flex items-center justify-center"
+                    className={cn(
+                      "relative h-10 w-10 rounded-xl flex items-center justify-center",
+                      "bg-background/50 backdrop-blur-sm border border-border/60",
+                      "hover:bg-background hover:shadow-md transition-all duration-300",
+                      "shadow-sm active:scale-95"
+                    )}
                   >
-                    <Bell className="h-5 w-5" />
+                    <Bell className="h-4 w-4" />
                     {user && unreadCount && unreadCount > 0 && (
                       <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
                         {unreadCount > 9 ? "9+" : unreadCount}
@@ -950,7 +1032,6 @@ export default function Hub() {
 
           {/* Search + City */}
           <div className="space-y-3">
-            {/* Option 1: City inside search row */}
             <div className={`flex items-center gap-2 ${isRTL ? "flex-row-reverse" : ""}`}
             >
               <Popover>
@@ -958,10 +1039,18 @@ export default function Hub() {
                   <Button
                     type="button"
                     variant="secondary"
-                    className="h-11 px-3 rounded-xl shrink-0 justify-between gap-2"
+                    className={cn(
+                      "h-10 px-3 rounded-xl shrink-0 justify-between gap-2 font-medium text-sm",
+                      "bg-background/50 backdrop-blur-sm border border-border/60",
+                      "hover:bg-background hover:shadow-md transition-all duration-300",
+                      "shadow-sm"
+                    )}
                   >
-                    <span className="max-w-[7.5rem] truncate">{cityLabel}</span>
-                    <ChevronDown className="h-4 w-4 opacity-70" />
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-primary/60"></div>
+                      <span className="max-w-[8rem] truncate">{cityLabel}</span>
+                    </div>
+                    <ChevronDown className="h-4 w-4 opacity-70 group-hover:opacity-100 transition-opacity" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[--radix-popover-trigger-width] p-2">
@@ -983,27 +1072,78 @@ export default function Hub() {
                 </PopoverContent>
               </Popover>
 
-              <div className="relative flex-1">
-                <Search
-                  className={`absolute top-3.5 h-4 w-4 text-muted-foreground ${isRTL ? "right-3" : "left-3"}`}
-                />
+              <div className="relative flex-1 group">
+                <div className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60 group-focus-within:text-primary transition-colors ${isRTL ? "right-3" : "left-3"}`}>
+                  <Search className="h-4 w-4" />
+                </div>
                 <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  className={`${isRTL ? "pr-9" : "pl-9"} h-11 rounded-xl`}
-                  placeholder={t("ابحث عن خدمة… كهرباء، سباكة، تكييف", "Search services… electricity, plumbing, AC")}
+                  value={activeTab === "buy-sell" ? buySellSearchQuery : query}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (activeTab === "buy-sell") setBuySellSearchQuery(v);
+                    else setQuery(v);
+                  }}
+                  className={cn(
+                    "h-10 rounded-xl pl-10 pr-10 text-sm",
+                    "bg-background/50 backdrop-blur-sm border-border/60",
+                    "focus:border-primary focus:ring-2 focus:ring-primary/20 focus:bg-background",
+                    "placeholder:text-muted-foreground/60 transition-all duration-300",
+                    "shadow-sm hover:shadow-md focus:shadow-lg"
+                  )}
+                  placeholder={
+                    activeTab === "buy-sell"
+                      ? t("ابحث عن عرض...", "Search deals...")
+                      : t("ابحث عن خدمة… كهرباء، سباكة، تكييف", "Search services… electricity, plumbing, AC")
+                  }
                 />
+
+                {(activeTab === "buy-sell" ? buySellSearchQuery : query).trim() ? (
+                  <button
+                    type="button"
+                    className={cn(
+                      "absolute top-1/2 -translate-y-1/2 h-8 w-8 rounded-full",
+                      "hover:bg-destructive/10 hover:text-destructive flex items-center justify-center",
+                      "transition-all duration-200 active:scale-95",
+                      isRTL ? "left-2" : "right-2",
+                    )}
+                    onClick={() => {
+                      if (activeTab === "buy-sell") setBuySellSearchQuery("");
+                      else setQuery("");
+                    }}
+                    aria-label={t("مسح البحث", "Clear search")}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : null}
               </div>
             </div>
 
-            {activeAnnouncement && (
+            {activeTab === "services" && activeAnnouncement && (
               <div className={`${HUB_CARD_BASE} bg-muted/30 px-4 py-3`}>
                 <div className="text-sm text-muted-foreground">📢 📢 {activeAnnouncement.message}</div>
               </div>
             )}
 
+            {/* Search Filters - shown when there's a search query (Services only) */}
+            {activeTab === "services" && queryTrim && filteredCategories.length > 0 && (
+              <div className="flex items-center justify-between gap-2">
+                <SearchFilters
+                  filters={searchFilters}
+                  onFiltersChange={setSearchFilters}
+                  onReset={() => setSearchFilters({
+                    priceRange: [0, 10000],
+                    minRating: 0,
+                    sortBy: "relevance",
+                  })}
+                />
+                <div className="text-xs text-muted-foreground">
+                  {t(`${filteredCategories.length} نتيجة`, `${filteredCategories.length} results`)}
+                </div>
+              </div>
+            )}
+
             {/* Search results (category matches) */}
-            {queryTrim && (
+            {activeTab === "services" && queryTrim && (
               <Card className="rounded-2xl border-border/60">
                 <CardContent className="p-2 space-y-1">
                 {filteredCategories.length === 0 ? (
@@ -1016,7 +1156,7 @@ export default function Hub() {
                       className="w-full justify-start h-11"
                       onClick={() => {
                         setQuery("");
-                        openCategoryBrowse(c.id);
+                        navigate(`/services/category/${c.id}`);
                       }}
                     >
                       {c.name_ar || c.name}
@@ -1028,10 +1168,10 @@ export default function Hub() {
             )}
           </div>
 
-          {/* Chips (admin-controlled, subcategories) */}
-          {chips.length > 0 && (
+          {/* Chips (admin-controlled, subcategories) - Services only */}
+          {activeTab === "services" && chips.length > 0 && (
             <ScrollArea className="w-full">
-              <div className="flex gap-4 pb-3 px-2">
+              <div className="flex gap-3 pb-2 px-2">
                 {chips.map((chip) => {
                   const label = (language === "ar" ? chip.label_ar : chip.label_en) || chip.label_ar || chip.label_en || "";
                   if (!label) return null;
@@ -1039,15 +1179,15 @@ export default function Hub() {
                     <Button
                       key={chip.id}
                       variant="secondary"
-                      className="rounded-full shrink-0 px-4 h-11"
+                      className="rounded-full shrink-0 px-3 h-9 text-sm"
                       onClick={() => {
                         if (chip.target_type === "category" && chip.target_category_id) {
-                          openCategoryBrowse(chip.target_category_id);
+                          navigate(`/services/category/${chip.target_category_id}`);
                         } else if (chip.target_type === "subcategory" && chip.target_subcategory_id) {
-                          const sc = (allSubcategories || []).find((s) => s.id === chip.target_subcategory_id);
+                          const sc = (allSubcategories || []).find((s: any) => s.id === chip.target_subcategory_id) as { id: string; name: string; name_ar?: string | null; icon: string; color: string | null; category_id?: string } | undefined;
                           if (!sc) return;
-                          const Icon = ICON_MAP[sc.icon] || Wrench;
-                          openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color });
+                          const Icon = getCategoryIcon(sc.icon);
+                          openSubcategoryProviders({ ...sc, icon: Icon });
                         } else if (chip.target_type === "shelf" && chip.target_shelf_id) {
                           const el = chip.target_shelf_id === "featured-services"
                             ? document.getElementById("featured-services")
@@ -1071,14 +1211,81 @@ export default function Hub() {
       {/* Spacer for fixed header */}
       <div style={{ height: headerHeight }} aria-hidden="true" />
 
+      {/* Tab Switcher (only shown if buy/sell is enabled) */}
+      {buySellEnabled && (
+        <HubTabSwitcher
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          headerHeight={headerHeight}
+        />
+      )}
+
       {/* Everything below the fixed header scrolls normally */}
-      <div className="space-y-4">
-        <FeaturedHero
+      {buySellEnabled && !servicesEnabled ? (
+        /* Services hidden: show only Buy & Sell */
+        <ErrorBoundary
+          fallback={
+            <div className="flex flex-col items-center justify-center min-h-[50vh] p-6 text-center">
+              <p className="text-muted-foreground mb-4">{t("حدث خطأ في هذه الصفحة. حاول التحديث.", "Something went wrong on this tab. Try refreshing.")}</p>
+              <Button variant="outline" onClick={() => window.location.reload()}>{t("تحديث", "Reload")}</Button>
+            </div>
+          }
+        >
+        <BuySellHubTab
+          cityId={cityId}
+          buySellMode={buySellMode}
+          onBuySellModeChange={setBuySellMode}
+          selectedBuySellCategory={selectedBuySellCategory}
+          onCategoryChange={setSelectedBuySellCategory}
+          buySellSearchQuery={buySellSearchQuery}
+          onSearchChange={setBuySellSearchQuery}
+          openListingDetail={openListingDetail}
+          openDealDetail={openDealDetail}
+          navigate={navigate}
+        />
+        </ErrorBoundary>
+      ) : buySellEnabled && servicesEnabled ? (
+        <Tabs value={activeTab} onValueChange={(v) => handleTabChange(v as "services" | "buy-sell")}>
+          {/* BUY & SELL Tab (first/left) */}
+          <TabsContent value="buy-sell" className="mt-0">
+            <ErrorBoundary
+              fallback={
+                <div className="flex flex-col items-center justify-center min-h-[50vh] p-6 text-center">
+                  <p className="text-muted-foreground mb-4">{t("حدث خطأ في هذه الصفحة. حاول التحديث.", "Something went wrong on this tab. Try refreshing.")}</p>
+                  <Button variant="outline" onClick={() => window.location.reload()}>{t("تحديث", "Reload")}</Button>
+                </div>
+              }
+            >
+            <BuySellHubTab
+              cityId={cityId}
+              buySellMode={buySellMode}
+              onBuySellModeChange={setBuySellMode}
+              selectedBuySellCategory={selectedBuySellCategory}
+              onCategoryChange={setSelectedBuySellCategory}
+              buySellSearchQuery={buySellSearchQuery}
+              onSearchChange={setBuySellSearchQuery}
+              openListingDetail={openListingDetail}
+              openDealDetail={openDealDetail}
+              navigate={navigate}
+            />
+            </ErrorBoundary>
+          </TabsContent>
+          {/* SERVICES Tab (second/right) */}
+          <TabsContent value="services" className="mt-0 space-y-6">
+            <ErrorBoundary
+              fallback={
+                <div className="flex flex-col items-center justify-center min-h-[50vh] p-6 text-center">
+                  <p className="text-muted-foreground mb-4">{t("حدث خطأ في هذه الصفحة. حاول التحديث.", "Something went wrong on this tab. Try refreshing.")}</p>
+                  <Button variant="outline" onClick={() => window.location.reload()}>{t("تحديث", "Reload")}</Button>
+                </div>
+              }
+            >
+            <FeaturedHero
           banners={banners as any}
           publicUrlsById={publicUrlsById as any}
           allSubcategories={(allSubcategories || []) as any}
-          iconMap={ICON_MAP as any}
-          onOpenCategory={openCategoryBrowse}
+          iconMap={HUB_ICON_MAP as any}
+          onOpenCategory={(id) => navigate(`/services/category/${id}`)}
           onOpenSubcategory={openSubcategoryProviders as any}
           onScrollToShelf={(shelfId) => {
             const el = shelfId === "featured-services"
@@ -1090,94 +1297,97 @@ export default function Hub() {
           isRTL={isRTL}
           fallbackTitle={t("خدمات موثوقة بالقرب منك", "Trusted services near you")}
           fallbackCta={t("استكشف", "Explore")}
-        />
+          />
 
-        <div className="px-4 space-y-4">
-          {/* Services (MAIN categories) grid - exactly 8 */}
-          <HubSection title={t("الخدمات", "Categories")}>
-            {categoriesLoading ? (
-              <div className="text-sm text-muted-foreground">Loading...</div>
-            ) : categoriesError ? (
-              <div className={`${HUB_CARD_BASE} bg-card p-4 text-sm text-muted-foreground`}>
-                {t("تعذر تحميل الأقسام. حاول مرة أخرى.", "Couldn't load categories. Please try again.")}
-              </div>
-            ) : gridCategories.length === 0 ? (
-              <div className={`${HUB_CARD_BASE} bg-card p-4 text-sm text-muted-foreground`}>
-                {t("لا توجد أقسام متاحة حالياً.", "No categories available right now.")}
-              </div>
-            ) : (
-              <div className="grid grid-cols-4 gap-3">
-                {gridCategories.map((c) => {
-                  const Icon = ICON_MAP[c.icon] || Wrench;
-                  return (
-                    <button
-                      key={c.id}
-                      className={`${HUB_CARD_BASE} bg-card min-h-[92px] p-3 flex flex-col items-center gap-2 transition-colors hover:bg-accent active:scale-[0.99]`}
-                      onClick={() => openCategoryBrowse(c.id)}
-                    >
-                      <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ backgroundColor: c.color + "22" }}>
-                        <Icon className="h-6 w-6" />
-                      </div>
-                      <div className="text-xs text-center leading-tight line-clamp-2">{c.name_ar || c.name}</div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </HubSection>
+          <div className="px-4 space-y-10">
+            {/* Services (MAIN categories) – 6 main cards, non-scrollable */}
+            <AnimatedSection direction="up" delay={100}>
+              <HubSection title={t("الخدمات", "Categories")} icon={LayoutGrid}>
+                {categoriesLoading ? (
+                  <div className="text-sm text-muted-foreground">Loading...</div>
+                ) : categoriesError ? (
+                  <div className={`${HUB_CARD_BASE} bg-card p-4 text-sm text-muted-foreground`}>
+                    {t("تعذر تحميل الأقسام. حاول مرة أخرى.", "Couldn't load categories. Please try again.")}
+                  </div>
+                ) : gridCategories.length === 0 ? (
+                  <div className={`${HUB_CARD_BASE} bg-card p-4 text-sm text-muted-foreground`}>
+                    {t("لا توجد أقسام متاحة حالياً.", "No categories available right now.")}
+                  </div>
+                ) : (
+                  <div
+                    className="grid grid-cols-2 md:grid-cols-3 gap-2"
+                    dir={isRTL ? "rtl" : "ltr"}
+                  >
+                    {gridCategories.slice(0, 6).map((c) => (
+                      <HubCategoryCard
+                        key={c.id}
+                        label={c.name}
+                        labelAr={c.name_ar}
+                        language={language === "ar" ? "ar" : "en"}
+                        icon={getCategoryIcon(c.icon)}
+                        color={c.color}
+                        onClick={() => navigate(`/services/category/${c.id}`)}
+                        subtitle={t("اضغط للبحث", "Browse")}
+                      />
+                    ))}
+                  </div>
+                )}
+              </HubSection>
+            </AnimatedSection>
 
           {/* Featured providers/services (horizontal) */}
           {featuredServices.length > 0 && (
-            <HubSection id="featured-providers" title={t("مزودين مميزين", "Featured providers")}>
+            <AnimatedSection direction="up" delay={200}>
+              <HubSection id="featured-providers" title={t("مزودين مميزين", "Featured providers")} icon={Star}>
               <div
                 dir={isRTL ? "rtl" : "ltr"}
-                className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
+                className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
                 style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
               >
-                {featuredServices.map((service) => {
-                  const contact = getContactState(service);
-                  return (
-                    <div key={service.id} className="shrink-0 w-[82vw] max-w-[360px] snap-center">
-                      <ServiceCardFeatured
-                        service={service}
-                        rating={getRating(service.id)}
-                        isRTL={isRTL}
-                        canCall={contact.canCall}
-                        canWhatsApp={contact.canWhatsApp}
-                        onOpen={() => openServiceFromRow(service)}
-                        onCall={() => handleCall(service)}
-                        onWhatsApp={() => handleWhatsApp(service)}
-                        labels={labels}
-                      />
-                    </div>
-                  );
-                })}
+                {featuredServicesChunks.filter(chunk => chunk.length > 0).map((chunk, chunkIndex) => (
+                  <FeaturedProvidersCard
+                    key={chunkIndex}
+                    services={chunk}
+                    ratings={ratingsMap}
+                    isRTL={isRTL}
+                    getContactState={getContactState}
+                    onOpen={openServiceFromRow}
+                    onCall={handleCall}
+                    onWhatsApp={handleWhatsApp}
+                    labels={labels}
+                  />
+                ))}
               </div>
-            </HubSection>
+              </HubSection>
+            </AnimatedSection>
           )}
 
           {/* Featured services (subcategories) */}
           {featuredSubcats.length > 0 && (
-            <HubSection id="featured-services" title={t("الخدمات المميزة", "Featured services")}>
+            <AnimatedSection direction="up" delay={300}>
+              <HubSection id="featured-services" title={t("الخدمات المميزة", "Featured services")} icon={Star}>
               <div
                 dir={isRTL ? "rtl" : "ltr"}
-                className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
+                className={HUB_CARD_ROW_4}
                 style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
               >
                 {featuredSubcats.slice(0, 6).map((sc) => {
-                  const Icon = ICON_MAP[sc.icon] || Wrench;
+                  const Icon = getCategoryIcon(sc.icon);
                   return (
                     <button
                       key={sc.id}
-                      className={`${HUB_CARD_BASE} bg-card shrink-0 w-[66vw] max-w-[300px] snap-center p-4 text-left transition-colors hover:bg-accent active:scale-[0.99]`}
-                      onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
+                      className={`${HUB_CARD_SLOT_4} ${HUB_CARD_BASE} bg-card p-4 text-left transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 active:scale-[0.99] touch-manipulation`}
+                      onClick={() => openSubcategoryProviders({ ...sc, icon: Icon })}
                     >
-                      <div className={`flex items-center gap-3 ${isRTL ? "text-right" : "text-left"}`} dir={isRTL ? "rtl" : "ltr"}>
-                        <div className="h-12 w-12 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: (sc.color || "#888") + "22" }}>
-                          <Icon className="h-6 w-6" />
+                      <div className={`flex items-center gap-4 ${isRTL ? "text-right" : "text-left"}`} dir={isRTL ? "rtl" : "ltr"}>
+                        <div
+                          className="h-14 w-14 rounded-full flex items-center justify-center shrink-0 shadow-sm"
+                          style={{ backgroundColor: (sc.color || "#888") + "1f" }}
+                        >
+                          <Icon className="h-7 w-7 text-foreground" strokeWidth={2.1} />
                         </div>
                         <div className="min-w-0">
-                          <div className="font-semibold text-sm line-clamp-1">{sc.name_ar || sc.name}</div>
+                          <div className="font-semibold text-[15px] line-clamp-1">{sc.name_ar || sc.name}</div>
                           <div className="text-xs text-muted-foreground line-clamp-1 mt-1">
                             {t("اضغط لعرض المزودين", "Tap to view providers")}
                           </div>
@@ -1187,72 +1397,85 @@ export default function Hub() {
                   );
                 })}
               </div>
-            </HubSection>
+              </HubSection>
+            </AnimatedSection>
           )}
 
           {/* Most demanded services (SYSTEM) */}
-          <HubSection id="most-demanded-services" title={t("الأكثر طلباً", "Most demanded")}>
+          <AnimatedSection direction="up" delay={500}>
+            <HubSection
+              id="most-demanded-services"
+              title={t("الأكثر طلباً", "Most demanded")}
+              icon={TrendingUp}
+              actionLabel={t("المزيد", "More")}
+              onAction={() => navigate("/services/trending")}
+            >
             <div
               dir={isRTL ? "rtl" : "ltr"}
-              className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
+              className={HUB_CARD_ROW_4}
               style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
             >
               {mostDemandedLoading && mostDemandedRows.length === 0
-                ? Array.from({ length: 6 }).map((_, i) => (
-                    <div
-                      key={`demanded-placeholder-${i}`}
-                      className={`${HUB_CARD_BASE} bg-card shrink-0 w-[72vw] max-w-[320px] snap-center overflow-hidden`}
-                    >
-                      <div className="aspect-[4/3] bg-muted" />
-                      <div className="p-3">
-                        <div className="h-4 w-36 rounded bg-muted" />
-                        <div className="mt-2 h-3 w-44 rounded bg-muted" />
-                        <div className="mt-2 h-3 w-32 rounded bg-muted" />
+                ? Array.from({ length: 4 }).map((_, i) => (
+                    <div key={`demanded-placeholder-${i}`} className={`${HUB_CARD_SLOT_4} ${HUB_CARD_BASE} bg-card overflow-hidden animate-pulse`}>
+                      <div className="aspect-[4/3] bg-muted/50 rounded-t-xl" />
+                      <div className="p-2.5 space-y-1">
+                        <div className="h-3 bg-muted/50 rounded w-2/3" />
+                        <div className="h-3 bg-muted/50 rounded w-1/2" />
                       </div>
                     </div>
                   ))
                 : mostDemandedRows.length === 0
                   ? (
-                      <div className={`${HUB_CARD_BASE} bg-card shrink-0 w-[72vw] max-w-[320px] snap-center p-4`}>
-                        <div className="font-semibold text-sm">{t("لا توجد بيانات بعد", "No data yet")}</div>
+                      <div className={`${HUB_CARD_BASE} bg-card p-6 text-center min-w-full`}>
+                        <div className="font-semibold text-sm text-muted-foreground">{t("لا توجد بيانات بعد", "No data yet")}</div>
                         <div className="text-xs text-muted-foreground mt-1">
                           {t("سيظهر هذا القسم تلقائياً بعد تفاعل المستخدمين (مشاهدات/اتصالات)", "This will appear automatically once users interact (views/calls).")}
                         </div>
                       </div>
                     )
-                  : mostDemandedRows.slice(0, 6).map((service) => {
-                      const contact = getContactState(service);
-                      return (
-                        <div key={service.id} className="shrink-0 w-[72vw] max-w-[320px] snap-center">
-                          <ServiceCardCompact
-                            service={service}
-                            rating={getRating(service.id)}
-                            isRTL={isRTL}
-                            canCall={contact.canCall}
-                            canWhatsApp={contact.canWhatsApp}
-                            onOpen={() => openServiceFromRow(service)}
-                            onCall={() => handleCall(service)}
-                            onWhatsApp={() => handleWhatsApp(service)}
-                            labels={labels}
-                          />
-                        </div>
-                      );
-                    })}
+                  : mostDemandedRows.slice(0, 8).map((svc) => (
+                      <div key={svc.id} className={HUB_CARD_SLOT_4}>
+                        <HubItemCard
+                          imageUrl={svc.image_url}
+                          priceText={t("اتصل للسعر", "Price on request")}
+                          location={[svc.city, svc.sub_city].filter(Boolean).join(" • ") || "—"}
+                          subtitle={svc.title}
+                          isRTL={isRTL}
+                          onClick={() => openServiceFromRow(svc as ServiceRow)}
+                        />
+                      </div>
+                    ))}
             </div>
-          </HubSection>
+            </HubSection>
+          </AnimatedSection>
+
+          {/* Recent Activity Feed */}
+          <AnimatedSection direction="up" delay={600}>
+            <HubSection id="activity-feed" title={t("النشاط الأخير", "Recent Activity")} icon={Heart}>
+            <ActivityFeed
+              cityId={cityId}
+              cityName={selectedCityName}
+              onOpenService={openServiceFromRow}
+              onCall={handleCall}
+              onWhatsApp={handleWhatsApp}
+            />
+            </HubSection>
+          </AnimatedSection>
 
           {/* Tips before you call */}
-          <HubSection id="guides" title={t("نصائح قبل ما تتصل", "Tips before you call")}>
+          <AnimatedSection direction="up" delay={800}>
+            <HubSection id="guides" title={t("نصائح قبل ما تتصل", "Tips before you call")} icon={BookOpen}>
             <div
               dir={isRTL ? "rtl" : "ltr"}
-              className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
+              className={HUB_CARD_ROW_4}
               style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
             >
               {guidesLoading && guidesCards.length === 0
                 ? Array.from({ length: 4 }).map((_, i) => (
                     <div
                       key={`guide-placeholder-${i}`}
-                      className={`${HUB_CARD_BASE} bg-muted/30 shrink-0 w-[64vw] max-w-[280px] min-h-[92px] snap-center p-3`}
+                      className={`${HUB_CARD_SLOT_4} ${HUB_CARD_BASE} bg-muted/30 min-h-[92px] p-3`}
                     >
                       <div className="h-4 w-32 rounded bg-muted" />
                       <div className="mt-2 h-3 w-40 rounded bg-muted" />
@@ -1260,21 +1483,24 @@ export default function Hub() {
                     </div>
                   ))
                 : guidesCards.slice(0, 4).map((g) => (
-                    <TipChip
-                      key={g.id}
-                      title={g.title}
-                      line1={g.summaryLines[0]}
-                      line2={g.summaryLines[1]}
-                      Icon={g.icon}
-                      onClick={() => openGuide(g.id)}
-                      isRTL={isRTL}
-                    />
+                    <div key={g.id} className={HUB_CARD_SLOT_4}>
+                      <TipChip
+                        title={g.title}
+                        line1={g.summaryLines[0]}
+                        line2={g.summaryLines[1]}
+                        Icon={g.icon}
+                        onClick={() => openGuide(g.id)}
+                        isRTL={isRTL}
+                      />
+                    </div>
                   ))}
             </div>
-          </HubSection>
+            </HubSection>
+          </AnimatedSection>
 
           {/* Shelves (admin-controlled) */}
-          <div className="space-y-4">
+          <AnimatedSection direction="up" delay={900}>
+            <div className="space-y-4">
             {shelves.map((shelf) => {
               const cityOk = true;
               if (!cityOk) return null;
@@ -1292,32 +1518,26 @@ export default function Hub() {
                     id={`shelf-${shelf.id}`}
                     title={shelf.title_ar}
                     actionLabel={t("عرض الكل", "See all")}
-                    onAction={() => openCategoryBrowse(cat.id)}
+                    onAction={() => navigate(`/services/category/${cat.id}`)}
                   >
                     <div
                       dir={isRTL ? "rtl" : "ltr"}
-                      className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
-                      style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+                      className={HUB_CARD_ROW_4}
+                      style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
                     >
-                      {subcats.map((sc) => {
-                        const Icon = ICON_MAP[sc.icon] || Wrench;
-                        return (
-                          <button
-                            key={sc.id}
-                            className={`${HUB_CARD_BASE} bg-card shrink-0 w-[44%] md:w-[28%] p-3 flex flex-col items-center gap-2 text-center transition-colors hover:bg-accent active:scale-[0.99]`}
-                            style={{ scrollSnapAlign: "start" }}
-                            onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
-                          >
-                            <div
-                              className="h-12 w-12 rounded-full flex items-center justify-center"
-                              style={{ backgroundColor: (sc.color || "#888") + "22" }}
-                            >
-                              <Icon className="h-6 w-6" />
-                            </div>
-                            <div className="text-xs leading-tight line-clamp-2">{sc.name_ar || sc.name}</div>
-                          </button>
-                        );
-                      })}
+                      {subcats.map((sc) => (
+                        <HubCategoryCard
+                          key={sc.id}
+                          label={sc.name}
+                          labelAr={sc.name_ar}
+                          language={language === "ar" ? "ar" : "en"}
+                          icon={getCategoryIcon(sc.icon)}
+                          color={sc.color}
+                          onClick={() => openSubcategoryProviders({ ...sc, icon: getCategoryIcon(sc.icon) })}
+                          subtitle={t("اضغط لعرض المزودين", "View providers")}
+                          inScrollSlot
+                        />
+                      ))}
                     </div>
                   </HubSection>
                 );
@@ -1349,53 +1569,42 @@ export default function Hub() {
                 <HubSection key={shelf.id} id={`shelf-${shelf.id}`} title={shelf.title_ar}>
                   <div
                     dir={isRTL ? "rtl" : "ltr"}
-                    className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory"
-                    style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any }}
+                    className={HUB_CARD_ROW_4}
+                    style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
                   >
-                    {subcats.map((s) => {
-                      const Icon = ICON_MAP[s.icon] || Wrench;
-                      return (
-                        <button
+                    {subcats.map((s) => (
+                        <HubCategoryCard
                           key={s.id}
-                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[34%] md:w-[22%] p-3 flex flex-col items-center gap-2 text-center transition-colors hover:bg-accent active:scale-[0.99]`}
-                          style={{ scrollSnapAlign: "start" }}
-                          onClick={() => openSubcategoryProviders({ id: s.id, name: s.name, name_ar: s.name_ar, icon: Icon, color: s.color })}
-                        >
-                          <div
-                            className="h-12 w-12 rounded-full flex items-center justify-center"
-                            style={{ backgroundColor: (s.color || "#888") + "22" }}
-                          >
-                            <Icon className="h-6 w-6" />
-                          </div>
-                          <div className="text-xs leading-tight line-clamp-2">{s.name_ar || s.name}</div>
-                        </button>
-                      );
-                    })}
+                          label={s.name}
+                          labelAr={s.name_ar}
+                          language={language === "ar" ? "ar" : "en"}
+                          icon={getCategoryIcon(s.icon)}
+                          color={s.color}
+                          onClick={() => openSubcategoryProviders({ ...s, icon: getCategoryIcon(s.icon) })}
+                          subtitle={t("اضغط لعرض المزودين", "View providers")}
+                          inScrollSlot
+                        />
+                    ))}
 
-                    {catsFallback.map((c) => {
-                      const Icon = ICON_MAP[c.icon] || Wrench;
-                      return (
-                        <button
+                    {catsFallback.map((c) => (
+                        <HubCategoryCard
                           key={c.id}
-                          className={`${HUB_CARD_BASE} bg-card shrink-0 w-[34%] md:w-[22%] p-3 flex flex-col items-center gap-2 text-center transition-colors hover:bg-accent active:scale-[0.99]`}
-                          style={{ scrollSnapAlign: "start" }}
-                          onClick={() => openCategoryBrowse(c.id)}
-                        >
-                          <div
-                            className="h-12 w-12 rounded-full flex items-center justify-center"
-                            style={{ backgroundColor: (c.color || "#888") + "22" }}
-                          >
-                            <Icon className="h-6 w-6" />
-                          </div>
-                          <div className="text-xs leading-tight line-clamp-2">{c.name_ar || c.name}</div>
-                        </button>
-                      );
-                    })}
+                          label={c.name}
+                          labelAr={c.name_ar}
+                          language={language === "ar" ? "ar" : "en"}
+                          icon={getCategoryIcon(c.icon)}
+                          color={c.color}
+                          onClick={() => navigate(`/services/category/${c.id}`)}
+                          subtitle={t("اضغط للبحث", "Browse")}
+                          inScrollSlot
+                        />
+                    ))}
                   </div>
                 </HubSection>
               );
             })}
-          </div>
+            </div>
+          </AnimatedSection>
 
           {/* Footer links */}
           <div className="pt-4 pb-2 border-t text-sm text-muted-foreground space-y-3">
@@ -1409,8 +1618,547 @@ export default function Hub() {
               <a className="hover:text-foreground" href="/privacy">{t("الخصوصية", "Privacy")}</a>
             </div>
           </div>
+          </div>
+            </ErrorBoundary>
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <ErrorBoundary
+          fallback={
+            <div className="flex flex-col items-center justify-center min-h-[50vh] p-6 text-center">
+              <p className="text-muted-foreground mb-4">{t("حدث خطأ في هذه الصفحة. حاول التحديث.", "Something went wrong on this tab. Try refreshing.")}</p>
+              <Button variant="outline" onClick={() => window.location.reload()}>{t("تحديث", "Reload")}</Button>
+            </div>
+          }
+        >
+        <div className="space-y-8">
+          <FeaturedHero
+            banners={banners as any}
+            publicUrlsById={publicUrlsById as any}
+            allSubcategories={(allSubcategories || []) as any}
+            iconMap={HUB_ICON_MAP as any}
+            onOpenCategory={(id) => navigate(`/services/category/${id}`)}
+            onOpenSubcategory={openSubcategoryProviders as any}
+            onScrollToShelf={(shelfId) => {
+              const el = shelfId === "featured-services"
+                ? document.getElementById("featured-services")
+                : document.getElementById(`shelf-${shelfId}`);
+              el?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            language={language === "ar" ? "ar" : "en"}
+            isRTL={isRTL}
+            fallbackTitle={t("خدمات موثوقة بالقرب منك", "Trusted services near you")}
+            fallbackCta={t("استكشف", "Explore")}
+          />
+
+          <StatsBar />
+
+          <div className="px-4 space-y-8">
+            {/* Services (MAIN categories) – 6 main cards, non-scrollable */}
+            <AnimatedSection direction="up" delay={100}>
+              <HubSection title={t("الخدمات", "Categories")} icon={LayoutGrid}>
+              {categoriesLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+              ) : categoriesError ? (
+                <div className={`${HUB_CARD_BASE} bg-card p-6 text-center`}>
+                  <div className="text-muted-foreground mb-2">
+                    <svg className="h-12 w-12 mx-auto mb-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {t("تعذر تحميل الأقسام. حاول مرة أخرى.", "Couldn't load categories. Please try again.")}
+                  </div>
+                </div>
+              ) : gridCategories.length === 0 ? (
+                <div className={`${HUB_CARD_BASE} bg-card p-6 text-center`}>
+                  <div className="text-muted-foreground mb-2">
+                    <svg className="h-12 w-12 mx-auto mb-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {t("لا توجد أقسام متاحة حالياً.", "No categories available right now.")}
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="grid grid-cols-2 md:grid-cols-3 gap-2"
+                  dir={isRTL ? "rtl" : "ltr"}
+                >
+                  {gridCategories.slice(0, 6).map((c) => (
+                    <HubCategoryCard
+                      key={c.id}
+                      label={c.name}
+                      labelAr={c.name_ar}
+                      language={language === "ar" ? "ar" : "en"}
+                      icon={getCategoryIcon(c.icon)}
+                      color={c.color}
+                      onClick={() => navigate(`/services/category/${c.id}`)}
+                      subtitle={t("اضغط للبحث", "Browse")}
+                    />
+                  ))}
+                </div>
+              )}
+              </HubSection>
+            </AnimatedSection>
+
+            {/* Featured providers/services (horizontal) */}
+            {featuredServices.length > 0 && (
+              <AnimatedSection direction="up" delay={200}>
+                <HubSection id="featured-providers" title={t("مزودين مميزين", "Featured providers")} icon={Star}>
+                <div className="relative">
+                  <div
+                    dir={isRTL ? "rtl" : "ltr"}
+                    className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar snap-x snap-mandatory scroll-smooth"
+                    style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+                  >
+                    {featuredServicesChunks.filter(chunk => chunk.length > 0).map((chunk, chunkIndex) => (
+                      <FeaturedProvidersCard
+                        key={chunkIndex}
+                        services={chunk}
+                        ratings={ratingsMap}
+                        isRTL={isRTL}
+                        getContactState={getContactState}
+                        onOpen={openServiceFromRow}
+                        onCall={handleCall}
+                        onWhatsApp={handleWhatsApp}
+                        labels={labels}
+                      />
+                    ))}
+                  </div>
+                  {/* Gradient fade effect */}
+                  <div className="absolute top-0 bottom-4 right-0 w-12 bg-gradient-to-l from-background to-transparent pointer-events-none" />
+                </div>
+                </HubSection>
+              </AnimatedSection>
+            )}
+
+            {/* Featured services (subcategories) */}
+            {featuredSubcats.length > 0 && (
+              <AnimatedSection direction="up" delay={300}>
+                <HubSection id="featured-services" title={t("الخدمات المميزة", "Featured services")} icon={Star}>
+                <div className="relative">
+                  <div
+                    dir={isRTL ? "rtl" : "ltr"}
+                    className={HUB_CARD_ROW_4}
+                    style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+                  >
+                    {featuredSubcats.slice(0, 6).map((sc) => {
+                      const Icon = getCategoryIcon(sc.icon);
+                      return (
+                        <button
+                          key={sc.id}
+                          className={`${HUB_CARD_SLOT_4} ${HUB_CARD_BASE} bg-card p-5 text-left group`}
+                          onClick={() => openSubcategoryProviders({ ...sc, icon: Icon })}
+                        >
+                          <div className={`flex items-center gap-4 ${isRTL ? "text-right" : "text-left"}`} dir={isRTL ? "rtl" : "ltr"}>
+                            <div
+                              className="h-16 w-16 rounded-2xl flex items-center justify-center shrink-0 shadow-sm group-hover:shadow-md transition-all duration-300 group-hover:scale-105"
+                              style={{ backgroundColor: (sc.color || "#888") + "15" }}
+                            >
+                              <Icon className="h-8 w-8 text-foreground group-hover:scale-110 transition-transform duration-300" strokeWidth={2} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="font-bold text-base line-clamp-1 group-hover:text-primary transition-colors">{sc.name_ar || sc.name}</div>
+                              <div className="text-sm text-muted-foreground line-clamp-1 mt-1 group-hover:text-muted-foreground/80 transition-colors">
+                                {t("اضغط لعرض المزودين", "Tap to view providers")}
+                              </div>
+                            </div>
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                              <svg className="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* Gradient fade effect */}
+                  <div className="absolute top-0 bottom-4 right-0 w-12 bg-gradient-to-l from-background to-transparent pointer-events-none" />
+                </div>
+                </HubSection>
+              </AnimatedSection>
+            )}
+
+            {/* Most demanded services (SYSTEM) */}
+            <AnimatedSection direction="up" delay={500}>
+              <HubSection
+                id="most-demanded-services"
+                title={t("الأكثر طلباً", "Most demanded")}
+                icon={TrendingUp}
+                actionLabel={t("المزيد", "More")}
+                onAction={() => navigate("/services/trending")}
+              >
+              <div
+                dir={isRTL ? "rtl" : "ltr"}
+                className={HUB_CARD_ROW_4}
+                style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+              >
+                {mostDemandedLoading && mostDemandedRows.length === 0
+                  ? Array.from({ length: 4 }).map((_, i) => (
+                      <div key={`demanded-placeholder-${i}`} className={`${HUB_CARD_SLOT_4} ${HUB_CARD_BASE} bg-card overflow-hidden animate-pulse`}>
+                        <div className="aspect-[4/3] bg-muted/50 rounded-t-xl" />
+                        <div className="p-2.5 space-y-1">
+                          <div className="h-3 bg-muted/50 rounded w-2/3" />
+                          <div className="h-3 bg-muted/50 rounded w-1/2" />
+                        </div>
+                      </div>
+                    ))
+                  : mostDemandedRows.length === 0
+                    ? (
+                        <div className={`${HUB_CARD_BASE} bg-card p-6 text-center min-w-full`}>
+                          <div className="font-semibold text-sm text-muted-foreground">{t("لا توجد بيانات بعد", "No data yet")}</div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {t("سيظهر هذا القسم تلقائياً بعد تفاعل المستخدمين (مشاهدات/اتصالات)", "This will appear automatically once users interact (views/calls).")}
+                          </div>
+                        </div>
+                      )
+                    : mostDemandedRows.slice(0, 8).map((svc) => (
+                        <div key={svc.id} className={HUB_CARD_SLOT_4}>
+                          <HubItemCard
+                            imageUrl={svc.image_url}
+                            priceText={t("اتصل للسعر", "Price on request")}
+                            location={[svc.city, svc.sub_city].filter(Boolean).join(" • ") || "—"}
+                            subtitle={svc.title}
+                            isRTL={isRTL}
+                            onClick={() => openServiceFromRow(svc as ServiceRow)}
+                          />
+                        </div>
+                      ))}
+              </div>
+              </HubSection>
+            </AnimatedSection>
+
+            {/* Popular Services Showcase */}
+            <AnimatedSection direction="up" delay={550}>
+              <HubSection id="popular-showcase" title={t("خدمات مميزة", "Popular Services")} icon={Award}>
+                {featuredServices.length === 0 ? (
+                  <div className={`${HUB_CARD_BASE} bg-card p-6 flex flex-col items-center justify-center gap-3 text-center`}>
+                    <Award className="h-10 w-10 text-muted-foreground/60" />
+                    <p className="text-sm text-muted-foreground">{t("لا توجد خدمات مميزة حالياً", "No featured services available right now")}</p>
+                  </div>
+                ) : (
+                  <div
+                    dir={isRTL ? "rtl" : "ltr"}
+                    className="flex gap-4 overflow-x-auto pb-3 hide-scrollbar snap-x snap-mandatory scroll-smooth -mx-4 px-4"
+                    style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y", scrollSnapType: "x mandatory" }}
+                  >
+                    {chunkArray(featuredServices.slice(0, 8), 4).map((chunk, chunkIndex) => (
+                      <ServiceCardGroup
+                        key={`chunk-${chunkIndex}`}
+                        services={chunk}
+                        ratings={ratingsMap}
+                        isRTL={isRTL}
+                        onOpen={openServiceFromRow}
+                        labels={labels}
+                      />
+                    ))}
+                  </div>
+                )}
+              </HubSection>
+            </AnimatedSection>
+
+            {/* Recent Activity Feed */}
+            <AnimatedSection direction="up" delay={650}>
+              <HubSection id="activity-feed" title={t("النشاط الأخير", "Recent Activity")} icon={Heart}>
+              <ActivityFeed
+                cityId={cityId}
+                cityName={selectedCityName}
+                onOpenService={openServiceFromRow}
+                onCall={handleCall}
+                onWhatsApp={handleWhatsApp}
+              />
+              </HubSection>
+            </AnimatedSection>
+
+            {/* Tips before you call */}
+            <AnimatedSection direction="up" delay={850}>
+              <HubSection id="guides" title={t("نصائح قبل ما تتصل", "Tips before you call")} icon={BookOpen}>
+              <div
+                dir={isRTL ? "rtl" : "ltr"}
+                className={HUB_CARD_ROW_4}
+                style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+              >
+                {guidesLoading && guidesCards.length === 0
+                  ? Array.from({ length: 4 }).map((_, i) => (
+                      <div
+                        key={`guide-placeholder-${i}`}
+                        className={`${HUB_CARD_SLOT_4} ${HUB_CARD_BASE} bg-muted/30 min-h-[92px] p-3`}
+                      >
+                        <div className="h-4 w-32 rounded bg-muted" />
+                        <div className="mt-2 h-3 w-40 rounded bg-muted" />
+                        <div className="mt-2 h-3 w-28 rounded bg-muted" />
+                      </div>
+                    ))
+                  : guidesCards.slice(0, 4).map((g) => (
+                      <div key={g.id} className={HUB_CARD_SLOT_4}>
+                        <TipChip
+                          title={g.title}
+                          line1={g.summaryLines[0]}
+                          line2={g.summaryLines[1]}
+                          Icon={g.icon}
+                          onClick={() => openGuide(g.id)}
+                          isRTL={isRTL}
+                        />
+                      </div>
+                    ))}
+              </div>
+              </HubSection>
+            </AnimatedSection>
+
+            {/* Shelves (admin-controlled) */}
+            <AnimatedSection direction="up" delay={900}>
+              <div className="space-y-4">
+              {shelves.map((shelf) => {
+                const cityOk = true;
+                if (!cityOk) return null;
+
+                if (shelf.shelf_type === "category") {
+                  if (!shelf.category_id) return null;
+                  const cat = categoriesById[shelf.category_id];
+                  if (!cat) return null;
+                  const subcats = subcatsByShelfId[shelf.id] || [];
+                  if (subcats.length === 0) return null;
+
+                  return (
+                    <HubSection
+                      key={shelf.id}
+                      id={`shelf-${shelf.id}`}
+                      title={shelf.title_ar}
+                      actionLabel={t("عرض الكل", "View All")}
+                      onAction={() => navigate(`/services/category/${cat.id}`)}
+                    >
+                      <div
+                        dir={isRTL ? "rtl" : "ltr"}
+                        className={HUB_CARD_ROW_4}
+                        style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+                      >
+                        {subcats.map((sc) => (
+                          <HubCategoryCard
+                            key={sc.id}
+                            label={sc.name}
+                            labelAr={sc.name_ar}
+                            language={language === "ar" ? "ar" : "en"}
+                            icon={getCategoryIcon(sc.icon)}
+                            color={sc.color}
+                            onClick={() => openSubcategoryProviders({ ...sc, icon: getCategoryIcon(sc.icon) })}
+                            subtitle={t("اضغط لعرض المزودين", "View providers")}
+                            inScrollSlot
+                          />
+                        ))}
+                      </div>
+                    </HubSection>
+                  );
+                }
+
+                const items = itemsByShelf[shelf.id] || [];
+                const subcats = (items
+                  .map((it) => {
+                    const sid = (it as any).subcategory_id as string | null | undefined;
+                    if (!sid) return null;
+                    return (allSubcategories || []).find((s) => s.id === sid) || null;
+                  })
+                  .filter(Boolean) as any[]) as SubcategoryRow[];
+
+                const catsFallback = items
+                  .map((it) => {
+                    const cid = (it as any).category_id as string | null | undefined;
+                    if (!cid) return null;
+                    return categoriesById[cid] || null;
+                  })
+                  .filter(Boolean) as any[];
+
+                if (subcats.length === 0 && catsFallback.length === 0) return null;
+
+                return (
+                  <HubSection key={shelf.id} id={`shelf-${shelf.id}`} title={shelf.title_ar}>
+                    <div
+                      dir={isRTL ? "rtl" : "ltr"}
+                      className={HUB_CARD_ROW_4}
+                      style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
+                    >
+                      {subcats.map((s) => (
+                        <HubCategoryCard
+                          key={s.id}
+                          label={s.name}
+                          labelAr={s.name_ar}
+                          language={language === "ar" ? "ar" : "en"}
+                          icon={getCategoryIcon(s.icon)}
+                          color={s.color}
+                          onClick={() => openSubcategoryProviders({ ...s, icon: getCategoryIcon(s.icon) })}
+                          subtitle={t("اضغط لعرض المزودين", "View providers")}
+                          inScrollSlot
+                        />
+                      ))}
+
+                      {catsFallback.map((c) => (
+                        <HubCategoryCard
+                          key={c.id}
+                          label={c.name}
+                          labelAr={c.name_ar}
+                          language={language === "ar" ? "ar" : "en"}
+                          icon={getCategoryIcon(c.icon)}
+                          color={c.color}
+                          onClick={() => navigate(`/services/category/${c.id}`)}
+                          subtitle={t("اضغط للبحث", "Browse")}
+                          inScrollSlot
+                        />
+                      ))}
+                    </div>
+                  </HubSection>
+                );
+              })}
+              </div>
+            </AnimatedSection>
+
+            {/* Footer links */}
+            <div className="pt-4 pb-2 border-t text-sm text-muted-foreground space-y-3">
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              <a className="hover:text-foreground" href="/about">{t("من نحن", "About Us")}</a>
+              <a className="hover:text-foreground" href="/help">{t("مركز المساعدة", "Help Center")}</a>
+                <a className="hover:text-foreground" href="/become-provider">{t("انضم كمزود خدمة", "Become a Provider")}</a>
+              </div>
+              <div className="flex gap-4 text-xs">
+                <a className="hover:text-foreground" href="/terms">{t("الشروط", "Terms")}</a>
+                <a className="hover:text-foreground" href="/privacy">{t("الخصوصية", "Privacy")}</a>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+        </ErrorBoundary>
+      )}
+
+      {/* Service detail sheet (buy-and-sell style, from Hub services tab) */}
+      {selectedServiceForSheet && (
+        <SafeBoundary
+          onError={() => {
+            setServiceSheetOpen(false);
+            setSelectedServiceForSheet(null);
+          }}
+        >
+          <ServiceDetailSheet
+            open={serviceSheetOpen}
+            onOpenChange={(open) => {
+              setServiceSheetOpen(open);
+              if (!open) setSelectedServiceForSheet(null);
+            }}
+            service={{
+              titleKey: selectedServiceForSheet.title,
+              category: normalizeCategory(selectedServiceForSheet.category),
+              categoryName: selectedServiceForSheet.category,
+              categoryNameAr: undefined,
+            }}
+            city={selectedServiceForSheet.city ?? selectedCityName ?? null}
+            initialProviderServiceId={selectedServiceForSheet.id}
+          />
+        </SafeBoundary>
+      )}
+
+      {/* ListingListSheet (for deal card clicks) */}
+      <ListingListSheet
+        open={listingListSheetOpen}
+        onOpenChange={(open) => {
+          setListingListSheetOpen(open);
+          if (!open) {
+            setListingListCategory(null);
+            setListingListSearch(null);
+          }
+        }}
+        cityId={cityId}
+        category={listingListCategory}
+        search={listingListSearch}
+        onSelectListing={openListingDetail}
+      />
+
+      {/* Buy/Sell Category Drawer */}
+      {selectedCategoryForDrawer && (() => {
+        const category = BUY_SELL_CATEGORIES.find(c => c.id === selectedCategoryForDrawer);
+        return (
+          <BuySellCategoryDrawer
+            open={buySellCategoryDrawerOpen}
+            onOpenChange={(open) => {
+              setBuySellCategoryDrawerOpen(open);
+              if (!open) {
+                setSelectedCategoryForDrawer(null);
+              }
+            }}
+            categoryId={selectedCategoryForDrawer}
+            categoryName={category?.name}
+            categoryNameAr={category?.nameAr}
+            cityId={cityId}
+            onListingClick={openListingDetail}
+          />
+        );
+      })()}
+
+      {/* Floating CTA (Buy/Sell listings) */}
+      {activeTab === "buy-sell" && (buySellMode === "all" || buySellMode === "listings") ? (
+        <button
+          type="button"
+          onClick={() => {
+            if (!user) {
+              toast({
+                title: t("سجل لنشر إعلانك", "Sign up to publish your listing"),
+              });
+              navigate("/auth?tab=signup&returnTo=" + encodeURIComponent("/buy-sell/create-listing"));
+              return;
+            }
+            navigate("/buy-sell/create-listing");
+          }}
+          className={cn(
+            "fixed z-50 rounded-full shadow-lg bg-primary text-primary-foreground h-14 px-5 flex items-center gap-2 font-semibold",
+            isRTL ? "left-4" : "right-4",
+            "hover:scale-105 active:scale-95 transition-all duration-300",
+            "ring-4 ring-primary/20 hover:ring-primary/30"
+          )}
+          style={{ bottom: `calc(${MOBILE_NAV_HEIGHT_PX}px + env(safe-area-inset-bottom, 0px) + 8px)` }}
+        >
+          <Tag className="h-5 w-5" />
+          {t("بيع الآن", "Sell")}
+        </button>
+      ) : null}
+
+      {/* Quick Access Floating Button (Services Tab) */}
+      {activeTab === "services" && (
+        <div
+          className={cn("fixed z-40 flex flex-col gap-3", isRTL ? "left-4" : "right-4")}
+          style={{ bottom: `calc(${MOBILE_NAV_HEIGHT_PX}px + env(safe-area-inset-bottom, 0px) + 8px)` }}
+        >
+          {/* Quick Search Button */}
+          <button
+            type="button"
+            onClick={() => {
+              const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement;
+              searchInput?.focus();
+              searchInput?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }}
+            className={cn(
+              "w-12 h-12 rounded-full shadow-lg flex items-center justify-center",
+              "bg-primary hover:bg-primary/90 text-primary-foreground transition-all duration-300",
+              "hover:scale-110 active:scale-95 ring-4 ring-primary/20 hover:ring-primary/40"
+            )}
+            title={t("بحث سريع", "Quick Search")}
+          >
+            <Search className="w-5 h-5" />
+          </button>
+        </div>
+      )}
+
+      {/* Deal Detail Sheet - kept for potential future use, but deals now open ListingListSheet */}
+      <DealDetailSheet
+        open={dealSheetOpen}
+        onOpenChange={(open) => {
+          setDealSheetOpen(open);
+          if (!open) {
+            setSelectedDeal(null);
+          }
+        }}
+        deal={selectedDeal}
+      />
 
       {activeSheet === "browse" && (
         <CategoryBrowseSheet
@@ -1422,45 +2170,34 @@ export default function Hub() {
             }
           }}
           category={browseCategory}
-          iconMap={ICON_MAP}
+          iconMap={HUB_ICON_MAP}
           onSelectSubcategory={(subcat) => {
-            // Close/unmount browse sheet first; provider sheet opens via pendingSubcategory effect.
-            setPendingSubcategory(subcat);
+            const cid = browseCategoryId;
             setActiveSheet("none");
             setBrowseCategoryId(null);
+            if (cid && (subcat as { id?: string }).id) {
+              navigate(`/services/category/${cid}?sub=${(subcat as { id: string }).id}`);
+            }
           }}
         />
       )}
 
-      {activeSheet === "providers" && selectedSheetService && (
-        <SafeBoundary
-          onError={(err) => {
-            console.error("ServiceDetailSheet crashed:", err);
-            toast({
-              title: t("تعذر فتح التفاصيل", "Could not open details"),
-              description: t(
-                "حدث خطأ أثناء فتح تفاصيل الخدمة. تم إغلاق النافذة لتجنب تعليق التطبيق.",
-                "An error occurred while opening details. The sheet was closed to keep the app stable."
-              ),
-              variant: "destructive",
-            });
-            setActiveSheet("none");
-            setInitialProviderServiceId(null);
+      {/* Quick View Modal */}
+      {quickViewService && (
+        <ServiceQuickView
+          service={quickViewService}
+          open={quickViewOpen}
+          onOpenChange={setQuickViewOpen}
+          onCall={() => {
+            if (quickViewService) handleCall(quickViewService);
           }}
-        >
-          <ServiceDetailSheet
-            open={true}
-            onOpenChange={(open) => {
-              if (!open) {
-                setActiveSheet("none");
-                setInitialProviderServiceId(null);
-              }
-            }}
-            city={selectedCityName}
-            service={selectedSheetService}
-            initialProviderServiceId={initialProviderServiceId}
-          />
-        </SafeBoundary>
+          onWhatsApp={() => {
+            if (quickViewService) handleWhatsApp(quickViewService);
+          }}
+          onViewFull={handleQuickViewFull}
+          canCall={quickViewService ? getContactState(quickViewService).canCall : false}
+          canWhatsApp={quickViewService ? getContactState(quickViewService).canWhatsApp : false}
+        />
       )}
 
       {activeSheet === "guide" && activeGuide && (

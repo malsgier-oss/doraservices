@@ -54,7 +54,7 @@ export function useRecentlyActiveProviders({ limit = 10 }: Args) {
 
         // Fetch avatars for claimed services
         const userIds = Array.from(new Set(rows.map((r: any) => r.user_id).filter(Boolean)));
-        let avatarByUser: Record<string, string | null> = {};
+        const avatarByUser: Record<string, string | null> = {};
 
         if (userIds.length) {
           const { data: profiles, error: profErr } = await supabase

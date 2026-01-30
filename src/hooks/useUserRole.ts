@@ -91,7 +91,7 @@ export function useUserRole() {
    * Dora principle: admin-controlled trust.
    * We set role="provider" and provider_status="pending" (requires admin approval).
    */
-  const upgradeToBusiness = async () => {
+  const upgradeToProvider = async () => {
     if (!user) return { error: new Error("Not authenticated") };
 
     const { error } = await supabase
@@ -115,5 +115,5 @@ export function useUserRole() {
     return { error };
   };
 
-  return { ...state, upgradeToBusiness };
+  return { ...state, upgradeToProvider };
 }

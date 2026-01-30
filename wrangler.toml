@@ -1,0 +1,4 @@
+# Cloudflare Pages – used when deploying via Wrangler or when the dashboard reads project config.
+# Ensures the build output directory is correct so /assets/*.js are served (avoids "text/html for JS" MIME errors).
+name = "doraservices"
+pages_build_output_dir = "./dist"

@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 export default {
   darkMode: ["class"],
@@ -103,6 +104,9 @@ export default {
           ring: "hsl(var(--sidebar-ring))",
         },
       },
+      minHeight: {
+        dvh: "100dvh",
+      },
       borderRadius: {
         lg: "0.75rem",
         md: "0.5rem",
@@ -144,5 +148,5 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindcssAnimate],
 } satisfies Config;

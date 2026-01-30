@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Types
 interface Profile {
@@ -94,37 +95,37 @@ export function useAdminStats() {
     queryFn: async () => {
       const [
         { count: totalUsers },
-        { count: businessUsers },
-        { count: pendingBusinesses },
-        { count: approvedBusinesses },
         { count: activeDeals },
         { count: suspendedProfiles },
         { count: pendingReports },
+        { count: pendingProviders },
+        { count: pendingServices },
+        { count: pendingPasswordResets },
       ] = await Promise.all([
         supabase.from("profiles").select("*", { count: "exact", head: true }),
-        supabase.from("user_roles").select("*", { count: "exact", head: true }).eq("role", "business"),
-        supabase.from("businesses").select("*", { count: "exact", head: true }).eq("authorization_status", "pending"),
-        supabase.from("businesses").select("*", { count: "exact", head: true }).eq("authorization_status", "approved"),
         supabase.from("deals").select("*", { count: "exact", head: true }).eq("status", "active"),
         supabase.from("profiles").select("*", { count: "exact", head: true }).eq("status", "suspended"),
         supabase.from("user_reports").select("*", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("profiles").select("*", { count: "exact", head: true }).eq("provider_status", "pending"),
+        supabase.from("services").select("*", { count: "exact", head: true }).or("approval_status.is.null,approval_status.eq.pending"),
+        supabase.from("password_reset_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
       ]);
 
       return {
         totalUsers: totalUsers || 0,
-        businessUsers: businessUsers || 0,
-        pendingBusinesses: pendingBusinesses || 0,
-        approvedBusinesses: approvedBusinesses || 0,
         activeDeals: activeDeals || 0,
         suspendedProfiles: suspendedProfiles || 0,
         pendingReports: pendingReports || 0,
+        pendingProviders: pendingProviders || 0,
+        pendingServices: pendingServices || 0,
+        pendingPasswordResets: pendingPasswordResets || 0,
       };
     },
   });
 }
 
 // Users Management
-export function useAdminUsers(filters?: { status?: string; role?: string; search?: string }) {
+export function useAdminUsers(filters?: { status?: string; role?: string; search?: string; verified?: "all" | "unverified" | "verified" }) {
   return useQuery({
     queryKey: ["admin", "users", filters],
     queryFn: async () => {
@@ -132,6 +133,14 @@ export function useAdminUsers(filters?: { status?: string; role?: string; search
 
       if (filters?.status && filters.status !== "all") {
         query = query.eq("status", filters.status);
+      }
+
+      if (filters?.verified && filters.verified !== "all") {
+        if (filters.verified === "verified") {
+          query = query.eq("is_verified", true);
+        } else {
+          query = query.or("is_verified.is.null,is_verified.eq.false");
+        }
       }
 
       if (filters?.search) {
@@ -167,6 +176,7 @@ export function useAdminUsers(filters?: { status?: string; role?: string; search
 export function useUserMutations() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const suspendUser = useMutation({
     mutationFn: async ({ userId, reason }: { userId: string; reason: string }) => {
@@ -419,10 +429,38 @@ export function useUserMutations() {
 
   const verifyUser = useMutation({
     mutationFn: async (userId: string) => {
-      // Dora P0: "verification" maps to provider approval.
-      // For non-provider users this is effectively a no-op.
-      const { error } = await supabase.from("profiles").update({ provider_status: "approved" }).eq("user_id", userId);
+      // Verify user by setting is_verified = true and recording verification details
+      const updateData: any = {
+        is_verified: true,
+        verified_at: new Date().toISOString(),
+      };
+      
+      // Set verified_by if admin user is available
+      if (user?.id) {
+        updateData.verified_by = user.id;
+      }
+
+      const { error } = await supabase
+        .from("profiles")
+        .update(updateData)
+        .eq("user_id", userId);
+      
       if (error) throw error;
+
+      // For provider/business users, also set provider_status to approved
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (profile && (profile.role === "business" || profile.role === "provider")) {
+        const { error: providerError } = await supabase
+          .from("profiles")
+          .update({ provider_status: "approved" })
+          .eq("user_id", userId);
+        if (providerError) throw providerError;
+      }
 
       await supabase.rpc("log_admin_action", {
         p_action: "verify_user",
@@ -441,7 +479,15 @@ export function useUserMutations() {
 
   const unverifyUser = useMutation({
     mutationFn: async (userId: string) => {
-      const { error } = await supabase.from("profiles").update({ provider_status: "pending" }).eq("user_id", userId);
+      const { error } = await supabase
+        .from("profiles")
+        .update({ 
+          is_verified: false,
+          verified_at: null,
+          verified_by: null,
+          provider_status: "pending" 
+        })
+        .eq("user_id", userId);
       if (error) throw error;
 
       await supabase.rpc("log_admin_action", {
@@ -473,158 +519,6 @@ export function useUserMutations() {
   };
 }
 
-// Businesses Management
-export function useAdminBusinesses(filters?: { status?: string; authorization?: string; search?: string }) {
-  return useQuery({
-    queryKey: ["admin", "businesses", filters],
-    queryFn: async () => {
-      let query = supabase.from("businesses").select("*").order("created_at", { ascending: false });
-
-      if (filters?.status && filters.status !== "all") {
-        query = query.eq("operational_status", filters.status);
-      }
-
-      if (filters?.authorization && filters.authorization !== "all") {
-        query = query.eq("authorization_status", filters.authorization);
-      }
-
-      if (filters?.search) {
-        query = query.ilike("name", `%${filters.search}%`);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as Business[];
-    },
-  });
-}
-
-export function useBusinessMutations() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  const authorizeBusiness = useMutation({
-    mutationFn: async ({ businessId, status, note }: { businessId: string; status: string; note?: string }) => {
-      // Get business to find user_id
-      const { data: business } = await supabase
-        .from("businesses")
-        .select("user_id, name")
-        .eq("id", businessId)
-        .single();
-
-      const { error } = await supabase
-        .from("businesses")
-        .update({ authorization_status: status, authorization_note: note || null })
-        .eq("id", businessId);
-      if (error) throw error;
-
-      // Send notification to business owner
-      if (business?.user_id) {
-        const title =
-          status === "approved"
-            ? "Business Approved! 🎉"
-            : status === "rejected"
-              ? "Business Application Update"
-              : "Business Status Updated";
-        const content =
-          status === "approved"
-            ? `Your business "${business.name}" has been approved. You can now start offering services!`
-            : status === "rejected"
-              ? `Your business "${business.name}" application needs attention. ${note || "Please contact support for more details."}`
-              : `Your business "${business.name}" status has been updated to ${status}.`;
-
-        await supabase.rpc("create_user_notification", {
-          p_user_id: business.user_id,
-          p_title: title,
-          p_content: content,
-        });
-      }
-
-      await supabase.rpc("log_admin_action", {
-        p_action: `authorize_business_${status}`,
-        p_target_type: "business",
-        p_target_id: businessId,
-        p_details: { note },
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin"] });
-      toast({ title: "Business authorization updated" });
-    },
-    onError: (error) => {
-      toast({ title: "Error updating business", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const suspendBusiness = useMutation({
-    mutationFn: async ({ businessId, reason }: { businessId: string; reason?: string }) => {
-      const { error } = await supabase
-        .from("businesses")
-        .update({ operational_status: "suspended", suspended_at: new Date().toISOString() })
-        .eq("id", businessId);
-      if (error) throw error;
-
-      await supabase.rpc("log_admin_action", {
-        p_action: "suspend_business",
-        p_target_type: "business",
-        p_target_id: businessId,
-        p_details: { reason },
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin"] });
-      toast({ title: "Business suspended" });
-    },
-    onError: (error) => {
-      toast({ title: "Error suspending business", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const reactivateBusiness = useMutation({
-    mutationFn: async (businessId: string) => {
-      const { error } = await supabase
-        .from("businesses")
-        .update({ operational_status: "active", suspended_at: null })
-        .eq("id", businessId);
-      if (error) throw error;
-
-      await supabase.rpc("log_admin_action", {
-        p_action: "reactivate_business",
-        p_target_type: "business",
-        p_target_id: businessId,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin"] });
-      toast({ title: "Business reactivated" });
-    },
-    onError: (error) => {
-      toast({ title: "Error reactivating business", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const toggleFeaturedBusiness = useMutation({
-    mutationFn: async ({ businessId, featured }: { businessId: string; featured: boolean }) => {
-      const { error } = await supabase.from("businesses").update({ featured }).eq("id", businessId);
-      if (error) throw error;
-
-      await supabase.rpc("log_admin_action", {
-        p_action: featured ? "feature_business" : "unfeature_business",
-        p_target_type: "business",
-        p_target_id: businessId,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin"] });
-      toast({ title: "Business featured status updated" });
-    },
-    onError: (error) => {
-      toast({ title: "Error updating business", description: error.message, variant: "destructive" });
-    },
-  });
-
-  return { authorizeBusiness, suspendBusiness, reactivateBusiness, toggleFeaturedBusiness };
-}
 
 // Deals Management
 export function useAdminDeals(filters?: { status?: string; search?: string }) {
@@ -836,7 +730,21 @@ export function usePlatformSettings() {
 
       const settings: Record<string, string> = {};
       data?.forEach((s) => {
-        settings[s.key] = typeof s.value === "string" ? s.value : JSON.stringify(s.value);
+        // Handle JSONB values: convert to string representation
+        // JSONB can store: boolean, number, string, object, array, null
+        if (s.value === null || s.value === undefined) {
+          settings[s.key] = "";
+        } else if (typeof s.value === "boolean") {
+          settings[s.key] = s.value ? "true" : "false";
+        } else if (typeof s.value === "number") {
+          settings[s.key] = String(s.value);
+        } else if (typeof s.value === "string") {
+          // If it's a JSONB string, it might be quoted, unquote it
+          settings[s.key] = s.value;
+        } else {
+          // Object or array - stringify it
+          settings[s.key] = JSON.stringify(s.value);
+        }
       });
       return settings;
     },
@@ -854,10 +762,21 @@ export function useSettingsMutations() {
       } = await supabase.auth.getUser();
       // Use upsert so new settings keys can be introduced from the UI without
       // requiring a manual DB row insert.
+      // Convert string values to appropriate JSONB types
+      let jsonbValue: any = value;
+      // If value is "true" or "false", convert to boolean
+      if (value === "true" || value === "false") {
+        jsonbValue = value === "true";
+      } else if (!isNaN(Number(value)) && value.trim() !== "") {
+        // If it's a number string, convert to number
+        jsonbValue = Number(value);
+      }
+      // Otherwise keep as string (JSONB will store it as a string)
+      
       const { error } = await supabase
         .from("platform_settings")
         .upsert(
-          { key, value, updated_at: new Date().toISOString(), updated_by: user?.id },
+          { key, value: jsonbValue, updated_at: new Date().toISOString(), updated_by: user?.id },
           { onConflict: "key" },
         );
       if (error) throw error;

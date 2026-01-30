@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from "react";
-import { useNavigate, Link, useLocation } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useLanguage } from "@/contexts/LanguageContext";
 import { useCities } from "@/hooks/useCities";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,417 +11,321 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { Lock, User, Loader2, AlertCircle, Phone, MapPin } from "lucide-react";
-import { LanguageToggle } from "@/components/LanguageToggle";
-import { z } from "zod";
-import { cn } from "@/lib/utils";
+import { Loader2 } from "lucide-react";
 import doraLogo from "@/assets/dora-logo.png";
-import { useRegistrationEnabled } from "@/hooks/usePlatformSettings";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { isValidLibyanPhone, cleanPhoneForStorage } from "@/lib/phoneUtils";
-const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
-const nameSchema = z.string().min(2, "Name must be at least 2 characters");
-const POST_SIGNUP_REDIRECT_KEY = "dora_post_signup_redirect";
-const ONBOARDING_INTENT_KEY = "dora_onboarding_intent";
+import { cleanPhoneForStorage, isValidLibyanPhone } from "@/lib/phoneUtils";
+
+type TabKey = "signin" | "signup";
+
 export default function Auth() {
   const navigate = useNavigate();
   const location = useLocation();
-  const {
-    user,
-    profile,
-    signIn,
-    signUp,
-    loading: authLoading,
-    profileLoading
-  } = useAuth();
-  const {
-    t,
-    isRTL,
-    language
-  } = useLanguage();
-  const {
-    data: cities,
-    isLoading: citiesLoading
-  } = useCities();
-  const {
-    isEnabled: registrationEnabled,
-    isLoading: settingsLoading
-  } = useRegistrationEnabled();
-  const [isLoading, setIsLoading] = useState(false);
-  const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const initialTab = (query.get("tab") || "login").toLowerCase();
-  const [tab, setTab] = useState<"login" | "signup">(initialTab === "signup" ? "signup" : "login");
+  const { t, language } = useLanguage();
+  const { requestOtp, verifyOtp, updateProfileBasics } = useAuth();
+  const { data: cities = [], isLoading: citiesLoading } = useCities();
 
-  // Keep tab in sync with URL changes (e.g., onboarding intent opens signup)
-  useEffect(() => {
-    const t = (query.get("tab") || "login").toLowerCase();
-    setTab(t === "signup" ? "signup" : "login");
-  }, [query]);
-  const [loginData, setLoginData] = useState({
-    phone: "",
-    password: ""
-  });
-  const [signupData, setSignupData] = useState({
-    phone: "",
-    password: "",
-    fullName: "",
-    cityId: ""
-  });
+  const redirectTo = useMemo(() => {
+    const state = location.state as any;
+    return state?.from?.pathname || "/";
+  }, [location.state]);
 
-  // Dora P0 (Libya): we operate in Tripoli only for now.
-  // Auto-select Tripoli on signup when cities are available.
-  useEffect(() => {
-    if (!cities || cities.length === 0) return;
-    if (signupData.cityId) return;
+  const [tab, setTab] = useState<TabKey>("signin");
 
-    const tripoli =
-      cities.find(c => (c.name || "").toLowerCase() === "tripoli") ||
-      cities.find(c => (c.name_ar || "").trim() === "طرابلس") ||
-      cities.find(c => (c.name || "").toLowerCase().includes("tripoli")) ||
-      cities.find(c => (c.name_ar || "").includes("طرابلس")) ||
-      null;
+  // Sign in
+  const [inPhone, setInPhone] = useState("");
+  const [inCode, setInCode] = useState("");
+  const [inStep, setInStep] = useState<"phone" | "code">("phone");
 
-    if (tripoli?.id) {
-      setSignupData(prev => ({
-        ...prev,
-        cityId: tripoli.id
-      }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cities]);
+  // Sign up
+  const [upName, setUpName] = useState("");
+  const [upPhone, setUpPhone] = useState("");
+  const [upCityId, setUpCityId] = useState<string>("");
+  const [upCode, setUpCode] = useState("");
+  const [upStep, setUpStep] = useState<"details" | "code">("details");
 
-  // If already logged in, route them appropriately
-  useEffect(() => {
-    if (!user) return;
-    if (profileLoading) return;
-    if (!profile) return;
+  const [busy, setBusy] = useState(false);
 
-    // App-first routing:
-    // - After signup: go to Profile (welcome mode)
-    // - If onboarding intent was provider: also go to Profile
-    // - Otherwise: go to Hub
-    let postSignup = false;
-    let intent: string | null = null;
-    try {
-      postSignup = localStorage.getItem(POST_SIGNUP_REDIRECT_KEY) === "1";
-      intent = localStorage.getItem(ONBOARDING_INTENT_KEY);
-    } catch {
-      // ignore
-    }
-    if (postSignup) {
-      try {
-        localStorage.removeItem(POST_SIGNUP_REDIRECT_KEY);
-      } catch {
-        // ignore
-      }
-      navigate("/profile?welcome=1", {
-        replace: true
-      });
-      return;
-    }
-    if ((intent || "").toLowerCase() === "provider") {
-      navigate("/profile?welcome=1", {
-        replace: true
-      });
-      return;
-    }
-    navigate("/", {
-      replace: true
-    });
-  }, [user, profile, profileLoading, navigate]);
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanedPhone = cleanPhoneForStorage(loginData.phone);
-    if (!cleanedPhone) {
-      toast({
-        title: isRTL ? "رقم الهاتف مطلوب" : "Phone required",
-        description: isRTL ? "يرجى إدخال رقم الهاتف" : "Please enter your phone number",
-        variant: "destructive"
-      });
-      return;
-    }
-    if (!isValidLibyanPhone(cleanedPhone)) {
-      toast({
-        title: isRTL ? "رقم هاتف غير صالح" : "Invalid phone",
-        description: isRTL ? "يرجى إدخال رقم هاتف ليبي صحيح (09XXXXXXXX)" : "Please enter a valid Libyan phone number (09XXXXXXXX)",
-        variant: "destructive"
-      });
-      return;
-    }
-    const passwordResult = passwordSchema.safeParse(loginData.password);
-    if (!passwordResult.success) {
-      toast({
-        title: isRTL ? "كلمة مرور غير صالحة" : "Invalid password",
-        description: passwordResult.error.errors[0].message,
-        variant: "destructive"
-      });
-      return;
-    }
-    setIsLoading(true);
-    const {
-      error
-    } = await signIn(cleanedPhone, loginData.password);
-    setIsLoading(false);
-    if (error) {
-      toast({
-        title: isRTL ? "فشل تسجيل الدخول" : "Login failed",
-        description: isRTL ? "رقم الهاتف أو كلمة المرور غير صحيحة" : error.message,
-        variant: "destructive"
-      });
-      return;
-    }
-    toast({
-      title: isRTL ? "مرحباً بعودتك!" : "Welcome back!",
-      description: isRTL ? "تم تسجيل الدخول بنجاح" : "You've successfully logged in."
-    });
-
-    // Navigation handled by the useEffect once profile loads
+  const getCityName = (cityId: string) => {
+    const found = cities.find((c: any) => String(c.id) === String(cityId));
+    // Support both Arabic/English labels if present
+    return (language === "ar" ? found?.name_ar : found?.name_en) || found?.name || "";
   };
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!registrationEnabled) {
-      toast({
-        title: isRTL ? "التسجيل مغلق" : "Registration Disabled",
-        description: isRTL ? "التسجيل مغلق حالياً. يرجى المحاولة لاحقاً." : "Registration is currently disabled. Please try again later.",
-        variant: "destructive"
-      });
-      return;
-    }
-    const nameResult = nameSchema.safeParse(signupData.fullName);
-    if (!nameResult.success) {
-      toast({
-        title: isRTL ? "اسم غير صالح" : "Invalid name",
-        description: nameResult.error.errors[0].message,
-        variant: "destructive"
-      });
-      return;
-    }
-    const cleanedPhone = cleanPhoneForStorage(signupData.phone);
-    if (!cleanedPhone) {
-      toast({
-        title: isRTL ? "رقم الهاتف مطلوب" : "Phone required",
-        description: isRTL ? "يرجى إدخال رقم الهاتف" : "Please enter your phone number",
-        variant: "destructive"
-      });
-      return;
-    }
-    if (!isValidLibyanPhone(cleanedPhone)) {
-      toast({
-        title: isRTL ? "رقم هاتف غير صالح" : "Invalid phone",
-        description: isRTL ? "يرجى إدخال رقم هاتف ليبي (09XXXXXXXX)" : "Please enter a valid Libyan phone (09XXXXXXXX)",
-        variant: "destructive"
-      });
-      return;
-    }
-    const passwordResult = passwordSchema.safeParse(signupData.password);
-    if (!passwordResult.success) {
-      toast({
-        title: isRTL ? "كلمة مرور غير صالحة" : "Invalid password",
-        description: passwordResult.error.errors[0].message,
-        variant: "destructive"
-      });
-      return;
-    }
-    if (!signupData.cityId) {
-      toast({
-        title: isRTL ? "المدينة مطلوبة" : "City required",
-        description: isRTL ? "يرجى اختيار مدينتك" : "Please select your city",
-        variant: "destructive"
-      });
-      return;
-    }
-    const selectedCity = cities?.find(c => c.id === signupData.cityId);
-    const cityName = language === "ar" ? selectedCity?.name_ar || selectedCity?.name || "" : selectedCity?.name || selectedCity?.name_ar || "";
-    setIsLoading(true);
-    const {
-      error
-    } = await signUp(cleanedPhone, signupData.password, signupData.fullName, signupData.cityId, cityName);
-    setIsLoading(false);
-    if (error) {
-      const lower = error.message.toLowerCase();
-      let message = error.message;
-      if (lower.includes("already registered") || lower.includes("user already registered")) {
-        message = isRTL ? "هذا الرقم مسجل بالفعل. يرجى تسجيل الدخول." : "This phone is already registered. Please sign in.";
-      }
-      toast({
-        title: isRTL ? "فشل إنشاء الحساب" : "Signup failed",
-        description: message,
-        variant: "destructive"
-      });
-      return;
-    }
-    toast({
-      title: isRTL ? "تم إنشاء الحساب!" : "Account created!",
-      description: isRTL ? "تم إنشاء حسابك بنجاح." : "Your account is created successfully."
-    });
 
-    // Mark for one-time post-signup redirect (useEffect handles the final route once profile loads).
-    try {
-      localStorage.setItem(POST_SIGNUP_REDIRECT_KEY, "1");
-      const intent = (query.get("intent") || "").toLowerCase();
-      if (intent === "provider") {
-        localStorage.setItem(ONBOARDING_INTENT_KEY, "provider");
-      }
-    } catch {
-      // ignore
-    }
-
-    // Immediate UX: push to profile (welcome). If profile isn't ready yet, the effect will handle it.
-    navigate("/profile?welcome=1", {
-      replace: true
-    });
+  const validatePhone = (phone: string) => {
+    const cleaned = cleanPhoneForStorage(phone);
+    if (!isValidLibyanPhone(cleaned)) return { ok: false, cleaned };
+    return { ok: true, cleaned };
   };
-  if (authLoading || profileLoading || settingsLoading || citiesLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>;
-  }
-  return <div className="min-h-screen bg-[#F9F9F9] flex flex-col items-center justify-center p-4" dir={isRTL ? "rtl" : "ltr"}>
-      <div className="absolute top-4 left-4">
-        <LanguageToggle />
-      </div>
 
-      <div className="flex items-center gap-2 mb-8">
-        <img alt="Dora Logo" className="w-10 h-10 rounded-full object-cover" src="/lovable-uploads/ef9f88ab-853c-4896-b495-4d8c567ed68a.png" />
-        <span className="text-2xl font-bold text-foreground">{t.appName}</span>
-      </div>
+  const handleSendSignInCode = async () => {
+    const v = validatePhone(inPhone);
+    if (!v.ok) {
+      toast({ title: "Invalid phone", description: "Use format 09XXXXXXXX", variant: "destructive" });
+      return;
+    }
 
-      <Card className="w-full max-w-md shadow-card rounded-3xl">
-        <Tabs value={tab} onValueChange={v => setTab(v === "signup" ? "signup" : "login")} className="w-full">
-          <CardHeader className="pb-2">
-            <TabsList className="grid w-full grid-cols-2 rounded-2xl p-1 bg-muted">
-              <TabsTrigger value="login">{t.auth.login}</TabsTrigger>
-              <TabsTrigger value="signup">{t.auth.signup}</TabsTrigger>
-            </TabsList>
+    setBusy(true);
+    const { error } = await requestOtp(v.cleaned);
+    setBusy(false);
+
+    if (error) {
+      toast({ title: "Failed to send code", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Code sent", description: "Check SMS for your Dora code." });
+    setInStep("code");
+  };
+
+  const handleVerifySignIn = async () => {
+    const v = validatePhone(inPhone);
+    if (!v.ok) {
+      toast({ title: "Invalid phone", description: "Use format 09XXXXXXXX", variant: "destructive" });
+      return;
+    }
+    if (!inCode.trim()) {
+      toast({ title: "Enter the code", variant: "destructive" });
+      return;
+    }
+
+    setBusy(true);
+    const { error } = await verifyOtp(v.cleaned, inCode.trim());
+    setBusy(false);
+
+    if (error) {
+      toast({ title: "Verification failed", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    navigate(redirectTo, { replace: true });
+  };
+
+  const handleSendSignUpCode = async () => {
+    const v = validatePhone(upPhone);
+    if (!v.ok) {
+      toast({ title: "Invalid phone", description: "Use format 09XXXXXXXX", variant: "destructive" });
+      return;
+    }
+    if (!upName.trim()) {
+      toast({ title: "Name required", variant: "destructive" });
+      return;
+    }
+    if (!upCityId) {
+      toast({ title: "City required", variant: "destructive" });
+      return;
+    }
+
+    setBusy(true);
+    const { error } = await requestOtp(v.cleaned);
+    setBusy(false);
+
+    if (error) {
+      toast({ title: "Failed to send code", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Code sent", description: "Check SMS for your Dora code." });
+    setUpStep("code");
+  };
+
+  const handleVerifySignUp = async () => {
+    const v = validatePhone(upPhone);
+    if (!v.ok) {
+      toast({ title: "Invalid phone", description: "Use format 09XXXXXXXX", variant: "destructive" });
+      return;
+    }
+    if (!upCode.trim()) {
+      toast({ title: "Enter the code", variant: "destructive" });
+      return;
+    }
+
+    setBusy(true);
+    const { error } = await verifyOtp(v.cleaned, upCode.trim());
+    if (error) {
+      setBusy(false);
+      toast({ title: "Verification failed", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    // Fill profile basics right after the first successful verification
+    const cityName = getCityName(upCityId);
+    const { error: profileErr } = await updateProfileBasics({
+      fullName: upName.trim(),
+      phone: v.cleaned,
+      cityId: upCityId,
+      cityName,
+      // For general users, ensure provider_status is not set here.
+    });
+    setBusy(false);
+
+    if (profileErr) {
+      // Session exists, but profile couldn't be updated. Let user proceed.
+      toast({ title: "Signed up", description: "Account created, but profile update failed." });
+    } else {
+      toast({ title: "Signed up", description: "Welcome to Dora!" });
+    }
+
+    navigate(redirectTo, { replace: true });
+  };
+
+  return (
+    <div className="min-h-[calc(100vh-64px)] flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <img src={doraLogo} alt="Dora" className="h-9 w-9 rounded-xl" />
+            <div className="font-semibold text-lg">Dora</div>
+          </div>
+          <LanguageToggle />
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{tab === "signin" ? "Sign in" : "Create account"}</CardTitle>
+            <CardDescription>
+              {tab === "signin"
+                ? "Sign in with your phone via SMS code."
+                : "Sign up with your phone. We'll verify by SMS code."}
+            </CardDescription>
           </CardHeader>
 
-          <CardContent className="pt-4">
-            <TabsContent value="login" className="mt-0">
-              <div className={cn("space-y-1 mb-6", isRTL ? "text-right" : "text-left")}>
-                <CardTitle className="text-xl">{isRTL ? "مرحباً بعودتك" : "Welcome back"}</CardTitle>
-                <CardDescription>
-                  {isRTL ? "أدخل رقم هاتفك وكلمة المرور" : "Enter your phone and password"}
-                </CardDescription>
-              </div>
+          <CardContent>
+            <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
+              <TabsList className="grid grid-cols-2 w-full">
+                <TabsTrigger value="signin">Sign in</TabsTrigger>
+                <TabsTrigger value="signup">Sign up</TabsTrigger>
+              </TabsList>
 
-              <form onSubmit={handleLogin} className="space-y-4">
+              <TabsContent value="signin" className="mt-4 space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="login-phone">{isRTL ? "رقم الهاتف" : "Phone Number"}</Label>
-                  <div className="relative">
-                    <Phone className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground", isRTL ? "right-3" : "left-3")} />
-                    <Input id="login-phone" type="tel" inputMode="numeric" placeholder="0912345678" className={cn("h-12 rounded-2xl", isRTL ? "pr-10 text-left" : "pl-10")} dir="ltr" value={loginData.phone} onChange={e => setLoginData({
-                    ...loginData,
-                    phone: e.target.value
-                  })} required />
+                  <Label htmlFor="signin-phone">Phone</Label>
+                  <Input
+                    id="signin-phone"
+                    placeholder="09XXXXXXXX"
+                    value={inPhone}
+                    onChange={(e) => setInPhone(e.target.value)}
+                    disabled={busy || inStep === "code"}
+                    inputMode="tel"
+                  />
+                </div>
+
+                {inStep === "code" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="signin-code">Code</Label>
+                    <Input
+                      id="signin-code"
+                      placeholder="123456"
+                      value={inCode}
+                      onChange={(e) => setInCode(e.target.value)}
+                      disabled={busy}
+                      inputMode="numeric"
+                    />
+                    <button
+                      type="button"
+                      className="text-sm underline opacity-80"
+                      onClick={() => {
+                        setInStep("phone");
+                        setInCode("");
+                      }}
+                      disabled={busy}
+                    >
+                      Change phone
+                    </button>
                   </div>
-                </div>
+                )}
 
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">{t.auth.password}</Label>
-                  <div className="relative">
-                    <Lock className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground", isRTL ? "right-3" : "left-3")} />
-                    <Input id="login-password" type="password" placeholder="••••••••" className={cn("h-12 rounded-2xl", isRTL ? "pr-10" : "pl-10")} value={loginData.password} onChange={e => setLoginData({
-                    ...loginData,
-                    password: e.target.value
-                  })} required />
-                  </div>
-                </div>
+                {inStep === "phone" ? (
+                  <Button className="w-full" onClick={handleSendSignInCode} disabled={busy}>
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send code"}
+                  </Button>
+                ) : (
+                  <Button className="w-full" onClick={handleVerifySignIn} disabled={busy}>
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify & sign in"}
+                  </Button>
+                )}
+              </TabsContent>
 
-                <div className={cn("text-sm", isRTL ? "text-right" : "text-left")}>
-                  <Link to="/forgot-password" className="text-primary hover:underline">
-                    {t.auth.forgotPassword}
-                  </Link>
-                </div>
+              <TabsContent value="signup" className="mt-4 space-y-4">
+                {upStep === "details" ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-name">Full name</Label>
+                      <Input
+                        id="signup-name"
+                        placeholder="Your name"
+                        value={upName}
+                        onChange={(e) => setUpName(e.target.value)}
+                        disabled={busy}
+                      />
+                    </div>
 
-                <Button type="submit" className="w-full rounded-full" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t.auth.login}
-                </Button>
-              </form>
-            </TabsContent>
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-phone">Phone</Label>
+                      <Input
+                        id="signup-phone"
+                        placeholder="09XXXXXXXX"
+                        value={upPhone}
+                        onChange={(e) => setUpPhone(e.target.value)}
+                        disabled={busy}
+                        inputMode="tel"
+                      />
+                    </div>
 
-            <TabsContent value="signup" className="mt-0">
-              <div className={cn("space-y-1 mb-6", isRTL ? "text-right" : "text-left")}>
-                <CardTitle className="text-xl">{isRTL ? "إنشاء حساب" : "Create an account"}</CardTitle>
-                <CardDescription>{isRTL ? "انضم إلى دورة اليوم" : "Join Dora today"}</CardDescription>
-              </div>
+                    <div className="space-y-2">
+                      <Label>City</Label>
+                      <Select value={upCityId} onValueChange={setUpCityId} disabled={busy || citiesLoading}>
+                        <SelectTrigger>
+                          <SelectValue placeholder={citiesLoading ? "Loading..." : "Select city"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {cities.map((c: any) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {(language === "ar" ? c.name_ar : c.name_en) || c.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-              {!registrationEnabled && <Alert variant="destructive" className="mb-4">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    {isRTL ? "التسجيل مغلق حالياً. يرجى المحاولة لاحقاً." : "Registration is currently disabled. Please try again later."}
-                  </AlertDescription>
-                </Alert>}
+                    <Button className="w-full" onClick={handleSendSignUpCode} disabled={busy || citiesLoading}>
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send code"}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-code">Code</Label>
+                      <Input
+                        id="signup-code"
+                        placeholder="123456"
+                        value={upCode}
+                        onChange={(e) => setUpCode(e.target.value)}
+                        disabled={busy}
+                        inputMode="numeric"
+                      />
+                      <button
+                        type="button"
+                        className="text-sm underline opacity-80"
+                        onClick={() => {
+                          setUpStep("details");
+                          setUpCode("");
+                        }}
+                        disabled={busy}
+                      >
+                        Back
+                      </button>
+                    </div>
 
-              <form onSubmit={handleSignup} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-name">{t.auth.fullName}</Label>
-                  <div className="relative">
-                    <User className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground", isRTL ? "right-3" : "left-3")} />
-                    <Input id="signup-name" type="text" placeholder={isRTL ? "الاسم الكامل" : "Full Name"} className={cn("h-12 rounded-2xl", isRTL ? "pr-10" : "pl-10")} value={signupData.fullName} onChange={e => setSignupData({
-                    ...signupData,
-                    fullName: e.target.value
-                  })} required />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="signup-phone">{isRTL ? "رقم الهاتف" : "Phone Number"}</Label>
-                  <div className="relative">
-                    <Phone className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground", isRTL ? "right-3" : "left-3")} />
-                    <Input id="signup-phone" type="tel" inputMode="numeric" placeholder="0912345678" className={cn("h-12 rounded-2xl", isRTL ? "pr-10 text-left" : "pl-10")} dir="ltr" value={signupData.phone} onChange={e => {
-                    const val = e.target.value.replace(/[^\d+]/g, "").slice(0, 20);
-                    setSignupData({
-                      ...signupData,
-                      phone: val
-                    });
-                  }} required />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">{t.auth.password}</Label>
-                  <div className="relative">
-                    <Lock className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground", isRTL ? "right-3" : "left-3")} />
-                    <Input id="signup-password" type="password" placeholder="••••••••" className={cn("h-12 rounded-2xl", isRTL ? "pr-10" : "pl-10")} value={signupData.password} onChange={e => setSignupData({
-                    ...signupData,
-                    password: e.target.value
-                  })} required />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
-                    {isRTL ? "المدينة" : "City"} <span className="text-destructive">*</span>
-                  </Label>
-
-                  <Select value={signupData.cityId} onValueChange={value => setSignupData({
-                  ...signupData,
-                  cityId: value
-                })}>
-                    <SelectTrigger className="rounded-xl h-12">
-                      <SelectValue placeholder={isRTL ? "اختر مدينتك" : "Select your city"} />
-                    </SelectTrigger>
-
-                    <SelectContent position="popper" sideOffset={8} avoidCollisions className="z-[9999] bg-popover border border-border shadow-lg">
-                      {cities?.map(city => <SelectItem key={city.id} value={city.id}>
-                          {language === "ar" && city.name_ar ? city.name_ar : city.name}
-                        </SelectItem>)}
-                    </SelectContent>
-                  </Select>
-
-                  <p className="text-xs text-muted-foreground">
-                    {isRTL ? "عذراً، نحن نعمل في طرابلس فقط حالياً." : "Sorry, we are operating in Tripoli only at the moment."}
-                  </p>
-                </div>
-
-                <Button type="submit" className="w-full rounded-full" disabled={isLoading || !registrationEnabled}>
-                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t.auth.signup}
-                </Button>
-              </form>
-            </TabsContent>
+                    <Button className="w-full" onClick={handleVerifySignUp} disabled={busy}>
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify & create account"}
+                    </Button>
+                  </>
+                )}
+              </TabsContent>
+            </Tabs>
           </CardContent>
-        </Tabs>
-      </Card>
-    </div>;
+        </Card>
+      </div>
+    </div>
+  );
 }

@@ -17,7 +17,12 @@ export default function AdminSettings() {
 
   useEffect(() => {
     if (settings) {
-      setLocalSettings(settings);
+      // Ensure all settings are strings for the local state
+      const normalized: Record<string, string> = {};
+      Object.entries(settings).forEach(([key, value]) => {
+        normalized[key] = String(value ?? "");
+      });
+      setLocalSettings(normalized);
     }
   }, [settings]);
 
@@ -82,14 +87,32 @@ export default function AdminSettings() {
 
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label>Business Registration</Label>
+              <Label>Buy & Sell Marketplace</Label>
               <p className="text-sm text-muted-foreground">
-                Allow new business registrations
+                Enable marketplace features (deals, listings) on Hub
               </p>
             </div>
             <Switch
-              checked={localSettings.business_registration_enabled === "true"}
-              onCheckedChange={() => handleToggle("business_registration_enabled")}
+              checked={localSettings.buy_sell_enabled === "true"}
+              onCheckedChange={() => handleToggle("buy_sell_enabled")}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Services Tab</Label>
+              <p className="text-sm text-muted-foreground">
+                Show / hide the Services tab on the Hub (service categories, featured providers, etc.)
+              </p>
+            </div>
+            <Switch
+              checked={(localSettings.services_enabled ?? "true") !== "false"}
+              onCheckedChange={() => {
+                const cur = (localSettings.services_enabled ?? "true") !== "false";
+                const newValue = cur ? "false" : "true";
+                setLocalSettings((prev) => ({ ...prev, services_enabled: newValue }));
+                updateSetting.mutate({ key: "services_enabled", value: newValue });
+              }}
             />
           </div>
 
@@ -200,7 +223,7 @@ export default function AdminSettings() {
               id="hub-suggestions-json"
               value={localSettings.hub_suggestions_json || ""}
               onChange={(e) => setLocalSettings((prev) => ({ ...prev, hub_suggestions_json: e.target.value }))}
-              placeholder={`[\n  {\n    \"title_en\": \"Fix AC\",\n    \"title_ar\": \"تصليح مكيف\",\n    \"subcategory_match\": [\"ac\", \"تكييف\"],\n    \"icon_name\": \"Wind\"\n  }\n]`}
+              placeholder={`[\n  {\n    "title_en": "Fix AC",\n    "title_ar": "تصليح مكيف",\n    "subcategory_match": ["ac", "تكييف"],\n    "icon_name": "Wind"\n  }\n]`}
               className="min-h-[140px]"
             />
             <div className="flex justify-end">
@@ -224,26 +247,7 @@ export default function AdminSettings() {
           <CardDescription>Configure deal-related limits</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label htmlFor="max-deals">Max Deals per Business</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="max-deals"
-                  type="number"
-                  value={localSettings.max_deals_per_business || "10"}
-                  onChange={(e) => setLocalSettings((prev) => ({ ...prev, max_deals_per_business: e.target.value }))}
-                />
-                <Button
-                  size="icon"
-                  onClick={() => handleSave("max_deals_per_business")}
-                  disabled={updateSetting.isPending}
-                >
-                  <Save className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="min-duration">Min Deal Duration (days)</Label>
               <div className="flex gap-2">

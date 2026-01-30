@@ -1,6 +1,6 @@
 // Minimal "safe" Supabase Database types.
-// This repo's previous generated file was corrupted and failed to parse.
-// Regenerating via Supabase CLI requires project access; until then, keep typings permissive but structured.
+// To regenerate: run `npx supabase link` then `SUPABASE_PROJECT_REF=<id> npm run supabase:types`
+// Or: `npx supabase gen types typescript --project-id <ref> > src/integrations/supabase/types.generated.ts`
 
 export type Json =
   | string
@@ -10,24 +10,26 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+// Must satisfy @supabase/supabase-js GenericRelationship shape
 type Relationship = {
-  foreignKeyName?: string
-  columns?: string[]
-  isOneToOne?: boolean
-  referencedRelation?: string
-  referencedColumns?: string[]
+  foreignKeyName: string
+  columns: string[]
+  isOneToOne: boolean
+  referencedRelation: string
+  referencedColumns: string[]
 }
 
 type TableDef = {
-  Row: Record<string, any>
-  Insert: Record<string, any>
-  Update: Record<string, any>
+  // Keep permissive until we can re-generate full schema types
+  Row: Record<string, unknown>
+  Insert: Record<string, unknown>
+  Update: Record<string, unknown>
   Relationships: Relationship[]
 }
 
 type FunctionDef = {
-  Args: Record<string, any>
-  Returns: any
+  Args: Record<string, unknown>
+  Returns: unknown
 }
 
 export type Database = {

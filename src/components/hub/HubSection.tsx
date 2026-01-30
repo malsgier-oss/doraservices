@@ -1,11 +1,14 @@
 import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 type HubSectionProps = {
   id?: string;
   title: string;
+  icon?: LucideIcon;
   count?: number | null;
   actionLabel?: string;
   onAction?: () => void;
@@ -17,6 +20,7 @@ type HubSectionProps = {
 export function HubSection({
   id,
   title,
+  icon: Icon,
   count,
   actionLabel,
   onAction,
@@ -24,14 +28,22 @@ export function HubSection({
   className,
   children,
 }: HubSectionProps) {
+  const { isRTL } = useLanguage();
   return (
-    <section id={id} className={cn("space-y-4", className)}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <h2 className="text-base font-semibold text-foreground">{title}</h2>
-          {typeof count === "number" ? (
-            <span className="text-xs text-muted-foreground">{count}</span>
-          ) : null}
+    <section id={id} className={cn("space-y-5 pt-2", className)}>
+      <div dir={isRTL ? "rtl" : "ltr"} className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          {Icon && (
+            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10">
+              <Icon className="h-4 w-4 text-primary" aria-hidden />
+            </div>
+          )}
+          <div>
+            <h2 className="text-lg font-bold text-foreground leading-tight">{title}</h2>
+            {typeof count === "number" && count > 0 && (
+              <span className="text-sm text-muted-foreground font-medium">({count})</span>
+            )}
+          </div>
         </div>
         {action
           ? action
@@ -41,10 +53,13 @@ export function HubSection({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-11 px-3 text-xs"
+                className="h-11 px-4 text-sm font-medium hover:bg-primary/10 hover:text-primary transition-colors"
                 onClick={onAction}
               >
                 {actionLabel}
+                <svg className="ms-1 h-3 w-3 rtl:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
               </Button>
             )
             : null}

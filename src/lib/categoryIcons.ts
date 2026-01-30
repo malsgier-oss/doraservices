@@ -1,0 +1,211 @@
+import type { LucideIcon } from "lucide-react";
+import {
+  Home,
+  Car,
+  Zap,
+  Briefcase,
+  Building2,
+  GraduationCap,
+  Heart,
+  PartyPopper,
+  Wrench,
+  Droplets,
+  Wind,
+  Fuel,
+  ClipboardCheck,
+  Sun,
+  Cog,
+  Scale,
+  Languages,
+  Camera,
+  UtensilsCrossed,
+  Stethoscope,
+  Activity,
+  Dog,
+  Scissors,
+  Laptop,
+  PawPrint,
+  Sparkles,
+  Dumbbell,
+  Utensils,
+  Music,
+  Plane,
+  ShoppingCart,
+  Baby,
+  Paintbrush,
+  Hammer,
+  Battery,
+  Calculator,
+  Star,
+  Phone,
+  Shield,
+  Wifi,
+  PaintRoller,
+  SprayCan,
+  Leaf,
+  Brush,
+  Sofa,
+  BedDouble,
+  Bath,
+  Key,
+  Lock,
+  Package,
+  Truck,
+  MapPin,
+  Store,
+  Shirt,
+  Fan,
+  Thermometer,
+  Snowflake,
+  Coins,
+  HandCoins,
+  CreditCard,
+  FileText,
+  Landmark,
+  Gavel,
+  Pill,
+  Ambulance,
+  ChefHat,
+  Microwave,
+  Refrigerator,
+  TreePalm,
+  Gamepad2,
+  Smartphone,
+  Monitor,
+  Printer,
+  Router,
+  Lightbulb,
+  PlugZap,
+  HardHat,
+  Construction,
+  Ruler,
+  Bug,
+  Bike,
+  Bus,
+  Search,
+  Circle,
+} from "lucide-react";
+
+/**
+ * Shared icon map for service categories and subcategories.
+ * Used by Hub, ServiceCreator, CategoryBrowseSheet, FeaturedHero, AdminCategories.
+ */
+export const HUB_ICON_MAP: Record<string, LucideIcon> = {
+  Home,
+  Car,
+  Zap,
+  Briefcase,
+  Building2,
+  GraduationCap,
+  Heart,
+  PartyPopper,
+  Wrench,
+  Droplets,
+  Wind,
+  Fuel,
+  ClipboardCheck,
+  Sun,
+  Cog,
+  Scale,
+  Languages,
+  Camera,
+  UtensilsCrossed,
+  Stethoscope,
+  Activity,
+  Dog,
+  Scissors,
+  Laptop,
+  PawPrint,
+  Sparkles,
+  Dumbbell,
+  Utensils,
+  Music,
+  Plane,
+  ShoppingCart,
+  Baby,
+  Paintbrush,
+  Hammer,
+  Battery,
+  Calculator,
+  Star,
+  Phone,
+  Shield,
+  Wifi,
+  PaintRoller,
+  SprayCan,
+  Leaf,
+  Brush,
+  Sofa,
+  BedDouble,
+  Bath,
+  Key,
+  Lock,
+  Package,
+  Truck,
+  MapPin,
+  Store,
+  Shirt,
+  Fan,
+  Thermometer,
+  Snowflake,
+  Coins,
+  HandCoins,
+  CreditCard,
+  FileText,
+  Landmark,
+  Gavel,
+  Pill,
+  Ambulance,
+  ChefHat,
+  Microwave,
+  Refrigerator,
+  TreePalm,
+  Gamepad2,
+  Smartphone,
+  Monitor,
+  Printer,
+  Router,
+  Lightbulb,
+  PlugZap,
+  HardHat,
+  Construction,
+  Ruler,
+  Bug,
+  Bike,
+  Bus,
+  Search,
+  Circle,
+};
+
+/** Aliases for DB quirks (e.g. seed data typos). */
+const ICON_ALIASES: Record<string, string> = {
+  Droplet: "Droplets",
+};
+
+/**
+ * Returns the Lucide icon component for a category/subcategory icon key.
+ * Uses HUB_ICON_MAP and resolves aliases (e.g. Droplet → Droplets).
+ * Falls back to Wrench when the key is unknown.
+ */
+export function getCategoryIcon(iconKey: string | null | undefined): LucideIcon {
+  const key = String(iconKey || "").trim();
+  if (!key) return Wrench;
+  const resolved = ICON_ALIASES[key] ?? key;
+  return HUB_ICON_MAP[resolved] ?? Wrench;
+}
+
+const HEX_RE = /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/;
+
+/**
+ * Returns a color string suitable for inline styles (background-color, color).
+ * If the value looks like hex (#...), returns it as-is; otherwise returns default.
+ * Use when category/subcategory color may be Tailwind-style (e.g. "bg-blue-500").
+ */
+export function normalizeCategoryColor(
+  value: string | null | undefined,
+  defaultColor = "#888"
+): string {
+  const v = String(value || "").trim();
+  if (HEX_RE.test(v)) return v;
+  return defaultColor;
+}

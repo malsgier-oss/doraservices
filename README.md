@@ -64,6 +64,15 @@ This project is built with:
 
 Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
 
+### Deploy to Cloudflare Pages
+
+To avoid "JavaScript MIME type: server returned HTML" when loading chunks (e.g. on `/auth`), use these settings:
+
+- **Build command:** `npm run build`
+- **Build output directory:** `dist`
+
+The repo includes `public/_headers` so JS and CSS are served with the correct `Content-Type`. The optional `wrangler.toml` sets `pages_build_output_dir = "./dist"` for Wrangler or framework-based deploys. Ensure the Pages project’s **Build output directory** is set to `dist` in the Cloudflare dashboard so `/assets/*` files are served correctly.
+
 ## Can I connect a custom domain to my Lovable project?
 
 Yes, you can!

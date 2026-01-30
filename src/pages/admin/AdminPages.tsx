@@ -26,6 +26,15 @@ export default function AdminPages() {
   const [loading, setLoading] = useState(true);
   const [activeSlug, setActiveSlug] = useState<typeof SLUGS[number]>("about");
 
+  const emptyRow = (slug: string): SitePageRow => ({
+    slug,
+    title_en: null,
+    title_ar: null,
+    content_en: null,
+    content_ar: null,
+    is_published: false,
+  });
+
   async function load() {
     setLoading(true);
     const { data, error } = await supabase
@@ -37,8 +46,17 @@ export default function AdminPages() {
       toast({ title: "Failed to load", description: error.message, variant: "destructive" });
       setRows({});
     } else {
-      const map: any = {};
-      (data ?? []).forEach((r:any)=> { map[r.slug] = r; });
+      const map: Record<string, SitePageRow> = {};
+      (data ?? []).forEach((r: any) => {
+        map[String(r.slug)] = {
+          slug: String(r.slug),
+          title_en: (r.title_en ?? null) as string | null,
+          title_ar: (r.title_ar ?? null) as string | null,
+          content_en: (r.content_en ?? null) as string | null,
+          content_ar: (r.content_ar ?? null) as string | null,
+          is_published: (r.is_published ?? false) as boolean | null,
+        };
+      });
       setRows(map);
     }
     setLoading(false);
@@ -55,7 +73,7 @@ export default function AdminPages() {
   function setField(field: keyof SitePageRow, value: any) {
     setRows(prev => ({
       ...prev,
-      [activeSlug]: { ...(prev[activeSlug] ?? { slug: activeSlug }), [field]: value }
+      [activeSlug]: { ...(prev[activeSlug] ?? emptyRow(activeSlug)), [field]: value }
     }));
   }
 

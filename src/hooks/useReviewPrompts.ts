@@ -40,21 +40,20 @@ export function useReviewPrompts() {
       if (!data || data.length === 0) return [];
 
       // Enrich with service and provider info
-      const serviceIds = [...new Set(data.map(p => p.service_id))];
-      const providerIds = [...new Set(data.map(p => p.provider_id))];
+      const serviceIds = [...new Set(data.map((p) => p.service_id))];
 
-      const [{ data: services }, { data: profiles }] = await Promise.all([
-        supabase.from("services").select("id, title").in("id", serviceIds),
-        supabase.from("profiles").select("user_id, full_name").in("user_id", providerIds),
-      ]);
+      const { data: services } = await supabase
+        .from("services")
+        .select("id, title, provider_name")
+        .in("id", serviceIds);
 
-      const serviceMap = new Map(services?.map(s => [s.id, s.title]) || []);
-      const profileMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
+      const serviceTitleMap = new Map(services?.map((s: any) => [s.id, s.title]) || []);
+      const serviceProviderNameMap = new Map(services?.map((s: any) => [s.id, s.provider_name]) || []);
 
-      return data.map(prompt => ({
+      return data.map((prompt) => ({
         ...prompt,
-        service_title: serviceMap.get(prompt.service_id) || "Service",
-        provider_name: profileMap.get(prompt.provider_id) || "Provider",
+        service_title: serviceTitleMap.get(prompt.service_id) || "Service",
+        provider_name: serviceProviderNameMap.get(prompt.service_id) || "Provider",
       })) as ReviewPrompt[];
     },
     enabled: !!user,

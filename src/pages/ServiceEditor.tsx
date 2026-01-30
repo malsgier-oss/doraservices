@@ -19,6 +19,7 @@ import { useCategories } from "@/hooks/useCategories";
 import { useSubcategories } from "@/hooks/useSubcategories";
 import { useCities } from "@/hooks/useCities";
 import { useSubCities } from "@/hooks/useSubCities";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 type ServiceRow = {
   id: string;
@@ -43,6 +44,14 @@ type ServiceImageRow = {
 };
 
 export default function ServiceEditor() {
+  return (
+    <ErrorBoundary>
+      <ServiceEditorContent />
+    </ErrorBoundary>
+  );
+}
+
+function ServiceEditorContent() {
   const navigate = useNavigate();
   const { id } = useParams();
   const { user, profile } = useAuth();
@@ -173,6 +182,28 @@ export default function ServiceEditor() {
     const files = Array.from(fileList).filter(Boolean);
     if (files.length === 0) return;
 
+    // Validate file sizes and types
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    const validFiles: File[] = [];
+
+    for (const file of files) {
+      // Check file size
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(isRTL ? `${file.name}: الحد الأقصى للحجم 5MB` : `${file.name}: Max file size is 5MB`);
+        continue;
+      }
+
+      // Check MIME type
+      if (!file.type.startsWith("image/")) {
+        toast.error(isRTL ? `${file.name}: يجب أن يكون ملف صورة` : `${file.name}: Must be an image file`);
+        continue;
+      }
+
+      validFiles.push(file);
+    }
+
+    if (validFiles.length === 0) return;
+
     if (images.length >= maxPhotos) {
       toast.error(isRTL ? "الحد الأقصى 5 صور" : "Max 5 photos");
       return;
@@ -181,7 +212,7 @@ export default function ServiceEditor() {
     setPhotosBusy(true);
     try {
       const remaining = Math.max(0, maxPhotos - images.length);
-      const picked = files.slice(0, remaining);
+      const picked = validFiles.slice(0, remaining);
       const startPos = (images[images.length - 1]?.position || images.length || 0) + 1;
 
       const createdRows: ServiceImageRow[] = [];

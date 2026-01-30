@@ -1,1729 +1,605 @@
-// DORA_HUB_PATCH_v4 (ticker+banner-loop+no-all-cities+sticky-fullwidth)
-import { Component, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
-import { Bell, CheckCheck, ChevronDown, Search, Wrench, Home, Car, Zap, Briefcase, Building2, GraduationCap, Heart, PartyPopper, Droplets, Wind, Fuel, ClipboardCheck, X } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
-
-import { MobileNav } from "@/components/layout/MobileNav";
-import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { LanguageToggle } from "@/components/LanguageToggle";
-
-import { useCategories } from "@/hooks/useCategories";
-import { useCities } from "@/hooks/useCities";
-import { useHubBanners } from "@/hooks/useHubBanners";
-import { useHubShelves } from "@/hooks/useHubShelves";
-import { useHubChips } from "@/hooks/useHubChips";
-import { useHubTopCategories } from "@/hooks/useHubTopCategories";
-import { useFeaturedSubcategories } from "@/hooks/useFeaturedSubcategories";
-import { useAllSubcategories } from "@/hooks/useSubcategories";
-import { useMostDemandedServices } from "@/hooks/useMostDemandedServices";
-import { useGuides } from "@/hooks/useGuides";
-import { CategoryBrowseSheet } from "@/components/hub/CategoryBrowseSheet";
-import { supabase } from "@/integrations/supabase/client";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useProfile } from "@/hooks/useProfile";
+import { useCategories } from "@/hooks/useCategories";
+import { useSubcategories } from "@/hooks/useSubcategories";
+import { useCities } from "@/hooks/useCities";
+import { useSubCities } from "@/hooks/useSubCities";
+import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { normalizeCategory } from "@/lib/utils";
-import { useNotifications, useUnreadCount, useNotificationMutations } from "@/hooks/useNotifications";
-import { formatDistanceToNow } from "date-fns";
-import { useToast } from "@/hooks/use-toast";
+import { getCategoryIcon } from "@/lib/categoryIcons";
+import { cn, normalizeCategory } from "@/lib/utils";
+import { Loader2 } from "lucide-react";
+import { ImagePlus, Trash2 } from "lucide-react";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { MapPin } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { getDigitsOnly } from "@/lib/phoneUtils";
 
-/**
- * Safety net: prevent a whole-app white screen if ServiceDetailSheet crashes.
- * Root cause can vary (schema mismatches, missing tables, etc.).
- * We fail closed: show a toast + close the sheet instead of crashing the app.
- */
-class SafeBoundary extends Component<
-  { children: ReactNode; onError?: (err: unknown) => void },
-  { hasError: boolean }
-> {
-  state = { hasError: false };
+// Dora P0: store phone in services row so anonymous users can call/WhatsApp
+function normalizeLibyaPhoneForStorage(raw: string | null | undefined) {
+  const d = getDigitsOnly(raw || "");
+  if (!d) return "";
 
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
+  // already has country code
+  if (d.startsWith("218")) return d;
 
-  componentDidCatch(error: unknown) {
-    this.props.onError?.(error);
-  }
+  // common local format: 0XXXXXXXXX
+  if (d.length === 10 && d.startsWith("0")) return `218${d.slice(1)}`;
 
-  render() {
-    if (this.state.hasError) return null;
-    return this.props.children;
-  }
+  // 9 digits (sometimes without leading 0)
+  if (d.length === 9) return `218${d}`;
+
+  // fallback
+  return d;
 }
 
-type ServiceRow = {
-  id: string;
-  title: string;
-  category: string;
-  provider_name: string | null;
-  provider_phone: string | null;
-  allow_whatsapp?: boolean | null;
-  city: string | null;
-  sub_city: string | null;
-  image_url: string | null;
-};
-
-type SubcategoryRow = {
-  id: string;
-  category_id: string;
-  name: string;
-  name_ar: string | null;
-  icon: string;
-  color: string | null;
-  display_order: number | null;
-  is_active: boolean | null;
-};
-
-type AnnouncementRow = {
-  id: string;
-  title: string;
-  message: string;
-  city_id: string | null;
-  priority: number;
-  start_at?: string | null;
-  end_at?: string | null;
-};
-
-type GuideCard = {
-  id: string;
-  icon: LucideIcon;
-  title: string;
-  summaryLines: [string, string];
-  bullets: string[];
-};
-
-const ICON_MAP: Record<string, LucideIcon> = {
-  Home,
-  Car,
-  Zap,
-  Briefcase,
-  Building2,
-  GraduationCap,
-  Heart,
-  PartyPopper,
-  Wrench,
-  Droplets,
-  Wind,
-  Fuel,
-  ClipboardCheck,
-};
-
-const CITY_STORAGE_KEY = "dora_city_id";
-
-// PHASE 1 (UI scaffolding): Global guides are static for now.
-// In Phase 3 we will move this to admin-controlled content.
-const DEFAULT_GUIDES_AR: GuideCard[] = [
-  {
-    id: "guide-electricity",
-    icon: Zap,
-    title: "قبل ما تتصل بالكهربائي",
-    summaryLines: [
-      "هل المشكلة من العداد أو داخل البيت؟",
-      "اسأل عن المعاينة قبل بدء التصليح",
-    ],
-    bullets: [
-      "هل المشكلة من العداد أو داخل البيت؟",
-      "اسأل لو في معاينة قبل بدء الشغل",
-      "حدّد مكان المشكلة بدقة",
-      "اسأل لو السعر تقريبي أو نهائي",
-      "اتفق على الوقت قبل ما يطلع الفني",
-    ],
-  },
-  {
-    id: "guide-plumbing",
-    icon: Droplets,
-    title: "تبي سباك؟",
-    summaryLines: [
-      "صوّر المشكلة قبل ما تتصل",
-      "اسأل لو السعر شامل القطعة",
-    ],
-    bullets: [
-      "صوّر المشكلة قبل ما تتصل",
-      "اسأل لو السعر شامل القطعة",
-      "خليك واضح: تسريب ولا انسداد؟",
-      "اتفق على سعر تقريبي قبل الزيارة",
-      "اسأل عن مدة الشغل والضمان",
-    ],
-  },
-  {
-    id: "guide-ac",
-    icon: Wind,
-    title: "صيانة التكييف",
-    summaryLines: [
-      "تنظيف أو فريون؟ الفرق كبير بالسعر",
-      "اسأل عن الضمان بعد الشغل",
-    ],
-    bullets: [
-      "تنظيف أو فريون؟ الفرق كبير بالسعر",
-      "اسأل عن الضمان بعد الشغل",
-      "اسأل هل السعر شامل زيارة وفحص",
-      "حدد نوع التكييف وقدرته (مثلاً 1.5 طن)",
-      "اتفق لو في قطع غيار قبل التركيب",
-    ],
-  },
-  {
-    id: "guide-general",
-    icon: ClipboardCheck,
-    title: "كيف تختار فني صح",
-    summaryLines: [
-      "خليك واضح من أول مكالمة",
-      "لا تدفع كامل المبلغ قبل الشغل",
-    ],
-    bullets: [
-      "خليك واضح من أول مكالمة",
-      "لا تدفع كامل المبلغ قبل الشغل",
-      "اسأل عن مدة التنفيذ قبل ما يجي",
-      "اتفق على السعر أو الحد الأعلى",
-      "خلي كلامك بسيط ومحدد",
-    ],
-  },
-];
-
-const DEFAULT_GUIDES_EN: GuideCard[] = [
-  {
-    id: "guide-electricity",
-    icon: Zap,
-    title: "Before you call an electrician",
-    summaryLines: [
-      "Is it the meter or inside the home?",
-      "Ask if there is an inspection fee",
-    ],
-    bullets: [
-      "Is it the meter or inside the home?",
-      "Ask if there is an inspection fee",
-      "Describe the problem location clearly",
-      "Confirm if the price is estimate or final",
-      "Agree on timing before the visit",
-    ],
-  },
-  {
-    id: "guide-plumbing",
-    icon: Droplets,
-    title: "Need a plumber?",
-    summaryLines: [
-      "Take a photo before you call",
-      "Ask if the part is included",
-    ],
-    bullets: [
-      "Take a photo before you call",
-      "Ask if the part is included",
-      "Be clear: leak or blockage?",
-      "Agree on an estimate before the visit",
-      "Ask about duration and warranty",
-    ],
-  },
-  {
-    id: "guide-ac",
-    icon: Wind,
-    title: "AC service",
-    summaryLines: [
-      "Cleaning vs freon changes the price",
-      "Ask about warranty",
-    ],
-    bullets: [
-      "Cleaning vs freon changes the price",
-      "Ask about warranty",
-      "Ask if the visit/inspection is included",
-      "Confirm the brand and unit size",
-      "Agree on timing",
-    ],
-  },
-  {
-    id: "guide-general",
-    icon: ClipboardCheck,
-    title: "Choose a technician wisely",
-    summaryLines: [
-      "Be clear from the first call",
-      "Don’t pay the full amount upfront",
-    ],
-    bullets: [
-      "Be clear from the first call",
-      "Don’t pay the full amount upfront",
-      "Confirm what is included in the price",
-      "Ask about expected time",
-      "Keep messages/photos as reference",
-    ],
-  },
-];
-
-function HorizontalSection(props: {
-  title: string;
-  count?: number | null;
-  id?: string;
-  children: React.ReactNode;
-  isRTL: boolean;
-}) {
-  const { title, count, id, children, isRTL } = props;
+export default function ServiceCreator() {
   return (
-    <div className="space-y-2" id={id}>
-      <div className="flex items-center justify-between">
-        <div className="text-base font-semibold">{title}</div>
-        {typeof count === "number" ? <div className="text-xs text-muted-foreground">{count}</div> : null}
-      </div>
-      <div
-        dir={isRTL ? "rtl" : "ltr"}
-        className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory"
-        style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
-      >
-        {children}
-      </div>
-    </div>
+    <ErrorBoundary>
+      <ServiceCreatorContent />
+    </ErrorBoundary>
   );
 }
 
-function MiniInfoCard(props: {
-  title: string;
-  line1: string;
-  line2: string;
-  Icon: LucideIcon;
-  onClick: () => void;
-}) {
-  const { title, line1, line2, Icon, onClick } = props;
-  return (
-    <button
-      type="button"
-      className="shrink-0 w-[70vw] max-w-[340px] snap-center rounded-2xl border bg-card p-4 text-left hover:bg-accent transition"
-      onClick={onClick}
-    >
-      <div className="flex items-start gap-3" dir="rtl">
-        <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
-          <Icon className="h-5 w-5" />
-        </div>
-        <div className="min-w-0">
-          <div className="font-semibold text-sm line-clamp-1">{title}</div>
-          <div className="text-xs text-muted-foreground mt-1 line-clamp-1">{line1}</div>
-          <div className="text-xs text-muted-foreground line-clamp-1">{line2}</div>
-        </div>
-      </div>
-    </button>
-  );
-}
+function ServiceCreatorContent() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { t, isRTL, language } = useLanguage();
+  const { profile, loading: profileLoading, updateProfile } = useProfile();
+  const { data: categories } = useCategories();
+  const { data: cities } = useCities();
 
-function useSelectedCityId() {
-  const [cityId, setCityId] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem(CITY_STORAGE_KEY);
-    } catch {
-      return null;
-    }
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [formData, setFormData] = useState({
+    serviceName: "",
+    category: "",
+    subcategory: "",
+    bio: "",
+    cityId: "",
+    subCity: "",
+    allowWhatsApp: true,
+    price: "",
   });
 
+  // Preview URLs (cleanup on change/unmount)
   useEffect(() => {
-    try {
-      if (cityId) localStorage.setItem(CITY_STORAGE_KEY, cityId);
-      else localStorage.removeItem(CITY_STORAGE_KEY);
-    } catch {
-      // ignore
-    }
-  }, [cityId]);
-
-
-  return { cityId, setCityId };
-}
-
-async function fetchShelfSubcategories(params: { categoryId: string; limit: number }) {
-  const { categoryId, limit } = params;
-  const { data, error } = await supabase
-    .from("subcategories")
-    .select("id,category_id,name,name_ar,icon,color,display_order,is_active")
-    .eq("category_id", categoryId)
-    .eq("is_active", true)
-    .order("display_order", { ascending: true })
-    .limit(limit);
-
-  if (error) {
-    console.error("fetchShelfSubcategories error:", error);
-    return [];
-  }
-  return (data as any[]) as SubcategoryRow[];
-}
-
-
-
-type BannerItem = {
-  id: string;
-  target_type?: "none" | "category" | "subcategory" | "shelf";
-  target_category_id?: string | null;
-  target_subcategory_id?: string | null;
-  target_shelf_id?: string | null;
-};
-
-type BannerCarouselProps = {
-  banners: BannerItem[];
-  publicUrlsById: Record<string, string | undefined>;
-  allSubcategories: any[];
-  iconMap: Record<string, any>;
-  onOpenCategory: (categoryId: string) => void;
-  onOpenSubcategory: (sc: { id: string; name: string; name_ar: string | null; icon: any; color: string | null }) => void;
-  onScrollToShelf: (shelfId: string) => void;
-};
-
-const BannerCarousel = memo(function BannerCarousel(props: BannerCarouselProps) {
-  const { banners, publicUrlsById, allSubcategories, iconMap, onOpenCategory, onOpenSubcategory, onScrollToShelf } = props;
-
-  const rowRef = useRef<HTMLDivElement | null>(null);
-  const [index, setIndex] = useState(0);
-  const pauseUntilRef = useRef<number>(0);
-  const scrollRafRef = useRef<number | null>(null);
-  const programmaticRef = useRef(false);
-
-  // A+B: do NOT autoplay until the user interacts with the carousel.
-  const interactedRef = useRef(false);
-  const [autoplayEnabled, setAutoplayEnabled] = useState(false);
-
-  const markInteracted = () => {
-    if (!interactedRef.current) {
-      interactedRef.current = true;
-      setAutoplayEnabled(true);
-    }
-    pauseUntilRef.current = Date.now() + 6000;
-  };
-
-  // Keep index in range.
-  useEffect(() => {
-    if (banners.length === 0) return;
-    setIndex((i) => Math.min(i, banners.length - 1));
-  }, [banners.length]);
-
-  // Autoplay ONLY after interaction.
-  useEffect(() => {
-    if (!autoplayEnabled) return;
-    if (banners.length <= 1) return;
-
-    const id = window.setInterval(() => {
-      if (document.visibilityState !== "visible") return;
-      if (Date.now() < pauseUntilRef.current) return;
-      setIndex((i) => (i + 1) % banners.length);
-    }, 4500);
-
-    return () => window.clearInterval(id);
-  }, [autoplayEnabled, banners.length]);
-
-  // Scroll to active banner.
-  useEffect(() => {
-    const el = rowRef.current;
-    if (!el) return;
-    const child = el.children.item(index) as HTMLElement | null;
-    if (!child) return;
-
-    programmaticRef.current = true;
-    const timeout = window.setTimeout(() => {
-      programmaticRef.current = false;
-    }, 650);
-
-    child.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-
-    return () => window.clearTimeout(timeout);
-  }, [index]);
-
-  const handleScroll = () => {
-    markInteracted();
-    if (programmaticRef.current) return;
-    if (scrollRafRef.current) return;
-
-    scrollRafRef.current = window.requestAnimationFrame(() => {
-      scrollRafRef.current = null;
-      const el = rowRef.current;
-      if (!el) return;
-
-      const containerRect = el.getBoundingClientRect();
-      const targetX = (containerRect.left + containerRect.right) / 2;
-
-      let bestIdx = 0;
-      let bestDist = Number.POSITIVE_INFINITY;
-      for (let i = 0; i < el.children.length; i++) {
-        const child = el.children.item(i) as HTMLElement | null;
-        if (!child) continue;
-        const r = child.getBoundingClientRect();
-        const anchorX = (r.left + r.right) / 2;
-        const dist = Math.abs(anchorX - targetX);
-        if (dist < bestDist) {
-          bestDist = dist;
-          bestIdx = i;
-        }
-      }
-      setIndex(bestIdx);
-    });
-  };
-
-  useEffect(() => {
+    const next = imageFiles.map((f) => URL.createObjectURL(f));
+    setImagePreviews(next);
     return () => {
-      if (scrollRafRef.current) window.cancelAnimationFrame(scrollRafRef.current);
+      next.forEach((u) => URL.revokeObjectURL(u));
     };
+  }, [imageFiles]);
+
+  // Get subcategories for selected category
+  const selectedCategory = categories?.find((c) => c.id === formData.category);
+  const { data: subcategories } = useSubcategories(formData.category || undefined);
+  const { data: subCities } = useSubCities(formData.cityId || profile?.city_id || null);
+
+  // Guard (Dora P0): providers (or admins) can add services immediately.
+  useEffect(() => {
+    if (profileLoading) return;
+    if (!profile) return;
+
+    const role = (profile.role || "").toLowerCase();
+    const isAdmin = role === "admin";
+    // DB enum uses "business"; we also accept legacy "provider" reads.
+    const isProvider = role === "business" || role === "provider";
+
+    if (!isAdmin && !isProvider) {
+      toast.error(isRTL ? "هذه الصفحة لمقدمي الخدمة فقط" : "This page is for providers only");
+      navigate("/profile", { replace: true });
+      return;
+    }
+  }, [profile, profileLoading, navigate, isRTL, user]);
+
+  // All hooks must run before any early return to avoid "Rendered more hooks than previous render" (React #310)
+  const onPickImages = useCallback((files: FileList | null) => {
+    if (!files) return;
+    const picked = Array.from(files).filter(Boolean);
+    if (picked.length === 0) return;
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    const validFiles: File[] = [];
+    for (const file of picked) {
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(isRTL ? `${file.name}: الحد الأقصى للحجم 5MB` : `${file.name}: Max file size is 5MB`);
+        continue;
+      }
+      if (!file.type.startsWith("image/")) {
+        toast.error(isRTL ? `${file.name}: يجب أن يكون ملف صورة` : `${file.name}: Must be an image file`);
+        continue;
+      }
+      validFiles.push(file);
+    }
+    if (validFiles.length === 0) return;
+    const next = [...imageFiles];
+    for (const f of validFiles) {
+      if (next.length >= 5) break;
+      next.push(f);
+    }
+    if (imageFiles.length + validFiles.length > 5) {
+      toast.error(isRTL ? "الخطة المجانية: حتى 5 صور" : "Free plan: up to 5 photos");
+    }
+    setImageFiles(next);
+  }, [imageFiles, isRTL]);
+
+  const removeImage = useCallback((idx: number) => {
+    setImageFiles((prev) => prev.filter((_, i) => i !== idx));
   }, []);
 
-  if (!banners || banners.length === 0) return null;
-
-  return (
-    <div className="space-y-2">
-      <div
-        ref={rowRef}
-        dir="ltr"
-        className={`flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory ${banners.length === 1 ? "justify-center" : ""}`}
-        style={{
-          WebkitOverflowScrolling: "touch" as any,
-          scrollPaddingInline: "16px",
-          // Allow horizontal pan; don't block vertical page scroll.
-          touchAction: "pan-x pan-y",
-        }}
-        onScroll={handleScroll}
-        onPointerDown={markInteracted}
-        onTouchStart={markInteracted}
-        onWheel={markInteracted}
-      >
-        {banners.map((b) => {
-          const url = publicUrlsById[b.id];
-          const clickable = (b as any).target_type !== "none";
-          return (
-            <button
-              key={b.id}
-              className={`shrink-0 w-[92%] md:w-[70%] rounded-xl overflow-hidden border bg-card snap-center ${clickable ? "cursor-pointer" : "cursor-default"}`}
-              style={{ scrollSnapAlign: "center" }}
-              onClick={() => {
-                markInteracted();
-                const bt = (b as any).target_type;
-                if (!bt || bt === "none") return;
-
-                if (bt === "category" && (b as any).target_category_id) {
-                  onOpenCategory((b as any).target_category_id);
-                  return;
-                }
-
-                if (bt === "subcategory" && (b as any).target_subcategory_id) {
-                  const sc = (allSubcategories || []).find((s) => s.id === (b as any).target_subcategory_id);
-                  if (!sc) return;
-                  const Icon = (iconMap as any)[sc.icon] || Wrench;
-                  onOpenSubcategory({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color });
-                  return;
-                }
-
-                if (bt === "shelf" && (b as any).target_shelf_id) {
-                  onScrollToShelf((b as any).target_shelf_id);
-                }
-              }}
-            >
-              {/* Height locked to prevent layout shift */}
-              <div className="h-36 w-full bg-muted">
-                {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : null}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {banners.length > 1 && (
-        <div className="flex items-center justify-center gap-1.5">
-          {banners.map((b, i) => (
-            <button
-              key={b.id}
-              aria-label={`Banner ${i + 1}`}
-              className={`h-2 w-2 rounded-full transition ${i === index ? "bg-foreground" : "bg-muted-foreground/30"}`}
-              onClick={() => {
-                markInteracted();
-                setIndex(i);
-              }}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-});
-export default function Hub() {
-  const { language, isRTL } = useLanguage();
-  const { user } = useAuth();
-  const { toast } = useToast();
-
-  const { data: notifications } = useNotifications();
-  const { data: unreadCount } = useUnreadCount();
-  const { markAsRead, markAllAsRead } = useNotificationMutations();
-  const { data: categoriesData, isLoading: categoriesLoading, error: categoriesError } = useCategories();
-  const { data: citiesData } = useCities();
-
-  const { cityId, setCityId } = useSelectedCityId();
-
-  const selectedCity = useMemo(() => {
-    return (citiesData || []).find((c) => c.id === cityId) || null;
-  }, [citiesData, cityId]);
-
-  const selectedCityName = selectedCity?.name || null;
-
-  const { banners, publicUrlsById } = useHubBanners(cityId);
-  const { chips } = useHubChips(cityId);
-  const { categoryIds: topCategoryIds } = useHubTopCategories(cityId);
-  const { shelves, itemsByShelf } = useHubShelves(cityId);
-  const { data: allSubcategories } = useAllSubcategories();
-  const { rows: featuredSubcats } = useFeaturedSubcategories(cityId);
-
-  // City name variants (AR/EN) for system-demand filtering.
-  const demandCityNames = useMemo(() => {
-    const names = new Set<string>();
-    if (selectedCity?.name) names.add(String(selectedCity.name));
-    if ((selectedCity as any)?.name_ar) names.add(String((selectedCity as any).name_ar));
-    return Array.from(names);
-  }, [selectedCity]);
-
-  const { rows: mostDemandedRows, loading: mostDemandedLoading } = useMostDemandedServices({
-    cityNames: demandCityNames,
-    limit: 6,
-  });
-
-  // Phase 3: Guides are DB-driven (admin-controlled) with a safe fallback to local defaults.
-  const { data: guidesRows, isLoading: guidesLoading } = useGuides();
-  const guidesCards: GuideCard[] = useMemo(() => {
-    const fallback = language === "ar" ? DEFAULT_GUIDES_AR : DEFAULT_GUIDES_EN;
-    const rows = (guidesRows || []).filter((r) => r.is_active !== false);
-    if (rows.length === 0) return fallback;
-
-    const mapped: GuideCard[] = rows.map((r: any) => {
-      const Icon = ICON_MAP[String(r.icon_key || "")] || ClipboardCheck;
-      const title = language === "ar" ? String(r.title_ar || "") : String(r.title_en || r.title_ar || "");
-      const summary = language === "ar" ? (r.summary_lines_ar as string[]) : ((r.summary_lines_en as string[] | null) || (r.summary_lines_ar as string[]));
-      const bullets = language === "ar" ? (r.bullets_ar as string[]) : ((r.bullets_en as string[] | null) || (r.bullets_ar as string[]));
-
-      const s1 = summary?.[0] ? String(summary[0]) : "";
-      const s2 = summary?.[1] ? String(summary[1]) : "";
-      return {
-        id: String(r.id),
-        icon: Icon,
-        title,
-        summaryLines: [s1, s2],
-        bullets: (bullets || []).map(String).filter(Boolean),
-      };
+  const makeCover = useCallback((idx: number) => {
+    setImageFiles((prev) => {
+      if (idx <= 0 || idx >= prev.length) return prev;
+      const next = [...prev];
+      const [picked] = next.splice(idx, 1);
+      next.unshift(picked);
+      return next;
     });
+  }, []);
 
-    // Final ordering (respect sort_order when present)
-    return mapped;
-  }, [guidesRows, language]);
+  if (profileLoading) {
+    return (
+      <Layout>
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </Layout>
+    );
+  }
 
-  const categories = useMemo(() => {
-    return (categoriesData || []).filter((c) => c.is_active !== false).sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
-  }, [categoriesData]);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-  const categoriesById = useMemo(() => {
-    const map: Record<string, (typeof categories)[number]> = {};
-    for (const c of categories) map[c.id] = c;
-    return map;
-  }, [categories]);
-
-  // Search
-  const [query, setQuery] = useState("");
-  const queryTrim = query.trim();
-
-  const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
-
-  // Featured services/providers shelf (horizontal cards)
-  const [featuredServices, setFeaturedServices] = useState<ServiceRow[]>([]);
-
-  const subcatByName = useMemo(() => {
-    const map = new Map<string, {
-      id: string;
-      name: string;
-      name_ar?: string | null;
-      icon: LucideIcon;
-      color: string | null;
-    }>();
-
-    for (const sc of (allSubcategories || []) as any[]) {
-      const name = String(sc?.name || "").trim();
-      if (!name) continue;
-      const iconKey = String(sc?.icon || "");
-      const icon = ICON_MAP[iconKey] || Wrench;
-      map.set(name, {
-        id: String(sc.id),
-        name,
-        name_ar: sc?.name_ar ?? null,
-        icon,
-        color: (sc?.color ?? null) as string | null,
-      });
+    if (!user) {
+      toast.error(isRTL ? "يرجى تسجيل الدخول" : "Please log in");
+      navigate("/auth");
+      return;
     }
-    return map;
-  }, [allSubcategories]);
 
-  useEffect(() => {
-    let alive = true;
+    if (!profile) {
+      toast.error(isRTL ? "يرجى إكمال ملفك الشخصي" : "Please complete your profile");
+      navigate("/profile");
+      return;
+    }
 
-    const escOrValue = (v: string) => {
-      const escaped = v.replace(/\\/g, "\\\\").replace(/\"/g, '\\"');
-      return `"${escaped}"`;
-    };
+    if (!formData.serviceName.trim()) {
+      toast.error(isRTL ? "يرجى إدخال اسم الخدمة" : "Please enter service name");
+      return;
+    }
 
-    const loadFeatured = async () => {
-      try {
-        // Base featured query
-        let q = supabase
-          .from("services")
-          .select("id,title,category,provider_name,provider_phone,allow_whatsapp,city,sub_city,image_url")
-          .eq("is_featured", true)
-          .eq("is_active", true)
-          .eq("is_visible", true)
-          .eq("is_paused", false)
-          .eq("approval_status", "approved")
-          .is("deleted_at", null)
-          .order("views_count", { ascending: false })
-          .order("created_at", { ascending: false })
-          .limit(12);
+    if (formData.serviceName.trim().length > 100) {
+      toast.error(isRTL ? "اسم الخدمة: حد أقصى 100 حرف" : "Service name: max 100 characters");
+      return;
+    }
 
-        // City filter (match AR/EN name variants when available)
-        const cityNames = new Set<string>();
-        if (selectedCity?.name) cityNames.add(String(selectedCity.name));
-        if ((selectedCity as any)?.name_ar) cityNames.add(String((selectedCity as any).name_ar));
+    if (formData.bio && formData.bio.trim().length > 1000) {
+      toast.error(isRTL ? "الوصف: حد أقصى 1000 حرف" : "Description: max 1000 characters");
+      return;
+    }
 
-        // If cityId exists, try to fetch name_ar/name to build a stronger OR filter.
-        if (cityId) {
-          const { data: cityRow } = await supabase
-            .from("cities")
-            .select("name,name_ar")
-            .eq("id", cityId)
-            .maybeSingle();
-          if (cityRow?.name) cityNames.add(String(cityRow.name));
-          if ((cityRow as any)?.name_ar) cityNames.add(String((cityRow as any).name_ar));
-        }
+    if (!formData.category) {
+      toast.error(isRTL ? "يرجى اختيار الفئة" : "Please select a category");
+      return;
+    }
 
-        const names = Array.from(cityNames).filter(Boolean);
-        if (names.length > 0) {
-          const cityOr = names.map((n) => `city.eq.${escOrValue(n)}`).join(",");
-          q = q.or(cityOr);
-        }
+    const selectedCity = cities?.find((c) => c.id === formData.cityId) || null;
+    const cityValue =
+      (selectedCity
+        ? language === "ar"
+          ? selectedCity.name_ar || selectedCity.name
+          : selectedCity.name || selectedCity.name_ar
+        : null) || profile?.city;
 
-        const { data, error } = await q;
-        if (!alive) return;
-        if (error) {
-          setFeaturedServices([]);
-          return;
-        }
-        setFeaturedServices(((data || []) as any[]) as ServiceRow[]);
-      } catch {
-        if (alive) setFeaturedServices([]);
-      }
-    };
+    if (!cityValue) {
+      toast.error(isRTL ? "يرجى اختيار المدينة" : "Please select your city");
+      return;
+    }
 
-    loadFeatured();
-    return () => {
-      alive = false;
-    };
-  }, [cityId, selectedCity?.name]);
+    // IMPORTANT for P0: phone must exist to allow call/WhatsApp for guests
+    // Use profile.phone with fallback to auth user_metadata (matches Profile page logic)
+    const rawPhone =
+      profile?.phone ??
+      (typeof (user as any)?.user_metadata?.phone === "string" ? (user as any).user_metadata.phone : null);
+    const storedPhone = normalizeLibyaPhoneForStorage(rawPhone);
+    if (!storedPhone) {
+      toast.error(isRTL ? "أضف رقم هاتفك في الملف الشخصي أولاً" : "Add your phone number in Profile first");
+      navigate("/profile");
+      return;
+    }
 
-  // Single-line announcement ticker (rotates through announcements)
-  const [announcementIndex, setAnnouncementIndex] = useState(0);
-
-  const activeAnnouncement = useMemo(() => {
-    if (!announcements || announcements.length === 0) return null;
-    const safeIndex = Math.max(0, Math.min(announcementIndex, announcements.length - 1));
-    return announcements[safeIndex] || null;
-  }, [announcements, announcementIndex]);
-
-  // Rotate announcement every X seconds
-  useEffect(() => {
-    if (!announcements || announcements.length <= 1) return;
-
-    const interval = window.setInterval(() => {
-      setAnnouncementIndex((prev) => (prev + 1) % announcements.length);
-    }, 5000); // every 5 seconds
-
-    return () => window.clearInterval(interval);
-  }, [announcements]);
-
-  // Reset index when list changes (city switch / data refresh)
-  useEffect(() => {
-    setAnnouncementIndex(0);
-  }, [cityId, announcements.length]);
-
-
-  // Hub announcements (under search). City-specific first, then global.
-  useEffect(() => {
-    let alive = true;
-
-    const loadAnnouncements = async () => {
-      try {
-        let q = supabase
-          .from("announcements")
-          .select("id,title,message,city_id,priority,start_at,end_at,created_at")
-          .eq("is_active", true);
-
-        if (cityId) {
-          q = q.or(`city_id.eq.${cityId},city_id.is.null`);
-        } else {
-          q = q.is("city_id", null);
-        }
-
-        const { data, error } = await q
-          .order("priority", { ascending: false })
-          .order("created_at", { ascending: false });
-
-        if (!alive) return;
-
-        if (error) {
-          setAnnouncements([]);
-          return;
-        }
-
-        const rows = (data || []) as any[];
-
-        // City-specific first, then global; then priority desc
-        rows.sort((a, b) => {
-          const ac = a.city_id ? 1 : 0;
-          const bc = b.city_id ? 1 : 0;
-          if (ac != bc) return bc - ac;
-          return (b.priority || 0) - (a.priority || 0);
+    setIsSubmitting(true);
+    try {
+      // Update profile with city if user selected a city (P0.2: keep city_id + city text)
+      if (formData.cityId && formData.cityId !== profile?.city_id) {
+        await updateProfile({
+          city_id: formData.cityId,
+          city: cityValue,
         });
-
-        // Keep all (or many) so ticker can rotate; Hub renders as one line.
-        setAnnouncements(rows as AnnouncementRow[]);
-      } catch {
-        if (alive) setAnnouncements([]);
       }
-    };
 
-    loadAnnouncements();
+      // Update profile with subCity if selected (optional)
+      if (formData.subCity && formData.subCity !== profile?.sub_city) {
+        await updateProfile({ sub_city: formData.subCity });
+      }
 
-    return () => {
-      alive = false;
-    };
-  }, [cityId]);
+      // Use subcategory name if selected, otherwise use category name
+      // Normalize for consistent storage and filtering
+      const rawCategory = formData.subcategory
+        ? subcategories?.find((s) => s.id === formData.subcategory)?.name
+        : selectedCategory?.name;
+      const categoryToUse = rawCategory ? normalizeCategory(rawCategory) : "";
 
+      const providerName = (profile.full_name || "").trim() || (isRTL ? "مقدم الخدمة" : "Provider");
 
+      // ✅ Insert directly to ensure provider_phone/provider_name/city/sub_city are stored for anonymous browsing
+      const priceValue = formData.price ? parseFloat(formData.price) : 0;
+      const { data: created, error } = await supabase
+        .from("services")
+        .insert({
+        user_id: user.id,
+        title: formData.serviceName.trim(),
+        description: formData.bio?.trim() || null,
+        category: categoryToUse || "",
+        price: isNaN(priceValue) ? 0 : priceValue,
+        city: cityValue,
+        sub_city: formData.subCity || profile.sub_city || null,
+        provider_name: providerName,
+        provider_phone: storedPhone,
+        is_active: true,
+        is_visible: true,
+        is_paused: false,
+        approval_status: "approved",
+        allow_whatsapp: formData.allowWhatsApp !== false,
+      })
+        .select("id")
+        .single();
 
-  const filteredCategories = useMemo(() => {
-    if (!queryTrim) return [];
-    const ql = queryTrim.toLowerCase();
-    return categories.filter((c) => (c.name_ar || c.name).toLowerCase().includes(ql)).slice(0, 10);
-  }, [categories, queryTrim]);
+      if (error) throw error;
 
-  // Bottom sheets
-  // IMPORTANT: Do NOT mount two Drawers at the same time.
-  // On mobile, Radix/shadcn Drawers can crash (minified React error) when
-  // one Drawer is closing while another is mounting.
-  // We use a simple state machine so only one Drawer exists in the tree.
-  type ActiveSheet = "none" | "browse" | "providers" | "guide";
-  const [activeSheet, setActiveSheet] = useState<ActiveSheet>("none");
+      // Upload up to 5 images (free tier)
+      const maxImages = 5;
+      const files = imageFiles.slice(0, maxImages);
+      let coverUrl: string | null = null;
 
-  // 3) Guide drawer (global guidance cards)
-  const guideOpen = activeSheet === "guide";
-  const [activeGuideId, setActiveGuideId] = useState<string | null>(null);
-  const activeGuide = useMemo(() => {
-    if (!activeGuideId) return null;
-    return (guidesCards || []).find((g) => g.id === activeGuideId) || null;
-  }, [activeGuideId, guidesCards]);
+      if (created?.id && files.length > 0) {
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+          const imageId = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${i}`;
+          const path = `${user.id}/${created.id}/${imageId}.${ext}`;
 
-  function openGuide(guideId: string) {
-    setActiveGuideId(guideId);
-    setActiveSheet("guide");
-  }
+          const { error: uploadError } = await supabase.storage
+            .from("service-images")
+            .upload(path, file, {
+              cacheControl: "3600",
+              upsert: false,
+              contentType: file.type || undefined,
+            });
+          if (uploadError) throw uploadError;
 
-  // 1) Category browse (shows subcategories)
-  const browseOpen = activeSheet === "browse";
-  const [browseCategoryId, setBrowseCategoryId] = useState<string | null>(null);
+          const { data: publicData } = supabase.storage
+            .from("service-images")
+            .getPublicUrl(path);
 
-  const browseCategory = useMemo(() => {
-    if (!browseCategoryId) return null;
-    return categoriesById[browseCategoryId] || null;
-  }, [browseCategoryId, categoriesById]);
+          const publicUrl = publicData?.publicUrl || null;
+          if (!publicUrl) {
+            throw new Error("Missing public URL for uploaded image");
+          }
 
-  function openCategoryBrowse(categoryId: string) {
-    setBrowseCategoryId(categoryId);
-    setActiveSheet("browse");
-  }
+          // Insert row into service_images (types are not generated yet in this repo)
+          const { error: imgRowError } = await supabase
+            .from("service_images" as any)
+            .insert({
+              service_id: created.id,
+              url: publicUrl,
+              storage_path: path,
+              position: i + 1,
+            });
+          if (imgRowError) throw imgRowError;
 
-  // 2) Provider list sheet (for a selected subcategory)
-  const serviceSheetOpen = activeSheet === "providers";
-  const [initialProviderServiceId, setInitialProviderServiceId] = useState<string | null>(null);
-  const [selectedSubcategory, setSelectedSubcategory] = useState<{
-    id: string;
-    name: string;
-    name_ar?: string | null;
-    icon: LucideIcon;
-    color: string | null;
-  } | null>(null);
+          if (i === 0) coverUrl = publicUrl;
+        }
 
-  const selectedSheetService = useMemo(() => {
-    if (!selectedSubcategory) return null;
-    // Normalize category value to match exactly what's stored in services.category
-    const normalizedCategory = normalizeCategory(selectedSubcategory.name || "");
-    return {
-      id: selectedSubcategory.id,
-      titleKey: selectedSubcategory.name_ar || selectedSubcategory.name,
-      descKey: "",
-      // IMPORTANT: ServiceDetailSheet filters services.category by this value.
-      // Must match exactly what's saved in services.category (normalized subcategory.name from ServiceCreator).
-      category: normalizedCategory,
-      categoryName: selectedSubcategory.name,
-      categoryNameAr: selectedSubcategory.name_ar || undefined,
-      color: selectedSubcategory.color || "#888888",
-      icon: selectedSubcategory.icon,
-    };
-  }, [selectedSubcategory]);
+        // Backward-compat: keep services.image_url as cover image
+        if (coverUrl) {
+          await supabase.from("services").update({ image_url: coverUrl }).eq("id", created.id);
+        }
+      }
 
-  function openSubcategoryProviders(subcat: { id: string; name: string; name_ar?: string | null; icon: LucideIcon; color: string | null }, providerServiceId?: string | null) {
-    // DEV: Log subcategory being opened
-    if (import.meta.env?.DEV || import.meta.env?.MODE === "development") {
-      console.log("[Hub] Opening subcategory:", {
-        id: subcat.id,
-        name: subcat.name,
-        name_ar: subcat.name_ar || "(none)",
-        cityId: cityId || "(none)",
-        cityName: selectedCityName || "(none)",
+      toast.success(t.creator.serviceCreated, {
+        description: t.creator.serviceCreatedDesc,
       });
+
+      navigate("/profile");
+    } catch (error) {
+      console.error(error);
+      toast.error(isRTL ? "حدث خطأ أثناء إنشاء الخدمة" : "Error creating service");
+    } finally {
+      setIsSubmitting(false);
     }
-    setSelectedSubcategory(subcat);
-    setInitialProviderServiceId(providerServiceId || null);
-    setActiveSheet("providers");
-  }
+  };
 
-  // When selecting a subcategory from the browse sheet, we must close/unmount the browse Drawer
-  // before mounting the provider Drawer. Otherwise mobile browsers can crash.
-  const [pendingSubcategory, setPendingSubcategory] = useState<{
-    id: string;
-    name: string;
-    name_ar?: string | null;
-    icon: LucideIcon;
-    color: string | null;
-  } | null>(null);
-
-  useEffect(() => {
-    if (activeSheet !== "none") return;
-    if (!pendingSubcategory) return;
-
-    // Browse sheet is unmounted now; safe to open providers.
-    openSubcategoryProviders(pendingSubcategory);
-    setPendingSubcategory(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSheet, pendingSubcategory]);
-
-  // Shelves data (category shelves load subcategories)
-  const [subcatsByShelfId, setSubcatsByShelfId] = useState<Record<string, SubcategoryRow[]>>({});
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function run() {
-      const next: Record<string, SubcategoryRow[]> = {};
-      for (const shelf of shelves) {
-        if (shelf.shelf_type !== "category") continue;
-        if (!shelf.category_id) continue;
-
-        const cat = categoriesById[shelf.category_id];
-        if (!cat) continue;
-
-        const rows = await fetchShelfSubcategories({
-          categoryId: shelf.category_id,
-          limit: Math.max(1, shelf.max_items || 10),
-        });
-
-        if (cancelled) return;
-        next[shelf.id] = rows;
-      }
-
-      if (!cancelled) setSubcatsByShelfId(next);
-    }
-
-    run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [shelves, categoriesById]);
-
-  // Services grid (Top 8 MAIN categories)
-  const gridCategories = useMemo(() => {
-    const configured = (topCategoryIds || [])
-      .map((id) => categoriesById[id])
-      .filter(Boolean);
-    if (configured.length === 8) return configured;
-    // fallback: first 8 active categories
-    return categories.slice(0, 8);
-  }, [topCategoryIds, categoriesById, categories]);
-
-  
-  // Auto-pick first active city when none selected (removes "All cities" option).
-  useEffect(() => {
-    if (cityId) return;
-    const first = (citiesData || [])
-      .filter((c: any) => c.is_active)
-      .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))[0];
-    if (first?.id) setCityId(first.id);
-  }, [cityId, citiesData, setCityId]);
-
-  const t = (ar: string, en: string) => (language === "ar" ? ar : en);
-
-  // City label (no "All cities" option; auto-picks first city)
-  const cityLabel = selectedCity ? (selectedCity.name_ar || selectedCity.name) : t("اختر المدينة", "Choose a city");
-
-  // Header must stay frozen even if parent containers use overflow/transform.
-  // Using position:fixed + measured spacer is more reliable than sticky in complex layouts.
-  const headerRef = useRef<HTMLDivElement | null>(null);
-  const [headerHeight, setHeaderHeight] = useState(0);
-
-  // Measure the fixed header height so content below doesn't get hidden under it.
-  useLayoutEffect(() => {
-    const el = headerRef.current;
-    if (!el) return;
-
-    const measure = () => {
-      // +1px safety to avoid overlap on some mobile browsers.
-      setHeaderHeight(el.offsetHeight + 1);
-    };
-
-    measure();
-
-    const ro = new ResizeObserver(() => measure());
-    ro.observe(el);
-
-    window.addEventListener("resize", measure);
-    return () => {
-      window.removeEventListener("resize", measure);
-      ro.disconnect();
-    };
-  }, [language, isRTL, cityId, query, announcements.length, chips.length]);
-
+  const remainingSlots = Math.max(0, 5 - imageFiles.length);
 
   return (
-    <div className={`min-h-screen bg-background pb-20 overflow-x-hidden ${isRTL ? "rtl" : ""}`}>
-      {/* Sticky top: Header + Search/City + Chips */}
-      <div ref={headerRef} className="fixed top-0 left-0 right-0 w-full z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70 pt-4 space-y-4 pb-3 border-b border-border shadow-sm">
-        <div className="mx-auto max-w-3xl px-4">
-          {/* Header */}
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className={`text-xl font-semibold leading-tight ${isRTL ? "text-right" : "text-left"}`}>{t("شن تحتاج اليوم؟", "What do you need today?")}</div>
-              <div className={`text-sm text-muted-foreground ${isRTL ? "text-right" : "text-left"}`}>{t("ابحث وتواصل مباشرة", "Search and contact directly")}</div>
+    <Layout>
+      <div className="container py-6 max-w-lg mx-auto">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 rounded-full bg-primary/10 mx-auto mb-4 flex items-center justify-center">
+            <span className="text-3xl">✨</span>
+          </div>
+          <h1 className="text-2xl font-bold text-foreground">{t.creator.title}</h1>
+          <p className="text-muted-foreground mt-1">{t.creator.subtitle}</p>
+        </div>
+
+        {/* Photos (free tier: up to 5) */}
+        <div className="mb-6">
+          <Label className="block mb-2">{isRTL ? "صور الخدمة" : "Service Photos"}</Label>
+
+          <div className={cn("rounded-xl border bg-card p-3", imageFiles.length ? "" : "border-dashed")}> 
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-sm text-muted-foreground">
+                {isRTL ? "الخطة المجانية: حتى 5 صور" : "Free plan: up to 5 photos"}
+              </div>
+
+              <div>
+                <Button type="button" variant="outline" size="sm" disabled={remainingSlots <= 0 || isSubmitting} asChild>
+                  <label className={cn("cursor-pointer", remainingSlots <= 0 && "cursor-not-allowed")}> 
+                    <span className="inline-flex items-center gap-2">
+                      <ImagePlus className="h-4 w-4" />
+                      {isRTL ? "إضافة صور" : "Add photos"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => onPickImages(e.target.files)}
+                      disabled={remainingSlots <= 0 || isSubmitting}
+                      aria-label={isRTL ? "اختر صور الخدمة" : "Select service photos"}
+                    />
+                  </label>
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <LanguageToggle />
-              <ThemeToggle />
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label="Notifications"
-                    onClick={() => {
-                      if (!user) {
-                        toast({
-                          title: t("سجّل دخولك", "Sign in"),
-                          description: t("سجّل دخولك لرؤية الإشعارات", "Sign in to view notifications"),
-                        });
-                      }
-                    }}
-                    className="relative h-9 w-9 rounded-full hover:bg-muted transition-colors flex items-center justify-center"
-                  >
-                    <Bell className="h-5 w-5" />
-                    {user && unreadCount && unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
-                        {unreadCount > 9 ? "9+" : unreadCount}
-                      </span>
+
+            {imagePreviews.length > 0 && (
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {imagePreviews.map((src, idx) => (
+                  <div key={src} className="relative rounded-lg overflow-hidden border bg-muted">
+                    {/* Cover badge */}
+                    {idx === 0 && (
+                      <div className="absolute top-1 left-1 z-10 text-[10px] px-2 py-0.5 rounded-full bg-black/70 text-white">
+                        {isRTL ? "الغلاف" : "Cover"}
+                      </div>
                     )}
-                  </button>
-                </PopoverTrigger>
 
-                {user && (
-                  <PopoverContent
-                    align={isRTL ? "start" : "end"}
-                    className="w-80 p-0 bg-popover border-border"
-                  >
-                    <div className="p-3 border-b flex items-center justify-between">
-                      <h3 className="font-semibold text-sm">{t("الإشعارات", "Notifications")}</h3>
+                    <img src={src} alt="" className="h-24 w-full object-cover" />
 
-                      {unreadCount && unreadCount > 0 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => markAllAsRead.mutate()}
-                        >
-                          <CheckCheck className="h-3 w-3 mr-1" />
-                          {t("قراءة الكل", "Mark all read")}
-                        </Button>
-                      )}
+                    <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between gap-1">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="h-7 px-2 text-[11px]"
+                        onClick={() => makeCover(idx)}
+                        disabled={idx === 0 || isSubmitting}
+                      >
+                        {isRTL ? "تعيين كغلاف" : "Make cover"}
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => removeImage(idx)}
+                        disabled={isSubmitting}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
-
-                    <ScrollArea className="h-80">
-                      {!notifications || notifications.length === 0 ? (
-                        <div className="p-6 text-center text-muted-foreground text-sm">
-                          {t("لا توجد إشعارات", "No notifications")}
-                        </div>
-                      ) : (
-                        <div className="divide-y">
-                          {notifications.map((notification) => (
-                            <div
-                              key={notification.id}
-                              className={`p-3 hover:bg-muted cursor-pointer transition-colors ${
-                                !notification.is_read ? "bg-primary/10" : ""
-                              }`}
-                              onClick={() => {
-                                if (!notification.is_read) {
-                                  markAsRead.mutate(notification.id);
-                                }
-                              }}
-                            >
-                              <div className="flex items-start gap-2">
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-medium text-sm truncate">
-                                    {notification.message?.title || "Notification"}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
-                                    {notification.message?.content}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    {formatDistanceToNow(new Date(notification.created_at), {
-                                      addSuffix: true,
-                                    })}
-                                  </p>
-                                </div>
-
-                                {!notification.is_read && (
-                                  <div className="h-2 w-2 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </ScrollArea>
-                  </PopoverContent>
-                )}
-              </Popover>
-            </div>
-          </div>
-
-          {/* Search + City */}
-          <div className="space-y-2">
-            {/* Option 1: City inside search row */}
-            <div className={`flex items-center gap-2 ${isRTL ? "flex-row-reverse" : ""}`}
-            >
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="h-10 px-3 rounded-xl shrink-0 justify-between gap-2"
-                  >
-                    <span className="max-w-[7.5rem] truncate">{cityLabel}</span>
-                    <ChevronDown className="h-4 w-4 opacity-70" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-2">
-                  <div className="space-y-1 max-h-64 overflow-auto">
-                    {(citiesData || [])
-                      .filter((c) => c.is_active)
-                      .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
-                      .map((c) => (
-                        <Button
-                          key={c.id}
-                          variant={cityId === c.id ? "default" : "ghost"}
-                          className="w-full justify-start"
-                          onClick={() => setCityId(c.id)}
-                        >
-                          {c.name_ar || c.name}
-                        </Button>
-                      ))}
                   </div>
-                </PopoverContent>
-              </Popover>
-
-              <div className="relative flex-1">
-                <Search
-                  className={`absolute top-3 h-4 w-4 text-muted-foreground ${isRTL ? "right-3" : "left-3"}`}
-                />
-                <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  className={`${isRTL ? "pr-9" : "pl-9"} h-10 rounded-xl`}
-                  placeholder={t("ابحث عن خدمة… كهرباء، سباكة، تكييف", "Search services… electricity, plumbing, AC")}
-                />
+                ))}
               </div>
-            </div>
-
-            {activeAnnouncement && (
-              <div className="rounded-2xl border border-border bg-muted/30 px-4 py-3">
-                <div className="text-sm text-muted-foreground">📢 📢 {activeAnnouncement.message}</div>
-              </div>
-            )}
-
-            {/* Search results (category matches) */}
-            {queryTrim && (
-              <Card>
-                <CardContent className="p-2 space-y-1">
-                {filteredCategories.length === 0 ? (
-                  <div className="text-sm text-muted-foreground p-2">{t("لا توجد نتائج", "No results")}</div>
-                ) : (
-                  filteredCategories.map((c) => (
-                    <Button
-                      key={c.id}
-                      variant="ghost"
-                      className="w-full justify-start"
-                      onClick={() => {
-                        setQuery("");
-                        openCategoryBrowse(c.id);
-                      }}
-                    >
-                      {c.name_ar || c.name}
-                    </Button>
-                  ))
-                )}
-                </CardContent>
-              </Card>
             )}
           </div>
+        </div>
 
-          {/* Chips (admin-controlled, subcategories) */}
-          {chips.length > 0 && (
-            <ScrollArea className="w-full">
-              <div className="flex gap-4 pb-3 px-2">
-                {chips.map((chip) => {
-                  const label = (language === "ar" ? chip.label_ar : chip.label_en) || chip.label_ar || chip.label_en || "";
-                  if (!label) return null;
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="category-select" className={cn(isRTL ? "text-right block" : "text-left block")}>{t.creator.category}</Label>
+            <Select
+              value={formData.category}
+              onValueChange={(value) => setFormData({ ...formData, category: value, subcategory: "" })}
+            >
+              <SelectTrigger id="category-select" className="rounded-xl h-12" aria-label={t.creator.category}>
+                <SelectValue placeholder={t.creator.selectCategory} />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border z-50">
+                {categories?.map((cat) => {
+                  const Icon = getCategoryIcon(cat.icon);
+                  const displayName = language === "ar" && cat.name_ar ? cat.name_ar : cat.name;
                   return (
-                    <Button
-                      key={chip.id}
-                      variant="secondary"
-                      className="rounded-full shrink-0 px-4"
-                      onClick={() => {
-                        if (chip.target_type === "category" && chip.target_category_id) {
-                          openCategoryBrowse(chip.target_category_id);
-                        } else if (chip.target_type === "subcategory" && chip.target_subcategory_id) {
-                          const sc = (allSubcategories || []).find((s) => s.id === chip.target_subcategory_id);
-                          if (!sc) return;
-                          const Icon = ICON_MAP[sc.icon] || Wrench;
-                          openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color });
-                        } else if (chip.target_type === "shelf" && chip.target_shelf_id) {
-                          const el = chip.target_shelf_id === "featured-services"
-                            ? document.getElementById("featured-services")
-                            : document.getElementById(`shelf-${chip.target_shelf_id}`);
-                          el?.scrollIntoView({ behavior: "smooth", block: "start" });
-                        }
-                      }}
+                    <SelectItem key={cat.id} value={cat.id}>
+                      <div className="flex items-center gap-2">
+                        <Icon className="h-4 w-4" />
+                        <span>{displayName}</span>
+                      </div>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label className={cn("flex items-center gap-2", isRTL ? "flex-row-reverse justify-end" : "")}>
+              <MapPin className="h-4 w-4" />
+              {isRTL ? "المدينة" : "City"} <span className="text-destructive">*</span>
+            </Label>
+            <Select
+              value={formData.cityId || profile?.city_id || "none"}
+              onValueChange={(value) =>
+                setFormData({ ...formData, cityId: value === "none" ? "" : value, subCity: "" })
+              }
+            >
+              <SelectTrigger className="rounded-xl h-12">
+                <SelectValue placeholder={isRTL ? "اختر مدينتك" : "Select your city"} />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border z-50">
+                <SelectItem value="none">{isRTL ? "-- اختر مدينة --" : "-- Select city --"}</SelectItem>
+                {cities?.map((city) => (
+                  <SelectItem key={city.id} value={city.id}>
+                    {language === "ar" && city.name_ar ? city.name_ar : city.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {isRTL ? "يساعد العملاء على إيجادك" : "Helps customers find you"}
+            </p>
+          </div>
+
+          {(formData.cityId || profile?.city_id) && subCities && subCities.length > 0 && (
+            <div className="space-y-2">
+              <Label className={cn("flex items-center gap-2", isRTL ? "flex-row-reverse justify-end" : "")}>
+                <MapPin className="h-4 w-4" />
+                {isRTL ? "المنطقة" : "Area"}
+              </Label>
+              <Select
+                value={formData.subCity || "none"}
+                onValueChange={(value) => setFormData({ ...formData, subCity: value === "none" ? "" : value })}
+              >
+                <SelectTrigger className="rounded-xl h-12">
+                  <SelectValue placeholder={isRTL ? "اختر منطقتك" : "Select your area"} />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border z-50">
+                  <SelectItem value="none">{isRTL ? "-- اختر منطقة --" : "-- Select area --"}</SelectItem>
+                  {subCities.map((sc) => {
+                    const label = language === "ar" && sc.name_ar ? sc.name_ar : sc.name;
+                    return (
+                      <SelectItem key={sc.id} value={label}>
+                        {label}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {selectedCategory && subcategories && subcategories.length > 0 && (
+            <div className="space-y-2">
+              <Label className={cn(isRTL ? "text-right block" : "text-left block")}>
+                {isRTL ? "نوع الخدمة" : "Service Type"}
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                {subcategories.map((sub) => {
+                  const SubIcon = getCategoryIcon(sub.icon);
+                  const isSelected = formData.subcategory === sub.id;
+                  const displayName = language === "ar" && sub.name_ar ? sub.name_ar : sub.name;
+                  return (
+                    <button
+                      key={sub.id}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, subcategory: sub.id })}
+                      className={cn(
+                        "flex items-center gap-2 p-3 rounded-xl border transition-colors",
+                        isSelected
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border hover:border-primary/50",
+                      )}
                     >
-                      {label}
-                    </Button>
+                      <SubIcon className="h-5 w-5" />
+                      <span className="text-sm font-medium">{displayName}</span>
+                    </button>
                   );
                 })}
               </div>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
-            )}
-          </div>
-
-      </div>
-
-      {/* Spacer for fixed header */}
-      <div style={{ height: headerHeight }} aria-hidden="true" />
-
-      {/* Everything below the fixed header scrolls normally */}
-      <div className="mx-auto max-w-3xl px-4 pt-4 space-y-4">
-
-        {/* Banner carousel (manual first; autoplay after interaction; isolated) */}
-        <BannerCarousel
-          banners={banners as any}
-          publicUrlsById={publicUrlsById as any}
-          allSubcategories={(allSubcategories || []) as any}
-          iconMap={ICON_MAP as any}
-          onOpenCategory={openCategoryBrowse}
-          onOpenSubcategory={openSubcategoryProviders as any}
-          onScrollToShelf={(shelfId) => {
-            const el = shelfId === "featured-services"
-              ? document.getElementById("featured-services")
-              : document.getElementById(`shelf-${shelfId}`);
-            el?.scrollIntoView({ behavior: "smooth", block: "start" });
-          }}
-        />
-
-        {/* Services (MAIN categories) grid - exactly 8 */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="text-base font-semibold">{t("الخدمات", "Categories")}</div>
-          </div>
-
-          {categoriesLoading ? (
-            <div className="text-sm text-muted-foreground">Loading...</div>
-          ) : categoriesError ? (
-            <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-              {t("تعذر تحميل الأقسام. حاول مرة أخرى.", "Couldn't load categories. Please try again.")}
             </div>
-          ) : gridCategories.length === 0 ? (
-            <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-              {t("لا توجد أقسام متاحة حالياً.", "No categories available right now.")}
-            </div>
-          ) : (
-            <div className="grid grid-cols-4 gap-3">
-              {gridCategories.map((c) => {
-                const Icon = ICON_MAP[c.icon] || Wrench;
-                return (
-                  <button
-                    key={c.id}
-                    className="flex flex-col items-center gap-2 rounded-xl border bg-card p-3 hover:bg-accent transition"
-                    onClick={() => openCategoryBrowse(c.id)}
-                  >
-                    <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ backgroundColor: c.color + "22" }}>
-                      <Icon className="h-6 w-6" />
-                    </div>
-                    <div className="text-xs text-center leading-tight line-clamp-2">{c.name_ar || c.name}</div>
-                  </button>
-                );
-              })}
-            </div>
-            )}
-          </div>
+          )}
 
-        {/* Featured providers/services (horizontal) */}
-        {featuredServices.length > 0 && (
-          <div className="space-y-2" id="featured-providers">
-            <div className="flex items-center justify-between">
-              <div className="text-base font-semibold">{t("مزودين مميزين", "Featured providers")}</div>
-              <div className="text-xs text-muted-foreground">{featuredServices.length}</div>
-            </div>
-
-            <div
+          <div className="space-y-2">
+            <Label htmlFor="service-name-input" className={cn(isRTL ? "text-right block" : "text-left block")}>{t.creator.serviceName}</Label>
+            <Input
+              id="service-name-input"
+              value={formData.serviceName}
+              onChange={(e) => setFormData({ ...formData, serviceName: e.target.value })}
+              placeholder={t.creator.serviceNamePlaceholder}
+              className={cn("rounded-xl h-12", isRTL ? "text-right" : "text-left")}
               dir={isRTL ? "rtl" : "ltr"}
-              className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x snap-mandatory"
-              style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
-            >
-              {featuredServices.map((p) => (
-                <div
-                  key={p.id}
-                  role="button"
-                  tabIndex={0}
-                  className="shrink-0 w-[68vw] max-w-[320px] snap-center cursor-pointer focus:outline-none"
-                  onClick={() => {
-                    const subcat = subcatByName.get(String(p.category || "").trim());
-                    if (!subcat) {
-                      toast({ title: t("تعذر فتح الخدمة", "Could not open"), description: t("هذه الخدمة غير مرتبطة بتصنيف معروف", "This service category is not linked to a known subcategory"), variant: "destructive" });
-                      return;
-                    }
-                    openSubcategoryProviders(subcat, p.id);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key !== "Enter" && e.key !== " ") return;
-                    const subcat = subcatByName.get(String(p.category || "").trim());
-                    if (!subcat) return;
-                    openSubcategoryProviders(subcat, p.id);
-                  }}
-                >
-                  <div className="rounded-2xl border bg-card overflow-hidden shadow-sm active:scale-[0.99] transition-transform">
-                    <div className="h-[110px] bg-muted">
-                      {p.image_url ? (
-                        <img src={p.image_url} alt="" className="h-full w-full object-cover" loading="lazy" />
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center text-muted-foreground text-sm">
-                          {t("بدون صورة", "No photo")}
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-3" dir="rtl">
-                      <div className="font-semibold text-sm text-foreground line-clamp-1">
-                        {p.provider_name || t("مزود", "Provider")}
-                      </div>
-                      <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
-                        {p.title}
-                      </div>
-                      <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
-                        <span className="line-clamp-1">{p.city || ""}</span>
-                        <span className="line-clamp-1">{p.sub_city || ""}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+              aria-label={t.creator.serviceName}
+              maxLength={100}
+            />
+            <p className="text-xs text-muted-foreground">{formData.serviceName.length}/100</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label className={cn(isRTL ? "text-right block" : "text-left block")}>{t.creator.bio}</Label>
+            <Textarea
+              value={formData.bio}
+              onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+              placeholder={t.creator.bioPlaceholder}
+              className={cn("min-h-[120px] rounded-xl resize-none", isRTL ? "text-right" : "text-left")}
+              dir={isRTL ? "rtl" : "ltr"}
+              maxLength={1000}
+            />
+            <p className="text-xs text-muted-foreground">{formData.bio.length}/1000</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="price-input" className={cn(isRTL ? "text-right block" : "text-left block")}>
+              {isRTL ? "السعر (اختياري)" : "Price (optional)"}
+            </Label>
+            <div className="relative">
+              <Input
+                id="price-input"
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.price}
+                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                placeholder={isRTL ? "أدخل السعر" : "Enter price"}
+                className={cn("rounded-xl h-12", isRTL ? "text-right pr-16" : "text-left pl-16")}
+                dir={isRTL ? "rtl" : "ltr"}
+                aria-label={isRTL ? "السعر" : "Price"}
+              />
+              <span className={cn(
+                "absolute top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium",
+                isRTL ? "left-4" : "right-4"
+              )}>
+                {isRTL ? "د.ل" : "LYD"}
+              </span>
             </div>
+            <p className="text-xs text-muted-foreground">
+              {isRTL ? "اترك فارغاً إذا لم يكن هناك سعر محدد" : "Leave empty if no fixed price"}
+            </p>
           </div>
-        )}
 
-        {/* Featured services (subcategories) - cards */}
-        {featuredSubcats.length > 0 && (
-          <HorizontalSection
-            id="featured-services"
-            title={t("الخدمات المميزة", "Featured services")}
-            count={featuredSubcats.length}
-            isRTL={isRTL}
-          >
-            {featuredSubcats.slice(0, 6).map((sc) => {
-              const Icon = ICON_MAP[sc.icon] || Wrench;
-              return (
-                <button
-                  key={sc.id}
-                  className="shrink-0 w-[70vw] max-w-[340px] snap-center rounded-2xl border bg-card overflow-hidden shadow-sm hover:bg-accent transition"
-                  onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
-                >
-                  <div className="p-4" dir="rtl">
-                    <div className="flex items-center gap-3">
-                      <div className="h-12 w-12 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: (sc.color || "#888") + "22" }}>
-                        <Icon className="h-6 w-6" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="font-semibold text-sm line-clamp-1">{sc.name_ar || sc.name}</div>
-                        <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
-                          {t("اضغط لعرض المزودين", "Tap to view providers")}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </HorizontalSection>
-        )}
-
-        {/* Most demanded services (SYSTEM) - cards */}
-        {
-          <HorizontalSection
-            id="most-demanded-services"
-            title={t("الأكثر طلباً", "Most demanded")}
-            count={mostDemandedLoading ? null : mostDemandedRows.length}
-            isRTL={isRTL}
-          >
-            {mostDemandedLoading && mostDemandedRows.length === 0
-              ? Array.from({ length: 6 }).map((_, i) => (
-                  <div
-                    key={`demanded-placeholder-${i}`}
-                    className="shrink-0 w-[70vw] max-w-[340px] snap-center rounded-2xl border bg-card overflow-hidden"
-                  >
-                    <div className="p-4" dir="rtl">
-                      <div className="h-4 w-40 rounded bg-muted" />
-                      <div className="mt-3 h-3 w-56 rounded bg-muted" />
-                      <div className="mt-2 h-3 w-44 rounded bg-muted" />
-                    </div>
-                  </div>
-                ))
-              : mostDemandedRows.length === 0
-                ? (
-                    <div className="shrink-0 w-[70vw] max-w-[340px] snap-center rounded-2xl border bg-card overflow-hidden">
-                      <div className="p-4" dir="rtl">
-                        <div className="font-semibold text-sm">{t("لا توجد بيانات بعد", "No data yet")}</div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {t("سيظهر هذا القسم تلقائياً بعد تفاعل المستخدمين (مشاهدات/اتصالات)", "This will appear automatically once users interact (views/calls).")}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                : mostDemandedRows.slice(0, 6).map((p) => (
-                  <div
-                    key={p.id}
-                    role="button"
-                    tabIndex={0}
-                    className="shrink-0 w-[70vw] max-w-[340px] snap-center cursor-pointer focus:outline-none"
-                    style={{ touchAction: "manipulation" }}
-                    onClick={() => {
-                      const subcat = subcatByName.get(String(p.category || "").trim());
-                      if (!subcat) {
-                        toast({
-                          title: t("تعذر فتح الخدمة", "Could not open"),
-                          description: t("هذه الخدمة غير مرتبطة بتصنيف معروف", "This service category is not linked to a known subcategory"),
-                          variant: "destructive",
-                        });
-                        return;
-                      }
-                      openSubcategoryProviders(subcat, p.id);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key !== "Enter" && e.key !== " ") return;
-                      const subcat = subcatByName.get(String(p.category || "").trim());
-                      if (!subcat) return;
-                      openSubcategoryProviders(subcat, p.id);
-                    }}
-                  >
-                    <div className="rounded-2xl border bg-card overflow-hidden shadow-sm active:scale-[0.99] transition-transform">
-                      <div className="h-[110px] bg-muted">
-                        {p.image_url ? (
-                          <img src={p.image_url} alt="" className="h-full w-full object-cover" loading="lazy" />
-                        ) : (
-                          <div className="h-full w-full flex items-center justify-center text-muted-foreground text-sm">
-                            {t("بدون صورة", "No photo")}
-                          </div>
-                        )}
-                      </div>
-                      <div className="p-3" dir="rtl">
-                        <div className="font-semibold text-sm text-foreground line-clamp-1">
-                          {p.provider_name || t("مزود", "Provider")}
-                        </div>
-                        <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{p.title}</div>
-                        <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
-                          <span className="line-clamp-1">{p.city || ""}</span>
-                          <span className="line-clamp-1">{p.sub_city || ""}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-          </HorizontalSection>
-        }
-
-        {/* Guides (global) - cards + drawer */}
-        <HorizontalSection
-          id="guides"
-          title={t("نصائح قبل ما تتصل", "Guides")}
-          count={null}
-          isRTL={isRTL}
-        >
-          {guidesLoading && guidesCards.length === 0
-            ? Array.from({ length: 4 }).map((_, i) => (
-                <div
-                  key={`guide-placeholder-${i}`}
-                  className="shrink-0 w-[70vw] max-w-[340px] snap-center rounded-2xl border bg-card overflow-hidden"
-                >
-                  <div className="p-4" dir="rtl">
-                    <div className="h-4 w-44 rounded bg-muted" />
-                    <div className="mt-3 h-3 w-56 rounded bg-muted" />
-                    <div className="mt-2 h-3 w-48 rounded bg-muted" />
-                  </div>
-                </div>
-              ))
-            : guidesCards.slice(0, 4).map((g) => (
-                <MiniInfoCard
-                  key={g.id}
-                  title={g.title}
-                  line1={g.summaryLines[0]}
-                  line2={g.summaryLines[1]}
-                  Icon={g.icon}
-                  onClick={() => openGuide(g.id)}
-                />
-              ))}
-        </HorizontalSection>
-
-        {/* Shelves (admin-controlled) */}
-        <div className="space-y-6">
-          {shelves.map((shelf) => {
-            const cityOk = true;
-            if (!cityOk) return null;
-
-            if (shelf.shelf_type === "category") {
-              if (!shelf.category_id) return null;
-              const cat = categoriesById[shelf.category_id];
-              if (!cat) return null;
-              const subcats = subcatsByShelfId[shelf.id] || [];
-              if (subcats.length === 0) return null;
-
-              return (
-                <div key={shelf.id} className="space-y-2" id={`shelf-${shelf.id}`}>
-                  <div className="flex items-center justify-between">
-                    <div className="text-base font-semibold">{shelf.title_ar}</div>
-                    <Button variant="ghost" size="sm" onClick={() => openCategoryBrowse(cat.id)}>
-                      عرض الكل
-                    </Button>
-                  </div>
-
-                  <div
-                    dir={isRTL ? "rtl" : "ltr"}
-                    className="flex gap-3 overflow-x-auto pb-2"
-                    style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x pan-y" }}
-                  >
-                      {subcats.map((sc) => {
-                        const Icon = ICON_MAP[sc.icon] || Wrench;
-                        return (
-                        <button
-                          key={sc.id}
-                          className="shrink-0 w-[44%] md:w-[28%] rounded-xl border bg-card p-3 hover:bg-accent transition flex flex-col items-center gap-2"
-                          style={{ scrollSnapAlign: "start" }}
-                          onClick={() => openSubcategoryProviders({ id: sc.id, name: sc.name, name_ar: sc.name_ar, icon: Icon, color: sc.color })}
-                        >
-                          <div
-                            className="h-12 w-12 rounded-full flex items-center justify-center"
-                            style={{ backgroundColor: (sc.color || "#888") + "22" }}
-                          >
-                            <Icon className="h-6 w-6" />
-                          </div>
-                          <div className="text-xs text-center leading-tight line-clamp-2">{sc.name_ar || sc.name}</div>
-                        </button>
-                        );
-                      })}
-                  </div>
-                </div>
-              );
-            }
-
-            // Manual shelf: primarily curated *subcategories*.
-            // Backward compatibility: if some rows still have category_id, we show category tiles.
-            const items = itemsByShelf[shelf.id] || [];
-
-            const subcats = (items
-              .map((it) => {
-                const sid = (it as any).subcategory_id as string | null | undefined;
-                if (!sid) return null;
-                return (allSubcategories || []).find((s) => s.id === sid) || null;
-              })
-              .filter(Boolean) as any[]) as SubcategoryRow[];
-
-            const catsFallback = items
-              .map((it) => {
-                const cid = (it as any).category_id as string | null | undefined;
-                if (!cid) return null;
-                return categoriesById[cid] || null;
-              })
-              .filter(Boolean) as any[];
-
-            if (subcats.length === 0 && catsFallback.length === 0) return null;
-
-            return (
-              <div key={shelf.id} className="space-y-2" id={`shelf-${shelf.id}`}>
-                <div className="flex items-center justify-between">
-                  <div className="text-base font-semibold">{shelf.title_ar}</div>
-                </div>
-
-                <div
-                  dir={isRTL ? "rtl" : "ltr"}
-                  className="flex gap-3 overflow-x-auto pb-2"
-                  style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" as any }}
-                >
-                    {subcats.map((s) => {
-                      const Icon = ICON_MAP[s.icon] || Wrench;
-                      return (
-                        <button
-                          key={s.id}
-                          className="shrink-0 w-[34%] md:w-[22%] rounded-xl border bg-card p-3 hover:bg-accent transition flex flex-col items-center gap-2"
-                          style={{ scrollSnapAlign: "start" }}
-                          onClick={() => openSubcategoryProviders({ id: s.id, name: s.name, name_ar: s.name_ar, icon: Icon, color: s.color })}
-                        >
-                          <div
-                            className="h-12 w-12 rounded-full flex items-center justify-center"
-                            style={{ backgroundColor: (s.color || "#888") + "22" }}
-                          >
-                            <Icon className="h-6 w-6" />
-                          </div>
-                          <div className="text-xs text-center leading-tight line-clamp-2">{s.name_ar || s.name}</div>
-                        </button>
-                      );
-                    })}
-
-                    {catsFallback.map((c) => {
-                      const Icon = ICON_MAP[c.icon] || Wrench;
-                      return (
-                        <button
-                          key={c.id}
-                          className="shrink-0 w-[34%] md:w-[22%] rounded-xl border bg-card p-3 hover:bg-accent transition flex flex-col items-center gap-2"
-                          style={{ scrollSnapAlign: "start" }}
-                          onClick={() => openCategoryBrowse(c.id)}
-                        >
-                          <div
-                            className="h-12 w-12 rounded-full flex items-center justify-center"
-                            style={{ backgroundColor: (c.color || "#888") + "22" }}
-                          >
-                            <Icon className="h-6 w-6" />
-                          </div>
-                          <div className="text-xs text-center leading-tight line-clamp-2">{c.name_ar || c.name}</div>
-                        </button>
-                      );
-                    })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Footer links */}
-        <div className="pt-6 pb-2 border-t text-sm text-muted-foreground space-y-3">
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            <a className="hover:text-foreground" href="/about">{t("من نحن", "About Us")}</a>
-            <a className="hover:text-foreground" href="/help">{t("مركز المساعدة", "Help Center")}</a>
-            <a className="hover:text-foreground" href="/become-provider">{t("انضم كمزود خدمة", "Become a Provider")}</a>
+          <div className={cn("flex items-center justify-between gap-3 rounded-xl border p-4", isRTL ? "flex-row-reverse" : "")}>
+            <div className="space-y-0.5">
+              <Label htmlFor="allow-whatsapp-create">{isRTL ? "السماح بالتواصل عبر واتساب" : "Allow WhatsApp"}</Label>
+              <p className="text-xs text-muted-foreground">{isRTL ? "إذا أغلقتها، زر واتساب سيختفي للزبائن" : "When off, the WhatsApp button will be hidden for customers"}</p>
+            </div>
+            <Switch id="allow-whatsapp-create" checked={formData.allowWhatsApp !== false} onCheckedChange={(checked) => setFormData({ ...formData, allowWhatsApp: checked })} />
           </div>
-          <div className="flex gap-4 text-xs">
-            <a className="hover:text-foreground" href="/terms">{t("الشروط", "Terms")}</a>
-            <a className="hover:text-foreground" href="/privacy">{t("الخصوصية", "Privacy")}</a>
-          </div>
-        </div>
+
+          <Button type="submit" disabled={isSubmitting} className="w-full rounded-full h-12 text-base">
+            {isSubmitting ? t.common.loading : t.creator.createService}
+          </Button>
+        </form>
       </div>
-
-      {activeSheet === "browse" && (
-        <CategoryBrowseSheet
-          open={true}
-          onOpenChange={(open) => {
-            if (!open) {
-              setActiveSheet("none");
-              setBrowseCategoryId(null);
-            }
-          }}
-          category={browseCategory}
-          iconMap={ICON_MAP}
-          onSelectSubcategory={(subcat) => {
-            // Close/unmount browse sheet first; provider sheet opens via pendingSubcategory effect.
-            setPendingSubcategory(subcat);
-            setActiveSheet("none");
-            setBrowseCategoryId(null);
-          }}
-        />
-      )}
-
-      {activeSheet === "providers" && selectedSheetService && (
-        <SafeBoundary
-          onError={(err) => {
-            console.error("ServiceDetailSheet crashed:", err);
-            toast({
-              title: t("تعذر فتح التفاصيل", "Could not open details"),
-              description: t(
-                "حدث خطأ أثناء فتح تفاصيل الخدمة. تم إغلاق النافذة لتجنب تعليق التطبيق.",
-                "An error occurred while opening details. The sheet was closed to keep the app stable."
-              ),
-              variant: "destructive",
-            });
-            setActiveSheet("none");
-            setInitialProviderServiceId(null);
-          }}
-        >
-          <ServiceDetailSheet
-            open={true}
-            onOpenChange={(open) => {
-              if (!open) {
-                setActiveSheet("none");
-                setInitialProviderServiceId(null);
-              }
-            }}
-            city={selectedCityName}
-            service={selectedSheetService}
-            initialProviderServiceId={initialProviderServiceId}
-          />
-        </SafeBoundary>
-      )}
-
-      {activeSheet === "guide" && activeGuide && (
-        <Drawer
-          open={true}
-          onOpenChange={(open) => {
-            if (!open) {
-              setActiveSheet("none");
-              setActiveGuideId(null);
-            }
-          }}
-        >
-          <DrawerContent>
-            <DrawerHeader className="text-left" dir="rtl">
-              <div className="flex items-start justify-between gap-3">
-                <DrawerTitle className="text-base">{activeGuide.title}</DrawerTitle>
-                <button
-                  type="button"
-                  aria-label="Close"
-                  className="h-9 w-9 rounded-full hover:bg-muted transition flex items-center justify-center"
-                  onClick={() => {
-                    setActiveSheet("none");
-                    setActiveGuideId(null);
-                  }}
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-            </DrawerHeader>
-
-            <div className="px-4 pb-6" dir="rtl">
-              <ul className="space-y-2 text-sm">
-                {activeGuide.bullets.slice(0, 6).map((b, idx) => (
-                  <li key={`${activeGuide.id}-b-${idx}`} className="flex gap-2">
-                    <span className="mt-1 h-2 w-2 rounded-full bg-muted-foreground/60 shrink-0" />
-                    <span className="text-foreground/90 leading-relaxed">{b}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </DrawerContent>
-        </Drawer>
-      )}
-
-      <MobileNav />
-    </div>
+    </Layout>
   );
 }

@@ -1,3 +1,4 @@
+import { MOBILE_NAV_HEIGHT_PX } from "@/constants/layout";
 import { Header } from "./Header";
 import { MobileNav } from "./MobileNav";
 import { PageTransition } from "./PageTransition";
@@ -20,7 +21,8 @@ export function Layout({
 
   return (
     <div
-      className="min-h-screen flex flex-col touch-manipulation no-tap-highlight bg-background pb-16"
+      className="min-h-screen flex flex-col touch-manipulation no-tap-highlight bg-background"
+      style={{ paddingBottom: `calc(${MOBILE_NAV_HEIGHT_PX}px + env(safe-area-inset-bottom, 0px))` }}
       dir={isRTL ? "rtl" : "ltr"}
     >
       {shouldShowHeader && <Header />}

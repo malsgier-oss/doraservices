@@ -1,8 +1,8 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { TablesInsert } from "@/integrations/supabase/types";
-import { cleanPhoneForStorage, phoneToInternalEmail, isValidLibyanPhone } from "@/lib/phoneUtils";
+import { cleanPhoneForStorage, isValidLibyanPhone, libyaPhoneToE164 } from "@/lib/phoneUtils";
 
 const isProviderLike = (role: string) => {
   const r = (role || "").toLowerCase();
@@ -32,6 +32,10 @@ interface Profile {
   availability_status?: string | null;
   availability_updated_at?: string | null;
 
+  // Marketplace Controls
+  provider_mode?: boolean;
+  marketplace_enabled?: boolean;
+
   created_at: string;
   updated_at: string;
 }
@@ -43,18 +47,19 @@ interface AuthContextType {
   loading: boolean;
   profileLoading: boolean;
 
-  signUp: (
+  requestOtp: (phone: string) => Promise<{ error: Error | null }>;
+  verifyOtp: (
     phone: string,
-    password: string,
-    fullName: string,
-    cityId: string,
-    cityName: string,
-  ) => Promise<{ error: Error | null }>;
+    code: string,
+  ) => Promise<{ data?: unknown; error: Error | null }>;
 
-  signIn: (phone: string, password: string) => Promise<{ error: Error | null }>;
+  // Used after OTP verify to fill/update profile fields (name, city, etc.)
+  updateProfileBasics: (overrides: EnsureOverrides) => Promise<{ error: Error | null }>;
+
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
+
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -71,6 +76,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
+  // Used to suppress app-level auth redirects during controlled auth flows (e.g., signup that we immediately sign out).
+  const ignoreAuthEventsRef = useRef(0);
 
   const ensureProfile = async (authUser: User, overrides?: EnsureOverrides): Promise<Profile | null> => {
     const { data: existing, error: fetchExistingError } = await supabase
@@ -94,40 +101,81 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const metaCityId = typeof meta.city_id === "string" ? (meta.city_id as string) : null;
     const metaCityName = typeof meta.city === "string" ? (meta.city as string) : null;
 
-    const payload: TablesInsert<"profiles"> = {
-      user_id: authUser.id,
-      full_name: overrides?.fullName ?? (existing ? undefined : metaFullName),
-      phone: overrides?.phone ?? (existing ? undefined : metaPhone),
-      city_id: overrides?.cityId ?? (existing ? undefined : metaCityId),
-      city: overrides?.cityName ?? (existing ? undefined : metaCityName),
-      // Dora P0: regular users should NOT have any provider state.
-      ...(existing ? {} : ({ role: "user", provider_status: null } as any)),
-    };
-
     if (existing) {
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          full_name: overrides?.fullName ?? undefined,
-          phone: overrides?.phone ?? undefined,
-          city_id: overrides?.cityId ?? undefined,
-          city: overrides?.cityName ?? undefined,
-          // If this user is not a provider, ensure provider_status stays null.
-          ...(overrides && !isProviderLike(String(existing.role || "user"))
-            ? ({ provider_status: null } as any)
-            : {}),
-        })
-        .eq("user_id", authUser.id);
+      // Profile exists - use update, but don't touch is_verified (it's already set by trigger or previous operations)
+      const updateData: any = {};
+      if (overrides?.fullName !== undefined) updateData.full_name = overrides.fullName;
+      if (overrides?.phone !== undefined) updateData.phone = overrides.phone;
+      if (overrides?.cityId !== undefined) updateData.city_id = overrides.cityId;
+      if (overrides?.cityName !== undefined) updateData.city = overrides.cityName;
+      
+      // If this user is not a provider, ensure provider_status stays null.
+      if (overrides && !isProviderLike(String(existing.role || "user"))) {
+        updateData.provider_status = null;
+      }
 
-      if (updateError) {
-        console.error("[ensureProfile] update error:", updateError);
-        return existing as Profile;
+      if (Object.keys(updateData).length > 0) {
+        const { error: updateError } = await supabase
+          .from("profiles")
+          .update(updateData)
+          .eq("user_id", authUser.id);
+
+        if (updateError) {
+          console.error("[ensureProfile] update error:", updateError);
+          return existing as Profile;
+        }
       }
     } else {
-      const { error: upsertError } = await supabase.from("profiles").upsert(payload, { onConflict: "user_id" });
-      if (upsertError) {
-        console.error("[ensureProfile] upsert error:", upsertError);
-        return null;
+      // Profile doesn't exist - create new one with is_verified = false
+      const insertPayload: TablesInsert<"profiles"> = {
+        user_id: authUser.id,
+        full_name: overrides?.fullName ?? metaFullName ?? null,
+        phone: overrides?.phone ?? metaPhone ?? null,
+        city_id: overrides?.cityId ?? metaCityId ?? null,
+        city: overrides?.cityName ?? metaCityName ?? null,
+        role: "user",
+        provider_status: null,
+        is_verified: false, // Explicitly set to false for new signups
+      };
+
+      const { error: insertError } = await supabase
+        .from("profiles")
+        .insert(insertPayload);
+
+      if (insertError) {
+        console.error("[ensureProfile] insert error:", insertError);
+        // If insert fails (e.g., profile was created by trigger between check and insert),
+        // try to fetch it and update instead
+        const { data: triggerCreated } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("user_id", authUser.id)
+          .maybeSingle();
+        
+        if (triggerCreated) {
+          // Profile was created by trigger, update it with our data
+          const updateData: any = {};
+          if (insertPayload.full_name) updateData.full_name = insertPayload.full_name;
+          if (insertPayload.phone) updateData.phone = insertPayload.phone;
+          if (insertPayload.city_id) updateData.city_id = insertPayload.city_id;
+          if (insertPayload.city) updateData.city = insertPayload.city;
+          
+          if (Object.keys(updateData).length > 0) {
+            await supabase
+              .from("profiles")
+              .update(updateData)
+              .eq("user_id", authUser.id);
+          }
+          
+          // Ensure is_verified is false (in case trigger didn't set it)
+          await supabase
+            .from("profiles")
+            .update({ is_verified: false })
+            .eq("user_id", authUser.id)
+            .is("is_verified", null); // Only update if currently null
+        } else {
+          return null;
+        }
       }
     }
 
@@ -193,6 +241,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_, sess) => {
       if (!mounted) return;
+      if (ignoreAuthEventsRef.current > 0) return;
 
       setSession(sess ?? null);
       setUser(sess?.user ?? null);
@@ -210,97 +259,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signUp = async (phone: string, password: string, fullName: string, cityId: string, cityName: string) => {
+  
+  const requestOtp = async (phone: string) => {
     const cleanedPhone = cleanPhoneForStorage(phone);
 
     if (!isValidLibyanPhone(cleanedPhone)) {
       return { error: new Error("Invalid phone format (09XXXXXXXX)") };
     }
 
-    const internalEmail = phoneToInternalEmail(cleanedPhone);
+    const e164 = libyaPhoneToE164(cleanedPhone);
 
-    const { data, error } = await supabase.auth.signUp({
-      email: internalEmail,
-      password,
+    const { error } = await supabase.auth.signInWithOtp({
+      phone: e164,
       options: {
-        data: {
-          full_name: fullName,
-          phone: cleanedPhone,
-          city_id: cityId,
-          city: cityName,
-        },
+        // Ensure user is created on first verification
+        shouldCreateUser: true,
+        // Keep phone in metadata for profile creation
+        data: { phone: cleanedPhone },
       },
     });
 
-    if (error) {
-      console.error("[signUp] error:", error);
-      return { error: new Error(error.message) };
-    }
-
-    if (!data.user) {
-      return { error: new Error("Signup failed: No user returned") };
-    }
-
-    if (!data.session) {
-      const { error: signInErr } = await supabase.auth.signInWithPassword({
-        email: internalEmail,
-        password,
-      });
-
-      if (signInErr) {
-        console.error("[signUp] auto-login failed:", signInErr);
-
-        const msg = String(signInErr.message || "").toLowerCase();
-        if (msg.includes("email not confirmed")) {
-          return {
-            error: new Error(
-              "Email confirmation is ON in Supabase. Turn it OFF (Auth → Providers → Email → Confirm email = OFF), then signup again.",
-            ),
-          };
-        }
-        return { error: new Error(signInErr.message) };
-      }
-    }
-
-    // Ensure profile exists and fill with overrides
-    await ensureProfile(data.user, {
-      fullName,
-      phone: cleanedPhone,
-      cityId,
-      cityName,
-    });
-
-    // Safety: some deployments may default provider_status="pending" on new profiles.
-    // Regular users should not carry any provider state.
-    try {
-      await supabase
-        .from("profiles")
-        .update({ provider_status: null } as any)
-        .eq("user_id", data.user.id)
-        .eq("role", "user");
-    } catch {
-      // ignore
-    }
-
-    return { error: null };
+    return { error: error ? new Error(error.message) : null };
   };
 
-  const signIn = async (phone: string, password: string) => {
+  const verifyOtp = async (phone: string, code: string) => {
     const cleanedPhone = cleanPhoneForStorage(phone);
 
     if (!isValidLibyanPhone(cleanedPhone)) {
       return { error: new Error("Invalid phone format (09XXXXXXXX)") };
     }
 
-    const internalEmail = phoneToInternalEmail(cleanedPhone);
+    const e164 = libyaPhoneToE164(cleanedPhone);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email: internalEmail,
-      password,
+    const { data, error } = await supabase.auth.verifyOtp({
+      phone: e164,
+      token: code,
+      type: "sms",
     });
 
-    if (error) return { error: new Error(error.message) };
+    return { data, error: error ? new Error(error.message) : null };
+  };
 
+  const updateProfileBasics = async (overrides: EnsureOverrides) => {
+    // After OTP verification there can be a brief race where `user` in context is still null.
+    // In that case, pull a fresh user from Supabase before attempting profile writes.
+    let authUser = user;
+    if (!authUser) {
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data?.user) return { error: new Error("Not signed in") };
+      authUser = data.user;
+    }
+
+    const profile = await ensureProfile(authUser, overrides);
+    if (!profile) return { error: new Error("Failed to update profile") };
+    setProfile(profile);
     return { error: null };
   };
 
@@ -319,8 +331,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         loading,
         profileLoading,
-        signUp,
-        signIn,
+        requestOtp,
+        verifyOtp,
+        updateProfileBasics,
         signOut,
         refreshProfile,
       }}

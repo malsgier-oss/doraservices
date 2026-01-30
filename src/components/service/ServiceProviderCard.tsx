@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, memo } from "react";
 import { 
   MessageCircle, 
   Phone, 
@@ -94,7 +94,7 @@ function RatingBadge({ rating, count }: { rating?: number; count?: number }) {
   );
 }
 
-export function ServiceProviderCard({
+export const ServiceProviderCard = memo(function ServiceProviderCardImpl({
   provider,
   className,
   variant = "card",
@@ -103,7 +103,8 @@ export function ServiceProviderCard({
   onReport,
   onDetails,
 }: ServiceProviderCardProps) {
-  const { t } = useLanguage();
+  const { language } = useLanguage();
+  const t = (ar: string, en: string) => (language === "ar" ? ar : en);
   const [imageOpen, setImageOpen] = useState(false);
 
   // -- Data Prep --
@@ -111,7 +112,11 @@ export function ServiceProviderCard({
     if (provider.image_urls?.length) return provider.image_urls[0];
     const raw = provider.image_url || "";
     if (raw.startsWith("[")) {
-      try { return JSON.parse(raw)[0]; } catch {}
+      try {
+        return JSON.parse(raw)[0];
+      } catch {
+        // ignore invalid JSON
+      }
     }
     return raw.split(",")[0]?.trim() || null;
   }, [provider]);
@@ -283,7 +288,7 @@ export function ServiceProviderCard({
         <Dialog open={imageOpen} onOpenChange={setImageOpen}>
           <DialogContent className="max-w-[90vw] p-0 border-none bg-black/90">
              <div className="h-[60vh] flex items-center justify-center">
-               <img src={coverImage || ""} className="max-h-full max-w-full object-contain" />
+               <img src={coverImage || ""} className="max-h-full max-w-full object-contain" loading="eager" decoding="async" />
              </div>
           </DialogContent>
         </Dialog>
@@ -306,6 +311,8 @@ export function ServiceProviderCard({
             src={coverImage} 
             alt={provider.provider_name || ""} 
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+            loading="lazy"
+            decoding="async"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
@@ -392,6 +399,6 @@ export function ServiceProviderCard({
       </div>
     </div>
   );
-}
+});
 
 export default ServiceProviderCard;

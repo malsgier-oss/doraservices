@@ -3,58 +3,95 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, MemoryRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AdminRoute } from "@/components/auth/AdminRoute";
 import { ProviderRoute } from "@/components/auth/ProviderRoute";
+import { AppErrorBoundary } from "@/components/layout/AppErrorBoundary";
+import { FullScreenFallback } from "@/components/layout/FullScreenFallback";
+import { RouteAnalytics } from "@/observability/RouteAnalytics";
 
-import Hub from "./pages/Hub";
-import Favorites from "./pages/Favorites";
-import ServiceCreator from "./pages/ServiceCreator";
-import Profile from "./pages/Profile";
-import Auth from "./pages/Auth";
-import NotFound from "./pages/NotFound";
-import ProviderDashboard from "./pages/ProviderDashboard";
-import ServiceEditor from "./pages/ServiceEditor";
-import PendingVerification from "./pages/PendingVerification";
-import ChangePassword from "./pages/ChangePassword";
-import ForgotPassword from "./pages/ForgotPassword";
-import Onboarding, { ONBOARDING_DONE_KEY } from "./pages/Onboarding";
+import { ONBOARDING_DONE_KEY } from "./pages/onboardingKeys";
+import { lazyWithRetry } from "@/utils/lazyWithRetry";
 
-import AdminLayout from "./pages/admin/AdminLayout";
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import AdminUsers from "./pages/admin/AdminUsers";
-import AdminReports from "./pages/admin/AdminReports";
-import AdminSettings from "./pages/admin/AdminSettings";
-import AdminMessages from "./pages/admin/AdminMessages";
-import AdminAuditLog from "./pages/admin/AdminAuditLog";
-import AdminProviders from "./pages/admin/AdminProviders";
-import AdminServices from "./pages/admin/AdminServices";
-import AdminCategories from "./pages/admin/AdminCategories";
-import AdminCities from "./pages/admin/AdminCities";
-import AdminAnalytics from "./pages/admin/AdminAnalytics";
-import AdminMedia from "./pages/admin/AdminMedia";
-import AdminBulkUpload from "./pages/admin/AdminBulkUpload";
-import AdminSubCities from "./pages/admin/AdminSubCities";
-import AdminPasswordResets from "./pages/admin/AdminPasswordResets";
-import AdminReviews from "./pages/admin/AdminReviews";
-import AdminAnnouncements from "./pages/admin/AdminAnnouncements";
+const Hub = lazyWithRetry(() => import("./pages/Hub"));
+const DealsBrowse = lazyWithRetry(() => import("./pages/buy-sell/DealsBrowse"));
+const CreateListing = lazyWithRetry(() => import("./pages/buy-sell/CreateListing"));
+const ListingsBrowse = lazyWithRetry(() => import("./pages/buy-sell/ListingsBrowse"));
+const MyListings = lazyWithRetry(() => import("./pages/buy-sell/MyListings"));
+const EditListing = lazyWithRetry(() => import("./pages/buy-sell/EditListing"));
+const CategoryDetail = lazyWithRetry(() => import("./pages/buy-sell/CategoryDetail"));
+const ListingDetailModal = lazyWithRetry(() => import("./pages/buy-sell/ListingDetailModal"));
+const ListingDetailPage = lazyWithRetry(() => import("./pages/buy-sell/ListingDetailPage"));
+const TrendingServicesPage = lazyWithRetry(() => import("./pages/services/TrendingServicesPage"));
+const RecommendationsPage = lazyWithRetry(() => import("./pages/services/RecommendationsPage"));
+const ServiceCategoryDetail = lazyWithRetry(() => import("./pages/services/ServiceCategoryDetail"));
+const ServiceDetailPage = lazyWithRetry(() => import("./pages/services/ServiceDetailPage"));
+const Favorites = lazyWithRetry(() => import("./pages/Favorites"));
+const ServiceCreator = lazyWithRetry(() => import("./pages/ServiceCreator"));
+const Profile = lazyWithRetry(() => import("./pages/Profile"), { retries: 3, delay: 800 });
+const Auth = lazyWithRetry(() => import("./pages/Auth"));
+const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
+const ProviderDashboard = lazyWithRetry(() => import("./pages/ProviderDashboard"));
+const Dashboard = lazyWithRetry(() => import("./pages/Dashboard"));
+const ListingsPanel = lazyWithRetry(() => import("./pages/ListingsPanel"));
+const ServiceEditor = lazyWithRetry(() => import("./pages/ServiceEditor"));
+const PendingVerification = lazyWithRetry(() => import("./pages/PendingVerification"));
+const PendingConfirmation = lazyWithRetry(() => import("./pages/PendingConfirmation"));
+const ChangePassword = lazyWithRetry(() => import("./pages/ChangePassword"));
+const ForgotPassword = lazyWithRetry(() => import("./pages/ForgotPassword"));
+const Onboarding = lazyWithRetry(() => import("./pages/Onboarding"));
 
-// ✅ NEW: Env Debug page (optional)
-import EnvDebug from "./pages/EnvDebug";
-import SitePage from "./pages/SitePage";
-import AdminHubSuggestions from "./pages/admin/AdminHubSuggestions";
-import AdminHub from "./pages/admin/AdminHub";
-import AdminPages from "./pages/admin/AdminPages";
-import AdminGuides from "./pages/admin/AdminGuides";
+const AdminLayout = lazyWithRetry(() => import("./pages/admin/AdminLayout"));
+const AdminDashboard = lazyWithRetry(() => import("./pages/admin/AdminDashboard"));
+const AdminUsers = lazyWithRetry(() => import("./pages/admin/AdminUsers"));
+const AdminReports = lazyWithRetry(() => import("./pages/admin/AdminReports"));
+const AdminSettings = lazyWithRetry(() => import("./pages/admin/AdminSettings"));
+const AdminMessages = lazyWithRetry(() => import("./pages/admin/AdminMessages"));
+const AdminAuditLog = lazyWithRetry(() => import("./pages/admin/AdminAuditLog"));
+const AdminProviders = lazyWithRetry(() => import("./pages/admin/AdminProviders"));
+const AdminServices = lazyWithRetry(() => import("./pages/admin/AdminServices"));
+const AdminDeals = lazyWithRetry(() => import("./pages/admin/AdminDeals"));
+const AdminListings = lazyWithRetry(() => import("./pages/admin/AdminListings"));
+const AdminCategories = lazyWithRetry(() => import("./pages/admin/AdminCategories"));
+const AdminCities = lazyWithRetry(() => import("./pages/admin/AdminCities"));
+const AdminAnalytics = lazyWithRetry(() => import("./pages/admin/AdminAnalytics"));
+const AdminMedia = lazyWithRetry(() => import("./pages/admin/AdminMedia"));
+const AdminBulkUpload = lazyWithRetry(() => import("./pages/admin/AdminBulkUpload"));
+const AdminSubCities = lazyWithRetry(() => import("./pages/admin/AdminSubCities"));
+const AdminPasswordResets = lazyWithRetry(() => import("./pages/admin/AdminPasswordResets"));
+const AdminReviews = lazyWithRetry(() => import("./pages/admin/AdminReviews"));
+const AdminAnnouncements = lazyWithRetry(() => import("./pages/admin/AdminAnnouncements"));
 
-import { PendingRatingPrompt } from "@/components/service/PendingRatingPrompt";
+const SitePage = lazyWithRetry(() => import("./pages/SitePage"));
+const AdminHubSuggestions = lazyWithRetry(() => import("./pages/admin/AdminHubSuggestions"));
+const AdminHub = lazyWithRetry(() => import("./pages/admin/AdminHub"));
+const AdminPages = lazyWithRetry(() => import("./pages/admin/AdminPages"));
+const AdminGuides = lazyWithRetry(() => import("./pages/admin/AdminGuides"));
 
-// ✅ keep QueryClient stable
-const queryClient = new QueryClient();
+const PendingRatingPrompt = React.lazy(() =>
+  import("@/components/service/PendingRatingPrompt").then((m) => ({ default: m.PendingRatingPrompt })),
+);
+
+// ✅ keep QueryClient stable (and reduce refetch “loading” flashes)
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,
+      gcTime: 10 * 60_000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      retry: 1,
+    },
+  },
+});
+
+function RouteFallback() {
+  return <FullScreenFallback variant="page" />;
+}
 
 /**
  * If user is logged in, redirect them away from /auth to the right place.
@@ -63,11 +100,7 @@ function AuthenticatedRedirect({ children }: { children: React.ReactNode }) {
   const { user, profile, loading, profileLoading } = useAuth();
 
   if (loading || profileLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
+    return <FullScreenFallback variant="auth" />;
   }
 
   if (user) {
@@ -99,8 +132,8 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
       path === "/auth" ||
       path === "/forgot-password" ||
       path === "/change-password" ||
+      path === "/pending-confirmation" ||
       path === "/pending-verification" ||
-      path === "/env" ||
       path.startsWith("/admin");
 
     if (allow) return;
@@ -121,134 +154,210 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
 }
 
 const AppRoutes = () => {
+  const location = useLocation();
+  // Safe typed access to backgroundLocation state for modal routing
+  const state = location.state as { backgroundLocation?: typeof location } | null;
+  const backgroundLocation = state?.backgroundLocation;
+
   return (
     <OnboardingGate>
-      <Routes>
-      {/* Onboarding */}
-      <Route path="/onboarding" element={<Onboarding />} />
-      {/* Hub is public */}
-      <Route path="/" element={<Hub />} />
+      <React.Suspense fallback={<RouteFallback />}>
+        {/* Normal routes - use backgroundLocation if modal is open */}
+        <Routes location={backgroundLocation || location}>
+        {/* Onboarding */}
+        <Route path="/onboarding" element={<Onboarding />} />
+        {/* Hub is public */}
+        <Route path="/" element={<Navigate to="/services" replace />} />
+        <Route path="/services" element={<Hub initialTab="services" />} />
+        <Route path="/buy-sell" element={<Hub initialTab="buy-sell" />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/listings-panel"
+          element={
+            <ProtectedRoute>
+              <ListingsPanel />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/buy-sell/deals/:type" element={<DealsBrowse />} />
+        <Route path="/buy-sell/category/:categoryId" element={<CategoryDetail />} />
+        {/* Listing detail route for deep links (renders as standalone page) */}
+        <Route path="/buy-sell/category/:categoryId/listing/:listingId" element={<ListingDetailModal />} />
+        <Route path="/buy-sell/listings" element={<ListingsBrowse />} />
+        <Route path="/buy-sell/create-listing" element={<CreateListing />} />
+        <Route
+          path="/buy-sell/my-listings"
+          element={
+            <ProtectedRoute>
+              <MyListings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/buy-sell/edit-listing/:id"
+          element={
+            <ProtectedRoute>
+              <EditListing />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/listings/:id" element={<ListingDetailPage />} />
+        <Route path="/services/trending" element={<TrendingServicesPage />} />
+        <Route path="/services/recommendations" element={<RecommendationsPage />} />
+        <Route path="/services/category/:categoryId" element={<ServiceCategoryDetail />} />
+        <Route path="/services/:id" element={<ServiceDetailPage />} />
 
-      {/* Public site pages */}
-      <Route path="/:slug(about|contact|help|become-provider|terms|privacy)" element={<SitePage />} />
+        {/* Public site pages */}
+        <Route path="/:slug(about|contact|help|become-provider|terms|privacy)" element={<SitePage />} />
 
-      {/* ✅ ENV DEBUG ROUTE (optional) */}
-      <Route path="/env" element={<EnvDebug />} />
+        {/* Auth routes */}
+        <Route
+          path="/auth"
+          element={
+            <AuthenticatedRedirect>
+              <Auth />
+            </AuthenticatedRedirect>
+          }
+        />
 
-      {/* Auth routes */}
-      <Route
-        path="/auth"
-        element={
-          <AuthenticatedRedirect>
-            <Auth />
-          </AuthenticatedRedirect>
-        }
-      />
+        <Route path="/pending-confirmation" element={<PendingConfirmation />} />
 
-      <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
 
-      {/* These should require a logged-in user */}
-      <Route
-        path="/pending-verification"
-        element={
-          <ProtectedRoute>
-            <PendingVerification />
-          </ProtectedRoute>
-        }
-      />
+        {/* These should require a logged-in user */}
+        <Route
+          path="/pending-verification"
+          element={
+            <ProtectedRoute>
+              <PendingVerification />
+            </ProtectedRoute>
+          }
+        />
 
-      <Route
-        path="/change-password"
-        element={
-          <ProtectedRoute>
-            <ChangePassword />
-          </ProtectedRoute>
-        }
-      />
+        <Route
+          path="/change-password"
+          element={
+            <ProtectedRoute>
+              <ChangePassword />
+            </ProtectedRoute>
+          }
+        />
 
-      {/* Protected routes - require login */}
-      <Route
-        path="/favorites"
-        element={
-          <ProtectedRoute>
-            <Favorites />
-          </ProtectedRoute>
-        }
-      />
+        {/* Protected routes - require login */}
+        <Route
+          path="/favorites"
+          element={
+            <ProtectedRoute>
+              <Favorites />
+            </ProtectedRoute>
+          }
+        />
 
-      <Route
-        path="/create-service"
-        element={
-          <ProtectedRoute>
-            <ServiceCreator />
-          </ProtectedRoute>
-        }
-      />
+        <Route
+          path="/create-service"
+          element={
+            <ProviderRoute>
+              <ServiceCreator />
+            </ProviderRoute>
+          }
+        />
 
-      <Route
-        path="/edit-service/:id"
-        element={
-          <ProviderRoute>
-            <ServiceEditor />
-          </ProviderRoute>
-        }
-      />
+        <Route
+          path="/edit-service/:id"
+          element={
+            <ProviderRoute>
+              <ServiceEditor />
+            </ProviderRoute>
+          }
+        />
 
-      <Route
-        path="/profile"
-        element={
-          <ProtectedRoute>
-            <Profile />
-          </ProtectedRoute>
-        }
-      />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
 
-      {/* ✅ Provider Dashboard should require APPROVED provider */}
-      <Route
-        path="/provider-dashboard"
-        element={
-          <ProviderRoute>
-            <ProviderDashboard />
-          </ProviderRoute>
-        }
-      />
+        {/* ✅ Provider Dashboard should require APPROVED provider */}
+        <Route
+          path="/provider-dashboard"
+          element={
+            <ProviderRoute>
+              <ProviderDashboard />
+            </ProviderRoute>
+          }
+        />
 
-      {/* Admin Routes */}
-      <Route
-        path="/admin"
-        element={
-          <AdminRoute>
-            <AdminLayout />
-          </AdminRoute>
-        }
-      >
-        <Route index element={<AdminDashboard />} />
-        <Route path="users" element={<AdminUsers />} />
-        <Route path="providers" element={<AdminProviders />} />
-        <Route path="services" element={<AdminServices />} />
-        <Route path="hub" element={<AdminHub />} />
-        <Route path="hub-suggestions" element={<AdminHubSuggestions />} />
-        <Route path="guides" element={<AdminGuides />} />
-        <Route path="pages" element={<AdminPages />} />
-        <Route path="categories" element={<AdminCategories />} />
-        <Route path="cities" element={<AdminCities />} />
-        <Route path="sub-cities" element={<AdminSubCities />} />
-        <Route path="reviews" element={<AdminReviews />} />
-        <Route path="announcements" element={<AdminAnnouncements />} />
-        <Route path="reports" element={<AdminReports />} />
-        <Route path="settings" element={<AdminSettings />} />
-        <Route path="messages" element={<AdminMessages />} />
-        <Route path="analytics" element={<AdminAnalytics />} />
-        <Route path="media" element={<AdminMedia />} />
-        <Route path="bulk-upload" element={<AdminBulkUpload />} />
-        <Route path="audit-log" element={<AdminAuditLog />} />
-        <Route path="password-resets" element={<AdminPasswordResets />} />
-      </Route>
+        {/* Admin Routes */}
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminLayout />
+            </AdminRoute>
+          }
+        >
+          <Route index element={<AdminDashboard />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="providers" element={<AdminProviders />} />
+          <Route path="services" element={<AdminServices />} />
+          <Route path="deals" element={<AdminDeals />} />
+          <Route path="listings" element={<AdminListings />} />
+          <Route path="hub" element={<AdminHub />} />
+          <Route path="hub-suggestions" element={<AdminHubSuggestions />} />
+          <Route path="guides" element={<AdminGuides />} />
+          <Route path="pages" element={<AdminPages />} />
+          <Route path="categories" element={<AdminCategories />} />
+          <Route path="cities" element={<AdminCities />} />
+          <Route path="sub-cities" element={<AdminSubCities />} />
+          <Route path="reviews" element={<AdminReviews />} />
+          <Route path="announcements" element={<AdminAnnouncements />} />
+          <Route path="reports" element={<AdminReports />} />
+          <Route path="settings" element={<AdminSettings />} />
+          <Route path="messages" element={<AdminMessages />} />
+          <Route path="analytics" element={<AdminAnalytics />} />
+          <Route path="media" element={<AdminMedia />} />
+          <Route path="bulk-upload" element={<AdminBulkUpload />} />
+          <Route path="audit-log" element={<AdminAuditLog />} />
+          <Route path="password-resets" element={<AdminPasswordResets />} />
+        </Route>
 
-      <Route path="*" element={<NotFound />} />
-      </Routes>
+        <Route path="*" element={<NotFound />} />
+        </Routes>
+
+        {/* Modal routes - render on top when backgroundLocation exists */}
+        {backgroundLocation && (
+          <Routes>
+            <Route path="/buy-sell/category/:categoryId/listing/:listingId" element={<ListingDetailModal />} />
+          </Routes>
+        )}
+      </React.Suspense>
     </OnboardingGate>
   );
+};
+
+/** In tests, use MemoryRouter with configurable initialEntries. See routes-smoke.test.tsx */
+declare global {
+  interface Window {
+    __TEST_ROUTER_INITIAL_ENTRIES?: string[];
+  }
+}
+
+const RouterWrapper = ({ children }: { children: React.ReactNode }) => {
+  const initialEntries = typeof window !== "undefined" ? window.__TEST_ROUTER_INITIAL_ENTRIES : undefined;
+  if (initialEntries) {
+    return <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>;
+  }
+  return <BrowserRouter>{children}</BrowserRouter>;
 };
 
 const App = () => (
@@ -259,10 +368,15 @@ const App = () => (
           <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
-            <AppRoutes />
-            <PendingRatingPrompt />
-          </BrowserRouter>
+          <RouterWrapper>
+            <AppErrorBoundary>
+              <AppRoutes />
+              <RouteAnalytics />
+              <React.Suspense fallback={null}>
+                <PendingRatingPrompt />
+              </React.Suspense>
+            </AppErrorBoundary>
+          </RouterWrapper>
           </TooltipProvider>
         </ThemeProvider>
       </LanguageProvider>

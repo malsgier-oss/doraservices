@@ -1,7 +1,7 @@
 import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Loader2 } from "lucide-react";
+import { FullScreenFallback } from "@/components/layout/FullScreenFallback";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -11,6 +11,8 @@ interface ProtectedRouteProps {
  * ProtectedRoute (Dora P0):
  * - requires login
  * - blocks deleted/inactive accounts
+ * - does NOT enforce admin verification for basic app access
+ *   (verification should be enforced only for specific actions/roles, e.g. provider features)
  * - does NOT enforce provider/admin role (use ProviderRoute/AdminRoute for that)
  */
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
@@ -18,11 +20,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const location = useLocation();
 
   if (loading || profileLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return <FullScreenFallback variant="app" />;
   }
 
   if (!user) {

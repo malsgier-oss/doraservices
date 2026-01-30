@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Heart, Loader2, Phone, Trash2, Filter, Home } from "lucide-react";
+import { Heart, Loader2, Phone, Trash2, Filter } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,9 +16,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ServiceDetailSheet } from "@/components/service/ServiceDetailSheet";
-import { LucideIcon } from "lucide-react";
-
 interface FavoriteService {
   id: string;
   service_id: string;
@@ -29,15 +26,6 @@ interface FavoriteService {
   provider_phone: string;
 }
 
-type SheetService = {
-  titleKey: string;
-  descKey: string;
-  category: string;
-  categoryName?: string;
-  icon: LucideIcon;
-  color: string;
-};
-
 export default function Favorites() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -46,14 +34,12 @@ export default function Favorites() {
   const [loading, setLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
-  // Provider detail sheet opener (used when tapping a favorite card)
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [sheetService, setSheetService] = useState<SheetService | null>(null);
-  const [initialProviderServiceId, setInitialProviderServiceId] = useState<string | null>(null);
-
   useEffect(() => {
     if (user) {
       fetchFavorites();
+    } else {
+      setLoading(false);
+      setFavorites([]);
     }
   }, [user]);
 
@@ -167,21 +153,7 @@ export default function Favorites() {
   };
 
   const openProviderDetailFromFavorite = (fav: FavoriteService) => {
-    const categoryLabel =
-      t.categories[fav.service_category as keyof typeof t.categories] || fav.service_category;
-
-    setSheetService({
-      id: fav.service_id,
-      titleKey: fav.service_category,
-      descKey: "",
-      category: fav.service_category,
-
-      categoryName: categoryLabel,
-      icon: Home,
-      color: "bg-primary/10",
-    });
-    setInitialProviderServiceId(fav.service_id);
-    setSheetOpen(true);
+    if (fav?.service_id) navigate(`/services/${fav.service_id}`);
   };
 
   // Get unique categories from favorites
@@ -201,6 +173,32 @@ export default function Favorites() {
       <Layout showHeader={false}>
         <div className="min-h-screen flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Layout showHeader={false}>
+        <div className="container py-6">
+          <h1 className={cn("text-2xl font-bold text-foreground mb-6", isRTL ? "text-right" : "text-left")}>
+            {t.favorites?.title || (isRTL ? "المفضلة" : "Favorites")}
+          </h1>
+          <div className="text-center py-16">
+            <div className="w-20 h-20 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
+              <Heart className="h-10 w-10 text-muted-foreground" />
+            </div>
+            <h3 className="font-semibold text-foreground mb-1">
+              {isRTL ? "سجّل الدخول لعرض المفضلة" : "Sign in to view your favorites"}
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              {isRTL ? "ستظهر هنا الخدمات التي تضيفها إلى المفضلة" : "Services you add to favorites will appear here"}
+            </p>
+            <Button onClick={() => navigate("/auth?returnTo=/favorites")} className="rounded-full">
+              {isRTL ? "تسجيل الدخول" : "Sign in"}
+            </Button>
+          </div>
         </div>
       </Layout>
     );
@@ -345,21 +343,6 @@ export default function Favorites() {
           )}
         </div>
       </div>
-
-      {sheetService && (
-        <ServiceDetailSheet
-          open={sheetOpen}
-          onOpenChange={(open) => {
-            setSheetOpen(open);
-            if (!open) {
-              setSheetService(null);
-              setInitialProviderServiceId(null);
-            }
-          }}
-          service={sheetService}
-          initialProviderServiceId={initialProviderServiceId || undefined}
-        />
-      )}
     </Layout>
   );
 }

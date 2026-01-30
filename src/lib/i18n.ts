@@ -134,7 +134,7 @@ export const translations = {
       bioPlaceholder: "Write a short bio about your experience and services...",
       createService: "Create Service",
       serviceCreated: "Service Created",
-      serviceCreatedDesc: "Your service will be published soon.",
+      serviceCreatedDesc: "Your service is live and visible to customers.",
     },
     
     // Profile
@@ -349,7 +349,7 @@ export const translations = {
       bioPlaceholder: "اكتب نبذة قصيرة عن خبرتك وخدماتك...",
       createService: "إنشاء الخدمة",
       serviceCreated: "تم إنشاء الخدمة",
-      serviceCreatedDesc: "سيتم نشر خدمتك قريباً.",
+      serviceCreatedDesc: "خدمتك ظاهرة الآن للعملاء.",
     },
     
     // Profile

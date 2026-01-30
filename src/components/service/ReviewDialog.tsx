@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -67,6 +68,11 @@ export function ReviewDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md" dir={isRTL ? "rtl" : "ltr"}>
+        <DialogDescription className="sr-only">
+          {existingReview 
+            ? (isRTL ? "نموذج تعديل تقييم مزود الخدمة" : "Edit service provider review form")
+            : (isRTL ? "نموذج تقييم مزود الخدمة" : "Rate service provider form")}
+        </DialogDescription>
         <DialogHeader>
           <DialogTitle className="text-center">
             {existingReview 

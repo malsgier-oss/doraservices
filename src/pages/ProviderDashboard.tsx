@@ -404,7 +404,7 @@ export default function ProviderDashboard() {
                               );
                               if (!ok) return;
                               const { error } = await deleteService(s.id);
-                              if (error) toast.error(isRTL ? "فشل الحذف" : "Delete failed");
+                              if (error) toast.error(error.message || (isRTL ? "فشل الحذف" : "Delete failed"));
                             }}
                             disabled={accountLocked}
                           >

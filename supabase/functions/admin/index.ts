@@ -5,10 +5,47 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.89.0";
 
 const FUNCTION_VERSION = "2026-01-12-reset-v3";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const DEFAULT_ALLOWED_ORIGINS = [
+  // Local dev
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:8080",
+  "http://127.0.0.1:8080",
+  // Capacitor defaults
+  "capacitor://localhost",
+  "ionic://localhost",
+];
+
+function buildCorsHeaders(origin: string | null) {
+  const raw = (Deno.env.get("ALLOWED_ORIGINS") || Deno.env.get("DORA_ALLOWED_ORIGINS") || "").trim();
+  const envAllowlist = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const allowlist = new Set<string>([...DEFAULT_ALLOWED_ORIGINS, ...envAllowlist]);
+
+  // Allow server-to-server (no Origin header) without adding CORS headers.
+  if (!origin) return null;
+
+  // If explicitly configured, allow wildcard.
+  if (allowlist.has("*")) {
+    return {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+    };
+  }
+
+  if (!allowlist.has(origin)) return null;
+
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    Vary: "Origin",
+  };
+}
 
 type AdminActionBody =
   | { action: "deleteUser"; userId: string }
@@ -16,19 +53,26 @@ type AdminActionBody =
   | { action: "softDeleteUser"; userId: string }
   | { action: "bulkSoftDeleteUsers"; userIds: string[] }
   | { action: "set_temp_password"; phone: string; password: string; requestId: string }
-  | { action: "fix_admin_email"; userId: string; phone: string };
+  | { action: "fix_admin_email"; userId: string; phone: string }
+  | { action: "deleteListing"; listingId: string };
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get("Origin");
+  const corsHeaders = buildCorsHeaders(origin);
+
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    if (!corsHeaders) return new Response(null, { status: 403 });
+    return new Response(null, { status: 204, headers: corsHeaders });
   }
 
   try {
     console.log("admin fn version", FUNCTION_VERSION);
     const url = Deno.env.get("SUPABASE_URL");
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-    const serviceRoleKey = Deno.env.get("SERVICE_ROLE_KEY");
+    // Prefer the standard Supabase secret name, but support legacy keys.
+    const serviceRoleKey =
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE");
     if (!url || !anonKey || !serviceRoleKey) {
       console.error("Missing env vars", {
         hasUrl: !!url,
@@ -37,7 +81,7 @@ Deno.serve(async (req) => {
       });
       return new Response(JSON.stringify({ error: "Server misconfigured" }), {
         status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
       });
     }
 
@@ -47,7 +91,7 @@ Deno.serve(async (req) => {
     if (!token) {
       return new Response(JSON.stringify({ error: "Missing Authorization token" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
       });
     }
 
@@ -58,7 +102,7 @@ Deno.serve(async (req) => {
       console.error("auth.getUser failed", userError);
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
       });
     }
 
@@ -79,7 +123,7 @@ Deno.serve(async (req) => {
       console.error("role check failed", roleError);
       return new Response(JSON.stringify({ error: "Authorization check failed" }), {
         status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
       });
     }
 
@@ -87,7 +131,7 @@ Deno.serve(async (req) => {
     if (!isAdmin) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
         status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
       });
     }
 
@@ -216,20 +260,20 @@ Deno.serve(async (req) => {
       if (!targetUserId) {
         return new Response(JSON.stringify({ error: "Missing userId" }), {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
         });
       }
       if (targetUserId === callerId) {
         return new Response(JSON.stringify({ error: "You cannot delete your own account" }), {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
         });
       }
 
       await hardDeleteUserInternal(targetUserId);
       return new Response(JSON.stringify({ ok: true }), {
         status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
       });
     }
 
@@ -240,7 +284,7 @@ Deno.serve(async (req) => {
       if (ids.length === 0) {
         return new Response(JSON.stringify({ error: "Missing userIds" }), {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
         });
       }
 
@@ -257,7 +301,7 @@ Deno.serve(async (req) => {
 
       return new Response(JSON.stringify({ ok: true, results }), {
         status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
       });
     }
 
@@ -268,20 +312,20 @@ Deno.serve(async (req) => {
       if (!targetUserId) {
         return new Response(JSON.stringify({ error: "Missing userId" }), {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
         });
       }
       if (targetUserId === callerId) {
         return new Response(JSON.stringify({ error: "You cannot delete your own account" }), {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
         });
       }
 
       await softDeleteUserInternal(targetUserId);
       return new Response(JSON.stringify({ ok: true }), {
         status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
       });
     }
 
@@ -292,7 +336,7 @@ Deno.serve(async (req) => {
       if (ids.length === 0) {
         return new Response(JSON.stringify({ error: "Missing userIds" }), {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
         });
       }
 
@@ -309,7 +353,7 @@ Deno.serve(async (req) => {
 
       return new Response(JSON.stringify({ ok: true, results }), {
         status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
       });
     }
 
@@ -320,14 +364,14 @@ Deno.serve(async (req) => {
       if (!phone || !password) {
         return new Response(JSON.stringify({ error: "Missing phone or password" }), {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
         });
       }
 
       if (password.length < 6) {
         return new Response(JSON.stringify({ error: "Password must be at least 6 characters" }), {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
         });
       }
 
@@ -504,7 +548,7 @@ Deno.serve(async (req) => {
           }),
           {
             status: 404,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
           },
         );
       }
@@ -518,7 +562,7 @@ Deno.serve(async (req) => {
         console.error("updateUserById failed", updateError);
         return new Response(JSON.stringify({ error: "Failed to update password", details: updateError.message }), {
           status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
         });
       }
 
@@ -548,7 +592,7 @@ Deno.serve(async (req) => {
 
       return new Response(JSON.stringify({ ok: true }), {
         status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
       });
     }
 
@@ -559,7 +603,7 @@ Deno.serve(async (req) => {
       if (!userId || !phone) {
         return new Response(JSON.stringify({ error: "Missing userId or phone" }), {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
         });
       }
 
@@ -583,7 +627,7 @@ Deno.serve(async (req) => {
         console.error("updateUserById failed", updateError);
         return new Response(JSON.stringify({ error: "Failed to update email", details: updateError.message }), {
           status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
         });
       }
 
@@ -591,19 +635,54 @@ Deno.serve(async (req) => {
 
       return new Response(JSON.stringify({ ok: true, newEmail }), {
         status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
+      });
+    }
+
+    // ==================== DELETE LISTING ====================
+    if (body.action === "deleteListing") {
+      const { listingId } = body;
+
+      if (!listingId) {
+        return new Response(JSON.stringify({ error: "Missing listingId" }), {
+          status: 400,
+          headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
+        });
+      }
+
+      const { error: delErr } = await adminClient.from("listings").delete().eq("id", listingId);
+      if (delErr) {
+        console.error("deleteListing failed", delErr);
+        return new Response(JSON.stringify({ error: "Failed to delete listing", details: delErr.message }), {
+          status: 500,
+          headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
+        });
+      }
+
+      // Audit log (best effort)
+      await adminClient.from("admin_audit_log").insert({
+        admin_id: callerId,
+        action: "delete_listing",
+        target_type: "listing",
+        target_id: listingId,
+        details: { deleted_by: callerId },
+      });
+
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
       });
     }
 
     return new Response(JSON.stringify({ error: "Unknown action" }), {
       status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
     });
   } catch (err) {
     console.error("admin function unhandled error", err);
     return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...(corsHeaders ?? {}), "Content-Type": "application/json" },
     });
   }
 });

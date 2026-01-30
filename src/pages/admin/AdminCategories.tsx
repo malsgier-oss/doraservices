@@ -106,98 +106,12 @@ import {
 
   LucideIcon,
 } from "lucide-react";
+import { HUB_ICON_MAP } from "@/lib/categoryIcons";
 import { Category, useAllCategories } from "@/hooks/useCategories";
 import { Subcategory, useAllSubcategories, useSubcategoryMutations } from "@/hooks/useSubcategories";
 import { cn } from "@/lib/utils";
 
-// Icon mapping for rendering actual icons
-const ICON_MAP: Record<string, LucideIcon> = {
-  Home,
-  Car,
-  Zap,
-  Briefcase,
-  Building2,
-  GraduationCap,
-  Heart,
-  PartyPopper,
-  Wrench,
-  Droplets,
-  Wind,
-  Fuel,
-  ClipboardCheck,
-  Sun,
-  Cog,
-  Scale,
-  Languages,
-  Camera,
-  UtensilsCrossed,
-  Stethoscope,
-  Activity,
-  Dog,
-  Scissors,
-  Laptop,
-  PawPrint,
-  Sparkles,
-  Dumbbell,
-  Utensils,
-  Music,
-  Plane,
-  ShoppingCart,
-  Baby,
-  Paintbrush,
-  Hammer,
-  Battery,
-  Calculator,
-
-  // Expanded Dora-friendly icon set
-  Phone,
-  Shield,
-  Wifi,
-  PaintRoller,
-  SprayCan,
-  Leaf,
-  Brush,
-  Sofa,
-  BedDouble,
-  Bath,
-  Key,
-  Lock,
-  Package,
-  Truck,
-  MapPin,
-  Store,
-  Shirt,
-  Fan,
-  Thermometer,
-  Snowflake,
-  Coins,
-  HandCoins,
-  CreditCard,
-  FileText,
-  Landmark,
-  Gavel,
-  Pill,
-  Ambulance,
-  ChefHat,
-  Microwave,
-  Refrigerator,
-  TreePalm,
-  Gamepad2,
-  Smartphone,
-  Monitor,
-  Printer,
-  Router,
-  Lightbulb,
-  PlugZap,
-  HardHat,
-  Construction,
-  Ruler,
-  Bug,
-  Bike,
-  Bus,
-};
-
-const ICON_OPTIONS = Object.keys(ICON_MAP);
+const ICON_OPTIONS = Object.keys(HUB_ICON_MAP);
 
 const COLOR_OPTIONS = [
   { value: "bg-[#FFEBD4]", label: "Peach" },
@@ -556,7 +470,7 @@ export default function AdminCategories() {
               {sortedCategories
                 .filter((c) => c.is_active)
                 .map((category) => {
-                  const IconComponent = ICON_MAP[category.icon] || Home;
+                  const IconComponent = HUB_ICON_MAP[category.icon] || Home;
                   return (
                     <div
                       key={category.id}
@@ -594,7 +508,7 @@ export default function AdminCategories() {
           ) : (
             <div className="space-y-3">
               {sortedCategories.map((category, index) => {
-                const IconComponent = ICON_MAP[category.icon] || Home;
+                const IconComponent = HUB_ICON_MAP[category.icon] || Home;
                 const categorySubs = getSubcategoriesForCategory(category.id);
                 const isExpanded = expandedCategories.has(category.id);
 
@@ -696,7 +610,7 @@ export default function AdminCategories() {
                           ) : (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               {categorySubs.map((sub) => {
-                                const SubIcon = ICON_MAP[sub.icon] || Wrench;
+                                const SubIcon = HUB_ICON_MAP[sub.icon] || Wrench;
                                 return (
                                   <div
                                     key={sub.id}
@@ -809,7 +723,7 @@ export default function AdminCategories() {
               )}
             >
               {(() => {
-                const IconComp = ICON_MAP[form.icon] || Home;
+                const IconComp = HUB_ICON_MAP[form.icon] || Home;
                 return <IconComp className="h-9 w-9 text-[#333]" strokeWidth={1.5} />;
               })()}
               <span className="text-[10px] font-medium text-[#333] text-center px-1 leading-tight">
@@ -852,7 +766,7 @@ export default function AdminCategories() {
 
               <div className="grid grid-cols-8 gap-2 mt-2 max-h-32 overflow-y-auto p-1">
                 {filteredIconOptions.map((iconName) => {
-                  const IconComp = ICON_MAP[iconName];
+                  const IconComp = HUB_ICON_MAP[iconName];
                   return (
                     <button
                       key={iconName}
@@ -953,7 +867,7 @@ export default function AdminCategories() {
               </div>
               <div className="grid grid-cols-8 gap-2 mt-2 max-h-32 overflow-y-auto p-1">
                 {filteredSubIconOptions.map((iconName) => {
-                  const IconComp = ICON_MAP[iconName];
+                  const IconComp = HUB_ICON_MAP[iconName];
                   return (
                     <button
                       key={iconName}

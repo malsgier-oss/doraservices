@@ -1,0 +1,85 @@
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
+export type ListingStatus = "draft" | "active" | "sold" | "archived";
+
+export interface Listing {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  category: string;
+  subcategory?: string | null;
+  price: number | null;
+  currency: string;
+  city_id: string | null;
+  location: string | null;
+  image_urls: string[] | null;
+  status: ListingStatus;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Seller phone for this listing; visible to all so buyers can call without profile RLS */
+  contact_phone?: string | null;
+  /** When false, hide WhatsApp button for this listing */
+  allow_whatsapp?: boolean | null;
+  /** Stats: number of views */
+  views_count?: number;
+  /** Stats: number of call button clicks */
+  call_count?: number;
+  /** Stats: number of WhatsApp button clicks */
+  whatsapp_count?: number;
+}
+
+export interface UseListingsOptions {
+  cityId?: string | null;
+  category?: string | null;
+  subcategory?: string | null;
+  search?: string | null;
+  status?: ListingStatus;
+  limit?: number;
+  excludeId?: string | null;
+  enabled?: boolean;
+  userId?: string | null;
+}
+
+export function useListings(options: UseListingsOptions = {}) {
+  const { cityId, category, subcategory, search, status = "active", limit = 20, excludeId, enabled = true, userId } = options;
+
+  return useQuery({
+    queryKey: ["listings", cityId, category, subcategory, search, status, limit, excludeId, userId],
+    queryFn: async (): Promise<Listing[]> => {
+      let query = supabase
+        .from("listings")
+        .select("*")
+        .eq("status", status)
+        .is("archived_at", null)
+        .order("created_at", { ascending: false })
+        .limit(limit);
+
+      if (cityId) query = query.eq("city_id", cityId);
+      if (category) query = query.eq("category", category);
+      if (subcategory) query = query.eq("subcategory", subcategory);
+      if (excludeId) query = query.neq("id", excludeId);
+      if (userId) query = query.eq("user_id", userId);
+
+      const q = (search || "").trim();
+      if (q) {
+        // Best-effort text match across title/description
+        query = query.or(`title.ilike.%${q}%,description.ilike.%${q}%`);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.error("Error fetching listings:", error);
+        throw error;
+      }
+
+      return (data || []) as Listing[];
+    },
+    staleTime: 2 * 60 * 1000,
+    retry: 1,
+    enabled,
+  });
+}
+

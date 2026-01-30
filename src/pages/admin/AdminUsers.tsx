@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -41,9 +42,15 @@ import { format } from "date-fns";
 import { useCities } from "@/hooks/useCities";
 
 export default function AdminUsers() {
+  const [searchParams] = useSearchParams();
+  const urlVerified = searchParams.get("verified");
+  const initialVerified =
+    urlVerified === "unverified" || urlVerified === "verified" ? urlVerified : "all";
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [verifiedFilter, setVerifiedFilter] = useState<"all" | "unverified" | "verified">(initialVerified);
   const [suspendDialog, setSuspendDialog] = useState<{ open: boolean; userId: string | null }>({
     open: false,
     userId: null,
@@ -61,10 +68,15 @@ export default function AdminUsers() {
   const [bulkMode, setBulkMode] = useState<"soft" | "hard">("soft");
   const [bulkConfirm, setBulkConfirm] = useState("");
 
+  useEffect(() => {
+    if (initialVerified !== "all") setVerifiedFilter(initialVerified);
+  }, [initialVerified]);
+
   const { data: users, isLoading } = useAdminUsers({
     status: statusFilter,
     role: roleFilter,
     search: search,
+    verified: verifiedFilter,
   });
   const { data: cities } = useCities();
 
@@ -207,7 +219,7 @@ export default function AdminUsers() {
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className="w-full sm:w-[150px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -218,7 +230,7 @@ export default function AdminUsers() {
               </SelectContent>
             </Select>
             <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className="w-full sm:w-[150px]">
                 <SelectValue placeholder="Role" />
               </SelectTrigger>
               <SelectContent>
@@ -226,6 +238,19 @@ export default function AdminUsers() {
                 <SelectItem value="user">User</SelectItem>
                 <SelectItem value="provider">Business</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={verifiedFilter}
+              onValueChange={(v) => setVerifiedFilter(v as "all" | "unverified" | "verified")}
+            >
+              <SelectTrigger className="w-full sm:w-[150px]">
+                <SelectValue placeholder="Verification" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="unverified">Unverified</SelectItem>
+                <SelectItem value="verified">Verified</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -261,9 +286,248 @@ export default function AdminUsers() {
             </div>
           )}
 
-          {/* Table */}
-          <div className="rounded-md border">
-            <Table>
+          {/* Mobile cards */}
+          <div className="space-y-3 sm:hidden">
+            {isLoading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="rounded-xl border p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="h-4 w-4" />
+                      <Skeleton className="h-4 w-40" />
+                    </div>
+                    <Skeleton className="h-8 w-20" />
+                  </div>
+                  <Skeleton className="h-4 w-48" />
+                  <Skeleton className="h-4 w-32" />
+                </div>
+              ))
+            ) : users?.length === 0 ? (
+              <div className="rounded-xl border p-6 text-center text-muted-foreground">
+                No users found
+              </div>
+            ) : (
+              users?.map((user) => (
+                <div key={user.id} className="rounded-xl border p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <Checkbox
+                        checked={!!selected[user.user_id]}
+                        onCheckedChange={(v) => toggleSelectOne(user.user_id, Boolean(v))}
+                        aria-label={`Select ${user.full_name || "user"}`}
+                        className="mt-0.5"
+                      />
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{user.full_name || "Unnamed User"}</div>
+                        <div className="text-sm text-muted-foreground truncate">
+                          {user.phone ? (
+                            <a className="inline-flex items-center gap-1 underline-offset-4 hover:underline" href={`tel:${user.phone}`}>
+                              <Phone className="h-3 w-3" />
+                              <span className="font-mono">{user.phone}</span>
+                            </a>
+                          ) : (
+                            <span>-</span>
+                          )}
+                          <span className="px-2">•</span>
+                          <span>{getCityName(user.city_id)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="shrink-0">
+                          Actions
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {user.status === "active" ? (
+                          <DropdownMenuItem
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              setSuspendDialog({ open: true, userId: user.user_id });
+                            }}
+                            className="text-destructive"
+                          >
+                            <AlertTriangle className="h-4 w-4 mr-2" />
+                            Suspend User
+                          </DropdownMenuItem>
+                        ) : user.status === "suspended" ? (
+                          <DropdownMenuItem
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              reactivateUser.mutate(user.user_id);
+                            }}
+                          >
+                            Reactivate User
+                          </DropdownMenuItem>
+                        ) : null}
+                        <DropdownMenuSeparator />
+                        {/* User Verification (for all users, not just providers) */}
+                        {!user.roles.includes("admin") && (
+                          (user.is_verified === true ? (
+                            <DropdownMenuItem
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                unverifyUser.mutate(user.user_id);
+                              }}
+                              className="text-yellow-600"
+                            >
+                              <XCircle className="h-4 w-4 mr-2" />
+                              Unverify User
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                verifyUser.mutate(user.user_id);
+                              }}
+                              className="text-green-600"
+                            >
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Verify User
+                            </DropdownMenuItem>
+                          ))
+                        )}
+                        <DropdownMenuSeparator />
+                        {user.roles.includes("provider") &&
+                          ((user.provider_status || "pending").toLowerCase() !== "approved" ? (
+                            <DropdownMenuItem
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                verifyUser.mutate(user.user_id);
+                              }}
+                              className="text-green-600"
+                            >
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Approve Provider
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                unverifyUser.mutate(user.user_id);
+                              }}
+                              className="text-yellow-600"
+                            >
+                              <XCircle className="h-4 w-4 mr-2" />
+                              Set Provider to Pending
+                            </DropdownMenuItem>
+                          ))}
+                        <DropdownMenuSeparator />
+                        {!user.roles.includes("provider") && (
+                          <DropdownMenuItem
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              changeUserRole.mutate({ userId: user.user_id, role: "provider", action: "add" });
+                            }}
+                          >
+                            <Store className="h-4 w-4 mr-2" />
+                            Add Business Role
+                          </DropdownMenuItem>
+                        )}
+                        {user.roles.includes("provider") && (
+                          <DropdownMenuItem
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              changeUserRole.mutate({ userId: user.user_id, role: "provider", action: "remove" });
+                            }}
+                          >
+                            Remove Business Role
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        {!user.roles.includes("admin") && (
+                          <DropdownMenuItem
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              changeUserRole.mutate({ userId: user.user_id, role: "admin", action: "add" });
+                            }}
+                          >
+                            <Shield className="h-4 w-4 mr-2" />
+                            Add Admin Role
+                          </DropdownMenuItem>
+                        )}
+                        {user.roles.includes("admin") && (
+                          <DropdownMenuItem
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              changeUserRole.mutate({ userId: user.user_id, role: "admin", action: "remove" });
+                            }}
+                          >
+                            Remove Admin Role
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        {user.status !== "archived" && (
+                          <DropdownMenuItem
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              archiveUser.mutate(user.user_id);
+                            }}
+                            className="text-destructive"
+                          >
+                            Archive User
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onSelect={(e) => {
+                            e.preventDefault();
+                            setDeleteDialog({ open: true, userId: user.user_id });
+                          }}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete User
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex gap-1 flex-wrap">{getRoleBadges(user.roles)}</div>
+                    {getStatusBadge(user.status)}
+                    {/* User Verification Status */}
+                    {!user.roles.includes("admin") && (
+                      user.is_verified === true ? (
+                        <Badge variant="default" className="bg-green-600 gap-1">
+                          <CheckCircle className="h-3 w-3" />
+                          Verified
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-orange-600 border-orange-600 gap-1">
+                          <XCircle className="h-3 w-3" />
+                          Pending Verification
+                        </Badge>
+                      )
+                    )}
+                    {user.roles.includes("provider") ? (
+                      (user.provider_status || "pending").toLowerCase() === "approved" ? (
+                        <Badge variant="default" className="bg-green-600 gap-1">
+                          <CheckCircle className="h-3 w-3" />
+                          Provider Approved
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-yellow-600 border-yellow-600 gap-1">
+                          <XCircle className="h-3 w-3" />
+                          Provider Pending
+                        </Badge>
+                      )
+                    ) : null}
+                  </div>
+
+                  <div className="text-sm text-muted-foreground">
+                    Joined: {format(new Date(user.created_at), "MMM d, yyyy")}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden sm:block rounded-md border">
+            <Table className="min-w-[900px]">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[44px]">
@@ -276,6 +540,7 @@ export default function AdminUsers() {
                   <TableHead>Name</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>City</TableHead>
+                  <TableHead>Verification</TableHead>
                   <TableHead>Provider Status</TableHead>
                   <TableHead>Roles</TableHead>
                   <TableHead>Status</TableHead>
@@ -318,7 +583,7 @@ export default function AdminUsers() {
                   ))
                 ) : users?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                       No users found
                     </TableCell>
                   </TableRow>
@@ -344,6 +609,23 @@ export default function AdminUsers() {
                         )}
                       </TableCell>
                       <TableCell>{getCityName(user.city_id)}</TableCell>
+                      <TableCell>
+                        {!user.roles.includes("admin") ? (
+                          user.is_verified === true ? (
+                            <Badge variant="default" className="bg-green-600 gap-1">
+                              <CheckCircle className="h-3 w-3" />
+                              Verified
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-orange-600 border-orange-600 gap-1">
+                              <XCircle className="h-3 w-3" />
+                              Pending
+                            </Badge>
+                          )
+                        ) : (
+                          <Badge variant="secondary">Admin</Badge>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {user.roles.includes("provider") ? (
                           (user.provider_status || "pending").toLowerCase() === "approved" ? (
@@ -397,6 +679,33 @@ export default function AdminUsers() {
                                 Reactivate User
                               </DropdownMenuItem>
                             ) : null}
+                            <DropdownMenuSeparator />
+                            {/* User Verification (for all users, not just providers) */}
+                            {!user.roles.includes("admin") && (
+                              (user.is_verified === true ? (
+                                <DropdownMenuItem
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    unverifyUser.mutate(user.user_id);
+                                  }}
+                                  className="text-yellow-600"
+                                >
+                                  <XCircle className="h-4 w-4 mr-2" />
+                                  Unverify User
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    verifyUser.mutate(user.user_id);
+                                  }}
+                                  className="text-green-600"
+                                >
+                                  <CheckCircle className="h-4 w-4 mr-2" />
+                                  Verify User
+                                </DropdownMenuItem>
+                              ))
+                            )}
                             <DropdownMenuSeparator />
                             {user.roles.includes("provider") &&
                               ((user.provider_status || "pending").toLowerCase() !== "approved" ? (

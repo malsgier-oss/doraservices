@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -25,7 +25,10 @@ function getOrCreateReviewerKey(): string {
   try {
     const existing = localStorage.getItem(REVIEWER_KEY_STORAGE);
     if (existing) return existing;
-    const key = (crypto as any)?.randomUUID ? (crypto as any).randomUUID() : `${Date.now()}_${Math.random()}`;
+    const key =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}_${Math.random()}`;
     localStorage.setItem(REVIEWER_KEY_STORAGE, key);
     return key;
   } catch {
@@ -33,208 +36,210 @@ function getOrCreateReviewerKey(): string {
   }
 }
 
-export function useReviews(serviceId?: string) {
-  const { user } = useAuth();
-  const [reviews, setReviews] = useState<ServiceReview[]>([]);
-  const [rating, setRating] = useState<ServiceRating>({ averageRating: 0, totalReviews: 0 });
-  const [userReview, setUserReview] = useState<ServiceReview | null>(null);
-  const [loading, setLoading] = useState(true);
+async function fetchReviewsForService(serviceId: string, userId: string | undefined) {
+  const { data: reviewsData, error } = await supabase
+    .from("service_reviews")
+    .select("*")
+    .eq("service_id", serviceId)
+    .order("created_at", { ascending: false });
 
-  useEffect(() => {
-    if (serviceId) {
-      fetchReviews();
-    }
-  }, [serviceId, user]);
+  if (error) throw error;
 
-  const fetchReviews = async () => {
-    if (!serviceId) return;
-    
-    setLoading(true);
-    try {
-      // Fetch reviews for this service
-      const { data: reviewsData, error } = await supabase
-        .from("service_reviews")
-        .select("*")
-        .eq("service_id", serviceId)
-        .order("created_at", { ascending: false });
+  if (!reviewsData || reviewsData.length === 0) {
+    return {
+      reviews: [],
+      rating: { averageRating: 0, totalReviews: 0 },
+      userReview: null,
+    };
+  }
 
-      if (error) {
-        console.error("Error fetching reviews:", error);
-        setLoading(false);
-        return;
-      }
+  const userIds = [...new Set(reviewsData.map((r) => r.user_id))];
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("user_id, full_name, avatar_url")
+    .in("user_id", userIds);
 
-      if (!reviewsData || reviewsData.length === 0) {
-        setReviews([]);
-        setRating({ averageRating: 0, totalReviews: 0 });
-        setUserReview(null);
-        setLoading(false);
-        return;
-      }
+  const profileMap = new Map(profiles?.map((p) => [p.user_id, p]) || []);
 
-      // Get reviewer profiles
-      const userIds = [...new Set(reviewsData.map(r => r.user_id))];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, avatar_url")
-        .in("user_id", userIds);
+  const enrichedReviews: ServiceReview[] = reviewsData.map((review) => ({
+    ...review,
+    reviewer_name: profileMap.get(review.user_id)?.full_name || "User",
+    reviewer_avatar: profileMap.get(review.user_id)?.avatar_url || "",
+  }));
 
-      const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
-
-      const enrichedReviews: ServiceReview[] = reviewsData.map(review => ({
-        ...review,
-        reviewer_name: profileMap.get(review.user_id)?.full_name || "User",
-        reviewer_avatar: profileMap.get(review.user_id)?.avatar_url || "",
-      }));
-
-      setReviews(enrichedReviews);
-
-      // Calculate average rating
-      const totalRating = reviewsData.reduce((sum, r) => sum + r.rating, 0);
-      setRating({
-        averageRating: Math.round((totalRating / reviewsData.length) * 10) / 10,
-        totalReviews: reviewsData.length,
-      });
-
-      // Find user's review if logged in
-      if (user) {
-        const myReview = enrichedReviews.find(r => r.user_id === user.id);
-        setUserReview(myReview || null);
-      }
-    } catch (error) {
-      console.error("Error:", error);
-    } finally {
-      setLoading(false);
-    }
+  const totalRating = reviewsData.reduce((sum, r) => sum + r.rating, 0);
+  const rating: ServiceRating = {
+    averageRating: Math.round((totalRating / reviewsData.length) * 10) / 10,
+    totalReviews: reviewsData.length,
   };
 
-  const submitReview = async (data: { rating: number; content?: string; providerId: string }) => {
-    if (!serviceId) return { error: new Error("No service") };
+  const userReview = userId
+    ? enrichedReviews.find((r) => r.user_id === userId) ?? null
+    : null;
 
-    // Validate rating
+  return { reviews: enrichedReviews, rating, userReview };
+}
+
+export function useReviews(serviceId?: string) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
+    queryKey: ["reviews", serviceId, user?.id],
+    queryFn: () => fetchReviewsForService(serviceId!, user?.id),
+    enabled: !!serviceId,
+    staleTime: 60 * 1000,
+  });
+
+  const submitReviewMutation = useMutation({
+    mutationFn: async (params: {
+      rating: number;
+      content?: string;
+      providerId: string;
+      userReview: ServiceReview | null;
+    }) => {
+      if (!serviceId) throw new Error("No service");
+
+      let sanitizedContent: string | null = null;
+      if (params.content) {
+        sanitizedContent = params.content.trim().replace(/<[^>]*>/g, "");
+        if (sanitizedContent.length > 500) {
+          throw new Error("Review content must be less than 500 characters");
+        }
+        if (sanitizedContent.length === 0) sanitizedContent = null;
+      }
+
+      const userReview = params.userReview;
+
+      if (userReview && user) {
+        const { error } = await supabase
+          .from("service_reviews")
+          .update({ rating: params.rating, content: sanitizedContent })
+          .eq("id", userReview.id);
+        if (error) throw error;
+      } else {
+        const reviewerKey = user ? null : getOrCreateReviewerKey();
+        const { error } = await supabase.from("service_reviews").insert({
+          service_id: serviceId,
+          user_id: user?.id ?? null,
+          reviewer_key: reviewerKey,
+          provider_id: params.providerId,
+          rating: params.rating,
+          content: sanitizedContent,
+        });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["reviews", serviceId] });
+      void queryClient.invalidateQueries({ queryKey: ["service-ratings"] });
+    },
+  });
+
+  const deleteReviewMutation = useMutation({
+    mutationFn: async () => {
+      const data = queryClient.getQueryData<{
+        reviews: ServiceReview[];
+        rating: ServiceRating;
+        userReview: ServiceReview | null;
+      }>(["reviews", serviceId, user?.id]);
+      const userReview = data?.userReview;
+      if (!user || !userReview) throw new Error("No review to delete");
+
+      const { error } = await supabase
+        .from("service_reviews")
+        .delete()
+        .eq("id", userReview.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["reviews", serviceId] });
+      void queryClient.invalidateQueries({ queryKey: ["service-ratings"] });
+    },
+  });
+
+  const submitReview = async (data: {
+    rating: number;
+    content?: string;
+    providerId: string;
+  }) => {
+    if (!serviceId) return { error: new Error("No service") };
     if (data.rating < 1 || data.rating > 5) {
       return { error: new Error("Rating must be between 1 and 5") };
     }
 
-    // Sanitize and validate content - strip HTML tags to prevent XSS
-    let sanitizedContent: string | null = null;
-    if (data.content) {
-      // Strip all HTML tags but keep text content
-      sanitizedContent = data.content.trim().replace(/<[^>]*>/g, '');
-      
-      if (sanitizedContent.length > 500) {
-        return { error: new Error("Review content must be less than 500 characters") };
-      }
-      
-      // Set to null if empty after sanitization
-      if (sanitizedContent.length === 0) {
-        sanitizedContent = null;
-      }
-    }
-
     try {
-      // If logged in, we can update. If anonymous, we only insert once per device.
-      if (userReview && user) {
-        const { error } = await supabase
-          .from("service_reviews")
-          .update({ rating: data.rating, content: sanitizedContent })
-          .eq("id", userReview.id);
-        if (error) return { error };
-      } else {
-        const reviewerKey = user ? null : getOrCreateReviewerKey();
-        const { error } = await supabase
-          .from("service_reviews")
-          .insert({
-            service_id: serviceId,
-            user_id: user?.id ?? null,
-            reviewer_key: reviewerKey,
-            provider_id: data.providerId,
-            rating: data.rating,
-            content: sanitizedContent,
-          } as any);
-        if (error) return { error };
-      }
-
-      await fetchReviews();
+      await submitReviewMutation.mutateAsync({
+        ...data,
+        userReview: query.data?.userReview ?? null,
+      });
       return { error: null };
-    } catch (error) {
-      return { error };
+    } catch (err) {
+      return { error: err };
     }
   };
 
   const deleteReview = async () => {
-    if (!user || !userReview) return { error: new Error("No review to delete") };
-
-    const { error } = await supabase
-      .from("service_reviews")
-      .delete()
-      .eq("id", userReview.id);
-
-    if (!error) {
-      await fetchReviews();
+    try {
+      await deleteReviewMutation.mutateAsync();
+      return { error: null };
+    } catch (err) {
+      return { error: err };
     }
-
-    return { error };
   };
 
   return {
-    reviews,
-    rating,
-    userReview,
-    loading,
+    reviews: query.data?.reviews ?? [],
+    rating: query.data?.rating ?? { averageRating: 0, totalReviews: 0 },
+    userReview: query.data?.userReview ?? null,
+    loading: query.isLoading,
     submitReview,
     deleteReview,
-    refreshReviews: fetchReviews,
+    refreshReviews: () => queryClient.invalidateQueries({ queryKey: ["reviews", serviceId] }),
   };
 }
 
-// Hook to get ratings for multiple services at once
-export function useServiceRatings(serviceIds: string[]) {
-  const [ratings, setRatings] = useState<Map<string, ServiceRating>>(new Map());
-  const [loading, setLoading] = useState(true);
+async function fetchServiceRatings(serviceIds: string[]): Promise<Map<string, ServiceRating>> {
+  if (serviceIds.length === 0) return new Map();
 
-  useEffect(() => {
-    if (serviceIds.length > 0) {
-      fetchRatings();
-    }
-  }, [serviceIds.join(",")]);
+  const { data, error } = await supabase
+    .from("service_review_stats")
+    .select("service_id, average_rating, total_reviews")
+    .in("service_id", serviceIds);
 
-  const fetchRatings = async () => {
-    if (serviceIds.length === 0) return;
+  if (error) throw error;
 
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("service_review_stats")
-        .select("service_id, average_rating, total_reviews")
-        .in("service_id", serviceIds);
-
-      if (error) {
-        console.error("Error fetching ratings:", error);
-        setLoading(false);
-        return;
-      }
-
-      const map = new Map<string, ServiceRating>();
-      serviceIds.forEach((id) => {
-        const row = (data || []).find((r: any) => r.service_id === id);
-        if (row) {
-          map.set(id, {
-            averageRating: Math.round((Number(row.average_rating || 0)) * 10) / 10,
-            totalReviews: Number(row.total_reviews || 0),
-          });
-        } else {
-          map.set(id, { averageRating: 0, totalReviews: 0 });
-        }
+  const map = new Map<string, ServiceRating>();
+  for (const id of serviceIds) {
+    const row = (data || []).find((r: { service_id: string }) => r.service_id === id);
+    if (row) {
+      map.set(id, {
+        averageRating: Math.round(Number(row.average_rating || 0) * 10) / 10,
+        totalReviews: Number(row.total_reviews || 0),
       });
-
-      setRatings(map);
-    } catch (error) {
-      console.error("Error:", error);
-    } finally {
-      setLoading(false);
+    } else {
+      map.set(id, { averageRating: 0, totalReviews: 0 });
     }
-  };
+  }
+  return map;
+}
 
-  return { ratings, loading, refreshRatings: fetchRatings };
+export function useServiceRatings(serviceIds: string[]) {
+  const serviceIdsKey = JSON.stringify(serviceIds);
+
+  const query = useQuery({
+    queryKey: ["service-ratings", serviceIdsKey],
+    queryFn: () => fetchServiceRatings(serviceIds),
+    enabled: serviceIds.length > 0,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const ratings = query.data ?? new Map<string, ServiceRating>();
+
+  return {
+    ratings,
+    loading: query.isLoading,
+    refreshRatings: () => query.refetch(),
+  };
 }

@@ -7,14 +7,13 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useCities } from "@/hooks/useCities";
 import { useSubCities } from "@/hooks/useSubCities";
 
-import { cleanPhoneForStorage, isValidLibyanPhone } from "@/lib/phoneUtils";
+// Phone utilities (kept for potential future use)
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,11 +25,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 
-import { toast } from "@/hooks/use-toast";
+import { toast, useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
-  Building2,
   Camera,
   KeyRound,
   Loader2,
@@ -41,8 +40,12 @@ import {
   Trash2,
   User2,
   X,
+  Bell,
+  Store,
 } from "lucide-react";
 import { MobileNav } from "@/components/layout/MobileNav";
+import { useBuySellEnabled } from "@/hooks/useBuySellEnabled";
+import { usePushAndSync } from "@/hooks/usePushAndSync";
 
 function statusBadgeVariant(status?: string | null) {
   const s = (status || "").toLowerCase();
@@ -70,12 +73,84 @@ function isProviderLike(role: string | null | undefined) {
   return r === "provider" || r === "business";
 }
 
+function NotificationsCard({ isRTL }: { isRTL: boolean }) {
+  const {
+    supported,
+    pushPermission,
+    isSubscribed,
+    requestPushSubscription,
+    turnOffPush,
+  } = usePushAndSync();
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+
+  if (!supported) return null;
+
+  const handleToggle = async (on: boolean) => {
+    setBusy(true);
+    try {
+      if (on) {
+        const ok = await requestPushSubscription();
+        toast({
+          title: ok
+            ? isRTL ? "تم تفعيل الإشعارات" : "Notifications enabled"
+            : isRTL ? "تعذر التفعيل" : "Could not enable",
+          variant: ok ? "default" : "destructive",
+        });
+      } else {
+        const ok = await turnOffPush();
+        toast({
+          title: ok
+            ? isRTL ? "تم إيقاف الإشعارات" : "Notifications disabled"
+            : isRTL ? "تعذر الإيقاف" : "Could not disable",
+          variant: ok ? "default" : "destructive",
+        });
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Bell className="h-4 w-4" />
+          {isRTL ? "الإشعارات" : "Notifications"}
+        </CardTitle>
+        <CardDescription>
+          {isRTL
+            ? "استقبل تذكيرات وعروضاً عندما تكون التطبيق مغلقاً."
+            : "Get reminders and updates when the app is closed."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-sm text-muted-foreground">
+            {pushPermission === "denied"
+              ? isRTL ? "الإشعارات معطّلة من المتصفح" : "Notifications blocked by browser"
+              : isSubscribed
+                ? isRTL ? "الإشعارات مفعّلة" : "Notifications on"
+                : isRTL ? "فعّل الإشعارات" : "Enable notifications"}
+          </span>
+          <Switch
+            checked={isSubscribed}
+            disabled={busy || pushPermission === "denied"}
+            onCheckedChange={handleToggle}
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Profile() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, profile, loading, profileLoading, signOut, refreshProfile } = useAuth();
   const { isRTL, language } = useLanguage();
   const { data: cities, isLoading: citiesLoading } = useCities();
+  const { isEnabled: buySellEnabled } = useBuySellEnabled();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const [saving, setSaving] = useState(false);
@@ -93,7 +168,12 @@ export default function Profile() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
 
-  const [becomingProvider, setBecomingProvider] = useState(false);
+  const [marketplaceEnabled, setMarketplaceEnabled] = useState(false);
+  const [savingMarketplace, setSavingMarketplace] = useState(false);
+
+  // Marketplace Controls state
+  const [providerMode, setProviderMode] = useState(false);
+  const [savingProviderMode, setSavingProviderMode] = useState(false);
 
   // Route guard
   useEffect(() => {
@@ -120,7 +200,86 @@ export default function Profile() {
     setCityId(profile.city_id || "");
     setSubCity(profile.sub_city || "");
     setPhone((profile.phone || (typeof (user as any)?.user_metadata?.phone === "string" ? (user as any).user_metadata.phone : "")) as string); // fallback to auth metadata
+    setMarketplaceEnabled(Boolean((profile as any).marketplace_enabled));
+    setProviderMode(Boolean((profile as any).provider_mode));
   }, [profile, user]);
+
+  // If buy/sell is disabled platform-wide, disable marketplace locally (user can't enable listings).
+  useEffect(() => {
+    if (!buySellEnabled) {
+      setMarketplaceEnabled(false);
+    }
+  }, [buySellEnabled]);
+
+  // Auto-save marketplace_enabled only when the user toggles it (not on initial load from profile)
+  const profileMarketplace = Boolean((profile as any)?.marketplace_enabled);
+  useEffect(() => {
+    if (!user || !profile) return;
+    // Skip save when value matches profile — avoids "Saved, listing preference updated" on every visit
+    if (marketplaceEnabled === profileMarketplace) return;
+
+    const saveMarketplace = async () => {
+      setSavingMarketplace(true);
+      const { error } = await supabase
+        .from("profiles")
+        .update({ marketplace_enabled: marketplaceEnabled })
+        .eq("user_id", user.id);
+      setSavingMarketplace(false);
+
+      if (error) {
+        toast({
+          title: isRTL ? "فشل الحفظ" : "Failed to save",
+          description: error.message,
+          variant: "destructive",
+        });
+        setMarketplaceEnabled(profileMarketplace); // Revert on error
+      } else {
+        toast({
+          title: isRTL ? "تم الحفظ" : "Saved",
+          description: isRTL ? "تم تحديث تفضيلات الإعلانات" : "Listing preference updated",
+        });
+        await refreshProfile?.();
+      }
+    };
+
+    const timer = setTimeout(saveMarketplace, 500);
+    return () => clearTimeout(timer);
+  }, [marketplaceEnabled, profileMarketplace, user, profile, isRTL, refreshProfile]);
+
+  // Auto-save provider_mode only when the user toggles it (not on initial load from profile)
+  const profileProviderMode = Boolean((profile as any)?.provider_mode);
+  useEffect(() => {
+    if (!user || !profile) return;
+    // Skip save when value matches profile
+    if (providerMode === profileProviderMode) return;
+
+    const saveProviderMode = async () => {
+      setSavingProviderMode(true);
+      const { error } = await supabase
+        .from("profiles")
+        .update({ provider_mode: providerMode })
+        .eq("user_id", user.id);
+      setSavingProviderMode(false);
+
+      if (error) {
+        toast({
+          title: isRTL ? "فشل الحفظ" : "Failed to save",
+          description: error.message,
+          variant: "destructive",
+        });
+        setProviderMode(profileProviderMode); // Revert on error
+      } else {
+        toast({
+          title: isRTL ? "تم الحفظ" : "Saved",
+          description: isRTL ? "تم تحديث وضع المزود" : "Provider mode updated",
+        });
+        await refreshProfile?.();
+      }
+    };
+
+    const timer = setTimeout(saveProviderMode, 500);
+    return () => clearTimeout(timer);
+  }, [providerMode, profileProviderMode, user, profile, isRTL, refreshProfile]);
 
   // If city changes and the selected sub-city doesn't belong to the city, clear it.
   useEffect(() => {
@@ -139,36 +298,22 @@ export default function Profile() {
     return language === "ar" ? c.name_ar || c.name : c.name || c.name_ar;
   }, [cities, cityId, language]);
 
-  const providerStatus = profile?.provider_status || null;
-
   const currentRole = (profile?.role || "user").toString().toLowerCase();
   const isProvider = isProviderLike(currentRole);
   const isAdmin = currentRole === "admin";
-
-  // Dora principle: Profile pages stay focused on account/security/personal data.
-  // "Become provider" is available only for non-remixed users.
-  const showProviderTab = !isAdmin && !isProvider;
 
   const accountLocked = useMemo(() => {
     const st = (profile?.status || "").toLowerCase();
     return st === "suspended" || st === "deleted" || st === "inactive";
   }, [profile?.status]);
 
-  const showWelcome = useMemo(() => {
-    const q = new URLSearchParams(location.search);
-    return q.get("welcome") === "1";
-  }, [location.search]);
-
-  const defaultTab = useMemo(() => {
-    if (showWelcome) return showProviderTab ? "provider" : "account";
-    return "account";
-  }, [showWelcome, showProviderTab]);
+  const defaultTab = "account";
 
   const canEditPhone = useMemo(() => {
-    // Editing phone freely can break login (phone->internal email mapping).
-    // P0 rule: allow edit ONLY if it's empty in DB.
-    return !profile?.phone;
-  }, [profile?.phone]);
+    // Editing phone can break login (phone->internal email mapping).
+    // P0 rule: phone is never editable after account creation.
+    return false;
+  }, []);
 
   const handleSave = async () => {
     if (!user) return;
@@ -184,18 +329,7 @@ export default function Profile() {
     }
 
     let cleanedPhone: string | null = null;
-    if (canEditPhone) {
-      const p = cleanPhoneForStorage(phone);
-      if (p && !isValidLibyanPhone(p)) {
-        toast({
-          title: isRTL ? "رقم غير صالح" : "Invalid phone",
-          description: isRTL ? "اكتب رقم ليبي صحيح مثل 09XXXXXXXX" : "Enter a valid Libyan phone like 09XXXXXXXX",
-          variant: "destructive",
-        });
-        return;
-      }
-      cleanedPhone = p || null;
-    }
+    // Phone is never editable, so we don't need to validate or update it
 
     const selected = cities?.find((c) => c.id === cityId);
     const cityName = selected
@@ -212,9 +346,8 @@ export default function Profile() {
       city_id: cityId || null,
       city: cityName,
       sub_city: subCity?.trim() || null,
+      marketplace_enabled: marketplaceEnabled,
     };
-
-    if (canEditPhone) payload.phone = cleanedPhone;
 
     const { error } = await supabase.from("profiles").update(payload).eq("user_id", user.id);
 
@@ -236,8 +369,18 @@ export default function Profile() {
       description: isRTL ? "تم تحديث ملفك الشخصي" : "Your profile was updated",
     });
 
+    // If we were redirected here from a protected route, go back after completing the profile.
+    const from = (location.state as any)?.from as
+      | { pathname?: string; search?: string; hash?: string }
+      | undefined;
+    if (from?.pathname) {
+      navigate(`${from.pathname}${from.search || ""}${from.hash || ""}`, { replace: true });
+      return;
+    }
+
     // Post-signup welcome flow: after profile completion, send the user to Hub.
-    if (showWelcome) {
+    const q = new URLSearchParams(location.search);
+    if (q.get("welcome") === "1") {
       navigate("/", { replace: true });
     }
   };
@@ -376,43 +519,6 @@ export default function Profile() {
     }
   };
 
-  const handleBecomeProvider = async () => {
-    if (!user) return;
-
-    setBecomingProvider(true);
-    try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          // Dora P0: admin-controlled trust.
-          // User can request to become a provider, but approval is required.
-          role: "provider",
-          provider_status: "pending",
-        })
-        .eq("user_id", user.id);
-
-      if (error) {
-        toast({
-          title: isRTL ? "فشل التفعيل" : "Activation failed",
-          description: error.message,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      await refreshProfile?.();
-
-      toast({
-        title: isRTL ? "تم إرسال طلب المزود" : "Provider request sent",
-        description: isRTL
-          ? "حسابك تحت المراجعة. يمكنك إضافة خدمات لكنها لن تظهر للناس حتى الموافقة."
-          : "You're under review. You can add services, but they won't be visible until approved.",
-      });
-    } finally {
-      setBecomingProvider(false);
-    }
-  };
-
   const handleSoftDelete = async () => {
     if (!user || !profile) return;
     if (deleteConfirmText.trim().toUpperCase() !== "DELETE") return;
@@ -542,22 +648,14 @@ export default function Profile() {
                         : "Active"
                       : (profile.status || "").toString()}
                   </Badge>
-
                   <Badge variant="outline">
                     {isAdmin ? "Admin" : isProvider ? (isRTL ? "مزود" : "Provider") : isRTL ? "مستخدم" : "User"}
                   </Badge>
-
                   {cityLabel && (
                     <Badge variant="secondary" className="gap-1">
                       <MapPin className="h-4 w-4" />
                       {cityLabel}
                       {subCity ? ` • ${subCity}` : ""}
-                    </Badge>
-                  )}
-
-                  {providerStatus && (
-                    <Badge variant={statusBadgeVariant(providerStatus)}>
-                      {isRTL ? "المزود:" : "Provider:"} {providerStatus}
                     </Badge>
                   )}
                 </div>
@@ -603,21 +701,14 @@ export default function Profile() {
 
         {/* Tabs */}
         <Tabs defaultValue={defaultTab} className="w-full">
-          <TabsList
-            className={cn(
-              "grid w-full rounded-2xl h-12",
-              showProviderTab ? "grid-cols-3" : "grid-cols-2",
-            )}
-          >
-            <TabsTrigger value="account" className="rounded-xl">
+          <TabsList className="flex w-full flex-wrap gap-2 rounded-2xl h-auto p-2">
+            <TabsTrigger value="account" className="rounded-xl flex-1 min-w-0 shrink-0">
               {isRTL ? "الحساب" : "Account"}
             </TabsTrigger>
-            {showProviderTab && (
-              <TabsTrigger value="provider" className="rounded-xl">
-                {isRTL ? "المزود" : "Provider"}
-              </TabsTrigger>
-            )}
-            <TabsTrigger value="security" className="rounded-xl">
+            <TabsTrigger value="marketplace" className="rounded-xl flex-1 min-w-0 shrink-0">
+              {isRTL ? "السوق" : "Marketplace"}
+            </TabsTrigger>
+            <TabsTrigger value="security" className="rounded-xl flex-1 min-w-0 shrink-0">
               {isRTL ? "الأمان" : "Security"}
             </TabsTrigger>
           </TabsList>
@@ -649,13 +740,11 @@ export default function Profile() {
                     disabled={!canEditPhone}
                     readOnly={!canEditPhone}
                   />
-                  {!canEditPhone && (
-                    <p className="text-xs text-muted-foreground">
-                      {isRTL
-                        ? "لأسباب أمنية، تغيير رقم الهاتف قد يسبب مشاكل في تسجيل الدخول. (حالياً للعرض فقط)"
-                        : "For security, changing phone can break login. (Currently display-only)"}
-                    </p>
-                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {isRTL
+                      ? "لأسباب أمنية، رقم الهاتف لا يمكن تعديله بعد إنشاء الحساب."
+                      : "For security, phone number cannot be edited after account creation."}
+                  </p>
                 </div>
 
                 <div className="grid gap-3">
@@ -735,44 +824,63 @@ export default function Profile() {
             </Card>
           </TabsContent>
 
-          {/* Provider (upgrade only) */}
-          {showProviderTab && (
-            <TabsContent value="provider" className="mt-4 space-y-4">
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Building2 className="h-4 w-4" />
-                    {isRTL ? "أصبح مزود خدمة" : "Become a provider"}
-                  </CardTitle>
-                  <CardDescription>
-                    {isRTL
-                      ? "ستتم مراجعة طلبك من الإدارة قبل ظهور خدماتك للناس."
-                      : "Your request will be reviewed by admin before your services become visible."}
-                  </CardDescription>
-                </CardHeader>
+          {/* Marketplace */}
+          <TabsContent value="marketplace" className="mt-4 space-y-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Store className="h-4 w-4" />
+                  {isRTL ? "إعدادات السوق" : "Marketplace Controls"}
+                </CardTitle>
+                <CardDescription>
+                  {isRTL ? "تفعيل ميزات المزود والإعلانات" : "Enable provider and listings features"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Provider Mode Toggle */}
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
+                  <div className="min-w-0">
+                    <div className="font-medium">{isRTL ? "وضع المزود" : "Provider Mode"}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {isRTL ? "تفعيل ميزات مزود الخدمة" : "Enable service provider features"}
+                    </div>
+                  </div>
+                  <Switch
+                    checked={providerMode}
+                    onCheckedChange={(v) => setProviderMode(Boolean(v))}
+                    disabled={savingProviderMode}
+                    aria-label="provider-mode"
+                  />
+                </div>
 
-                <CardContent className="space-y-3">
-                  <Button
-                    onClick={handleBecomeProvider}
-                    disabled={becomingProvider}
-                    className="h-12 rounded-xl w-full gap-2"
-                  >
-                    {becomingProvider ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Building2 className="h-4 w-4" />
-                    )}
-                    {isRTL ? "أريد أن أكون مزود" : "I want to be a provider"}
-                  </Button>
-                  <p className="text-xs text-muted-foreground">
-                    {isRTL
-                      ? "بعد الموافقة، ستجد لوحة المزود في الشريط السفلي."
-                      : "After approval, you'll find Dashboard in the bottom navigation."}
-                  </p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          )}
+                {/* Activate Listings Toggle */}
+                {buySellEnabled && (
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
+                    <div className="min-w-0">
+                      <div className="font-medium">{isRTL ? "تفعيل الإعلانات" : "Activate Listings"}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {isRTL ? "تفعيل إدارة إعلانات البيع والشراء" : "Enable Buy & Sell listings management"}
+                      </div>
+                    </div>
+                    <Switch
+                      checked={marketplaceEnabled}
+                      onCheckedChange={(v) => setMarketplaceEnabled(Boolean(v))}
+                      disabled={savingMarketplace}
+                      aria-label="listings-active"
+                    />
+                  </div>
+                )}
+
+                {/* Status indicators */}
+                {(providerMode || marketplaceEnabled) && (
+                  <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t border-border">
+                    {providerMode && <div>• {isRTL ? "المزود: مفعل" : "Provider: Active"}</div>}
+                    {marketplaceEnabled && <div>• {isRTL ? "الإعلانات: مفعلة" : "Listings: Active"}</div>}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* Security */}
           <TabsContent value="security" className="mt-4 space-y-4">
@@ -803,6 +911,8 @@ export default function Profile() {
                 </div>
               </CardContent>
             </Card>
+
+            <NotificationsCard isRTL={!!isRTL} />
 
             <Card className="border-destructive/40">
               <CardHeader className="pb-3">

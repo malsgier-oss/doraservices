@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -55,11 +56,20 @@ interface Provider {
 
 export default function AdminProviders() {
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const urlProvider = searchParams.get("providerStatus");
+  const initialProvider =
+    urlProvider === "pending" || urlProvider === "approved" || urlProvider === "rejected" ? urlProvider : "all";
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [providerStatusFilter, setProviderStatusFilter] = useState<string>("all");
+  const [providerStatusFilter, setProviderStatusFilter] = useState<string>(initialProvider);
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+
+  useEffect(() => {
+    if (initialProvider !== "all") setProviderStatusFilter(initialProvider);
+  }, [initialProvider]);
 
   const { data: providers, isLoading } = useQuery({
     queryKey: ["admin-providers", statusFilter, providerStatusFilter, search],
@@ -201,18 +211,18 @@ export default function AdminProviders() {
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>Providers</span>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search providers..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 w-64"
+                  className="pl-9 w-full sm:w-64"
                 />
               </div>
               <Select value={providerStatusFilter} onValueChange={setProviderStatusFilter}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="w-full sm:w-40">
                   <SelectValue placeholder="Provider Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -223,7 +233,7 @@ export default function AdminProviders() {
                 </SelectContent>
               </Select>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="w-full sm:w-40">
                   <SelectValue placeholder="Account Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -246,111 +256,233 @@ export default function AdminProviders() {
           ) : providers?.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">No providers found</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>City</TableHead>
-                  <TableHead>Services</TableHead>
-                  <TableHead>Provider Status</TableHead>
-                  <TableHead>Account Status</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              {/* Mobile cards */}
+              <div className="space-y-3 sm:hidden">
                 {providers?.map((provider) => (
-                  <TableRow key={provider.id}>
-                    <TableCell className="font-medium">
-                      {provider.full_name || "N/A"}
-                    </TableCell>
-                    <TableCell>{provider.phone || "N/A"}</TableCell>
-                    <TableCell>{provider.city || "N/A"}</TableCell>
-                    <TableCell>{provider.services_count}</TableCell>
-                    <TableCell>{getProviderStatusBadge(provider.provider_status)}</TableCell>
-                    <TableCell>{getAccountStatusBadge(provider.status)}</TableCell>
-                    <TableCell>
-                      {format(new Date(provider.created_at), "MMM d, yyyy")}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setSelectedProvider(provider);
-                            setDetailsOpen(true);
-                          }}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        {provider.provider_status === "pending" && (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-green-500"
-                              onClick={() =>
-                                updateProviderStatus.mutate({
-                                  userId: provider.user_id,
-                                  providerStatus: "approved",
-                                })
-                              }
-                            >
-                              <CheckCircle className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-red-500"
-                              onClick={() =>
-                                updateProviderStatus.mutate({
-                                  userId: provider.user_id,
-                                  providerStatus: "rejected",
-                                })
-                              }
-                            >
-                              <XCircle className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                        {provider.status === "active" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-orange-500"
-                            onClick={() =>
-                              updateAccountStatus.mutate({
-                                userId: provider.user_id,
-                                status: "suspended",
-                              })
-                            }
-                          >
-                            <Ban className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {provider.status === "suspended" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-green-500"
-                            onClick={() =>
-                              updateAccountStatus.mutate({
-                                userId: provider.user_id,
-                                status: "active",
-                              })
-                            }
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                          </Button>
-                        )}
+                  <div key={provider.id} className="rounded-xl border p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{provider.full_name || "N/A"}</div>
+                        <div className="text-sm text-muted-foreground truncate">
+                          {provider.city || "N/A"} • Joined {format(new Date(provider.created_at), "MMM d, yyyy")}
+                        </div>
                       </div>
-                    </TableCell>
-                  </TableRow>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedProvider(provider);
+                          setDetailsOpen(true);
+                        }}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        Details
+                      </Button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {getProviderStatusBadge(provider.provider_status)}
+                      {getAccountStatusBadge(provider.status)}
+                      <Badge variant="outline">{provider.services_count ?? 0} services</Badge>
+                      {provider.phone ? (
+                        <Badge variant="secondary">
+                          <a className="underline-offset-4 hover:underline" href={`tel:${provider.phone}`}>
+                            {provider.phone}
+                          </a>
+                        </Badge>
+                      ) : null}
+                    </div>
+
+                    {provider.provider_status === "pending" ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            updateProviderStatus.mutate({
+                              userId: provider.user_id,
+                              providerStatus: "approved",
+                            })
+                          }
+                          disabled={updateProviderStatus.isPending}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
+                          Approve
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={() =>
+                            updateProviderStatus.mutate({
+                              userId: provider.user_id,
+                              providerStatus: "rejected",
+                            })
+                          }
+                          disabled={updateProviderStatus.isPending}
+                        >
+                          <XCircle className="h-4 w-4 mr-2" />
+                          Reject
+                        </Button>
+                      </div>
+                    ) : null}
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {provider.status === "active" ? (
+                        <Button
+                          variant="destructive"
+                          onClick={() =>
+                            updateAccountStatus.mutate({
+                              userId: provider.user_id,
+                              status: "suspended",
+                            })
+                          }
+                          disabled={updateAccountStatus.isPending}
+                        >
+                          <Ban className="h-4 w-4 mr-2" />
+                          Suspend
+                        </Button>
+                      ) : provider.status === "suspended" ? (
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            updateAccountStatus.mutate({
+                              userId: provider.user_id,
+                              status: "active",
+                            })
+                          }
+                          disabled={updateAccountStatus.isPending}
+                        >
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Reactivate
+                        </Button>
+                      ) : (
+                        <Button variant="outline" disabled>
+                          —
+                        </Button>
+                      )}
+
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setSelectedProvider(provider);
+                          setDetailsOpen(true);
+                        }}
+                      >
+                        View profile
+                      </Button>
+                    </div>
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden sm:block">
+                <Table className="min-w-[900px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>City</TableHead>
+                      <TableHead>Services</TableHead>
+                      <TableHead>Provider Status</TableHead>
+                      <TableHead>Account Status</TableHead>
+                      <TableHead>Joined</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {providers?.map((provider) => (
+                      <TableRow key={provider.id}>
+                        <TableCell className="font-medium">
+                          {provider.full_name || "N/A"}
+                        </TableCell>
+                        <TableCell>{provider.phone || "N/A"}</TableCell>
+                        <TableCell>{provider.city || "N/A"}</TableCell>
+                        <TableCell>{provider.services_count}</TableCell>
+                        <TableCell>{getProviderStatusBadge(provider.provider_status)}</TableCell>
+                        <TableCell>{getAccountStatusBadge(provider.status)}</TableCell>
+                        <TableCell>
+                          {format(new Date(provider.created_at), "MMM d, yyyy")}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setSelectedProvider(provider);
+                                setDetailsOpen(true);
+                              }}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            {provider.provider_status === "pending" && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-green-500"
+                                  onClick={() =>
+                                    updateProviderStatus.mutate({
+                                      userId: provider.user_id,
+                                      providerStatus: "approved",
+                                    })
+                                  }
+                                >
+                                  <CheckCircle className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-red-500"
+                                  onClick={() =>
+                                    updateProviderStatus.mutate({
+                                      userId: provider.user_id,
+                                      providerStatus: "rejected",
+                                    })
+                                  }
+                                >
+                                  <XCircle className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                            {provider.status === "active" && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-orange-500"
+                                onClick={() =>
+                                  updateAccountStatus.mutate({
+                                    userId: provider.user_id,
+                                    status: "suspended",
+                                  })
+                                }
+                              >
+                                <Ban className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {provider.status === "suspended" && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-green-500"
+                                onClick={() =>
+                                  updateAccountStatus.mutate({
+                                    userId: provider.user_id,
+                                    status: "active",
+                                  })
+                                }
+                              >
+                                <RefreshCw className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

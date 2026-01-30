@@ -38,8 +38,54 @@ export default function AdminAuditLog() {
           <CardTitle>Recent Activity</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
+          {/* Mobile cards */}
+          <div className="space-y-3 sm:hidden">
+            {isLoading ? (
+              Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="rounded-xl border p-4 space-y-2">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-4 w-56" />
+                  <Skeleton className="h-4 w-28" />
+                </div>
+              ))
+            ) : logs?.length === 0 ? (
+              <div className="rounded-xl border p-6 text-center text-muted-foreground">
+                No audit log entries yet
+              </div>
+            ) : (
+              logs?.map((log) => (
+                <div key={log.id} className="rounded-xl border p-4 space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {getActionBadge(log.action)}
+                        <Badge variant="outline" className="capitalize">
+                          {log.target_type}
+                        </Badge>
+                      </div>
+                      <div className="mt-1 text-xs text-muted-foreground font-mono truncate" title={log.target_id || ""}>
+                        {log.target_id || "-"}
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-xs text-muted-foreground">
+                      {format(new Date(log.created_at), "MMM d, HH:mm:ss")}
+                    </div>
+                  </div>
+                  {log.details ? (
+                    <div className="text-xs text-muted-foreground whitespace-pre-wrap break-words">
+                      {JSON.stringify(log.details)}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">-</div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden sm:block rounded-md border">
+            <Table className="min-w-[900px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Action</TableHead>

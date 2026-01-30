@@ -1,7 +1,15 @@
 // Dora phone utilities (Libya)
 
+// Convert Arabic-Indic (٠١٢٣٤٥٦٧٨٩) and Eastern Arabic-Indic (۰۱۲۳۴۵۶۷۸۹) digits to ASCII.
+export function toAsciiDigits(input: string): string {
+  const s = String(input ?? "");
+  return s
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0));
+}
+
 export function cleanPhoneForStorage(phone: string): string {
-  let digits = (phone || "").replace(/\D/g, "");
+  let digits = toAsciiDigits(phone || "").replace(/\D/g, "");
 
   if (digits.startsWith("00218")) digits = digits.slice(5);
   if (digits.startsWith("218")) digits = digits.slice(3);
@@ -19,13 +27,8 @@ export function isValidLibyanPhone(phone: string): boolean {
   return /^09\d{8}$/.test(cleaned);
 }
 
-export function phoneToInternalEmail(localPhone: string): string {
-  const cleaned = cleanPhoneForStorage(localPhone);
-  return `${cleaned}@dora.ly`;
-}
-
 export function getDigitsOnly(phone: string): string {
-  return (phone || "").replace(/\D/g, "");
+  return toAsciiDigits(phone || "").replace(/\D/g, "");
 }
 
 export function getWhatsAppLink(phone: string): string {
@@ -48,9 +51,16 @@ export function formatPhoneDisplay(phone: string): string {
   return cleanPhoneForStorage(phone);
 }
 
+
+export function libyaPhoneToE164(phone: string): string {
+  // Returns E.164 (+218...) for Supabase Phone OTP.
+  // Accepts local formats like 09XXXXXXXX, 9XXXXXXXX, 2189..., +2189...
+  return normalizePhone(phone);
+}
+
 // legacy
 export function normalizePhone(phone: string): string {
-  let cleaned = (phone || "").replace(/[^\d+]/g, "");
+  let cleaned = toAsciiDigits(phone || "").replace(/[^\d+]/g, "");
 
   if (cleaned.startsWith("+")) cleaned = cleaned.slice(1);
   if (cleaned.startsWith("0")) cleaned = "218" + cleaned.slice(1);

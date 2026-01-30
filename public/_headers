@@ -1,0 +1,34 @@
+# Ensure JS/CSS are served with correct MIME types.
+# Fixes "Expected a JavaScript module script but the server responded with a MIME type of 'text/html'"
+# on some hosts (e.g. Cloudflare Pages) that otherwise return HTML for asset requests.
+
+# Avoid long-lived cache for the shell so clients get fresh chunk URLs after deploy.
+/
+  Cache-Control: no-cache, max-age=0, must-revalidate
+
+/index.html
+  Cache-Control: no-cache, max-age=0, must-revalidate
+
+/*.js
+  Content-Type: application/javascript
+  X-Content-Type-Options: nosniff
+
+/*.mjs
+  Content-Type: application/javascript
+  X-Content-Type-Options: nosniff
+
+/assets/*.js
+  Content-Type: application/javascript
+  X-Content-Type-Options: nosniff
+
+/assets/*.mjs
+  Content-Type: application/javascript
+  X-Content-Type-Options: nosniff
+
+/*.css
+  Content-Type: text/css
+  X-Content-Type-Options: nosniff
+
+/assets/*.css
+  Content-Type: text/css
+  X-Content-Type-Options: nosniff
