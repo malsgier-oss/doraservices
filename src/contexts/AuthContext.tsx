@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode } fro
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { TablesInsert } from "@/integrations/supabase/types";
-import { cleanPhoneForStorage, phoneToInternalEmail, isValidLibyanPhone } from "@/lib/phoneUtils";
+import { cleanPhoneForStorage, isValidLibyanPhone, libyaPhoneToE164 } from "@/lib/phoneUtils";
 
 const isProviderLike = (role: string) => {
   const r = (role || "").toLowerCase();
@@ -47,18 +47,19 @@ interface AuthContextType {
   loading: boolean;
   profileLoading: boolean;
 
-  signUp: (
+  requestOtp: (phone: string) => Promise<{ error: Error | null }>;
+  verifyOtp: (
     phone: string,
-    password: string,
-    fullName: string,
-    cityId: string,
-    cityName: string,
-  ) => Promise<{ error: Error | null }>;
+    code: string,
+  ) => Promise<{ data?: unknown; error: Error | null }>;
 
-  signIn: (phone: string, password: string) => Promise<{ error: Error | null }>;
+  // Used after OTP verify to fill/update profile fields (name, city, etc.)
+  updateProfileBasics: (overrides: EnsureOverrides) => Promise<{ error: Error | null }>;
+
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
+
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -258,177 +259,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signUp = async (
-    phone: string,
-    password: string,
-    fullName: string,
-    cityId: string,
-    cityName: string,
-  ) => {
+  
+  const requestOtp = async (phone: string) => {
     const cleanedPhone = cleanPhoneForStorage(phone);
 
     if (!isValidLibyanPhone(cleanedPhone)) {
       return { error: new Error("Invalid phone format (09XXXXXXXX)") };
     }
 
-    const internalEmail = phoneToInternalEmail(cleanedPhone);
+    const e164 = libyaPhoneToE164(cleanedPhone);
 
-    // Signup creates a session by default. We suppress auth state updates during this flow,
-    // then explicitly sign out so the user is not auto-logged-in after registration.
-    ignoreAuthEventsRef.current += 1;
-    let shouldSignOut = false;
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email: internalEmail,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-            phone: cleanedPhone,
-            city_id: cityId,
-            city: cityName,
-          },
-        },
-      });
-
-      if (error) {
-        console.error("[signUp] error:", error);
-        return { error: new Error(error.message) };
-      }
-
-      if (!data.user) {
-        return { error: new Error("Signup failed: No user returned") };
-      }
-
-      // Some projects disable session return on signUp; we temporarily sign in so we can create/update the profile.
-      if (!data.session) {
-        const { error: signInErr } = await supabase.auth.signInWithPassword({
-          email: internalEmail,
-          password,
-        });
-
-        if (signInErr) {
-          console.error("[signUp] auto-login failed:", signInErr);
-
-          const msg = String(signInErr.message || "").toLowerCase();
-          if (msg.includes("email not confirmed")) {
-            return {
-              error: new Error(
-                "Email confirmation is ON in Supabase. Turn it OFF (Auth → Providers → Email → Confirm email = OFF), then signup again.",
-              ),
-            };
-          }
-          return { error: new Error(signInErr.message) };
-        }
-        shouldSignOut = true;
-      } else {
-        shouldSignOut = true;
-      }
-
-      // Ensure profile exists and fill with overrides
-      // ensureProfile now handles is_verified correctly (sets to false for new users)
-      const profile = await ensureProfile(data.user, {
-        fullName,
-        phone: cleanedPhone,
-        cityId,
-        cityName,
-      });
-
-      if (!profile) {
-        console.error("[signUp] Failed to create/update profile");
-        // Still sign out even if profile creation failed
-        await supabase.auth.signOut();
-        setUser(null);
-        setSession(null);
-        setProfile(null);
-        return { error: new Error("Failed to create user profile. Please try again.") };
-      }
-
-      // Verify that is_verified is set to false (should be handled by ensureProfile, but double-check)
-      // Only update if it's null or true (not already false)
-      if (profile.is_verified !== false) {
-        const { error: verifyError } = await supabase
-          .from("profiles")
-          .update({ is_verified: false })
-          .eq("user_id", data.user.id)
-          .or("is_verified.is.null,is_verified.eq.true"); // Only update if null or true
-        
-        if (verifyError) {
-          console.error("[signUp] Failed to set is_verified:", verifyError);
-          // Don't fail signup for this, but log the error
-        }
-      }
-
-      // Always sign out after signup (no auto login).
-      await supabase.auth.signOut();
-      setUser(null);
-      setSession(null);
-      setProfile(null);
-      shouldSignOut = false;
-
-      return { error: null };
-    } catch (e) {
-      console.error("[signUp] exception:", e);
-      return { error: new Error("Signup failed") };
-    } finally {
-      // Best-effort: if something went wrong after auth created a session, do not leave the client signed in.
-      if (shouldSignOut) {
-        try {
-          await supabase.auth.signOut();
-        } catch {
-          // ignore
-        }
-        setUser(null);
-        setSession(null);
-        setProfile(null);
-      }
-      ignoreAuthEventsRef.current = Math.max(0, ignoreAuthEventsRef.current - 1);
-    }
-  };
-
-  const signIn = async (phone: string, password: string) => {
-    const cleanedPhone = cleanPhoneForStorage(phone);
-
-    if (!isValidLibyanPhone(cleanedPhone)) {
-      return { error: new Error("Invalid phone format (09XXXXXXXX)") };
-    }
-
-    const internalEmail = phoneToInternalEmail(cleanedPhone);
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: internalEmail,
-      password,
+    const { error } = await supabase.auth.signInWithOtp({
+      phone: e164,
+      options: {
+        // Ensure user is created on first verification
+        shouldCreateUser: true,
+        // Keep phone in metadata for profile creation
+        data: { phone: cleanedPhone },
+      },
     });
 
-    if (error) return { error: new Error(error.message) };
+    return { error: error ? new Error(error.message) : null };
+  };
 
-    // Check if user is verified after successful sign-in
-    // Admin users should bypass verification check
-    if (data.user) {
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("is_verified, role")
-        .eq("user_id", data.user.id)
-        .maybeSingle();
+  const verifyOtp = async (phone: string, code: string) => {
+    const cleanedPhone = cleanPhoneForStorage(phone);
 
-      if (profileData) {
-        const userRole = (profileData.role || "").toLowerCase();
-        const isAdmin = userRole === "admin";
-        
-        // Only block non-admin users who are not verified
-        // Handle both false and null as unverified
-        const isVerified = profileData.is_verified === true;
-        if (!isAdmin && !isVerified) {
-          // Sign out the user if not verified
-          await supabase.auth.signOut();
-          setUser(null);
-          setSession(null);
-          setProfile(null);
-          return { error: new Error("Your account is pending admin verification. Please wait for approval.") };
-        }
-      }
+    if (!isValidLibyanPhone(cleanedPhone)) {
+      return { error: new Error("Invalid phone format (09XXXXXXXX)") };
     }
 
+    const e164 = libyaPhoneToE164(cleanedPhone);
+
+    const { data, error } = await supabase.auth.verifyOtp({
+      phone: e164,
+      token: code,
+      type: "sms",
+    });
+
+    return { data, error: error ? new Error(error.message) : null };
+  };
+
+  const updateProfileBasics = async (overrides: EnsureOverrides) => {
+    // After OTP verification there can be a brief race where `user` in context is still null.
+    // In that case, pull a fresh user from Supabase before attempting profile writes.
+    let authUser = user;
+    if (!authUser) {
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data?.user) return { error: new Error("Not signed in") };
+      authUser = data.user;
+    }
+
+    const profile = await ensureProfile(authUser, overrides);
+    if (!profile) return { error: new Error("Failed to update profile") };
+    setProfile(profile);
     return { error: null };
   };
 
@@ -447,8 +331,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         loading,
         profileLoading,
-        signUp,
-        signIn,
+        requestOtp,
+        verifyOtp,
+        updateProfileBasics,
         signOut,
         refreshProfile,
       }}

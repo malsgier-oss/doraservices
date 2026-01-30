@@ -27,11 +27,6 @@ export function isValidLibyanPhone(phone: string): boolean {
   return /^09\d{8}$/.test(cleaned);
 }
 
-export function phoneToInternalEmail(localPhone: string): string {
-  const cleaned = cleanPhoneForStorage(localPhone);
-  return `${cleaned}@dora.ly`;
-}
-
 export function getDigitsOnly(phone: string): string {
   return toAsciiDigits(phone || "").replace(/\D/g, "");
 }
@@ -54,6 +49,13 @@ export function getTelLink(phone: string): string {
 
 export function formatPhoneDisplay(phone: string): string {
   return cleanPhoneForStorage(phone);
+}
+
+
+export function libyaPhoneToE164(phone: string): string {
+  // Returns E.164 (+218...) for Supabase Phone OTP.
+  // Accepts local formats like 09XXXXXXXX, 9XXXXXXXX, 2189..., +2189...
+  return normalizePhone(phone);
 }
 
 // legacy
